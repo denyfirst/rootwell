@@ -27,6 +27,9 @@ tested.
 - [Product and execution plan](docs/PRODUCT-PLAN-AZ.md)
 - [Expanded platform vision](docs/PLATFORM-VISION-AZ.md)
 - [Engineering workflow](docs/ENGINEERING.md)
+- [Workbench threat model](docs/THREAT-MODEL.md)
+- [Security invariants](docs/SECURITY-INVARIANTS.md)
+- [v0.1 format matrix](docs/FORMAT-MATRIX.md)
 
 No production cryptographic implementation exists yet. Threat boundaries,
 format scope, and test contracts are established before private-key handling

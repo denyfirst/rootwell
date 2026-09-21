@@ -1,0 +1,37 @@
+name: Scheduled fuzzing
+
+on:
+  schedule:
+    - cron: "31 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: scheduled-fuzz-${{ github.ref }}-${{ matrix.target }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: FuzzRun
+            package: ./internal/cli
+          - target: FuzzVersionValue
+            package: ./internal/version
+    steps:
+      - name: Check out the default branch
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Fuzz for five minutes
+        run: go test "${{ matrix.package }}" -run=^$ -fuzz="^${{ matrix.target }}$" -fuzztime=5m

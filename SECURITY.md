@@ -7,12 +7,11 @@ material. Security reports are treated as product work, not support noise.
 
 Do not open a public issue for a suspected vulnerability or include secrets,
 private keys, production certificates, credentials, or customer data in a
-report. Use the private security-reporting channel published on the Rootwell
-GitHub repository once it is available.
+report. Use [GitHub private vulnerability reporting](https://github.com/denyfirst/rootwell/security/advisories/new).
 
-Until that repository channel exists, do not send production secret material.
-A minimal report may describe the affected command, version, expected security
-boundary, observed behavior, and a reproduction using generated test material.
+Do not send production secret material. A minimal report may describe the
+affected command, version, expected security boundary, observed behavior, and a
+reproduction using generated test material.
 
 ## Scope
 
