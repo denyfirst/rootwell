@@ -16,6 +16,7 @@ requires a new schema identifier and an explicit migration note.
 | `encoding` | Parsed input container: `pem` or `der` |
 | `subject`, `issuer`, `serial` | Certificate identity metadata |
 | `validity` | RFC 3339 `not_before` and `not_after` values; not a trust verdict |
+| `time_window` | Evaluation instant, interval status, and nullable relative-second values |
 | `public_key` | Algorithm, bit size when known, and curve name when applicable |
 | `signature_algorithm` | Algorithm declared by the certificate |
 | `basic_constraints` | Presence, CA flag, and nullable path-length constraint |
@@ -32,6 +33,16 @@ Repeated fields are always JSON arrays, including when empty. Optional scalar
 state uses an explicit empty string, zero, `false`, or `null` according to the
 field type; fields are not conditionally omitted.
 
+`time_window.status` is one of `within-validity-window`, `not-yet-valid`,
+`expired`, or `invalid-range`. Exactly one of `seconds_until_start`,
+`seconds_until_expiry`, and `seconds_since_expiry` is non-null for a valid
+interval; all three are null for `invalid-range`. Interval endpoints are
+inclusive. Relative values saturate instead of wrapping on an extreme range.
+
+The v1 contract may gain additive fields. Consumers must ignore fields they do
+not recognize. Removing, renaming, or changing the meaning or type of an
+existing field requires a new schema identifier.
+
 ## Security properties and non-claims
 
 - The schema has no raw certificate, private-key, passphrase, file-path, or
@@ -41,7 +52,8 @@ field type; fields are not conditionally omitted.
   metadata fails closed instead of being silently replaced.
 - Both human and JSON views are derived from the same bounded parsed result.
 - Times reproduce certificate metadata. They do not state that the certificate
-  is currently valid.
+  is trusted. `time_window` states only whether the evaluation instant falls
+  inside the encoded interval.
 - Critical and unhandled extensions are observations, not acceptance.
 - Parsing success is not chain, signature, hostname, revocation, or trust
   verification.

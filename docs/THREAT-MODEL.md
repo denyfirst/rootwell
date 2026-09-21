@@ -127,6 +127,12 @@ preserving decoded string values, including non-ASCII certificate names. Key
 usage, Basic Constraints, identifiers, and critical extensions are reported as
 observations; reporting them does not mean that Rootwell accepts their policy.
 
+The current UTC instant is compared with the encoded inclusive validity
+interval. `within-validity-window` means only `NotBefore <= now <= NotAfter`.
+It does not imply a valid signature, trusted chain, suitable hostname or usage,
+or non-revoked status. Reversed intervals fail closed as `invalid-range`, and
+relative-second calculations saturate rather than wrapping.
+
 ## Supply-chain boundary
 
 - The shipped module starts with no runtime dependencies.

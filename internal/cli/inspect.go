@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/certinspect"
 	"github.com/denyfirst/rootwell/internal/fileinput"
@@ -18,7 +19,7 @@ const (
 	inspectJSONOutput
 )
 
-func runInspect(path string, outputFormat inspectOutput, stdout, stderr io.Writer) int {
+func runInspect(path string, outputFormat inspectOutput, now time.Time, stdout, stderr io.Writer) int {
 	input, err := fileinput.Read(path)
 	if err != nil {
 		switch {
@@ -48,18 +49,19 @@ func runInspect(path string, outputFormat inspectOutput, stdout, stderr io.Write
 			return writeDiagnostic(stderr, "invalid x509 certificate\n", ExitFailure)
 		}
 	}
+	timeWindow := certinspect.EvaluateTimeWindow(result.NotBefore, result.NotAfter, now)
 
 	if outputFormat == inspectJSONOutput {
-		output, renderErr := renderCertificateJSON(result)
+		output, renderErr := renderCertificateJSON(result, timeWindow)
 		if renderErr != nil {
 			return writeDiagnostic(stderr, "output encoding failed\n", ExitFailure)
 		}
 		return writeRequested(stdout, stderr, output)
 	}
-	return writeRequested(stdout, stderr, renderCertificate(result))
+	return writeRequested(stdout, stderr, renderCertificate(result, timeWindow))
 }
 
-func renderCertificate(result certinspect.Result) string {
+func renderCertificate(result certinspect.Result, timeWindow certinspect.TimeWindow) string {
 	var output strings.Builder
 	fmt.Fprintln(&output, "type: x509-certificate")
 	fmt.Fprintf(&output, "encoding: %s\n", result.Encoding)
@@ -68,6 +70,11 @@ func renderCertificate(result certinspect.Result) string {
 	fmt.Fprintf(&output, "serial: %s\n", result.Serial)
 	fmt.Fprintf(&output, "not-before: %s\n", result.NotBefore.UTC().Format("2006-01-02T15:04:05Z07:00"))
 	fmt.Fprintf(&output, "not-after: %s\n", result.NotAfter.UTC().Format("2006-01-02T15:04:05Z07:00"))
+	fmt.Fprintf(&output, "time-window-status: %s\n", timeWindow.Status)
+	fmt.Fprintf(&output, "evaluated-at: %s\n", timeWindow.EvaluatedAt.UTC().Format(time.RFC3339Nano))
+	writeRelativeTime(&output, "seconds-until-start", "whole-days-until-start", timeWindow.SecondsUntilStart)
+	writeRelativeTime(&output, "seconds-until-expiry", "whole-days-until-expiry", timeWindow.SecondsUntilExpiry)
+	writeRelativeTime(&output, "seconds-since-expiry", "whole-days-since-expiry", timeWindow.SecondsSinceExpiry)
 	fmt.Fprintf(&output, "public-key-algorithm: %s\n", result.PublicKeyAlgorithm)
 	fmt.Fprintf(&output, "public-key-bits: %d\n", result.PublicKeyBits)
 	if result.PublicKeyCurve != "" {
@@ -96,6 +103,14 @@ func renderCertificate(result certinspect.Result) string {
 	writeQuotedValues(&output, "ip-san", result.IPAddresses)
 	writeQuotedValues(&output, "uri-san", result.URIs)
 	return output.String()
+}
+
+func writeRelativeTime(output *strings.Builder, secondsLabel, daysLabel string, seconds *int64) {
+	if seconds == nil {
+		return
+	}
+	fmt.Fprintf(output, "%s: %d\n", secondsLabel, *seconds)
+	fmt.Fprintf(output, "%s: %d\n", daysLabel, *seconds/86400)
 }
 
 func writeQuotedValues(output *strings.Builder, label string, values []string) {

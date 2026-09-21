@@ -28,6 +28,8 @@ jobs:
             package: ./internal/cli
           - target: FuzzInspectCertificate
             package: ./internal/certinspect
+          - target: FuzzEvaluateTimeWindow
+            package: ./internal/certinspect
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzVersionValue

@@ -96,3 +96,16 @@ Guarded by `TestInspectJSONCommand`,
 `TestJSONCertificateOutputRejectsInvalidUTF8`,
 `TestJSONSchemaExcludesSecretBearingFields`, and
 `FuzzJSONCertificateOutput`.
+
+## C11 — Time-window status is bounded, explicit, and not trust
+
+Validity endpoints are inclusive and evaluated as UTC instants. A reversed
+interval is reported as `invalid-range`; relative seconds never become
+negative or wrap on extreme input. Exactly one relative value is present for a
+valid interval. Output calls this a time-window status so parsing or a current
+date cannot be mistaken for certificate trust.
+
+Guarded by `TestEvaluateTimeWindow`,
+`TestEvaluateTimeWindowUsesInstantNotLocation`,
+`TestEvaluateTimeWindowSaturatesExtremeDistance`, and
+`FuzzEvaluateTimeWindow`.
