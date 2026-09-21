@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build:
     name: Build and test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -80,7 +80,7 @@ jobs:
 
   invariants:
     name: Security invariants
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -111,7 +111,7 @@ jobs:
 
   fuzz-targets:
     name: Fuzz target inventory
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -150,7 +150,7 @@ jobs:
   commit-signatures:
     name: Commit signatures
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -192,7 +192,7 @@ jobs:
 
   vulncheck:
     name: Known vulnerabilities
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -212,7 +212,7 @@ jobs:
 
   staticcheck:
     name: Static analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -238,7 +238,7 @@ jobs:
 
   gosec:
     name: Security linter
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
