@@ -155,15 +155,24 @@ jobs:
       contents: read
     steps:
       - name: Fetch the pull request history without checking it out
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -eu
+
+          # GITHUB_SHA is GitHub's synthetic two-parent merge commit for this
+          # pull request. Deriving both sides from that commit avoids trusting
+          # event-provided branch names or commit identifiers.
           git init -q
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-          git fetch -q --no-tags --filter=blob:none origin \
-            "+${BASE_SHA}:refs/base" "+${HEAD_SHA}:refs/head"
+          git fetch -q --no-tags --filter=blob:none origin "${GITHUB_SHA}"
+          git update-ref refs/merge FETCH_HEAD
+
+          set -- $(git rev-list --parents -n 1 refs/merge)
+          if [ "$#" -ne 3 ]; then
+            echo "pull request merge commit does not have exactly two parents"
+            exit 1
+          fi
+          git update-ref refs/base "$2"
+          git update-ref refs/head "$3"
 
       - name: Verify every pull request commit against the protected base
         run: |
