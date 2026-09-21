@@ -25,6 +25,9 @@ commands:
   inspect <file>   inspect one X.509 certificate
   inspect --json <file>
                    emit versioned JSON metadata
+  verify <file> --trust-bundle <roots.pem> [--intermediates <chain.pem>]
+                   --hostname <name>
+                   verify a TLS server certificate
 `
 
 // Run executes the CLI contract using only the arguments and writers supplied
@@ -58,6 +61,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		default:
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
+	case "verify":
+		arguments, ok := parseVerifyArguments(args[1:])
+		if !ok {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runVerify(arguments, time.Now(), stdout, stderr)
 	default:
 		if len(args) != 1 {
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)

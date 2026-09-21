@@ -9,4 +9,6 @@ const (
 	MaxMetadataTextBytes = 1 << 20
 	// MaxMetadataValues limits repeated certificate metadata fields.
 	MaxMetadataValues = 4096
+	// MaxCertificatesPerBundle bounds trust and intermediate bundle work.
+	MaxCertificatesPerBundle = 64
 )

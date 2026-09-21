@@ -4,7 +4,7 @@ An invariant is a behavior Rootwell must preserve, not an aspiration. Every
 entry names tests that exist. A change that renames or removes a cited test must
 update this file in the same commit, and CI verifies that the citations resolve.
 
-This list guards the CLI and certificate-inspection boundaries. File-writing
+This list guards the CLI, certificate-inspection, and offline TLS verification boundaries. File-writing
 and private-key invariants are added with the code that first creates those
 risks.
 
@@ -109,3 +109,46 @@ Guarded by `TestEvaluateTimeWindow`,
 `TestEvaluateTimeWindowUsesInstantNotLocation`,
 `TestEvaluateTimeWindowSaturatesExtremeDistance`, and
 `FuzzEvaluateTimeWindow`.
+
+## C12 — Verification trust is explicit and role-separated
+
+TLS verification uses only caller-provided, self-signed trust anchors. System
+roots are never consulted. Non-self-signed intermediates are accepted only in
+the intermediate role and cannot be promoted into trust anchors.
+
+Guarded by `TestVerifyTLSServerCertificate`,
+`TestVerifyClassifiesFailures`, `TestParseBundleRejectsUnsafeContents`, and
+`TestBundlesOverlap`.
+
+## C13 — Verification enforces hostname, time, usage, and algorithm policy
+
+A passed TLS server verdict requires a matching explicit hostname, a valid
+chain at the evaluation instant, TLS server extended usage, and allowed public
+key and signature algorithms. RSA keys below 2048 bits and legacy or unknown
+algorithms fail closed.
+
+Guarded by `TestVerifyClassifiesFailures`, `TestValidHostnameInput`,
+`TestAllowedSignatureAlgorithms`, `TestAllowedPublicKeys`,
+`TestVerifyIgnoresUnusedPolicyIncompatibleAnchor`, and
+`TestSelectPolicyCompliantChain`.
+
+## C14 — Certificate bundles are bounded and structurally strict
+
+Trust and intermediate bundles are PEM-only, reject junk, headers, mixed block
+types and duplicates, contain at most 64 certificates, and remain within the
+16 MiB command input boundary.
+
+Guarded by `TestParseBundleRejectsUnsafeContents`,
+`TestParseBundleEnforcesCertificateCountLimit`, and
+`FuzzParseCertificateBundle`.
+
+## C15 — Verification output is honest and terminal-safe
+
+Successful output identifies the TLS server profile and explicitly reports
+that revocation was not checked and network access was disabled. Names and
+hostnames are escaped. Failures use fixed classes and do not expose paths or
+input bytes.
+
+Guarded by `TestVerifyCommand`, `TestVerifyDoesNotEchoSensitiveInput`,
+`TestHumanVerificationOutputEscapesText`, and
+`FuzzHumanVerificationOutput`.

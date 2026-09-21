@@ -31,7 +31,7 @@ tested.
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - [v0.1 format matrix](docs/FORMAT-MATRIX.md)
 
-## First command
+## Implemented commands
 
 Inspect one local X.509 certificate in PEM or DER form:
 
@@ -54,6 +54,23 @@ Rootwell also evaluates the certificate's encoded validity interval against the
 current UTC instant. It reports `within-validity-window`, `not-yet-valid`,
 `expired`, or `invalid-range`, together with explicit relative seconds and whole
 days. This time-window observation is not a trust or verification verdict.
+
+Verify a TLS server leaf against explicit local trust material:
+
+```text
+rootwell verify server.pem \
+  --trust-bundle company-roots.pem \
+  --intermediates company-intermediates.pem \
+  --hostname portal.company.local
+```
+
+`--intermediates` is optional; the trust bundle and hostname are mandatory.
+The leaf may be PEM or DER, while CA bundles are strict PEM certificate
+bundles. Verification uses no operating-system trust store and makes no network
+requests. It checks the chain, signatures, validity, TLS server usage, hostname,
+constraints, and Rootwell's initial algorithm policy. It does **not** check
+revocation, OCSP, CRLs, Certificate Transparency, or the certificate currently
+served by a remote endpoint. See [the TLS verification contract](docs/VERIFY-TLS.md).
 
 Private-key handling and conversion are intentionally not implemented yet.
 Their threat boundaries and failure contracts must be established before code

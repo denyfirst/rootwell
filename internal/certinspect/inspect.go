@@ -70,32 +70,42 @@ type Result struct {
 // Inspect parses exactly one PEM or DER X.509 certificate. It performs no
 // network access and makes no trust or validity decision.
 func Inspect(input []byte) (Result, error) {
+	certificate, encoding, err := Parse(input)
+	if err != nil {
+		return Result{}, err
+	}
+	return resultFromCertificate(certificate, encoding)
+}
+
+// Parse returns exactly one bounded PEM or DER X.509 certificate. Callers must
+// apply an explicit trust and algorithm policy before treating it as verified.
+func Parse(input []byte) (*x509.Certificate, Encoding, error) {
 	if len(input) == 0 {
-		return Result{}, ErrEmpty
+		return nil, "", ErrEmpty
 	}
 	if int64(len(input)) > limits.MaxInputBytes {
-		return Result{}, ErrTooLarge
+		return nil, "", ErrTooLarge
 	}
 
 	der, encoding, err := decode(input)
 	if err != nil {
-		return Result{}, err
+		return nil, "", err
 	}
 
 	var object asn1.RawValue
 	rest, err := asn1.Unmarshal(der, &object)
 	if err != nil || object.Class != asn1.ClassUniversal || object.Tag != asn1.TagSequence || !object.IsCompound {
-		return Result{}, ErrInvalidCertificate
+		return nil, "", ErrInvalidCertificate
 	}
 	if len(rest) != 0 {
-		return Result{}, ErrTrailingData
+		return nil, "", ErrTrailingData
 	}
 
 	certificate, err := x509.ParseCertificate(der)
 	if err != nil {
-		return Result{}, ErrInvalidCertificate
+		return nil, "", ErrInvalidCertificate
 	}
-	return resultFromCertificate(certificate, encoding)
+	return certificate, encoding, nil
 }
 
 func decode(input []byte) ([]byte, Encoding, error) {
