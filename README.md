@@ -37,12 +37,18 @@ Inspect one local X.509 certificate in PEM or DER form:
 
 ```text
 rootwell inspect certificate.pem
+rootwell inspect --json certificate.der
 ```
 
 The command reads at most 16 MiB, ignores the file extension, rejects multiple
 or trailing objects, performs no network access, and prints escaped metadata.
 A successful result means only that one certificate parsed successfully; it is
 not a trust, signature, chain, hostname, or expiry-policy verdict.
+
+Inspection reports public-key details, key usages, Basic Constraints, key
+identifiers, SANs, critical-extension OIDs, and the SHA-256 fingerprint. JSON
+uses the documented `rootwell.inspect.x509.v1` compatibility contract and
+contains metadata only. See [the JSON contract](docs/INSPECT-JSON.md).
 
 Private-key handling and conversion are intentionally not implemented yet.
 Their threat boundaries and failure contracts must be established before code

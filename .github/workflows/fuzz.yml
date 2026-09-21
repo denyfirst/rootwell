@@ -24,6 +24,8 @@ jobs:
             package: ./internal/cli
           - target: FuzzHumanCertificateOutput
             package: ./internal/cli
+          - target: FuzzJSONCertificateOutput
+            package: ./internal/cli
           - target: FuzzInspectCertificate
             package: ./internal/certinspect
           - target: FuzzReadLimited

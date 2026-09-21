@@ -28,9 +28,14 @@ must not look like a supported but failed operation.
 
 ## Structured output
 
-JSON is deferred until the first inspection result model exists. When added,
-it will use a versioned, typed schema that cannot contain private-key bytes.
-Human-readable and JSON modes will be derived from the same result object.
+`inspect --json <file>` emits the typed `rootwell.inspect.x509.v1` schema. It
+cannot contain private-key bytes, raw input, or the input path. Human-readable
+and JSON modes are derived from the same result object. Repeated fields are
+always arrays, including when empty, and incompatible changes require a new
+schema identifier.
+
+JSON string semantics are preserved, but non-ASCII runes are emitted as Unicode
+escapes so formatting controls cannot directly affect a terminal.
 
 ## Consequences
 
@@ -41,3 +46,4 @@ Human-readable and JSON modes will be derived from the same result object.
   success.
 - Future commands must document whether their inputs are public, sensitive, or
   secret before their flags are accepted.
+- Automation can select a named JSON schema instead of parsing human output.
