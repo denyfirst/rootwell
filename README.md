@@ -50,6 +50,11 @@ identifiers, SANs, critical-extension OIDs, and the SHA-256 fingerprint. JSON
 uses the documented `rootwell.inspect.x509.v1` compatibility contract and
 contains metadata only. See [the JSON contract](docs/INSPECT-JSON.md).
 
+Rootwell also evaluates the certificate's encoded validity interval against the
+current UTC instant. It reports `within-validity-window`, `not-yet-valid`,
+`expired`, or `invalid-range`, together with explicit relative seconds and whole
+days. This time-window observation is not a trust or verification verdict.
+
 Private-key handling and conversion are intentionally not implemented yet.
 Their threat boundaries and failure contracts must be established before code
 is added.

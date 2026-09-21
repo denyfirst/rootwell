@@ -3,6 +3,7 @@ package cli
 
 import (
 	"io"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/version"
 )
@@ -51,9 +52,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "inspect":
 		switch {
 		case len(args) == 2 && args[1] != "--json":
-			return runInspect(args[1], inspectHuman, stdout, stderr)
+			return runInspect(args[1], inspectHuman, time.Now(), stdout, stderr)
 		case len(args) == 3 && args[1] == "--json":
-			return runInspect(args[2], inspectJSONOutput, stdout, stderr)
+			return runInspect(args[2], inspectJSONOutput, time.Now(), stdout, stderr)
 		default:
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}

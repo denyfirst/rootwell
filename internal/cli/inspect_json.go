@@ -22,6 +22,7 @@ type inspectJSON struct {
 	Issuer                      string               `json:"issuer"`
 	Serial                      string               `json:"serial"`
 	Validity                    validityJSON         `json:"validity"`
+	TimeWindow                  timeWindowJSON       `json:"time_window"`
 	PublicKey                   publicKeyJSON        `json:"public_key"`
 	SignatureAlgorithm          string               `json:"signature_algorithm"`
 	BasicConstraints            basicConstraintsJSON `json:"basic_constraints"`
@@ -39,6 +40,14 @@ type inspectJSON struct {
 type validityJSON struct {
 	NotBefore string `json:"not_before"`
 	NotAfter  string `json:"not_after"`
+}
+
+type timeWindowJSON struct {
+	Status             string `json:"status"`
+	EvaluatedAt        string `json:"evaluated_at"`
+	SecondsUntilStart  *int64 `json:"seconds_until_start"`
+	SecondsUntilExpiry *int64 `json:"seconds_until_expiry"`
+	SecondsSinceExpiry *int64 `json:"seconds_since_expiry"`
 }
 
 type publicKeyJSON struct {
@@ -64,15 +73,22 @@ type fingerprintsJSON struct {
 	SHA256 string `json:"sha256"`
 }
 
-func renderCertificateJSON(result certinspect.Result) (string, error) {
+func renderCertificateJSON(result certinspect.Result, timeWindow certinspect.TimeWindow) (string, error) {
 	document := inspectJSON{
-		SchemaVersion:      inspectSchemaVersion,
-		ObjectType:         "x509-certificate",
-		Encoding:           string(result.Encoding),
-		Subject:            result.Subject,
-		Issuer:             result.Issuer,
-		Serial:             result.Serial,
-		Validity:           validityJSON{NotBefore: formatTime(result.NotBefore), NotAfter: formatTime(result.NotAfter)},
+		SchemaVersion: inspectSchemaVersion,
+		ObjectType:    "x509-certificate",
+		Encoding:      string(result.Encoding),
+		Subject:       result.Subject,
+		Issuer:        result.Issuer,
+		Serial:        result.Serial,
+		Validity:      validityJSON{NotBefore: formatTime(result.NotBefore), NotAfter: formatTime(result.NotAfter)},
+		TimeWindow: timeWindowJSON{
+			Status:             string(timeWindow.Status),
+			EvaluatedAt:        timeWindow.EvaluatedAt.UTC().Format(time.RFC3339Nano),
+			SecondsUntilStart:  timeWindow.SecondsUntilStart,
+			SecondsUntilExpiry: timeWindow.SecondsUntilExpiry,
+			SecondsSinceExpiry: timeWindow.SecondsSinceExpiry,
+		},
 		PublicKey:          publicKeyJSON{Algorithm: result.PublicKeyAlgorithm, Bits: result.PublicKeyBits, Curve: result.PublicKeyCurve},
 		SignatureAlgorithm: result.SignatureAlgorithm,
 		BasicConstraints: basicConstraintsJSON{

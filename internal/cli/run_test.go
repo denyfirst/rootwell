@@ -170,6 +170,12 @@ func TestInspectJSONCommand(t *testing.T) {
 	if document.Fingerprints.SHA256 == "" {
 		t.Error("SHA-256 fingerprint is empty")
 	}
+	if document.TimeWindow.Status == "" {
+		t.Error("time-window status is empty")
+	}
+	if _, err := time.Parse(time.RFC3339Nano, document.TimeWindow.EvaluatedAt); err != nil {
+		t.Errorf("evaluated_at is not RFC 3339: %v", err)
+	}
 }
 
 func TestJSONCertificateOutputIsASCIIAndSemantic(t *testing.T) {
@@ -184,7 +190,7 @@ func TestJSONCertificateOutputIsASCIIAndSemantic(t *testing.T) {
 		SignatureAlgorithm: "PureEd25519",
 		DNSNames:           []string{"münasib.example"},
 	}
-	output, err := renderCertificateJSON(result)
+	output, err := renderCertificateJSON(result, cliTestTimeWindow())
 	if err != nil {
 		t.Fatalf("renderCertificateJSON() error = %v", err)
 	}
@@ -207,10 +213,13 @@ func TestJSONCertificateOutputIsASCIIAndSemantic(t *testing.T) {
 	if decoded.Subject != result.Subject || len(decoded.SubjectAlternativeNames.DNS) != 1 || decoded.SubjectAlternativeNames.DNS[0] != result.DNSNames[0] {
 		t.Fatalf("ASCII escaping changed JSON semantics: %#v", decoded)
 	}
+	if decoded.TimeWindow.Status != string(certinspect.TimeWindowWithin) || decoded.TimeWindow.SecondsUntilExpiry == nil || *decoded.TimeWindow.SecondsUntilExpiry != 86400 {
+		t.Fatalf("unexpected time-window output: %#v", decoded.TimeWindow)
+	}
 }
 
 func TestJSONCertificateOutputRejectsInvalidUTF8(t *testing.T) {
-	_, err := renderCertificateJSON(certinspect.Result{Subject: string([]byte{0xff})})
+	_, err := renderCertificateJSON(certinspect.Result{Subject: string([]byte{0xff})}, cliTestTimeWindow())
 	if !errors.Is(err, errInvalidJSONText) {
 		t.Fatalf("renderCertificateJSON() error = %v, want errInvalidJSONText", err)
 	}
@@ -290,7 +299,7 @@ func TestHumanCertificateOutputEscapesText(t *testing.T) {
 		URIs:               []string{"spiffe://example/\x1b]0;title"},
 	}
 
-	output := renderCertificate(result)
+	output := renderCertificate(result, cliTestTimeWindow())
 	for _, forbidden := range []string{"\x1b", "\u202e", "safe\n\x1b", "issuer\rname", "host\tname"} {
 		if strings.Contains(output, forbidden) {
 			t.Fatalf("output contains raw untrusted text %q: %q", forbidden, output)
@@ -299,6 +308,15 @@ func TestHumanCertificateOutputEscapesText(t *testing.T) {
 	for _, expected := range []string{`\n`, `\x1b`, `\u202e`, `\r`, `\t`} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("output does not contain escaped sequence %q: %q", expected, output)
+		}
+	}
+	for _, expected := range []string{
+		"time-window-status: within-validity-window\n",
+		"seconds-until-expiry: 86400\n",
+		"whole-days-until-expiry: 1\n",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("output does not contain time-window field %q: %q", expected, output)
 		}
 	}
 }
@@ -405,7 +423,7 @@ func FuzzHumanCertificateOutput(f *testing.F) {
 			PublicKeyAlgorithm: "Ed25519",
 			SignatureAlgorithm: "PureEd25519",
 			DNSNames:           []string{name},
-		})
+		}, cliTestTimeWindow())
 		for _, value := range []byte(output) {
 			if value != '\n' && (value < 0x20 || value > 0x7e) {
 				t.Fatalf("output contains unsafe byte 0x%02x", value)
@@ -424,7 +442,7 @@ func FuzzJSONCertificateOutput(f *testing.F) {
 			Subject:  subject,
 			Issuer:   issuer,
 			DNSNames: []string{name},
-		})
+		}, cliTestTimeWindow())
 		validText := strings.ToValidUTF8(subject, "\uFFFD") == subject && strings.ToValidUTF8(issuer, "\uFFFD") == issuer && strings.ToValidUTF8(name, "\uFFFD") == name
 		if !validText {
 			if !errors.Is(err, errInvalidJSONText) {
@@ -465,6 +483,11 @@ func cliTestCertificateDER(t testing.TB) []byte {
 		t.Fatal(err)
 	}
 	return der
+}
+
+func cliTestTimeWindow() certinspect.TimeWindow {
+	start := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	return certinspect.EvaluateTimeWindow(start, start.Add(48*time.Hour), start.Add(24*time.Hour))
 }
 
 type failingWriter struct{}

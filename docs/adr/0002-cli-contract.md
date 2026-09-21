@@ -37,6 +37,11 @@ schema identifier.
 JSON string semantics are preserved, but non-ASCII runes are emitted as Unicode
 escapes so formatting controls cannot directly affect a terminal.
 
+The v1 schema permits additive fields; consumers must ignore unknown fields.
+Removing, renaming, or changing an existing field's type or meaning requires a
+new schema identifier. The additive `time_window` object is explicitly an
+evaluation of encoded dates, not a trust verdict.
+
 ## Consequences
 
 - Shell automation can rely on exit codes rather than parsing prose.
