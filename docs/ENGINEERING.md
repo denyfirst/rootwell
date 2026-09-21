@@ -67,6 +67,25 @@ The exact commands evolve with the implementation, but CI must cover:
 
 No required check may be bypassed for convenience.
 
+The initial local gate set is:
+
+```text
+gofmt -l .
+go mod tidy
+go mod verify
+go vet ./...
+go test -shuffle=on ./...
+go build -trimpath ./...
+staticcheck ./...
+gosec -severity medium -confidence medium ./...
+govulncheck ./...
+actionlint
+```
+
+CI additionally runs the race detector on Linux and vets Linux, macOS, and
+Windows builds. Tool versions are pinned in `.github/workflows/ci.yml`; local
+runs use those same versions.
+
 ## Cryptographic code
 
 - Do not invent cryptographic primitives, ASN.1 encoders, or password-based

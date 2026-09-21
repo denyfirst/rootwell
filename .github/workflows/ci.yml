@@ -1,0 +1,257 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Deny by default. Each job receives only read access to repository contents.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# This workflow uses no third-party GitHub actions. The runner's git client
+# checks out the exact event SHA, and pinned Go tools are verified through the
+# module checksum database without entering Rootwell's runtime module.
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Report toolchain
+        run: |
+          go version
+          go env GOVERSION GOTOOLCHAIN
+
+      - name: Verify module files are tidy
+        run: |
+          set -eu
+          go mod tidy
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "go mod tidy modified the repository:"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+
+      - name: Verify module checksums
+        run: go mod verify
+
+      - name: Check formatting
+        run: |
+          set -eu
+          unformatted="$(gofmt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "These files are not gofmt-clean:"
+            echo "${unformatted}"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Vet every initially supported platform
+        run: |
+          set -eu
+          for os in linux darwin windows; do
+            echo "vet GOOS=${os}"
+            CGO_ENABLED=0 GOOS="${os}" go vet ./...
+          done
+
+      - name: Test with race detector
+        run: go test -race -shuffle=on -coverprofile=coverage.out ./...
+
+      - name: Build
+        run: go build -trimpath ./...
+
+  invariants:
+    name: Security invariants
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Verify every cited test exists
+        run: |
+          set -eu
+          grep -ohE '`(Test|Fuzz)[A-Za-z0-9_]+' docs/SECURITY-INVARIANTS.md \
+            | tr -d '`' | sort -u > /tmp/cited
+          grep -rhoE '^func (Test|Fuzz)[A-Za-z0-9_]+' --include='*_test.go' . \
+            | sed -E 's/^func //' | sort -u > /tmp/defined
+
+          missing="$(comm -23 /tmp/cited /tmp/defined)"
+          if [ -n "${missing}" ]; then
+            echo "Security invariants cite tests that do not exist:"
+            echo "${missing}"
+            exit 1
+          fi
+
+          echo "Every security invariant citation resolves to a test."
+
+  fuzz-targets:
+    name: Fuzz target inventory
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Verify every fuzz target is scheduled
+        run: |
+          set -eu
+          grep -rhoE '^func (Fuzz[A-Za-z0-9_]+)\(' --include='*_test.go' . \
+            | sed -E 's/^func //; s/\($//' | sort -u > /tmp/in-tree
+          grep -oE 'target: (Fuzz[A-Za-z0-9_]+)' .github/workflows/fuzz.yml \
+            | sed -E 's/^target: //' | sort -u > /tmp/in-matrix
+
+          missing="$(comm -23 /tmp/in-tree /tmp/in-matrix)"
+          stale="$(comm -13 /tmp/in-tree /tmp/in-matrix)"
+          if [ -n "${missing}" ]; then
+            echo "Fuzz targets missing from the scheduled matrix:"
+            echo "${missing}"
+          fi
+          if [ -n "${stale}" ]; then
+            echo "Scheduled fuzz targets that no longer exist:"
+            echo "${stale}"
+          fi
+          if [ -n "${missing}" ] || [ -n "${stale}" ]; then
+            exit 1
+          fi
+
+          echo "Every fuzz target is scheduled."
+
+  commit-signatures:
+    name: Commit signatures
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the pull request history
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --no-tags --filter=blob:none origin \
+            "+${BASE_SHA}:refs/base" "+${HEAD_SHA}:refs/head"
+          git checkout -q refs/head
+
+      - name: Verify every pull request commit
+        run: |
+          set -eu
+          test -f .github/commit-signers
+          git config gpg.format ssh
+          git config gpg.ssh.allowedSignersFile "${PWD}/.github/commit-signers"
+
+          bad=0
+          checked=0
+          for commit in $(git rev-list refs/base..refs/head); do
+            checked=$((checked + 1))
+            if ! git verify-commit "${commit}" >/dev/null 2>&1; then
+              printf 'unsigned or unknown signer: %s\n' \
+                "$(git log -1 --format=%h "${commit}")"
+              bad=$((bad + 1))
+            fi
+          done
+
+          if [ "${checked}" -eq 0 ] || [ "${bad}" -ne 0 ]; then
+            echo "${bad} of ${checked} commits failed signature verification."
+            exit 1
+          fi
+          echo "${checked} commits verified."
+
+  vulncheck:
+    name: Known vulnerabilities
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Run govulncheck
+        run: |
+          set -eu
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
+  staticcheck:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Run staticcheck
+        run: |
+          set -eu
+          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          "$(go env GOPATH)/bin/staticcheck" ./...
+
+      - name: Validate GitHub workflows
+        run: |
+          set -eu
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint"
+
+  gosec:
+    name: Security linter
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Run gosec
+        run: |
+          set -eu
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
+          "$(go env GOPATH)/bin/gosec" -severity medium -confidence medium ./...
