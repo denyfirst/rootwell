@@ -6,9 +6,9 @@ required. Anything not listed is unsupported and must fail explicitly.
 
 | Object | Encoding/container | Inspect | Match | Verify | Convert/write | v0.1 notes |
 |---|---|---:|---:|---:|---:|---|
-| X.509 certificate | PEM | implemented (single) | planned | planned | planned | exactly one header-free `CERTIFICATE` block |
-| X.509 certificate | DER | implemented (single) | planned | planned | planned | exactly one certificate; trailing data rejected |
-| Certificate chain | PEM bundle | planned | n/a | planned | planned | order is preserved and validated |
+| X.509 certificate | PEM | implemented (single) | planned | implemented (TLS server) | planned | exactly one header-free `CERTIFICATE` block |
+| X.509 certificate | DER | implemented (single) | planned | implemented (TLS server) | planned | exactly one certificate; trailing data rejected |
+| Certificate chain | PEM bundle | planned | n/a | implemented (explicit roots/intermediates) | planned | strict role separation; order is not a trust signal |
 | CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
 | CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
 | RSA private key | PKCS#8 PEM/DER | planned | planned | n/a | planned | unencrypted first; encrypted import reviewed separately |
@@ -27,7 +27,7 @@ Initial limits are deliberately conservative and become code constants with
 tests when parsing begins:
 
 - maximum input per command: 16 MiB;
-- maximum decoded PEM blocks: 256 for future bundle operations; inspection accepts exactly one;
+- maximum decoded PEM blocks: 64 for verification bundles; inspection accepts exactly one;
 - maximum certificates in one chain operation: 64;
 - one DER object must consume the complete bounded input;
 - duplicate, unrelated, or unknown PEM blocks are reported rather than ignored;
@@ -42,8 +42,11 @@ interoperability need.
 The parser may recognize legacy algorithms to explain an existing object.
 Recognition is not permission to generate, sign, or recommend it.
 
-The initial generation policy will be defined before `key generate` exists.
-Until then Rootwell generates no keys and makes no FIPS claim.
+The initial TLS verification policy accepts SHA-2 RSA and RSA-PSS signatures,
+SHA-2 ECDSA signatures, and Ed25519. Accepted public keys are RSA with at least
+2048 bits and exponent at least 65537, ECDSA P-256/P-384/P-521, and Ed25519.
+This is not a FIPS claim. The generation policy will be defined separately
+before `key generate` exists; Rootwell currently generates no user keys.
 
 ## Password handling
 

@@ -19,12 +19,24 @@ Requested data is written to stdout. Diagnostics and usage guidance are written
 to stderr. Errors are lowercase, one line, and have no trailing punctuation.
 Attacker-controlled command tokens and paths are not reflected by default.
 
-`help`, `version`, and `inspect <file>` are the successful commands in the first
-implemented increment. Inspection accepts one bounded PEM or DER X.509
+`help`, `version`, `inspect <file>`, and the explicit-trust `verify` profile are
+successful commands in the implemented increments. Inspection accepts one bounded PEM or DER X.509
 certificate and reports metadata; it does not claim trust, chain verification,
 hostname suitability, or current validity. Commands that will later process
 private material are not exposed as placeholders: an unimplemented operation
 must not look like a supported but failed operation.
+
+TLS server verification uses this contract:
+
+```text
+rootwell verify <leaf> --trust-bundle <roots.pem> [--intermediates <chain.pem>] --hostname <name>
+```
+
+Flag order is not significant. Each flag is accepted at most once. Trust roots
+and hostname are required, intermediates are optional, and unknown or incomplete
+flags are usage failures. The operation reads only named local files, never
+consults system roots, and never performs network access. A passed result always
+states that revocation was not checked.
 
 ## Structured output
 

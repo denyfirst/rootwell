@@ -193,7 +193,7 @@ həll edən kiçik, etibarlı alət hazırlamaq.
 ```text
 rootwell inspect <file>
 rootwell match --cert <file> --key <file>
-rootwell verify-chain --cert <file> --bundle <file>
+rootwell verify <file> --trust-bundle <roots.pem> --hostname <name>
 rootwell convert --input <file> --to pem|der|p12
 rootwell csr --key <file> --dns example.com --dns www.example.com
 ```
@@ -519,7 +519,7 @@ edilməlidir.
 6. Təhlükəsiz input classification və parsing limit-ləri.
 7. `rootwell inspect`.
 8. `rootwell match`.
-9. Explicit trust bundle ilə `rootwell verify-chain`.
+9. Explicit trust bundle ilə `rootwell verify`.
 10. Conversion dependency review və `rootwell convert`.
 11. `rootwell csr`.
 12. Fuzz corpus, malformed fixtures və cross-tool compatibility suite.

@@ -26,10 +26,14 @@ jobs:
             package: ./internal/cli
           - target: FuzzJSONCertificateOutput
             package: ./internal/cli
+          - target: FuzzHumanVerificationOutput
+            package: ./internal/cli
           - target: FuzzInspectCertificate
             package: ./internal/certinspect
           - target: FuzzEvaluateTimeWindow
             package: ./internal/certinspect
+          - target: FuzzParseCertificateBundle
+            package: ./internal/certverify
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzVersionValue

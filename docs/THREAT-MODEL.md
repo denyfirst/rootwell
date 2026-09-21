@@ -133,6 +133,30 @@ It does not imply a valid signature, trusted chain, suitable hostname or usage,
 or non-revoked status. Reversed intervals fail closed as `invalid-range`, and
 relative-second calculations saturate rather than wrapping.
 
+## Implemented TLS verification boundary
+
+`rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The
+caller must provide an ASCII hostname and a PEM bundle of explicit trust
+anchors. A separate optional PEM bundle supplies intermediates. Rootwell does
+not consult the operating-system trust store, merge the two roles, infer a
+hostname, or promote an intermediate to a root.
+
+Every accepted trust anchor is a self-signed CA with certificate-signing usage.
+Every accepted intermediate is a non-self-signed CA with certificate-signing
+usage. Bundles reject non-certificate blocks, PEM headers, junk, duplicates,
+more than 64 certificates, and total input over 16 MiB. The leaf must not be a
+CA. Verification checks signatures, the full validity chain, DNS hostname, TLS
+server extended usage, path constraints, and the initial Rootwell algorithm
+policy. It permits RSA keys of at least 2048 bits with a conventional exponent,
+NIST P-256/P-384/P-521 ECDSA keys, and Ed25519; legacy signature algorithms and
+unknown key types fail closed.
+
+This operation is offline. It does not fetch AIA issuers, CRLs, or OCSP, and it
+does not connect to the named host. Success therefore does not prove revocation
+status, Certificate Transparency inclusion, possession of the private key, or
+what a live endpoint currently serves. Human output states `revocation:
+not-checked` and `network: disabled` so those non-claims are not implicit.
+
 ## Supply-chain boundary
 
 - The shipped module starts with no runtime dependencies.
