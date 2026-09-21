@@ -82,3 +82,17 @@ process execution, plugins, or unsafe code. Inspection never follows URLs
 embedded in a certificate.
 
 Guarded by `TestWorkbenchHasNoNetworkOrProcessImports`.
+
+## C10 — Structured inspection output is versioned and terminal-safe
+
+JSON output is derived from the same typed certificate result as human output.
+Its schema version is explicit, repeated fields are arrays rather than `null`,
+and decoded strings preserve their meaning while the emitted document contains
+only printable ASCII and newlines. The schema has no raw certificate or
+private-key field.
+
+Guarded by `TestInspectJSONCommand`,
+`TestJSONCertificateOutputIsASCIIAndSemantic`,
+`TestJSONCertificateOutputRejectsInvalidUTF8`,
+`TestJSONSchemaExcludesSecretBearingFields`, and
+`FuzzJSONCertificateOutput`.

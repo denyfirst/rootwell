@@ -121,6 +121,12 @@ are displayed as escaped data when applicable and are never followed. The
 production Workbench packages are tested to reject direct network,
 child-process, plugin, and unsafe-code imports.
 
+Human output and the versioned JSON view come from the same typed result, which
+cannot contain private-key bytes or the input path. JSON is ASCII-escaped while
+preserving decoded string values, including non-ASCII certificate names. Key
+usage, Basic Constraints, identifiers, and critical extensions are reported as
+observations; reporting them does not mean that Rootwell accepts their policy.
+
 ## Supply-chain boundary
 
 - The shipped module starts with no runtime dependencies.

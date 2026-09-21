@@ -8,10 +8,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"math/big"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -74,6 +76,18 @@ func TestRunContract(t *testing.T) {
 			wantCode:   ExitUsage,
 			wantStderr: "invalid arguments\n",
 		},
+		{
+			name:       "inspect json missing path",
+			args:       []string{"inspect", "--json"},
+			wantCode:   ExitUsage,
+			wantStderr: "invalid arguments\n",
+		},
+		{
+			name:       "inspect unknown option",
+			args:       []string{"inspect", "--yaml", "certificate.pem"},
+			wantCode:   ExitUsage,
+			wantStderr: "invalid arguments\n",
+		},
 	}
 
 	for _, test := range tests {
@@ -120,6 +134,114 @@ func TestInspectCommand(t *testing.T) {
 			t.Errorf("stdout does not contain %q: %q", expected, stdout.String())
 		}
 	}
+}
+
+func TestInspectJSONCommand(t *testing.T) {
+	path := t.TempDir() + "/certificate.data"
+	if err := os.WriteFile(path, cliTestCertificateDER(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if got := Run([]string{"inspect", "--json", path}, &stdout, &stderr); got != ExitOK {
+		t.Fatalf("Run() code = %d, want %d; stderr = %q", got, ExitOK, stderr.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	var document inspectJSON
+	if err := json.Unmarshal(stdout.Bytes(), &document); err != nil {
+		t.Fatalf("JSON output is invalid: %v", err)
+	}
+	if document.SchemaVersion != "rootwell.inspect.x509.v1" {
+		t.Errorf("schema_version = %q, want rootwell.inspect.x509.v1", document.SchemaVersion)
+	}
+	if document.ObjectType != "x509-certificate" || document.Encoding != "der" {
+		t.Errorf("unexpected object identity: %#v", document)
+	}
+	if document.Subject != "CN=example.test" || document.Serial != "2A" {
+		t.Errorf("unexpected certificate identity: %#v", document)
+	}
+	if document.PublicKey.Algorithm != "Ed25519" || document.PublicKey.Bits != 256 {
+		t.Errorf("unexpected public key: %#v", document.PublicKey)
+	}
+	if document.Fingerprints.SHA256 == "" {
+		t.Error("SHA-256 fingerprint is empty")
+	}
+}
+
+func TestJSONCertificateOutputIsASCIIAndSemantic(t *testing.T) {
+	result := certinspect.Result{
+		Encoding:           certinspect.EncodingPEM,
+		Subject:            "şəxs\u202e😀\x7fname",
+		Issuer:             "issuer",
+		NotBefore:          time.Unix(0, 0),
+		NotAfter:           time.Unix(1, 0),
+		PublicKeyAlgorithm: "Ed25519",
+		PublicKeyBits:      256,
+		SignatureAlgorithm: "PureEd25519",
+		DNSNames:           []string{"münasib.example"},
+	}
+	output, err := renderCertificateJSON(result)
+	if err != nil {
+		t.Fatalf("renderCertificateJSON() error = %v", err)
+	}
+	for _, value := range []byte(output) {
+		if value != '\n' && (value < 0x20 || value > 0x7e) {
+			t.Fatalf("JSON output contains unsafe byte 0x%02x", value)
+		}
+	}
+	if !strings.Contains(output, `\u202e`) || !strings.Contains(output, `\ud83d\ude00`) {
+		t.Fatalf("JSON output does not escape Unicode controls and supplementary runes: %q", output)
+	}
+	if !strings.Contains(output, `"key_usage": []`) {
+		t.Fatalf("empty repeated fields must be arrays, not null: %q", output)
+	}
+
+	var decoded inspectJSON
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("JSON output is invalid: %v", err)
+	}
+	if decoded.Subject != result.Subject || len(decoded.SubjectAlternativeNames.DNS) != 1 || decoded.SubjectAlternativeNames.DNS[0] != result.DNSNames[0] {
+		t.Fatalf("ASCII escaping changed JSON semantics: %#v", decoded)
+	}
+}
+
+func TestJSONCertificateOutputRejectsInvalidUTF8(t *testing.T) {
+	_, err := renderCertificateJSON(certinspect.Result{Subject: string([]byte{0xff})})
+	if !errors.Is(err, errInvalidJSONText) {
+		t.Fatalf("renderCertificateJSON() error = %v, want errInvalidJSONText", err)
+	}
+}
+
+func TestJSONSchemaExcludesSecretBearingFields(t *testing.T) {
+	var inspectType inspectJSON
+	inspectStruct := reflect.TypeOf(inspectType)
+	var visit func(reflect.Type)
+	visit = func(valueType reflect.Type) {
+		if valueType.Kind() == reflect.Pointer || valueType.Kind() == reflect.Slice || valueType.Kind() == reflect.Array {
+			visit(valueType.Elem())
+			return
+		}
+		if valueType.Kind() != reflect.Struct {
+			return
+		}
+		for index := 0; index < valueType.NumField(); index++ {
+			field := valueType.Field(index)
+			tag := strings.ToLower(strings.Split(field.Tag.Get("json"), ",")[0])
+			name := strings.ToLower(field.Name)
+			if strings.Contains(name, "private") || strings.Contains(tag, "private") ||
+				strings.Contains(name, "passphrase") || strings.Contains(tag, "passphrase") ||
+				strings.Contains(name, "password") || strings.Contains(tag, "password") ||
+				tag == "raw" || tag == "input" || tag == "path" || tag == "file_path" || tag == "input_path" || strings.HasSuffix(tag, "_bytes") {
+				t.Errorf("JSON schema contains secret-bearing field %q", tag)
+			}
+			visit(field.Type)
+		}
+	}
+	visit(inspectStruct)
 }
 
 func TestInspectDoesNotEchoPath(t *testing.T) {
@@ -288,6 +410,42 @@ func FuzzHumanCertificateOutput(f *testing.F) {
 			if value != '\n' && (value < 0x20 || value > 0x7e) {
 				t.Fatalf("output contains unsafe byte 0x%02x", value)
 			}
+		}
+	})
+}
+
+func FuzzJSONCertificateOutput(f *testing.F) {
+	f.Add("subject", "issuer", "example.test")
+	f.Add("şəxs\u202e😀\x7f", "line\nfeed", "münasib.example")
+
+	f.Fuzz(func(t *testing.T, subject, issuer, name string) {
+		output, err := renderCertificateJSON(certinspect.Result{
+			Encoding: certinspect.EncodingDER,
+			Subject:  subject,
+			Issuer:   issuer,
+			DNSNames: []string{name},
+		})
+		validText := strings.ToValidUTF8(subject, "\uFFFD") == subject && strings.ToValidUTF8(issuer, "\uFFFD") == issuer && strings.ToValidUTF8(name, "\uFFFD") == name
+		if !validText {
+			if !errors.Is(err, errInvalidJSONText) {
+				t.Fatalf("invalid UTF-8 error = %v, want errInvalidJSONText", err)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatalf("renderCertificateJSON() error = %v", err)
+		}
+		for _, value := range []byte(output) {
+			if value != '\n' && (value < 0x20 || value > 0x7e) {
+				t.Fatalf("JSON output contains unsafe byte 0x%02x", value)
+			}
+		}
+		var decoded inspectJSON
+		if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+			t.Fatalf("JSON output is invalid: %v", err)
+		}
+		if decoded.Subject != subject || decoded.Issuer != issuer || len(decoded.SubjectAlternativeNames.DNS) != 1 || decoded.SubjectAlternativeNames.DNS[0] != name {
+			t.Fatal("JSON escaping changed certificate metadata")
 		}
 	})
 }

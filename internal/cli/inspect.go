@@ -11,7 +11,14 @@ import (
 	"github.com/denyfirst/rootwell/internal/fileinput"
 )
 
-func runInspect(path string, stdout, stderr io.Writer) int {
+type inspectOutput int
+
+const (
+	inspectHuman inspectOutput = iota
+	inspectJSONOutput
+)
+
+func runInspect(path string, outputFormat inspectOutput, stdout, stderr io.Writer) int {
 	input, err := fileinput.Read(path)
 	if err != nil {
 		switch {
@@ -42,6 +49,13 @@ func runInspect(path string, stdout, stderr io.Writer) int {
 		}
 	}
 
+	if outputFormat == inspectJSONOutput {
+		output, renderErr := renderCertificateJSON(result)
+		if renderErr != nil {
+			return writeDiagnostic(stderr, "output encoding failed\n", ExitFailure)
+		}
+		return writeRequested(stdout, stderr, output)
+	}
 	return writeRequested(stdout, stderr, renderCertificate(result))
 }
 
@@ -55,9 +69,28 @@ func renderCertificate(result certinspect.Result) string {
 	fmt.Fprintf(&output, "not-before: %s\n", result.NotBefore.UTC().Format("2006-01-02T15:04:05Z07:00"))
 	fmt.Fprintf(&output, "not-after: %s\n", result.NotAfter.UTC().Format("2006-01-02T15:04:05Z07:00"))
 	fmt.Fprintf(&output, "public-key-algorithm: %s\n", result.PublicKeyAlgorithm)
+	fmt.Fprintf(&output, "public-key-bits: %d\n", result.PublicKeyBits)
+	if result.PublicKeyCurve != "" {
+		fmt.Fprintf(&output, "public-key-curve: %s\n", result.PublicKeyCurve)
+	}
 	fmt.Fprintf(&output, "signature-algorithm: %s\n", result.SignatureAlgorithm)
+	fmt.Fprintf(&output, "basic-constraints-present: %t\n", result.BasicConstraintsValid)
 	fmt.Fprintf(&output, "is-ca: %t\n", result.IsCA)
+	if result.MaxPathLength != nil {
+		fmt.Fprintf(&output, "max-path-length: %d\n", *result.MaxPathLength)
+	}
 	fmt.Fprintf(&output, "sha256: %s\n", result.SHA256Fingerprint)
+	if result.SubjectKeyID != "" {
+		fmt.Fprintf(&output, "subject-key-id: %s\n", result.SubjectKeyID)
+	}
+	if result.AuthorityKeyID != "" {
+		fmt.Fprintf(&output, "authority-key-id: %s\n", result.AuthorityKeyID)
+	}
+	writeQuotedValues(&output, "key-usage", result.KeyUsage)
+	writeQuotedValues(&output, "extended-key-usage", result.ExtendedKeyUsage)
+	writeQuotedValues(&output, "unknown-extended-key-usage", result.UnknownExtendedKeyUsage)
+	writeQuotedValues(&output, "critical-extension", result.CriticalExtensions)
+	writeQuotedValues(&output, "unhandled-critical-extension", result.UnhandledCriticalExtensions)
 	writeQuotedValues(&output, "dns-san", result.DNSNames)
 	writeQuotedValues(&output, "email-san", result.EmailAddresses)
 	writeQuotedValues(&output, "ip-san", result.IPAddresses)

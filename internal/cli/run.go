@@ -22,6 +22,8 @@ commands:
   help             show this help
   version          show the build version
   inspect <file>   inspect one X.509 certificate
+  inspect --json <file>
+                   emit versioned JSON metadata
 `
 
 // Run executes the CLI contract using only the arguments and writers supplied
@@ -47,10 +49,14 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		}
 		return writeRequested(stdout, stderr, "rootwell "+version.Value()+"\n")
 	case "inspect":
-		if len(args) != 2 {
+		switch {
+		case len(args) == 2 && args[1] != "--json":
+			return runInspect(args[1], inspectHuman, stdout, stderr)
+		case len(args) == 3 && args[1] == "--json":
+			return runInspect(args[2], inspectJSONOutput, stdout, stderr)
+		default:
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
-		return runInspect(args[1], stdout, stderr)
 	default:
 		if len(args) != 1 {
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)

@@ -2,11 +2,15 @@ package certinspect
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"math/big"
@@ -65,7 +69,135 @@ func TestInspectCertificate(t *testing.T) {
 			if result.IsCA {
 				t.Error("IsCA = true, want false")
 			}
+			if !result.BasicConstraintsValid {
+				t.Error("BasicConstraintsValid = false, want true")
+			}
+			if result.PublicKeyBits != 256 {
+				t.Errorf("PublicKeyBits = %d, want 256", result.PublicKeyBits)
+			}
+			if !equalStrings(result.KeyUsage, []string{"digital-signature"}) {
+				t.Errorf("KeyUsage = %q", result.KeyUsage)
+			}
+			if !equalStrings(result.ExtendedKeyUsage, []string{"server-auth"}) {
+				t.Errorf("ExtendedKeyUsage = %q", result.ExtendedKeyUsage)
+			}
+			if result.SubjectKeyID != "01:02:03:04" {
+				t.Errorf("SubjectKeyID = %q", result.SubjectKeyID)
+			}
 		})
+	}
+}
+
+func TestPublicKeyDetails(t *testing.T) {
+	tests := []struct {
+		name      string
+		publicKey any
+		wantBits  int
+		wantCurve string
+	}{
+		{name: "RSA", publicKey: &rsa.PublicKey{N: new(big.Int).Lsh(big.NewInt(1), 2047), E: 65537}, wantBits: 2048},
+		{name: "ECDSA", publicKey: &ecdsa.PublicKey{Curve: elliptic.P256()}, wantBits: 256, wantCurve: "P-256"},
+		{name: "Ed25519", publicKey: make(ed25519.PublicKey, ed25519.PublicKeySize), wantBits: 256},
+		{name: "unknown", publicKey: struct{}{}},
+		{name: "nil RSA", publicKey: (*rsa.PublicKey)(nil)},
+		{name: "nil ECDSA", publicKey: (*ecdsa.PublicKey)(nil)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			bits, curve := publicKeyDetails(test.publicKey)
+			if bits != test.wantBits || curve != test.wantCurve {
+				t.Fatalf("publicKeyDetails() = (%d, %q), want (%d, %q)", bits, curve, test.wantBits, test.wantCurve)
+			}
+		})
+	}
+}
+
+func TestUsageNamesAreStable(t *testing.T) {
+	usage := x509.KeyUsageDigitalSignature | x509.KeyUsageContentCommitment | x509.KeyUsageKeyEncipherment |
+		x509.KeyUsageDataEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageCertSign |
+		x509.KeyUsageCRLSign | x509.KeyUsageEncipherOnly | x509.KeyUsageDecipherOnly | x509.KeyUsage(1<<20)
+	want := []string{
+		"digital-signature", "content-commitment", "key-encipherment", "data-encipherment",
+		"key-agreement", "certificate-signing", "crl-signing", "encipher-only", "decipher-only",
+		"unknown-0x100000",
+	}
+	if got := keyUsageNames(usage); !equalStrings(got, want) {
+		t.Fatalf("keyUsageNames() = %q, want %q", got, want)
+	}
+
+	extended := []struct {
+		usage x509.ExtKeyUsage
+		name  string
+	}{
+		{x509.ExtKeyUsageAny, "any"},
+		{x509.ExtKeyUsageServerAuth, "server-auth"},
+		{x509.ExtKeyUsageClientAuth, "client-auth"},
+		{x509.ExtKeyUsageCodeSigning, "code-signing"},
+		{x509.ExtKeyUsageEmailProtection, "email-protection"},
+		{x509.ExtKeyUsageIPSECEndSystem, "ipsec-end-system"},
+		{x509.ExtKeyUsageIPSECTunnel, "ipsec-tunnel"},
+		{x509.ExtKeyUsageIPSECUser, "ipsec-user"},
+		{x509.ExtKeyUsageTimeStamping, "time-stamping"},
+		{x509.ExtKeyUsageOCSPSigning, "ocsp-signing"},
+		{x509.ExtKeyUsageMicrosoftServerGatedCrypto, "microsoft-server-gated-crypto"},
+		{x509.ExtKeyUsageNetscapeServerGatedCrypto, "netscape-server-gated-crypto"},
+		{x509.ExtKeyUsageMicrosoftCommercialCodeSigning, "microsoft-commercial-code-signing"},
+		{x509.ExtKeyUsageMicrosoftKernelCodeSigning, "microsoft-kernel-code-signing"},
+		{x509.ExtKeyUsage(999), "unknown-999"},
+	}
+	for _, test := range extended {
+		if got := extendedKeyUsageName(test.usage); got != test.name {
+			t.Errorf("extendedKeyUsageName(%d) = %q, want %q", test.usage, got, test.name)
+		}
+	}
+}
+
+func TestBasicConstraintsPathLength(t *testing.T) {
+	result, err := resultFromCertificate(&x509.Certificate{
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLen:            0,
+		MaxPathLenZero:        true,
+	}, EncodingDER)
+	if err != nil {
+		t.Fatalf("resultFromCertificate() error = %v", err)
+	}
+	if result.MaxPathLength == nil || *result.MaxPathLength != 0 {
+		t.Fatalf("MaxPathLength = %v, want explicit zero", result.MaxPathLength)
+	}
+}
+
+func TestResultReportsExtensionsAndIdentifiers(t *testing.T) {
+	result, err := resultFromCertificate(&x509.Certificate{
+		SubjectKeyId:   []byte{0xaa, 0xbb},
+		AuthorityKeyId: []byte{0xcc, 0xdd},
+		ExtKeyUsage:    []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		UnknownExtKeyUsage: []asn1.ObjectIdentifier{
+			{1, 2, 3, 4},
+		},
+		Extensions: []pkix.Extension{
+			{Id: asn1.ObjectIdentifier{2, 5, 29, 15}, Critical: true},
+			{Id: asn1.ObjectIdentifier{2, 5, 29, 17}, Critical: false},
+		},
+		UnhandledCriticalExtensions: []asn1.ObjectIdentifier{{1, 2, 3, 5}},
+	}, EncodingDER)
+	if err != nil {
+		t.Fatalf("resultFromCertificate() error = %v", err)
+	}
+	if result.SubjectKeyID != "AA:BB" || result.AuthorityKeyID != "CC:DD" {
+		t.Errorf("unexpected key identifiers: subject=%q authority=%q", result.SubjectKeyID, result.AuthorityKeyID)
+	}
+	if !equalStrings(result.ExtendedKeyUsage, []string{"server-auth", "client-auth"}) {
+		t.Errorf("ExtendedKeyUsage = %q", result.ExtendedKeyUsage)
+	}
+	if !equalStrings(result.UnknownExtendedKeyUsage, []string{"1.2.3.4"}) {
+		t.Errorf("UnknownExtendedKeyUsage = %q", result.UnknownExtendedKeyUsage)
+	}
+	if !equalStrings(result.CriticalExtensions, []string{"2.5.29.15"}) {
+		t.Errorf("CriticalExtensions = %q", result.CriticalExtensions)
+	}
+	if !equalStrings(result.UnhandledCriticalExtensions, []string{"1.2.3.5"}) {
+		t.Errorf("UnhandledCriticalExtensions = %q", result.UnhandledCriticalExtensions)
 	}
 }
 
@@ -135,6 +267,18 @@ func TestCertificateMetadataLimits(t *testing.T) {
 				DNSNames: make([]string, limits.MaxMetadataValues+1),
 			},
 		},
+		{
+			name: "serial amplification",
+			certificate: &x509.Certificate{
+				SerialNumber: new(big.Int).SetBytes(bytes.Repeat([]byte{0xff}, limits.MaxMetadataTextBytes/2+1)),
+			},
+		},
+		{
+			name: "key identifier amplification",
+			certificate: &x509.Certificate{
+				SubjectKeyId: bytes.Repeat([]byte{0xff}, limits.MaxMetadataTextBytes/3+1),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -186,6 +330,7 @@ func testCertificateDER(t testing.TB) []byte {
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+		SubjectKeyId:          []byte{1, 2, 3, 4},
 		DNSNames:              []string{"example.test"},
 		EmailAddresses:        []string{"security@example.test"},
 		IPAddresses:           []net.IP{net.ParseIP("192.0.2.10")},
@@ -196,4 +341,16 @@ func testCertificateDER(t testing.TB) []byte {
 		t.Fatal(err)
 	}
 	return der
+}
+
+func equalStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
