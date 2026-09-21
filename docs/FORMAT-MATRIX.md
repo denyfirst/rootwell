@@ -6,8 +6,8 @@ required. Anything not listed is unsupported and must fail explicitly.
 
 | Object | Encoding/container | Inspect | Match | Verify | Convert/write | v0.1 notes |
 |---|---|---:|---:|---:|---:|---|
-| X.509 certificate | PEM | planned | planned | planned | planned | one or more `CERTIFICATE` blocks |
-| X.509 certificate | DER | planned | planned | planned | planned | exactly one certificate; trailing data rejected |
+| X.509 certificate | PEM | implemented (single) | planned | planned | planned | exactly one header-free `CERTIFICATE` block |
+| X.509 certificate | DER | implemented (single) | planned | planned | planned | exactly one certificate; trailing data rejected |
 | Certificate chain | PEM bundle | planned | n/a | planned | planned | order is preserved and validated |
 | CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
 | CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
@@ -27,7 +27,7 @@ Initial limits are deliberately conservative and become code constants with
 tests when parsing begins:
 
 - maximum input per command: 16 MiB;
-- maximum decoded PEM blocks: 256;
+- maximum decoded PEM blocks: 256 for future bundle operations; inspection accepts exactly one;
 - maximum certificates in one chain operation: 64;
 - one DER object must consume the complete bounded input;
 - duplicate, unrelated, or unknown PEM blocks are reported rather than ignored;

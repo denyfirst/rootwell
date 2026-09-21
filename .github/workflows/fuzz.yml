@@ -22,6 +22,12 @@ jobs:
         include:
           - target: FuzzRun
             package: ./internal/cli
+          - target: FuzzHumanCertificateOutput
+            package: ./internal/cli
+          - target: FuzzInspectCertificate
+            package: ./internal/certinspect
+          - target: FuzzReadLimited
+            package: ./internal/fileinput
           - target: FuzzVersionValue
             package: ./internal/version
     steps:

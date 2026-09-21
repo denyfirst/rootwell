@@ -1,6 +1,6 @@
 # DenyFirst Rootwell
 
-**Status:** foundation planning
+**Status:** early Workbench implementation
 
 Rootwell is a privacy-first, self-hosted workspace for certificates,
 cryptographic keys, and machine identities.
@@ -31,6 +31,19 @@ tested.
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - [v0.1 format matrix](docs/FORMAT-MATRIX.md)
 
-No production cryptographic implementation exists yet. Threat boundaries,
-format scope, and test contracts are established before private-key handling
-code is added.
+## First command
+
+Inspect one local X.509 certificate in PEM or DER form:
+
+```text
+rootwell inspect certificate.pem
+```
+
+The command reads at most 16 MiB, ignores the file extension, rejects multiple
+or trailing objects, performs no network access, and prints escaped metadata.
+A successful result means only that one certificate parsed successfully; it is
+not a trust, signature, chain, hostname, or expiry-policy verdict.
+
+Private-key handling and conversion are intentionally not implemented yet.
+Their threat boundaries and failure contracts must be established before code
+is added.

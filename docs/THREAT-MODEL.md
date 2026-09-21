@@ -105,6 +105,22 @@ future boundaries.
 - A write, flush, close, permission, validation, or rename failure makes the
   operation fail.
 
+## Implemented inspection boundary
+
+`rootwell inspect <file>` reads at most 16 MiB and accepts exactly one X.509
+certificate in DER or a header-free PEM `CERTIFICATE` block. DER must consume
+the complete input; PEM may have surrounding whitespace but no second block or
+other trailing content. Classification comes from bounded content, never the
+file extension. Certificate-derived display text is limited to 1 MiB in total
+and repeated metadata fields are limited to 4,096 before output escaping.
+
+The result is metadata only. Successful parsing does **not** mean that the
+certificate is trusted, currently valid, correctly signed, suitable for a
+hostname, or linked to a valid chain. Embedded AIA, CRL, OCSP, and other URLs
+are displayed as escaped data when applicable and are never followed. The
+production Workbench packages are tested to reject direct network,
+child-process, plugin, and unsafe-code imports.
+
 ## Supply-chain boundary
 
 - The shipped module starts with no runtime dependencies.
@@ -120,7 +136,7 @@ future boundaries.
 
 Review and version this model before adding any of the following:
 
-- the first parser or secret-bearing output;
+- secret-bearing output or a parser for an object other than one X.509 certificate;
 - password or interactive terminal input;
 - temporary files or overwrite support;
 - any network-capable command;
