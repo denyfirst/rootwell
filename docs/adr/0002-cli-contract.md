@@ -19,9 +19,12 @@ Requested data is written to stdout. Diagnostics and usage guidance are written
 to stderr. Errors are lowercase, one line, and have no trailing punctuation.
 Attacker-controlled command tokens and paths are not reflected by default.
 
-`help` and `version` are the only initial successful commands. Commands that
-will later process cryptographic material are not exposed as placeholders: an
-unimplemented operation must not look like a supported but failed operation.
+`help`, `version`, and `inspect <file>` are the successful commands in the first
+implemented increment. Inspection accepts one bounded PEM or DER X.509
+certificate and reports metadata; it does not claim trust, chain verification,
+hostname suitability, or current validity. Commands that will later process
+private material are not exposed as placeholders: an unimplemented operation
+must not look like a supported but failed operation.
 
 ## Structured output
 

@@ -19,8 +19,9 @@ const (
 const helpText = `usage: rootwell <command>
 
 commands:
-  help       show this help
-  version    show the build version
+  help             show this help
+  version          show the build version
+  inspect <file>   inspect one X.509 certificate
 `
 
 // Run executes the CLI contract using only the arguments and writers supplied
@@ -34,16 +35,26 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return writeDiagnostic(stderr, "command required\n", ExitUsage)
 	}
 
-	if len(args) != 1 {
-		return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
-	}
-
 	switch args[0] {
 	case "help", "-h", "--help":
+		if len(args) != 1 {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
 		return writeRequested(stdout, stderr, helpText)
 	case "version", "--version":
+		if len(args) != 1 {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
 		return writeRequested(stdout, stderr, "rootwell "+version.Value()+"\n")
+	case "inspect":
+		if len(args) != 2 {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runInspect(args[1], stdout, stderr)
 	default:
+		if len(args) != 1 {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
 		return writeDiagnostic(stderr, "unknown command\n", ExitUsage)
 	}
 }
