@@ -1,0 +1,5 @@
+# No blank lines below: some OpenSSH builds read one as a line with a missing key.
+# Historical DenyFirst signing identity. Retained so commits made with it verify.
+106975655+cyberbihan@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICPP2ZJGu0Qg1+vNe/79HTazyc3TXG1VqmkVH2YCcto4
+# Current DenyFirst commit and tag signing identity.
+106975655+cyberbihan@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHNpNbqkeNwzoNFxmAXL+GwHVauYxxLmvodNZDQIuTt9

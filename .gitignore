@@ -1,0 +1,55 @@
+# Build output
+/rootwell
+/dist/
+/bin/
+*.exe
+*.test
+*.out
+
+# Coverage
+coverage.out
+coverage.html
+
+# Go workspace files are machine-specific
+go.work
+go.work.sum
+
+# Secrets and private cryptographic material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+id_ecdsa
+*_rsa
+*_ed25519
+credentials.json
+secrets.yaml
+secrets.yml
+.netrc
+.npmrc
+
+# Editors and local agent settings
+.vscode/
+.idea/
+.claude/settings.local.json
+.claude/settings.json
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local scratch and diagnostic material
+/tmp/
+/scratch/
+/local/
+*.log
+*.patch
+*.diff

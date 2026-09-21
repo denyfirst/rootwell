@@ -1,0 +1,3 @@
+# Keys trusted to sign DenyFirst releases.
+# Private signing material is local and is never stored in this repository or CI.
+releases@denyfirst.dev ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDD7Ie9zRf76RynH052/Abkv5k2nzosQd2DihyQMixVR denyfirst releases
