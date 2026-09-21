@@ -154,7 +154,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check out the pull request history
+      - name: Fetch the pull request history without checking it out
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -164,14 +164,20 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --no-tags --filter=blob:none origin \
             "+${BASE_SHA}:refs/base" "+${HEAD_SHA}:refs/head"
-          git checkout -q refs/head
 
-      - name: Verify every pull request commit
+      - name: Verify every pull request commit against the protected base
         run: |
           set -eu
-          test -f .github/commit-signers
+
+          # A pull request cannot authorize its own signing key. The trusted
+          # list comes from the protected base commit, and no untrusted working
+          # tree is created for this job.
+          signers="${RUNNER_TEMP}/rootwell-commit-signers"
+          git show refs/base:.github/commit-signers > "${signers}"
+          test -s "${signers}"
+
           git config gpg.format ssh
-          git config gpg.ssh.allowedSignersFile "${PWD}/.github/commit-signers"
+          git config gpg.ssh.allowedSignersFile "${signers}"
 
           bad=0
           checked=0

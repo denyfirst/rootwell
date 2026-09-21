@@ -51,6 +51,11 @@ The same maintainer SSH signing identity used for Porch may sign Rootwell
 commits and tags. Private signing material never enters this repository,
 GitHub Actions, logs, fixtures, or documentation.
 
+Pull-request signature verification trusts the signer list from the protected
+base commit, never the list proposed by the pull request itself. A signer
+rotation must therefore be authorized by a key that is already trusted; a pull
+request cannot add a key and use that same key to authorize itself.
+
 ## Mandatory gates
 
 The exact commands evolve with the implementation, but CI must cover:
