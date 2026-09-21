@@ -166,13 +166,13 @@ jobs:
           git fetch -q --no-tags --filter=blob:none origin "${GITHUB_SHA}"
           git update-ref refs/merge FETCH_HEAD
 
-          set -- $(git rev-list --parents -n 1 refs/merge)
-          if [ "$#" -ne 3 ]; then
+          read -r -a parents <<< "$(git rev-list --parents -n 1 refs/merge)"
+          if [ "${#parents[@]}" -ne 3 ]; then
             echo "pull request merge commit does not have exactly two parents"
             exit 1
           fi
-          git update-ref refs/base "$2"
-          git update-ref refs/head "$3"
+          git update-ref refs/base "${parents[1]}"
+          git update-ref refs/head "${parents[2]}"
 
       - name: Verify every pull request commit against the protected base
         run: |
