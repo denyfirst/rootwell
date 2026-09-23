@@ -242,6 +242,11 @@ v0.1-də olmayacaq:
 
 **Məqsəd:** CLI istifadə etməyən istifadəçiyə online converter əvəzi vermək.
 
+İlk foundation increment-i Inspect və Verify axınlarının dependency-free statik
+UI shell-ini qurur. Bu shell real fayl byte-larını oxumadan vizual və təhlükəsizlik
+contract-ını yoxlamağa imkan verir. Go core-a qoşulma ayrıca threat-model review-dan
+sonra edilir; preview nəticələri real processing kimi təqdim olunmur.
+
 - drag-and-drop inspection və conversion
 - bütün processing lokal
 - offline işləmə

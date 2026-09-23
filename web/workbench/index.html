@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Rootwell local certificate Workbench interface preview">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Rootwell Workbench</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body class="workspace">
+  <aside class="rail" aria-label="Primary navigation">
+    <div class="rail-identity">
+      <a class="wordmark" href="index.html" aria-label="Rootwell home"><span>root</span>well</a>
+      <span class="rail-tag">Self-host</span>
+    </div>
+
+    <p class="rail-caption" id="rail-workspace">Workspace</p>
+    <nav class="rail-nav" aria-labelledby="rail-workspace">
+      <a class="rail-item" href="index.html" aria-current="page">
+        <span class="rail-glyph" aria-hidden="true">◇</span>
+        Workbench
+      </a>
+      <span class="rail-item rail-item-planned" aria-disabled="true">
+        <span class="rail-glyph" aria-hidden="true">◎</span>
+        Inventory
+        <span class="rail-soon">Planned</span>
+      </span>
+      <span class="rail-item rail-item-planned" aria-disabled="true">
+        <span class="rail-glyph" aria-hidden="true">↻</span>
+        Automation
+        <span class="rail-soon">Planned</span>
+      </span>
+    </nav>
+
+    <p class="rail-caption" id="rail-security">Security</p>
+    <nav class="rail-nav" aria-labelledby="rail-security">
+      <span class="rail-item rail-item-planned" aria-disabled="true">
+        <span class="rail-glyph" aria-hidden="true">▣</span>
+        Vault
+        <span class="rail-soon">Later</span>
+      </span>
+      <span class="rail-item rail-item-planned" aria-disabled="true">
+        <span class="rail-glyph" aria-hidden="true">≡</span>
+        Audit log
+        <span class="rail-soon">Later</span>
+      </span>
+    </nav>
+
+    <div class="rail-foot">
+      <div class="local-state"><span aria-hidden="true"></span>Local preview</div>
+      <button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button>
+    </div>
+  </aside>
+
+  <div class="workspace-main">
+    <header class="topbar">
+      <p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong id="page-path">Inspect</strong></p>
+      <p class="boundary"><span aria-hidden="true"></span>Network disabled</p>
+    </header>
+
+    <main>
+      <section class="work-heading" aria-labelledby="workbench-title">
+        <div>
+          <p class="eyebrow">Certificate workbench</p>
+          <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
+          <p class="lede">Inspect public certificate metadata and prepare explicit-trust verification without sending cryptographic material anywhere.</p>
+        </div>
+        <div class="preview-mark" aria-label="Interface preview">
+          <strong>UI preview</strong>
+          <span>Core connection comes next</span>
+        </div>
+      </section>
+
+      <section class="boundary-strip" aria-label="Current privacy boundary">
+        <div><span class="boundary-icon" aria-hidden="true">01</span><p><strong>Local surface</strong><span>No uploads or remote assets</span></p></div>
+        <div><span class="boundary-icon" aria-hidden="true">02</span><p><strong>Metadata only</strong><span>This preview does not read file bytes</span></p></div>
+        <div><span class="boundary-icon" aria-hidden="true">03</span><p><strong>Honest state</strong><span>Displayed results are labeled sample data</span></p></div>
+      </section>
+
+      <div class="tool-layout">
+        <nav class="tool-tabs" aria-label="Workbench tools">
+          <button class="tool-tab" type="button" id="inspect-tab" data-tool="inspect" aria-controls="inspect-panel" aria-selected="true">
+            <span class="tool-number">01</span>
+            <span><strong>Inspect</strong><small>Read certificate metadata</small></span>
+          </button>
+          <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
+            <span class="tool-number">02</span>
+            <span><strong>Verify</strong><small>Check an explicit trust chain</small></span>
+          </button>
+          <button class="tool-tab" type="button" disabled aria-disabled="true">
+            <span class="tool-number">03</span>
+            <span><strong>Convert</strong><small>Planned after write safety</small></span>
+          </button>
+        </nav>
+
+        <section class="tool-panel" id="inspect-panel" aria-labelledby="inspect-tab">
+          <div class="panel-head">
+            <div>
+              <p class="section-index">Tool 01 / Inspect</p>
+              <h2>Inspect one certificate</h2>
+              <p>Choose one PEM or DER X.509 certificate. This interface foundation records only the name and size; the file bytes are not read yet.</p>
+            </div>
+            <span class="capability">Read-only</span>
+          </div>
+
+          <div class="file-zone" data-drop-target="inspect-file">
+            <input class="file-input" type="file" id="inspect-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
+            <label for="inspect-file">
+              <span class="file-symbol" aria-hidden="true">＋</span>
+              <strong>Choose a certificate</strong>
+              <span>or drop it here · PEM / DER · maximum 16 MiB in the CLI core</span>
+            </label>
+            <p class="file-selection" id="inspect-file-state" aria-live="polite">No file selected</p>
+          </div>
+
+          <div class="panel-actions">
+            <p><span class="status-dot" aria-hidden="true"></span>Preview mode — no certificate parsing in this browser build</p>
+            <button class="button button-primary" type="button" data-show-sample="inspect-result">Show sample result</button>
+          </div>
+
+          <section class="result" id="inspect-result" aria-live="polite" hidden>
+            <div class="result-head">
+              <div>
+                <p class="result-kicker">Sample data · not your selected file</p>
+                <h3>CN=portal.company.local</h3>
+                <p class="mono">SHA256 7A:18:5C:9E:44:2B:0D:91:…:F2</p>
+              </div>
+              <span class="stamp stamp-good">Within validity</span>
+            </div>
+
+            <div class="evidence-grid">
+              <article><span>Encoding</span><strong>PEM</strong><small>One complete certificate</small></article>
+              <article><span>Public key</span><strong>ECDSA P-256</strong><small>Allowed by current policy</small></article>
+              <article><span>Expires</span><strong>38 days</strong><small>2026-10-30 12:00 UTC</small></article>
+            </div>
+
+            <div class="detail-grid">
+              <dl>
+                <div><dt>Subject</dt><dd>CN=portal.company.local</dd></div>
+                <div><dt>Issuer</dt><dd>CN=Company TLS Intermediate 01</dd></div>
+                <div><dt>Serial</dt><dd class="mono">32:A7:91:0C</dd></div>
+              </dl>
+              <dl>
+                <div><dt>DNS names</dt><dd>portal.company.local<br>portal.internal.example</dd></div>
+                <div><dt>Key usage</dt><dd>Digital signature</dd></div>
+                <div><dt>Extended usage</dt><dd>TLS web server authentication</dd></div>
+              </dl>
+            </div>
+          </section>
+        </section>
+
+        <section class="tool-panel" id="verify-panel" aria-labelledby="verify-tab" hidden>
+          <div class="panel-head">
+            <div>
+              <p class="section-index">Tool 02 / Verify</p>
+              <h2>Verify a TLS server certificate</h2>
+              <p>Keep the leaf, trust anchors, and intermediates in explicit roles. Rootwell never silently consults the operating-system trust store.</p>
+            </div>
+            <span class="capability">Explicit trust</span>
+          </div>
+
+          <div class="verify-grid">
+            <div class="compact-field">
+              <label for="verify-leaf">Leaf certificate <span>Required</span></label>
+              <input class="file-input" type="file" id="verify-leaf" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
+              <label class="compact-file" for="verify-leaf"><strong>Choose leaf</strong><span id="verify-leaf-state">No file selected</span></label>
+            </div>
+            <div class="compact-field">
+              <label for="verify-roots">Trust anchors <span>Required · PEM</span></label>
+              <input class="file-input" type="file" id="verify-roots" accept=".pem,application/x-x509-ca-cert">
+              <label class="compact-file" for="verify-roots"><strong>Choose roots</strong><span id="verify-roots-state">No file selected</span></label>
+            </div>
+            <div class="compact-field">
+              <label for="verify-intermediates">Intermediates <span>Optional · PEM</span></label>
+              <input class="file-input" type="file" id="verify-intermediates" accept=".pem,application/x-x509-ca-cert">
+              <label class="compact-file" for="verify-intermediates"><strong>Choose chain</strong><span id="verify-intermediates-state">No file selected</span></label>
+            </div>
+            <div class="compact-field">
+              <label for="verify-hostname">TLS server hostname <span>Required</span></label>
+              <input class="text-field" type="text" id="verify-hostname" placeholder="portal.company.local" spellcheck="false" autocomplete="off">
+              <p class="field-note">ASCII or Punycode · no wildcard input</p>
+            </div>
+          </div>
+
+          <aside class="nonclaim">
+            <strong>What this profile will not claim</strong>
+            <p>No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check. A local file verdict is not deployment evidence.</p>
+          </aside>
+
+          <div class="panel-actions">
+            <p><span class="status-dot" aria-hidden="true"></span>Preview mode — selected values are not processed or stored</p>
+            <button class="button button-primary" type="button" data-show-sample="verify-result">Show sample result</button>
+          </div>
+
+          <section class="result" id="verify-result" aria-live="polite" hidden>
+            <div class="result-head">
+              <div>
+                <p class="result-kicker">Sample data · offline TLS server profile</p>
+                <h3>portal.company.local</h3>
+                <p>Three-certificate chain to an explicitly supplied root.</p>
+              </div>
+              <span class="stamp stamp-good">Verified</span>
+            </div>
+
+            <div class="honesty-row">
+              <span><strong>Network</strong> Disabled</span>
+              <span><strong>System roots</strong> Not used</span>
+              <span><strong>Revocation</strong> Not checked</span>
+            </div>
+
+            <ol class="chain" aria-label="Sample verified certificate chain">
+              <li><span>Leaf</span><div><strong>portal.company.local</strong><small>ECDSA P-256 · expires in 38 days</small></div></li>
+              <li><span>Intermediate</span><div><strong>Company TLS Intermediate 01</strong><small>Certificate signing · path length 0</small></div></li>
+              <li><span>Trust anchor</span><div><strong>Company Root CA 01</strong><small>Explicitly supplied · self-signed</small></div></li>
+            </ol>
+          </section>
+        </section>
+      </div>
+    </main>
+
+    <footer class="colophon">
+      <p><span class="footer-brand"><span>root</span>well</span> · Your private root of trust.</p>
+      <p>Preview shell · no uploads · no file bytes read</p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -31,6 +31,15 @@ tested.
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - [v0.1 format matrix](docs/FORMAT-MATRIX.md)
 
+## Workbench interface preview
+
+The first dependency-free browser shell is available at
+[`web/workbench/index.html`](web/workbench/index.html). It establishes the
+Rootwell Inspect and Verify interaction model while remaining deliberately
+disconnected from certificate processing. It has no remote assets or network
+calls and does not read selected file bytes; every displayed result is labeled
+sample data. See the [preview boundary](web/workbench/README.md).
+
 ## Implemented commands
 
 Inspect one local X.509 certificate in PEM or DER form:

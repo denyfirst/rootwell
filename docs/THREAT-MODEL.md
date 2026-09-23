@@ -133,6 +133,24 @@ It does not imply a valid signature, trusted chain, suitable hostname or usage,
 or non-revoked status. Reversed intervals fail closed as `invalid-range`, and
 relative-second calculations saturate rather than wrapping.
 
+## Workbench UI foundation boundary
+
+The first browser interface under `web/workbench` is a static, dependency-free
+preview rather than a certificate-processing service. Its Content Security
+Policy denies network connections and remote assets. It displays only the name
+and size of a file the operator explicitly selects, renders that metadata with
+`textContent`, does not read file bytes, and does not persist workbench input.
+All certificate-looking results in this preview are fixed sample data and are
+labeled as such.
+
+The theme preference is the only browser-local value stored. Opening the static
+preview does not add a network-capable Rootwell command and does not change the
+CLI trust boundary. Connecting the UI to certificate processing requires a
+separate reviewed design for WebAssembly, a loopback service, or a desktop
+shell. That design must address origin validation, CSP delivery, request and
+memory limits, CSRF and DNS rebinding where relevant, packaging, and platform
+behavior before the UI may read user file bytes.
+
 ## Implemented TLS verification boundary
 
 `rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The
