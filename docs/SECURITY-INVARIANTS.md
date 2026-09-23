@@ -152,3 +152,17 @@ input bytes.
 Guarded by `TestVerifyCommand`, `TestVerifyDoesNotEchoSensitiveInput`,
 `TestHumanVerificationOutputEscapesText`, and
 `FuzzHumanVerificationOutput`.
+
+## C16 — The UI foundation is self-contained and cannot process secrets
+
+The first Workbench UI has no remote subresources or connection capability.
+Its application script cannot read certificate bytes, send data, persist user
+input, or inject selected file names as markup. Sample results are identified
+as samples so the interface cannot imply that a selected file was inspected.
+
+Guarded by `TestWorkbenchPreviewIsSelfContained`,
+`TestWorkbenchContentSecurityPolicyDeniesNetwork`,
+`TestWorkbenchScriptCannotReadOrTransmitFiles`,
+`TestWorkbenchPreviewDoesNotClaimRealProcessing`, and
+`TestWorkbenchElementReferencesResolve`. Text contrast in both themes is
+guarded by `TestWorkbenchTextContrast`.
