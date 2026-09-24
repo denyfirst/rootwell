@@ -190,8 +190,8 @@ engine.
 The Explore tab reads one explicitly selected file only after **Explore
 bundle** is pressed. It accepts one complete DER certificate or 1–64 public
 PEM `CERTIFICATE` blocks under the shared 16 MiB input limit, using the same
-`publicbundle` parser as the CLI. Multiple separate files, private keys, PFX,
-and export are not accepted in this increment. Filenames and extensions never
+`publicbundle` parser as the CLI. Multiple separate files, private keys, and
+PFX are not accepted. Filenames and extensions never
 choose the parser. Malformed, mixed, duplicated, excessive, or secret-bearing
 input returns a fixed, input-free failure and no partial certificate list.
 
@@ -208,6 +208,29 @@ root or silently classifies a leaf. Chain building, hostname, time-policy,
 revocation, live endpoint, and private-key possession are outside this result.
 The same-origin asset, CSP, and no-upload trust boundaries above remain in
 force. See ADR 0004 for this extension.
+
+## Browser public certificate export boundary
+
+The user explicitly chooses PEM or DER on one Explore card. Rootwell re-reads
+and re-parses the selected public file, identifies the intended certificate
+by its full SHA-256 fingerprint rather than bundle order, and rejects missing,
+changed, secret-bearing, duplicate, or malformed source content. It encodes
+only that public certificate, then re-parses the output and checks the DER
+bytes and fingerprint against the selected original. DER output preserves the
+certificate's exact DER bytes; PEM output contains one canonical public
+`CERTIFICATE` block. No trust verdict is made.
+
+The Go/WebAssembly bridge copies only the selected public output into a
+bounded byte array; the browser checks the versioned result, format,
+fingerprint, and safe generated filename and re-parses the output before
+requesting a Blob download. The filename uses a fixed prefix, fingerprint
+fragment, and random suffix, never a subject or source filename. The
+file-reading script still cannot transmit through a network API, persist
+workbench input, or directly write to a filesystem. Browser-owned file and
+download copies cannot be reliably erased by Rootwell. Rootwell does not
+control browser/OS save prompts, destination, or overwrite policy; the
+application guarantees no direct disk overwrite, not a browser-wide
+no-overwrite guarantee. See ADR 0005.
 
 ## Implemented TLS verification boundary
 

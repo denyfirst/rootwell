@@ -252,7 +252,9 @@ threat-model review olmadan bu sərhədə daxil edilmir.
 Browser public bundle explorer artıq bir seçilmiş faylı (tək DER certificate
 və ya 1–64 public PEM certificate) eyni Go parser-i ilə lokal açır. O,
 certificate metadata-sını göstərir, amma leaf/chain/trust qərarı vermir,
-ayrı faylları birləşdirmir və export etmir. Bu sərhəd browser Verify-dan
+ayrı faylları birləşdirmir. Seçilən bir public certificate-i PEM və ya DER
+kimi browser-managed download-a hazırlayır; private key/PFX qəbul etmir.
+Bu sərhəd browser Verify-dan
 ayrıdır.
 
 Sadə certificate import/Verify və public bundle explorer üçün konkret
@@ -261,7 +263,8 @@ istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarla
 Default görünüş CA-nın verdiyi bir və ya bir neçə fayldan başlayacaq;
 Advanced eyni verification core-u və policy-ni istifadə edərək texniki
 rolları açıq göstərəcək. Bundle içindəki root avtomatik trusted
-sayılmayacaq. Public hissələri ayrıca endirmək planlanır, private
+sayılmayacaq. Bir public hissəni ayrıca endirmək işləkdir; çoxfayllı və
+toplu export planlanır. Private
 key/PFX axını isə ayrıca security review tələb edir.
 
 CLI nüvəsində certificate/private-key uyğunluq yoxlaması strict və bounded

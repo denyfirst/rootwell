@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/browserexplore"
+	"github.com/denyfirst/rootwell/internal/browserexport"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
 )
 
@@ -71,6 +72,20 @@ func TestWorkbenchDemoBundleIsPublicAndExplorable(t *testing.T) {
 	if !response.OK || response.Error != nil || response.Result == nil || response.Result.Count != 2 ||
 		response.Result.Certificates[0].SHA256 == response.Result.Certificates[1].SHA256 {
 		t.Fatalf("demo bundle response = %#v, want two different certificates", response)
+	}
+	for _, encoding := range []string{"pem", "der"} {
+		exported, code := browserexport.Prepare([]byte(bundle), response.Result.Certificates[1].SHA256, encoding)
+		if code != "" {
+			t.Fatalf("export demo certificate as %s: %s", encoding, code)
+		}
+		var single browserexplore.Response
+		if err := json.Unmarshal([]byte(browserexplore.Process(exported.Bytes)), &single); err != nil {
+			t.Fatal(err)
+		}
+		if !single.OK || single.Result == nil || single.Result.Count != 1 || single.Result.Certificates[0].SHA256 != response.Result.Certificates[1].SHA256 {
+			t.Fatalf("exported demo certificate = %#v", single)
+		}
+		clear(exported.Bytes)
 	}
 }
 
@@ -175,6 +190,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	for _, required := range []string{
 		`fetch("rootwell.wasm"`,
 		"rootwellExplore",
+		"rootwellExport",
 		`credentials: "omit"`,
 		`redirect: "error"`,
 		"WebAssembly.instantiateStreaming",
@@ -230,6 +246,39 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 	}
 	if strings.Contains(html, "Explore and verify") || strings.Contains(html, "Download selected certificate") {
 		t.Error("Explore advertises verification or export that is not implemented")
+	}
+}
+
+func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
+	assets := workbenchAssets(t)
+	html := assets["index.html"]
+	for _, required := range []string{
+		`id="export-status" aria-live="polite"`,
+		`id="export-error" role="alert" hidden`,
+		"Choose PEM or DER on a certificate card",
+		"Rootwell does not write directly to disk",
+	} {
+		if !strings.Contains(html, required) {
+			t.Errorf("public export is missing boundary %q", required)
+		}
+	}
+	application := assets["app.js"]
+	for _, required := range []string{
+		`exportAction("Download PEM", certificate.sha256, "pem", index)`,
+		`exportAction("Download DER", certificate.sha256, "der", index)`,
+		"engine.exportPublic(input, fingerprint, format)",
+		"engine.explore(output)",
+		"URL.createObjectURL(new Blob([bytes]",
+		"URL.revokeObjectURL(url)",
+		"anchor.download = filename",
+		"input.fill(0)", "output.fill(0)",
+	} {
+		if !strings.Contains(application, required) {
+			t.Errorf("public export is missing guard %q", required)
+		}
+	}
+	if strings.Contains(application, "showSaveFilePicker") || strings.Contains(application, "createWritable") {
+		t.Error("browser export must not write through a filesystem API")
 	}
 }
 

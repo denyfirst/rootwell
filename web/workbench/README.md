@@ -12,8 +12,9 @@ CLI. Verify is still a clearly labeled interaction preview.
 - only `wasm-loader.js` may fetch, and it loads the same-origin
   `rootwell.wasm` application asset;
 - the loader has no DOM, selected-file, or file-byte access;
-- `app.js` reads a file only after **Inspect certificate** or **Explore bundle**
-  is pressed and has no network, service-worker, dynamic-code, or
+- `app.js` reads a file only after **Inspect certificate**, **Explore bundle**,
+  or a certificate card's download action is pressed and has no network,
+  service-worker, dynamic-code, or
   workbench-input storage capability;
 - selected values and certificate metadata are rendered through `textContent`;
 - the Go core enforces the 16 MiB input limit, strict one-certificate Inspect
@@ -22,8 +23,15 @@ CLI. Verify is still a clearly labeled interaction preview.
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
 
 Explore displays subject, issuer, CA flag, expiry, encoding, and fingerprint.
-It does not select a leaf, choose a trust anchor, verify a chain, combine
-separate files, or export any certificate. A CA flag is not a trust verdict.
+It does not select a leaf, choose a trust anchor, verify a chain, or combine
+separate files. A selected public certificate can be downloaded as one PEM
+`CERTIFICATE` block or exact DER bytes. The source is re-parsed and selected
+by fingerprint; the output is re-parsed and byte-checked before download.
+The filename uses a fixed prefix, fingerprint fragment, and random suffix,
+never certificate subject text. Rootwell does not write to disk or silently
+overwrite a file; final save behavior belongs to the browser and operating
+system and cannot be guaranteed by this web page. A CA flag is not a trust
+verdict.
 
 Browser-wide memory erasure is not guaranteed. This boundary is for public
 certificates only. Do not select private keys, passphrases, PFX/PKCS#12 files,
@@ -62,6 +70,7 @@ For a safe first test, download `rootwell-demo-certificate.pem` from the Inspect
 panel and select it in Inspect or Explore. It contains one non-production public
 certificate for `.invalid` names and deliberately contains no private key. To
 see two cards in Explore, use the public `rootwell-demo-bundle.pem` link there.
+Each card has PEM and DER download actions for its own public certificate.
 
 ## Required production headers
 

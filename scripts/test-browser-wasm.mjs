@@ -31,6 +31,7 @@ await Promise.race([
 
 assert.equal(typeof globalThis.rootwellInspect, "function");
 assert.equal(typeof globalThis.rootwellExplore, "function");
+assert.equal(typeof globalThis.rootwellExport, "function");
 assert.equal(globalThis.rootwellInspectMaxBytes, 16 * 1024 * 1024);
 
 const certificate = new Uint8Array(fs.readFileSync(certificatePath));
@@ -47,12 +48,36 @@ assert.equal(explored.result.certificates[0].subject, "CN=workbench.rootwell.inv
 
 const bundle = new Uint8Array(fs.readFileSync(bundlePath));
 const bundleResponse = JSON.parse(globalThis.rootwellExplore(bundle));
-bundle.fill(0);
 assert.equal(bundleResponse.ok, true);
 assert.equal(bundleResponse.result.count, 2);
 assert.equal(bundleResponse.result.verification, "not-performed");
 assert.equal(bundleResponse.result.trust_anchor, "not-selected");
 assert.equal(bundleResponse.result.certificates[1].subject, "CN=second.rootwell.invalid,O=Rootwell non-production demo");
+const secondFingerprint = bundleResponse.result.certificates[1].sha256;
+for (const format of ["pem", "der"]) {
+  const exported = globalThis.rootwellExport(bundle, secondFingerprint, format);
+  assert.equal(exported.schema_version, "rootwell.browser.export.v1");
+  assert.equal(exported.ok, true);
+  assert.equal(exported.error, null);
+  assert.equal(exported.result.encoding, format);
+  assert.equal(exported.result.fingerprint, secondFingerprint);
+  const fingerprintPrefix = secondFingerprint.replaceAll(":", "").slice(0, 16).toLowerCase();
+  assert.match(exported.result.filename, new RegExp(`^rootwell-public-${fingerprintPrefix}-[0-9a-f]{32}\\.${format}$`));
+  assert.equal(exported.result.bytes instanceof Uint8Array, true);
+  const reparsed = JSON.parse(globalThis.rootwellExplore(exported.result.bytes));
+  assert.equal(reparsed.ok, true);
+  assert.equal(reparsed.result.count, 1);
+  assert.equal(reparsed.result.certificates[0].sha256, secondFingerprint);
+  exported.result.bytes.fill(0);
+}
+const missingExport = globalThis.rootwellExport(bundle, "00:".repeat(31) + "00", "pem");
+assert.equal(missingExport.ok, false);
+assert.equal(missingExport.result, null);
+assert.equal(missingExport.error, "certificate-not-found");
+const unsafeFormatExport = globalThis.rootwellExport(bundle, secondFingerprint, "pfx");
+assert.equal(unsafeFormatExport.ok, false);
+assert.equal(unsafeFormatExport.error, "invalid-browser-request");
+bundle.fill(0);
 assert.equal(success.schema_version, "rootwell.browser.inspect.v1");
 assert.equal(success.ok, true);
 assert.equal(success.error, null);
@@ -75,12 +100,16 @@ assert.equal(refusalText.includes(marker), false, "browser failure echoed input"
 
 const secret = new TextEncoder().encode("-----BEGIN PRIVATE KEY-----\nsecret-marker\n-----END PRIVATE KEY-----");
 const secretResponseText = globalThis.rootwellExplore(secret);
+const secretExport = globalThis.rootwellExport(secret, secondFingerprint, "pem");
 secret.fill(0);
 const secretResponse = JSON.parse(secretResponseText);
 assert.equal(secretResponse.ok, false);
 assert.equal(secretResponse.result, null);
 assert.equal(secretResponse.error.code, "unsupported-public-bundle");
 assert.equal(secretResponseText.includes("secret-marker"), false);
+assert.equal(secretExport.ok, false);
+assert.equal(secretExport.result, null);
+assert.equal(secretExport.error, "invalid-public-source");
 
 const duplicateBundle = new Uint8Array(fs.readFileSync(certificatePath));
 const duplicateInput = new Uint8Array(duplicateBundle.length * 2);
@@ -88,10 +117,13 @@ duplicateInput.set(duplicateBundle);
 duplicateInput.set(duplicateBundle, duplicateBundle.length);
 duplicateBundle.fill(0);
 const duplicateResponse = JSON.parse(globalThis.rootwellExplore(duplicateInput));
+const duplicateExport = globalThis.rootwellExport(duplicateInput, secondFingerprint, "der");
 duplicateInput.fill(0);
 assert.equal(duplicateResponse.ok, false);
 assert.equal(duplicateResponse.result, null);
 assert.equal(duplicateResponse.error.code, "duplicate-certificate");
+assert.equal(duplicateExport.ok, false);
+assert.equal(duplicateExport.error, "invalid-public-source");
 
 const oversized = new Uint8Array(globalThis.rootwellInspectMaxBytes + 1);
 const oversizedResponse = JSON.parse(globalThis.rootwellInspect(oversized));
@@ -101,9 +133,12 @@ assert.equal(oversizedResponse.error.code, "input-too-large");
 
 const oversizedExplore = new Uint8Array(globalThis.rootwellInspectMaxBytes + 1);
 const oversizedExploreResponse = JSON.parse(globalThis.rootwellExplore(oversizedExplore));
+const oversizedExport = globalThis.rootwellExport(oversizedExplore, secondFingerprint, "pem");
 oversizedExplore.fill(0);
 assert.equal(oversizedExploreResponse.ok, false);
 assert.equal(oversizedExploreResponse.error.code, "input-too-large");
+assert.equal(oversizedExport.ok, false);
+assert.equal(oversizedExport.error, "input-too-large");
 
 const invalidRequest = JSON.parse(globalThis.rootwellInspect("not a byte array"));
 assert.equal(invalidRequest.ok, false);
@@ -112,6 +147,9 @@ assert.equal(invalidRequest.error.code, "invalid-browser-request");
 const invalidExploreRequest = JSON.parse(globalThis.rootwellExplore("not a byte array"));
 assert.equal(invalidExploreRequest.ok, false);
 assert.equal(invalidExploreRequest.error.code, "invalid-browser-request");
+const invalidExportRequest = globalThis.rootwellExport("not a byte array", secondFingerprint, "pem");
+assert.equal(invalidExportRequest.ok, false);
+assert.equal(invalidExportRequest.error, "invalid-browser-request");
 
 console.log("Rootwell browser WebAssembly integration passed.");
 void execution;
