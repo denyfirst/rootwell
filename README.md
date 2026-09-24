@@ -38,7 +38,8 @@ The dependency-free browser shell is available at
 public certificate; Explore lists a single DER certificate or a strict public
 PEM bundle of up to 64 certificates. Both use the bounded Go core through
 WebAssembly and never post selected bytes to a server API. A selected public
-certificate can now be downloaded separately as PEM or DER from Explore;
+certificate can be downloaded separately as PEM or DER from Explore, with a
+clearly labeled `.pem`, `.der`, `.crt`, or `.cer` filename extension;
 the browser manages the final save location. Verify remains an
 explicitly labeled interface preview. Build and hosting requirements are
 documented in the [browser boundary](web/workbench/README.md).
@@ -79,6 +80,8 @@ chain, export files, or process PFX/private keys. The filename extension does
 not determine the encoding; mixed blocks, junk, and duplicates are rejected.
 Browser Explore accepts one selected file, displays the same public-only
 collection locally, and can download one chosen certificate as PEM or DER.
+`.crt` and `.cer` are filename extensions, not additional encodings, and both
+can be selected for either PEM or DER bytes.
 It does not yet combine separate files. CLI `explore` remains read-only.
 
 Match one certificate to one unencrypted local private key:

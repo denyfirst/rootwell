@@ -4,6 +4,10 @@ This is a scope boundary, not a promise that every listed operation already
 exists. `planned` means implementation and its security tests are still
 required. Anything not listed is unsupported and must fail explicitly.
 
+For a single public browser export, `.crt` and `.cer` are allowed filename
+extensions for either PEM or DER certificate bytes; they are not separate
+encodings. `.pem` is paired only with PEM and `.der` only with DER.
+
 | Object | Encoding/container | Inspect | Match | Verify | Convert/write | v0.1 notes |
 |---|---|---:|---:|---:|---:|---|
 | X.509 certificate | PEM | implemented (single) | implemented | implemented (TLS server) | browser public-only export; other conversions planned | exactly one header-free `CERTIFICATE` block |

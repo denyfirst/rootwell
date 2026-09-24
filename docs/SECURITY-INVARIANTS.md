@@ -262,7 +262,9 @@ full fingerprint, not bundle position, subject text, or filename. It rejects
 changed, secret-bearing, malformed, duplicate, excessive, and unmatched
 input without partial output. PEM and DER output are re-parsed and must match
 the selected DER bytes and fingerprint. Generated filenames contain only a
-fixed prefix, fingerprint fragment, random suffix, and fixed extension.
+fixed prefix, fingerprint fragment, random suffix, and allowlisted extension.
+The UI makes encoding and extension separate explicit choices: `.crt`/`.cer`
+may name PEM or DER bytes; `.pem` is PEM-only and `.der` is DER-only.
 The browser validates the versioned response and output again, requests a
 browser-managed download, and does not write directly to the filesystem or
 transmit certificate bytes to an API. Browser/OS overwrite policy is outside

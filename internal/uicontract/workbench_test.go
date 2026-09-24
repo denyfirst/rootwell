@@ -255,7 +255,8 @@ func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
 	for _, required := range []string{
 		`id="export-status" aria-live="polite"`,
 		`id="export-error" role="alert" hidden`,
-		"Choose PEM or DER on a certificate card",
+		"Choose the certificate encoding and filename extension",
+		"A .crt or .cer name can contain PEM or DER",
 		"Rootwell does not write directly to disk",
 	} {
 		if !strings.Contains(html, required) {
@@ -264,8 +265,16 @@ func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
 	}
 	application := assets["app.js"]
 	for _, required := range []string{
-		`exportAction("Download PEM", certificate.sha256, "pem", index)`,
-		`exportAction("Download DER", certificate.sha256, "der", index)`,
+		`exportAction(certificate.sha256, index)`,
+		`"pem:pem": Object.freeze({ encoding: "pem", extension: "pem"`,
+		`"pem:crt": Object.freeze({ encoding: "pem", extension: "crt"`,
+		`"pem:cer": Object.freeze({ encoding: "pem", extension: "cer"`,
+		`"der:der": Object.freeze({ encoding: "der", extension: "der"`,
+		`"der:crt": Object.freeze({ encoding: "der", extension: "crt"`,
+		`"der:cer": Object.freeze({ encoding: "der", extension: "cer"`,
+		`Object.hasOwn(exportChoices, choice.value)`,
+		`Object.hasOwn(exportChoices, format + ":" + extension)`,
+		`downloadName = validated.filename.slice(0, -format.length) + extension`,
 		"engine.exportPublic(input, fingerprint, format)",
 		"engine.explore(output)",
 		"URL.createObjectURL(new Blob([bytes]",
@@ -279,6 +288,11 @@ func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
 	}
 	if strings.Contains(application, "showSaveFilePicker") || strings.Contains(application, "createWritable") {
 		t.Error("browser export must not write through a filesystem API")
+	}
+	for _, forbidden := range []string{`"pem:der"`, `"der:pem"`} {
+		if strings.Contains(application, forbidden) {
+			t.Errorf("export offers an encoding/extension mismatch %q", forbidden)
+		}
 	}
 }
 

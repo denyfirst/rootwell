@@ -224,7 +224,10 @@ The Go/WebAssembly bridge copies only the selected public output into a
 bounded byte array; the browser checks the versioned result, format,
 fingerprint, and safe generated filename and re-parses the output before
 requesting a Blob download. The filename uses a fixed prefix, fingerprint
-fragment, and random suffix, never a subject or source filename. The
+fragment, and random suffix, never a subject or source filename. The user may
+choose `.crt` or `.cer` for either PEM or DER bytes; `.pem` stays PEM-only and
+`.der` stays DER-only. The UI labels the true encoding, and changing the
+extension never changes the certificate bytes, parser, or trust result. The
 file-reading script still cannot transmit through a network API, persist
 workbench input, or directly write to a filesystem. Browser-owned file and
 download copies cannot be reliably erased by Rootwell. Rootwell does not

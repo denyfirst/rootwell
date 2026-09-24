@@ -50,7 +50,10 @@ Hazırkı public explorer bir PEM bundle və ya tək DER faylındakı certificat
 ayrıca kartlarda göstərir: subject/issuer, expiry, CA flag, encoding və
 fingerprint. Rol namizədi və chain əlaqəsi hələ göstərilmir.
 İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
-kimi ayrıca endirməyi tələb edə bilər. Fayl adı certificate məzmunundan
+kimi ayrıca endirməyi tələb edə bilər. `.crt` və `.cer` ayrıca format deyil:
+istifadəçi iç məzmunu (PEM text və ya DER binary) və fayl uzantısını birlikdə
+seçir. `.pem` yalnız PEM-ə, `.der` yalnız DER-ə uyğundur; `.crt`/`.cer` isə
+hər iki variantla mümkündür. Fayl adı certificate məzmunundan
 birbaşa götürülmür; sabit prefiks, fingerprint hissəsi və random nonce
 istifadə olunur. Export-dan əvvəl mənbə, sonra çıxış təkrar parse edilir;
 DER byte uyğunluğu və fingerprint yoxlanılır. Rootwell fayl sisteminə

@@ -253,7 +253,8 @@ Browser public bundle explorer artıq bir seçilmiş faylı (tək DER certificat
 və ya 1–64 public PEM certificate) eyni Go parser-i ilə lokal açır. O,
 certificate metadata-sını göstərir, amma leaf/chain/trust qərarı vermir,
 ayrı faylları birləşdirmir. Seçilən bir public certificate-i PEM və ya DER
-kimi browser-managed download-a hazırlayır; private key/PFX qəbul etmir.
+kimi browser-managed download-a hazırlayır; `.crt` və `.cer` uzantıları
+hər iki encoding ilə açıq seçilə bilir. Private key/PFX qəbul etmir.
 Bu sərhəd browser Verify-dan
 ayrıdır.
 
