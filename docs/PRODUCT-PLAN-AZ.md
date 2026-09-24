@@ -497,7 +497,12 @@ Hər mərhələ üçün uyğun hissələr məcburidir:
 - supported platform integration test-ləri
 
 Security-critical dəyişiklik yalnız implementasiyanı yazan şəxsin testləri ilə
-qəbul edilməməlidir; ayrıca review tələb olunmalıdır.
+release edilməməlidir. İnkişaf mərhələsində maintainer ayrıca adversarial
+self-review və CI sübutlarını PR-da qeyd edə bilər; bu, müstəqil audit deyil.
+İlk public release-dən əvvəl kənar təhlükəsizlik auditi, tapıntıların aradan
+qaldırılması və dəyişən hissələrin yenidən yoxlanması məcburidir. Sonrakı
+security-critical release-lər üçün də kənar audit təkrarlanır. AI audit yüksək
+riskli açar saxlama və remote access üçün mütəxəssis insan review-unu əvəz etmir.
 
 ## 10. Məhsul və biznes sərhədi
 
