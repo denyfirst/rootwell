@@ -3,6 +3,7 @@ package fileinput
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -21,6 +22,18 @@ func TestRead(t *testing.T) {
 	}
 	if !bytes.Equal(got, want) {
 		t.Fatalf("Read() = %q, want %q", got, want)
+	}
+}
+
+func TestReadAtMost(t *testing.T) {
+	path := t.TempDir() + "/private-key.data"
+	if err := writeFixture(path, []byte("12345")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := ReadAtMost(path, 4)
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("ReadAtMost() error = %v, want ErrTooLarge", err)
 	}
 }
 
@@ -63,9 +76,24 @@ func TestReadLimited(t *testing.T) {
 }
 
 func TestReadLimitedMapsReaderFailure(t *testing.T) {
-	_, err := readLimited(errorReader{}, 32)
+	reader := &capturingErrorReader{value: []byte("private material")}
+	_, err := readLimited(reader, 32)
 	if !errors.Is(err, ErrUnreadable) {
 		t.Fatalf("readLimited() error = %v, want ErrUnreadable", err)
+	}
+	if !allZero(reader.destination) {
+		t.Fatalf("readLimited() retained partial bytes after failure: %x", reader.destination)
+	}
+}
+
+func TestReadLimitedClearsOversizedInput(t *testing.T) {
+	reader := &capturingReader{value: []byte("12345")}
+	_, err := readLimited(reader, 4)
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("readLimited() error = %v, want ErrTooLarge", err)
+	}
+	if !allZero(reader.destination) {
+		t.Fatalf("readLimited() retained oversized bytes: %x", reader.destination)
 	}
 }
 
@@ -101,8 +129,38 @@ func writeFixture(path string, contents []byte) error {
 	return os.WriteFile(path, contents, 0o600)
 }
 
-type errorReader struct{}
+type capturingReader struct {
+	value       []byte
+	destination []byte
+	done        bool
+}
 
-func (errorReader) Read([]byte) (int, error) {
-	return 0, errors.New("sensitive underlying error")
+func (reader *capturingReader) Read(destination []byte) (int, error) {
+	if reader.done {
+		return 0, io.EOF
+	}
+	reader.done = true
+	written := copy(destination, reader.value)
+	reader.destination = destination[:written]
+	return written, nil
+}
+
+type capturingErrorReader struct {
+	value       []byte
+	destination []byte
+}
+
+func (reader *capturingErrorReader) Read(destination []byte) (int, error) {
+	written := copy(destination, reader.value)
+	reader.destination = destination[:written]
+	return written, errors.New("sensitive underlying error")
+}
+
+func allZero(value []byte) bool {
+	for _, item := range value {
+		if item != 0 {
+			return false
+		}
+	}
+	return true
 }
