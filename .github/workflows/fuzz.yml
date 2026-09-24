@@ -28,6 +28,8 @@ jobs:
             package: ./internal/cli
           - target: FuzzHumanVerificationOutput
             package: ./internal/cli
+          - target: FuzzExploreOutputIsTerminalSafe
+            package: ./internal/cli
           - target: FuzzInspectCertificate
             package: ./internal/certinspect
           - target: FuzzEvaluateTimeWindow
@@ -36,6 +38,8 @@ jobs:
             package: ./internal/browserinspect
           - target: FuzzParseCertificateBundle
             package: ./internal/certverify
+          - target: FuzzParsePublicBundle
+            package: ./internal/publicbundle
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzVersionValue
