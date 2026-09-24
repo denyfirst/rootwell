@@ -1,8 +1,8 @@
 # Rootwell engineering workflow
 
-This is the repository-level contract for every change. Rootwell follows the
-same signed, reviewable, evidence-based delivery model as Porch while remaining
-a fully separate repository.
+This is the repository-level contract for every change. Rootwell follows a
+signed, reviewable, evidence-based delivery model while remaining a fully
+separate repository from Porch.
 
 ## Priorities
 
@@ -30,7 +30,8 @@ one.
   relevant;
 - race, static-analysis, vulnerability, and supported-platform checks pass;
 - documentation says what is guaranteed and what is not;
-- a reviewer can reproduce the result from the repository.
+- the evidence is recorded so an external auditor can reproduce the result
+  from the repository.
 
 Tests must verify externally observable behavior and security invariants, not
 merely mirror implementation details.
@@ -44,8 +45,29 @@ merely mirror implementation details.
 5. Run the relevant local gates.
 6. Create a signed commit whose message explains the reason for the change.
 7. Open a pull request.
-8. Wait for every required check and human review.
-9. Merge with a merge commit. Do not squash, rebase, auto-merge, or bypass.
+8. Wait for every required check; resolve failures and review threads.
+9. The implementing maintainer performs and records a separate adversarial
+   self-review of the final diff, tests, and security boundaries. This is not
+   an independent review. Obtain any approvals actually required by the
+   repository ruleset; never bypass them.
+10. Merge with a merge commit. Do not squash, rebase, auto-merge, or bypass.
+
+## Solo-maintainer review and external audit
+
+During development, a PR may merge without a second human reviewer when the
+repository ruleset does not require one. CI success and a maintainer
+self-review are development gates, not a claim that the change was
+independently audited. PR notes must identify residual risks and the tests run.
+
+Before the first public release, arrange an independent security audit of the
+release candidate, for example with Claude outside the implementation session.
+Provide the exact commit, threat model, security invariants, relevant diffs,
+and test evidence. Track findings to resolution, rerun affected checks, and
+re-audit material fixes. Do not label a release audited or publish it while
+material findings remain unresolved. Repeat external review for later
+security-critical releases. An AI audit can find defects but cannot guarantee
+that the product is secure; seek specialist human review before production
+deployment of high-risk key custody or remote-access features.
 
 The same maintainer SSH signing identity used for Porch may sign Rootwell
 commits and tags. Private signing material never enters this repository,

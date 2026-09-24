@@ -243,11 +243,24 @@ v0.1-də olmayacaq:
 **Məqsəd:** CLI istifadə etməyən istifadəçiyə online converter əvəzi vermək.
 
 İlk foundation increment-i Inspect və Verify axınlarının dependency-free statik
-UI shell-ini qurdu. Növbəti increment public PEM/DER X.509 inspection-u eyni Go
+UI shell-ini qurdu. İkinci increment public PEM/DER X.509 inspection-u eyni Go
 core-un WebAssembly build-i ilə browser daxilində işlədir. Certificate byte-ları
 server API-yə göndərilmir; asset loader və file-reading kod ayrı capability-lərdə
 saxlanır. Private key və digər secret-bearing browser əməliyyatları ayrıca
 threat-model review olmadan bu sərhədə daxil edilmir.
+
+Sadə certificate import/Verify və public bundle explorer üçün konkret
+istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarları
+[`WORKBENCH-IMPORT-UX-AZ.md`](WORKBENCH-IMPORT-UX-AZ.md) sənədindədir.
+Default görünüş CA-nın verdiyi bir və ya bir neçə fayldan başlayacaq;
+Advanced eyni verification core-u və policy-ni istifadə edərək texniki
+rolları açıq göstərəcək. Bundle içindəki root avtomatik trusted
+sayılmayacaq. Public hissələri ayrıca endirmək planlanır, private
+key/PFX axını isə ayrıca security review tələb edir.
+
+CLI nüvəsində certificate/private-key uyğunluq yoxlaması strict və bounded
+sərhədlə mövcuddur. Bu, browserdə secret-bearing input qəbul etmək üçün
+avtomatik icazə deyil; browser match ayrıca review tələb edir.
 
 - drag-and-drop inspection və conversion
 - bütün processing lokal
@@ -497,7 +510,12 @@ Hər mərhələ üçün uyğun hissələr məcburidir:
 - supported platform integration test-ləri
 
 Security-critical dəyişiklik yalnız implementasiyanı yazan şəxsin testləri ilə
-qəbul edilməməlidir; ayrıca review tələb olunmalıdır.
+release edilməməlidir. İnkişaf mərhələsində maintainer ayrıca adversarial
+self-review və CI sübutlarını PR-da qeyd edə bilər; bu, müstəqil audit deyil.
+İlk public release-dən əvvəl kənar təhlükəsizlik auditi, tapıntıların aradan
+qaldırılması və dəyişən hissələrin yenidən yoxlanması məcburidir. Sonrakı
+security-critical release-lər üçün də kənar audit təkrarlanır. AI audit yüksək
+riskli açar saxlama və remote access üçün mütəxəssis insan review-unu əvəz etmir.
 
 ## 10. Məhsul və biznes sərhədi
 
@@ -525,7 +543,7 @@ edilməlidir.
 5. Minimal `cmd/rootwell` və sabit exit-code/error modeli.
 6. Təhlükəsiz input classification və parsing limit-ləri.
 7. `rootwell inspect`.
-8. `rootwell match`.
+8. `rootwell match`. *(implemented: unencrypted PKCS#8/PKCS#1/SEC1, PEM/DER)*
 9. Explicit trust bundle ilə `rootwell verify`.
 10. Conversion dependency review və `rootwell convert`.
 11. `rootwell csr`.

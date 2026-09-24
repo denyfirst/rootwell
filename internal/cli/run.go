@@ -26,6 +26,8 @@ commands:
   inspect --json <file>
                    emit versioned JSON metadata
   explore <file>   list public certificates in a PEM bundle or one DER file
+  match --cert <file> --key <file> [--json]
+                   compare a certificate with an unencrypted private key
   verify <file> --trust-bundle <roots.pem> [--intermediates <chain.pem>]
                    --hostname <name>
                    verify a TLS server certificate
@@ -73,6 +75,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
 		return runVerify(arguments, time.Now(), stdout, stderr)
+	case "match":
+		arguments, ok := parseMatchArguments(args[1:])
+		if !ok {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runMatch(arguments, stdout, stderr)
 	default:
 		if len(args) != 1 {
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
@@ -82,11 +90,15 @@ func Run(args []string, stdout, stderr io.Writer) int {
 }
 
 func writeRequested(stdout, stderr io.Writer, value string) int {
+	return writeRequestedCode(stdout, stderr, value, ExitOK)
+}
+
+func writeRequestedCode(stdout, stderr io.Writer, value string, successCode int) int {
 	if written, err := io.WriteString(stdout, value); err != nil || written != len(value) {
 		_, _ = io.WriteString(stderr, "output failed\n")
 		return ExitFailure
 	}
-	return ExitOK
+	return successCode
 }
 
 func writeDiagnostic(stderr io.Writer, value string, code int) int {

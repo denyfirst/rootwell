@@ -85,19 +85,6 @@
     });
   });
 
-  [
-    ["verify-leaf", "verify-leaf-state"],
-    ["verify-roots", "verify-roots-state"],
-    ["verify-intermediates", "verify-intermediates-state"]
-  ].forEach(function (binding) {
-    const input = document.getElementById(binding[0]);
-    const output = document.getElementById(binding[1]);
-    input.addEventListener("change", function () {
-      const file = input.files && input.files.length === 1 ? input.files[0] : null;
-      output.textContent = file ? file.name + " · " + formatSize(file.size) : "No file selected";
-    });
-  });
-
   document.querySelectorAll("[data-show-sample]").forEach(function (button) {
     button.addEventListener("click", function () {
       const result = document.getElementById(button.dataset.showSample);

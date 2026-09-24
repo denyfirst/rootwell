@@ -2,7 +2,7 @@
 
 **Scope:** local Workbench CLI through v0.1
 
-**Last reviewed:** 2026-09-21
+**Last reviewed:** 2026-09-24
 
 This document covers the process that reads local certificate and key material,
 performs an explicitly requested operation, and writes a result to a caller-
@@ -209,6 +209,36 @@ status, Certificate Transparency inclusion, possession of the private key, or
 what a live endpoint currently serves. Human output states `revocation:
 not-checked` and `network: disabled` so those non-claims are not implicit.
 
+## Implemented certificate/private-key match boundary
+
+`rootwell match --cert <file> --key <file>` compares one strict PEM or DER
+X.509 certificate with one unencrypted private key. The key may be PKCS#8,
+PKCS#1 RSA, or SEC1 ECDSA in strict PEM or DER form. PKCS#8 supports RSA,
+ECDSA, and Ed25519. File extensions do not select a parser. Mixed objects,
+headers, trailing bytes or fields, unsupported algorithms, malformed keys, and
+encrypted keys fail closed.
+
+Certificate reads retain the 16 MiB public-object limit. Private-key reads are
+limited to 64 KiB and accepted RSA arithmetic is capped at 16,384 bits. The
+comparison canonicalizes both public keys as SubjectPublicKeyInfo and uses a
+constant-time comparison. A mismatch is a completed negative verdict: it is
+printed as `match: false` and returns exit code 1. A match proves only that the
+two inputs encode the same public key. It does not prove certificate trust,
+algorithm acceptability, private-key provenance, uncompromised custody, or
+live-server deployment.
+
+Output contains only container and public-key metadata. Paths, private bytes,
+passphrases, certificate identity fields, and attacker-controlled parser
+errors are excluded. Key input and decoded DER buffers are cleared after use
+on a best-effort basis, and parsed private values are zeroed where Go's public
+types permit. In particular, parsed ECDSA scalar internals are left to Go's
+runtime because direct access to them is deprecated and can invalidate the
+key implementation. Go runtime copies, allocator pages, swap, crash dumps,
+and a privileged host are outside this erasure claim. The operation performs no
+network request and does not accept a passphrase through arguments or the
+environment. Encrypted-key support remains disabled until an interactive or
+descriptor-based secret-input design has its own review and platform tests.
+
 ## Supply-chain boundary
 
 - The shipped module starts with no runtime dependencies.
@@ -224,7 +254,7 @@ not-checked` and `network: disabled` so those non-claims are not implicit.
 
 Review and version this model before adding any of the following:
 
-- secret-bearing output or a parser for an object other than one X.509 certificate;
+- secret-bearing output or a parser for an object not covered by an implemented boundary above;
 - password or interactive terminal input;
 - temporary files or overwrite support;
 - any network-capable command;
