@@ -238,8 +238,11 @@ Guarded by `TestParsePublicCertificateAndBundle`,
 
 ## C20 — Browser bundle exploration stays public, bounded, and untrusted
 
-Explore accepts one selected public DER certificate or a strict PEM collection
-through the same Go parser as CLI `explore`. It rejects secret-bearing, mixed,
+Explore accepts up to eight selected files, each a public DER certificate or a
+strict PEM collection through the same Go parser as CLI `explore`. The browser
+enforces a 16 MiB combined and 64-certificate combined limit, rejects
+fingerprint duplicates across files, and reveals no partial list if any file
+fails. It rejects secret-bearing, mixed,
 malformed, duplicate, excessive, and trailing input without partial results or
 reflected input. The response is versioned, bounded, and contains public
 metadata only. Its explicit status is `not-performed` with trust anchor
@@ -253,7 +256,10 @@ Guarded by `TestProcessPublicCertificateAndBundle`,
 `TestWorkbenchExploreIsPublicOnlyAndFunctional`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
 `TestWorkbenchDemoCertificateIsPublicAndInspectable`, and
-`TestWorkbenchDemoBundleIsPublicAndExplorable`.
+`TestWorkbenchDemoBundleIsPublicAndExplorable`, plus the browser-state
+regressions in `scripts/test-workbench-multifile.mjs` for successful
+aggregation, cross-file duplicates, malformed second input, stale-selection
+suppression, and size/count/UTF-8 metadata refusals.
 
 ## C21 — Browser export contains only the explicitly chosen public certificate
 

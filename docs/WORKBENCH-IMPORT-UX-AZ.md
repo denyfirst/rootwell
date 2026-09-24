@@ -1,7 +1,7 @@
 # Certificate import, bundle explorer və Verify UX planı
 
-**Status:** bir fayllı public browser explorer və seçilmiş bir public
-certificate-in PEM/DER download-u işləkdir; çoxfayllı import, toplu export,
+**Status:** 1–8 public faylı birlikdə göstərən browser explorer və seçilmiş
+bir public certificate-in PEM/DER download-u işləkdir; toplu export,
 rol/chain təyini və browser Verify hələ plan mərhələsindədir.
 
 ## İstifadəçinin yolu
@@ -46,9 +46,11 @@ Sadə görünüşdə təhlükəsizlik yoxlamalarını azaltmaq qadağandır.
 
 ## Bundle explorer və download
 
-Hazırkı public explorer bir PEM bundle və ya tək DER faylındakı certificate-ləri
+Hazırkı public explorer 1–8 PEM bundle və ya tək DER faylındakı certificate-ləri
 ayrıca kartlarda göstərir: subject/issuer, expiry, CA flag, encoding və
-fingerprint. Rol namizədi və chain əlaqəsi hələ göstərilmir.
+fingerprint. Ümumi 16 MiB/64 certificate limiti var, eyni certificate müxtəlif
+fayllarda təkrarlandısa bütün nəticə rədd olunur; qismən nəticə göstərilmir.
+Rol namizədi və chain əlaqəsi hələ göstərilmir.
 İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
 kimi ayrıca endirməyi tələb edə bilər. `.crt` və `.cer` ayrıca format deyil:
 istifadəçi iç məzmunu (PEM text və ya DER binary) və fayl uzantısını birlikdə
@@ -86,7 +88,8 @@ yazma risk yaratmamalıdır.
 2. Public-only, bounded bundle parser və bir-fayllı browser explorer qur:
    malformed, mixed, duplicate, trailing, həddən artıq böyük və
    secret-bearing input rədd edilir; fuzz və neqativ testlər əlavə olunur.
-   **İşləkdir.** Çoxfayllı import və rol/chain təyini ayrıca incrementdir.
+   **İşləkdir.** Çoxfayllı public metadata görünüşü də işləkdir; rol/chain
+   təyini ayrıca incrementdir.
 3. Seçilən public certificate-lərin təhlükəsiz export-u: yeni fayl adı,
    no-overwrite, təkrar parse, byte/semantik uyğunluq testləri.
    **Bir public certificate üçün browser download işləkdir.** Rootwell

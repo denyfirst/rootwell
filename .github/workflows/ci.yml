@@ -88,6 +88,7 @@ jobs:
           node --check web/workbench/wasm-loader.js
           node --check web/workbench/app.js
           node --check scripts/test-browser-wasm.mjs
+          node --check scripts/test-workbench-multifile.mjs
 
       - name: Test the browser WebAssembly bridge
         run: |
@@ -97,6 +98,7 @@ jobs:
             "$(go env GOROOT)/lib/wasm/wasm_exec.js" \
             web/workbench/rootwell-demo-certificate.pem \
             web/workbench/rootwell-demo-bundle.pem
+          node scripts/test-workbench-multifile.mjs
 
       - name: Test with race detector
         run: go test -race -shuffle=on -coverprofile=coverage.out ./...

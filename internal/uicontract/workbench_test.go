@@ -224,8 +224,9 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 	html := assets["index.html"]
 	for _, required := range []string{
 		`id="explore-tab" data-tool="explore"`,
-		`id="explore-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`,
-		"1–64 certificates · maximum 16 MiB",
+		`id="explore-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`,
+		"1–8 files · 1–64 certificates · 16 MiB combined",
+		"duplicate certificates across files are rejected",
 		"Private keys and PFX are not supported",
 		`href="rootwell-demo-bundle.pem" download`,
 		"The CA flag is certificate metadata, not proof that a root is trusted",
@@ -239,6 +240,10 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 	for _, required := range []string{
 		"file.arrayBuffer()", "engine.explore(bytes)", "validExploreResult(response.result)",
 		"exploreCertificates.replaceChildren(...cards)", "description.textContent = value", "bytes.fill(0)",
+		"if (files.length > maxExploreFiles) {", "remainingBytes -= bytes.byteLength",
+		"if (fingerprints.has(certificate.sha256)) {", "entries.length === maxExploreCertificates",
+		"metadataBytes > maxExploreMetadataBytes", "if (selectedExploreFiles === files) renderExplore(entries)",
+		"bundleDetail(details, \"Source file\", entry.file.name)",
 	} {
 		if !strings.Contains(application, required) {
 			t.Errorf("Explore is missing local-processing guard %q", required)
@@ -265,7 +270,8 @@ func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
 	}
 	application := assets["app.js"]
 	for _, required := range []string{
-		`exportAction(certificate.sha256, index)`,
+		`exportAction(entry.file, certificate.sha256, index)`,
+		`selectedExploreFiles.includes(file)`,
 		`"pem:pem": Object.freeze({ encoding: "pem", extension: "pem"`,
 		`"pem:crt": Object.freeze({ encoding: "pem", extension: "crt"`,
 		`"pem:cer": Object.freeze({ encoding: "pem", extension: "cer"`,

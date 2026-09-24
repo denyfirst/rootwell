@@ -71,7 +71,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect public certificates and explore PEM bundles locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
+          <p class="lede">Inspect public certificates and explore certificate files locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -93,7 +93,7 @@
           </button>
           <button class="tool-tab" type="button" id="explore-tab" data-tool="explore" aria-controls="explore-panel" aria-selected="false">
             <span class="tool-number">02</span>
-            <span><strong>Explore</strong><small>Open a public PEM bundle</small></span>
+            <span><strong>Explore</strong><small>Open public certificate files</small></span>
           </button>
           <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
             <span class="tool-number">03</span>
@@ -178,19 +178,19 @@
             <div>
               <p class="section-index">Tool 02 / Explore</p>
               <h2>See what is inside a certificate bundle</h2>
-              <p>Choose one public PEM bundle, or one DER certificate. Rootwell lists every certificate locally without guessing which one to trust. Private keys and PFX are not supported.</p>
+              <p>Choose one or several public certificate files, including PEM bundles or single DER certificates. Rootwell lists them locally without guessing which one to trust. Private keys and PFX are not supported.</p>
             </div>
             <span class="capability">Public only</span>
           </div>
 
           <div class="file-zone" data-drop-target="explore-file">
-            <input class="file-input" type="file" id="explore-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
+            <input class="file-input" type="file" id="explore-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
             <label for="explore-file">
               <span class="file-symbol" aria-hidden="true">＋</span>
-              <strong>Choose one certificate file or PEM bundle</strong>
-              <span>or drop it here · 1–64 certificates · maximum 16 MiB</span>
+              <strong>Choose public certificate files or PEM bundles</strong>
+              <span>or drop them here · 1–8 files · 1–64 certificates · 16 MiB combined</span>
             </label>
-            <p class="file-selection" id="explore-file-state" aria-live="polite">No file selected</p>
+            <p class="file-selection" id="explore-file-state" aria-live="polite">No files selected</p>
             <p class="demo-certificate">Need a safe bundle? <a href="rootwell-demo-bundle.pem" download>Download a two-certificate public demo bundle</a> — no private key included.</p>
           </div>
 
@@ -206,11 +206,11 @@
               <div>
                 <p class="result-kicker">Local exploration · not a trust verdict</p>
                 <h3 id="explore-result-count"></h3>
-                <p>No chain verification performed · no trust anchor selected</p>
+                <p>No chain verification performed · no trust anchor selected · duplicate certificates across files are rejected</p>
               </div>
               <span class="stamp stamp-warn">Unverified</span>
             </div>
-            <ol class="bundle-list" id="explore-certificates" aria-label="Certificates found in the selected file"></ol>
+            <ol class="bundle-list" id="explore-certificates" aria-label="Certificates found in the selected files"></ol>
             <p class="export-status" id="export-status" aria-live="polite">Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.</p>
             <aside class="inspection-error" id="export-error" role="alert" hidden></aside>
             <aside class="nonclaim">
