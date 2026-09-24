@@ -1,6 +1,7 @@
 package uicontract
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -9,11 +10,14 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/denyfirst/rootwell/internal/browserinspect"
 )
 
 func TestWorkbenchPreviewIsSelfContained(t *testing.T) {
 	assets := workbenchAssets(t)
-	for _, name := range []string{"index.html", "style.css", "theme.js", "app.js", "favicon.svg"} {
+	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem"} {
 		content, exists := assets[name]
 		if !exists {
 			t.Fatalf("required asset %q is missing", name)
@@ -33,22 +37,41 @@ func TestWorkbenchPreviewIsSelfContained(t *testing.T) {
 	}
 }
 
-func TestWorkbenchContentSecurityPolicyDeniesNetwork(t *testing.T) {
+func TestWorkbenchDemoCertificateIsPublicAndInspectable(t *testing.T) {
+	certificate := workbenchAssets(t)["rootwell-demo-certificate.pem"]
+	if strings.Contains(certificate, "PRIVATE KEY") || !strings.Contains(certificate, "-----BEGIN CERTIFICATE-----") {
+		t.Fatal("demo input must contain one public certificate and no private key")
+	}
+	var response browserinspect.Response
+	if err := json.Unmarshal([]byte(browserinspect.Process([]byte(certificate), time.Unix(1_800_000_000, 0))), &response); err != nil {
+		t.Fatalf("inspect demo certificate: %v", err)
+	}
+	if !response.OK || response.Result == nil || response.Error != nil {
+		t.Fatalf("demo certificate response = %#v, want success", response)
+	}
+}
+
+func TestWorkbenchContentSecurityPolicyRestrictsConnections(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, directive := range []string{
 		"default-src 'none'",
 		"style-src 'self'",
-		"script-src 'self'",
+		"script-src 'self' 'wasm-unsafe-eval'",
 		"img-src 'self'",
-		"connect-src 'none'",
+		"connect-src 'self'",
 		"font-src 'none'",
 		"object-src 'none'",
+		"worker-src 'none'",
+		"manifest-src 'none'",
 		"base-uri 'none'",
 		"form-action 'none'",
 	} {
 		if !strings.Contains(html, directive) {
 			t.Errorf("Content Security Policy is missing %q", directive)
 		}
+	}
+	if strings.Contains(html, "script-src 'self' 'unsafe-eval'") || strings.Contains(html, "'unsafe-inline'") {
+		t.Fatal("Content Security Policy enables dynamic JavaScript execution")
 	}
 }
 
@@ -97,33 +120,54 @@ func TestWorkbenchTextContrast(t *testing.T) {
 	}
 }
 
-func TestWorkbenchScriptCannotReadOrTransmitFiles(t *testing.T) {
+func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	assets := workbenchAssets(t)
 	application := assets["app.js"]
-	combined := application + "\n" + assets["theme.js"]
+	loader := assets["wasm-loader.js"]
+	fileReadingScripts := application + "\n" + assets["theme.js"]
 	for _, forbidden := range []string{
 		"fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon",
-		"FileReader", "arrayBuffer(", "readAs", "indexedDB", "caches.",
+		"serviceWorker", "Worker(", "SharedWorker", "import(",
+		"FileReader", "readAs", "indexedDB", "caches.",
 		"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function",
 	} {
-		if strings.Contains(combined, forbidden) {
-			t.Errorf("workbench script contains forbidden capability %q", forbidden)
+		if strings.Contains(fileReadingScripts, forbidden) {
+			t.Errorf("file-reading workbench script contains forbidden capability %q", forbidden)
 		}
 	}
 	if strings.Contains(application, "localStorage") || strings.Contains(application, "sessionStorage") {
 		t.Fatal("application script persists workbench input")
 	}
-	if !strings.Contains(application, "output.textContent = file ?") || !strings.Contains(application, "output.textContent = file.name") {
-		t.Fatal("file metadata must be rendered through textContent")
+	for _, required := range []string{"selectedInspectFile.arrayBuffer()", "engine.inspect(bytes)", "bytes.fill(0)", ".textContent ="} {
+		if !strings.Contains(application, required) {
+			t.Errorf("application script is missing local-processing guard %q", required)
+		}
+	}
+
+	for _, forbidden := range []string{"document", "querySelector", ".files", "FileReader", "Uint8Array", "dataTransfer", "inspect-file", "serviceWorker", "Worker(", "SharedWorker", "import("} {
+		if strings.Contains(loader, forbidden) {
+			t.Errorf("WebAssembly asset loader contains file/DOM capability %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		`fetch("rootwell.wasm"`,
+		`credentials: "omit"`,
+		`redirect: "error"`,
+		"WebAssembly.instantiateStreaming",
+		"WebAssembly.instantiate(bytes",
+	} {
+		if !strings.Contains(loader, required) {
+			t.Errorf("WebAssembly loader is missing restriction %q", required)
+		}
 	}
 }
 
-func TestWorkbenchPreviewDoesNotClaimRealProcessing(t *testing.T) {
+func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, statement := range []string{
-		"This preview does not read file bytes",
-		"Sample data · not your selected file",
-		"Preview mode — no certificate parsing in this browser build",
+		"Certificate bytes stay inside this browser process",
+		"Local inspection · not a trust verdict",
+		"do not prove chain trust",
 		"Revocation</strong> Not checked",
 		"System roots</strong> Not used",
 	} {
@@ -160,7 +204,7 @@ func workbenchAssets(t *testing.T) map[string]string {
 	}
 	directory := filepath.Join(filepath.Dir(currentFile), "..", "..", "web", "workbench")
 	assets := make(map[string]string)
-	for _, name := range []string{"index.html", "style.css", "theme.js", "app.js", "favicon.svg"} {
+	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem"} {
 		content, err := os.ReadFile(filepath.Join(directory, name))
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)

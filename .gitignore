@@ -2,6 +2,8 @@
 /rootwell
 /dist/
 /bin/
+/web/workbench/rootwell.wasm
+/web/workbench/wasm_exec.js
 *.exe
 *.test
 *.out
@@ -19,6 +21,7 @@ go.work.sum
 .env.*
 !.env.example
 *.pem
+!/web/workbench/rootwell-demo-certificate.pem
 *.key
 *.p12
 *.pfx

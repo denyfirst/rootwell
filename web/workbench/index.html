@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Rootwell local certificate Workbench interface preview">
+  <meta name="description" content="Rootwell local certificate inspection Workbench">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="dark light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'none'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Rootwell Workbench</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <script src="theme.js"></script>
+  <script src="wasm_exec.js" defer></script>
+  <script src="wasm-loader.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body class="workspace">
@@ -53,7 +55,7 @@
     </nav>
 
     <div class="rail-foot">
-      <div class="local-state"><span aria-hidden="true"></span>Local preview</div>
+      <div class="local-state"><span aria-hidden="true"></span>Local workbench</div>
       <button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button>
     </div>
   </aside>
@@ -61,7 +63,7 @@
   <div class="workspace-main">
     <header class="topbar">
       <p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong id="page-path">Inspect</strong></p>
-      <p class="boundary"><span aria-hidden="true"></span>Network disabled</p>
+      <p class="boundary"><span aria-hidden="true"></span>No certificate uploads</p>
     </header>
 
     <main>
@@ -69,18 +71,18 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect public certificate metadata and prepare explicit-trust verification without sending cryptographic material anywhere.</p>
+          <p class="lede">Inspect public certificate metadata locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
         </div>
-        <div class="preview-mark" aria-label="Interface preview">
-          <strong>UI preview</strong>
-          <span>Core connection comes next</span>
+        <div class="preview-mark" aria-label="Local engine status">
+          <strong>Local engine</strong>
+          <span id="engine-state" aria-live="polite">Loading signed build assets</span>
         </div>
       </section>
 
       <section class="boundary-strip" aria-label="Current privacy boundary">
-        <div><span class="boundary-icon" aria-hidden="true">01</span><p><strong>Local surface</strong><span>No uploads or remote assets</span></p></div>
-        <div><span class="boundary-icon" aria-hidden="true">02</span><p><strong>Metadata only</strong><span>This preview does not read file bytes</span></p></div>
-        <div><span class="boundary-icon" aria-hidden="true">03</span><p><strong>Honest state</strong><span>Displayed results are labeled sample data</span></p></div>
+        <div><span class="boundary-icon" aria-hidden="true">01</span><p><strong>Self-hosted assets</strong><span>No third-party scripts, fonts, or telemetry</span></p></div>
+        <div><span class="boundary-icon" aria-hidden="true">02</span><p><strong>Local processing</strong><span>Certificate bytes are never posted to a server API</span></p></div>
+        <div><span class="boundary-icon" aria-hidden="true">03</span><p><strong>Shared Go core</strong><span>The CLI and browser enforce the same parser limits</span></p></div>
       </section>
 
       <div class="tool-layout">
@@ -104,7 +106,7 @@
             <div>
               <p class="section-index">Tool 01 / Inspect</p>
               <h2>Inspect one certificate</h2>
-              <p>Choose one PEM or DER X.509 certificate. This interface foundation records only the name and size; the file bytes are not read yet.</p>
+              <p>Choose one PEM or DER X.509 certificate. Bytes are read only after you press Inspect and are processed locally by WebAssembly.</p>
             </div>
             <span class="capability">Read-only</span>
           </div>
@@ -117,41 +119,53 @@
               <span>or drop it here · PEM / DER · maximum 16 MiB in the CLI core</span>
             </label>
             <p class="file-selection" id="inspect-file-state" aria-live="polite">No file selected</p>
+            <p class="demo-certificate">Need a safe input? <a href="rootwell-demo-certificate.pem" download>Download the public demo certificate</a> — no private key included.</p>
           </div>
 
           <div class="panel-actions">
-            <p><span class="status-dot" aria-hidden="true"></span>Preview mode — no certificate parsing in this browser build</p>
-            <button class="button button-primary" type="button" data-show-sample="inspect-result">Show sample result</button>
+            <p id="inspect-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local inspection engine</p>
+            <button class="button button-primary" id="inspect-button" type="button" disabled>Inspect certificate</button>
           </div>
+
+          <aside class="inspection-error" id="inspect-error" role="alert" hidden></aside>
 
           <section class="result" id="inspect-result" aria-live="polite" hidden>
             <div class="result-head">
               <div>
-                <p class="result-kicker">Sample data · not your selected file</p>
-                <h3>CN=portal.company.local</h3>
-                <p class="mono">SHA256 7A:18:5C:9E:44:2B:0D:91:…:F2</p>
+                <p class="result-kicker">Local inspection · not a trust verdict</p>
+                <h3 id="inspect-result-subject"></h3>
+                <p class="mono" id="inspect-result-fingerprint"></p>
               </div>
-              <span class="stamp stamp-good">Within validity</span>
+              <span class="stamp" id="inspect-result-status"></span>
             </div>
 
             <div class="evidence-grid">
-              <article><span>Encoding</span><strong>PEM</strong><small>One complete certificate</small></article>
-              <article><span>Public key</span><strong>ECDSA P-256</strong><small>Allowed by current policy</small></article>
-              <article><span>Expires</span><strong>38 days</strong><small>2026-10-30 12:00 UTC</small></article>
+              <article><span>Encoding</span><strong id="inspect-result-encoding"></strong><small>One complete certificate</small></article>
+              <article><span>Public key</span><strong id="inspect-result-public-key"></strong><small id="inspect-result-signature"></small></article>
+              <article><span>Validity</span><strong id="inspect-result-relative-time"></strong><small id="inspect-result-not-after"></small></article>
             </div>
 
             <div class="detail-grid">
               <dl>
-                <div><dt>Subject</dt><dd>CN=portal.company.local</dd></div>
-                <div><dt>Issuer</dt><dd>CN=Company TLS Intermediate 01</dd></div>
-                <div><dt>Serial</dt><dd class="mono">32:A7:91:0C</dd></div>
+                <div><dt>Subject</dt><dd id="inspect-detail-subject"></dd></div>
+                <div><dt>Issuer</dt><dd id="inspect-detail-issuer"></dd></div>
+                <div><dt>Serial</dt><dd class="mono" id="inspect-detail-serial"></dd></div>
+                <div><dt>Not before</dt><dd id="inspect-detail-not-before"></dd></div>
+                <div><dt>Not after</dt><dd id="inspect-detail-not-after"></dd></div>
               </dl>
               <dl>
-                <div><dt>DNS names</dt><dd>portal.company.local<br>portal.internal.example</dd></div>
-                <div><dt>Key usage</dt><dd>Digital signature</dd></div>
-                <div><dt>Extended usage</dt><dd>TLS web server authentication</dd></div>
+                <div><dt>DNS names</dt><dd class="multiline" id="inspect-detail-dns"></dd></div>
+                <div><dt>Email / IP / URI</dt><dd class="multiline" id="inspect-detail-other-names"></dd></div>
+                <div><dt>Key usage</dt><dd class="multiline" id="inspect-detail-key-usage"></dd></div>
+                <div><dt>Extended usage</dt><dd class="multiline" id="inspect-detail-extended-usage"></dd></div>
+                <div><dt>Basic constraints</dt><dd id="inspect-detail-basic-constraints"></dd></div>
               </dl>
             </div>
+
+            <aside class="nonclaim">
+              <strong>What this result does not prove</strong>
+              <p>Parsing and time-window status do not prove chain trust, hostname suitability, revocation status, or private-key possession. Use Verify for an explicit TLS trust decision.</p>
+            </aside>
           </section>
         </section>
 
@@ -226,7 +240,7 @@
 
     <footer class="colophon">
       <p><span class="footer-brand"><span>root</span>well</span> · Your private root of trust.</p>
-      <p>Preview shell · no uploads · no file bytes read</p>
+      <p>Local WebAssembly inspection · no certificate uploads</p>
     </footer>
   </div>
 </body>

@@ -72,6 +72,31 @@ jobs:
             CGO_ENABLED=0 GOOS="${os}" go vet ./...
           done
 
+      - name: Build the browser inspection engine
+        run: |
+          set -eu
+          GOOS=js GOARCH=wasm go build -trimpath \
+            -o "${RUNNER_TEMP}/rootwell.wasm" ./cmd/rootwell-browser
+          test -s "${RUNNER_TEMP}/rootwell.wasm"
+          test "$(stat -c %s "${RUNNER_TEMP}/rootwell.wasm")" -le 16777216
+          test -s "$(go env GOROOT)/lib/wasm/wasm_exec.js"
+
+      - name: Check browser script syntax
+        run: |
+          set -eu
+          node --check web/workbench/theme.js
+          node --check web/workbench/wasm-loader.js
+          node --check web/workbench/app.js
+          node --check scripts/test-browser-wasm.mjs
+
+      - name: Test the browser WebAssembly bridge
+        run: |
+          set -eu
+          node scripts/test-browser-wasm.mjs \
+            "${RUNNER_TEMP}/rootwell.wasm" \
+            "$(go env GOROOT)/lib/wasm/wasm_exec.js" \
+            web/workbench/rootwell-demo-certificate.pem
+
       - name: Test with race detector
         run: go test -race -shuffle=on -coverprofile=coverage.out ./...
 

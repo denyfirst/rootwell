@@ -243,9 +243,11 @@ v0.1-də olmayacaq:
 **Məqsəd:** CLI istifadə etməyən istifadəçiyə online converter əvəzi vermək.
 
 İlk foundation increment-i Inspect və Verify axınlarının dependency-free statik
-UI shell-ini qurur. Bu shell real fayl byte-larını oxumadan vizual və təhlükəsizlik
-contract-ını yoxlamağa imkan verir. Go core-a qoşulma ayrıca threat-model review-dan
-sonra edilir; preview nəticələri real processing kimi təqdim olunmur.
+UI shell-ini qurdu. Növbəti increment public PEM/DER X.509 inspection-u eyni Go
+core-un WebAssembly build-i ilə browser daxilində işlədir. Certificate byte-ları
+server API-yə göndərilmir; asset loader və file-reading kod ayrı capability-lərdə
+saxlanır. Private key və digər secret-bearing browser əməliyyatları ayrıca
+threat-model review olmadan bu sərhədə daxil edilmir.
 
 - drag-and-drop inspection və conversion
 - bütün processing lokal

@@ -32,6 +32,8 @@ jobs:
             package: ./internal/certinspect
           - target: FuzzEvaluateTimeWindow
             package: ./internal/certinspect
+          - target: FuzzProcessReturnsJSON
+            package: ./internal/browserinspect
           - target: FuzzParseCertificateBundle
             package: ./internal/certverify
           - target: FuzzReadLimited

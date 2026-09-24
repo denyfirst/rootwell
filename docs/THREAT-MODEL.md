@@ -133,23 +133,40 @@ It does not imply a valid signature, trusted chain, suitable hostname or usage,
 or non-revoked status. Reversed intervals fail closed as `invalid-range`, and
 relative-second calculations saturate rather than wrapping.
 
-## Workbench UI foundation boundary
+## Browser inspection boundary
 
-The first browser interface under `web/workbench` is a static, dependency-free
-preview rather than a certificate-processing service. Its Content Security
-Policy denies network connections and remote assets. It displays only the name
-and size of a file the operator explicitly selects, renders that metadata with
-`textContent`, does not read file bytes, and does not persist workbench input.
-All certificate-looking results in this preview are fixed sample data and are
-labeled as such.
+The static Workbench can inspect one public PEM or DER X.509 certificate with a
+Go WebAssembly build of the same bounded core used by the CLI. The operator
+must explicitly choose a file and press **Inspect certificate** before bytes are
+read. No certificate upload or parsing API exists: the selected bytes move from
+the browser `File` object into a JavaScript byte array and then into Go linear
+memory in the same browser process.
 
-The theme preference is the only browser-local value stored. Opening the static
-preview does not add a network-capable Rootwell command and does not change the
-CLI trust boundary. Connecting the UI to certificate processing requires a
-separate reviewed design for WebAssembly, a loopback service, or a desktop
-shell. That design must address origin validation, CSP delivery, request and
-memory limits, CSRF and DNS rebinding where relevant, packaging, and platform
-behavior before the UI may read user file bytes.
+The browser scripts split capabilities. `wasm-loader.js` may fetch the exact
+same-origin `rootwell.wasm` application asset but has no DOM, file-selection,
+or file-byte access. `app.js` may read the selected file and invoke the already-
+loaded Go function, but it has no fetch, XHR, WebSocket, beacon, service-worker,
+dynamic-code, or workbench-input storage capability. CSP denies third-party
+assets and restricts connections to the self-hosted origin. Certificate-derived
+values are rendered with `textContent`, never markup.
+
+The WebAssembly bridge checks the 16 MiB limit before allocating its Go copy.
+The parser still requires exactly one complete certificate and applies the same
+metadata limits. Responses are versioned and exclude paths, input bytes,
+private-key fields, stack traces, and attacker-controlled diagnostics. The JS
+and Go entry buffers are cleared after processing on a best-effort basis.
+Browser and runtime copies outside those buffers are not guaranteed erased.
+This boundary therefore accepts public certificates only; private keys,
+passphrases, PFX, and other secret-bearing inputs require a separate review.
+
+The self-hosted origin is trusted to deliver the reviewed Rootwell JavaScript,
+WebAssembly, and matching Go runtime shim. A compromised origin, browser,
+extension, administrator, or host can replace code or read process memory and
+is outside this boundary. Production hosting must provide the documented HTTP
+security headers, `application/wasm` media type, authenticated administrative
+access, no third-party injection, and matching release checksums. Direct
+`file://` opening is only a visual fallback and does not provide the functional
+engine.
 
 ## Implemented TLS verification boundary
 
