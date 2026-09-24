@@ -177,6 +177,41 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	}
 }
 
+func TestWorkbenchVerifyPreviewDoesNotPretendToProcessFiles(t *testing.T) {
+	assets := workbenchAssets(t)
+	html := assets["index.html"]
+	start := strings.Index(html, `<section class="tool-panel" id="verify-panel"`)
+	if start < 0 {
+		t.Fatal("verify panel boundary is missing")
+	}
+	end := strings.Index(html[start:], `    </main>`)
+	if end < 0 {
+		t.Fatal("verify panel boundary is missing")
+	}
+	panel := html[start : start+end]
+	for _, forbidden := range []string{`type="file"`, `id="verify-hostname"`, `id="verify-leaf"`, `id="verify-roots"`} {
+		if strings.Contains(panel, forbidden) {
+			t.Errorf("preview contains a nonfunctional input %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"Preview only — file analysis and verification are not active here yet",
+		"Add what your CA gave you",
+		"Enter the website name",
+		"Choose what you trust",
+		"A root found inside the uploaded bundle is never trusted automatically",
+		"Advanced: what will be checked?",
+		"Sample data · offline TLS server profile",
+	} {
+		if !strings.Contains(panel, required) {
+			t.Errorf("verify preview is missing user boundary %q", required)
+		}
+	}
+	if strings.Contains(assets["app.js"], "verify-leaf") || strings.Contains(assets["app.js"], "verify-roots") {
+		t.Error("application still binds removed Verify preview inputs")
+	}
+}
+
 func TestWorkbenchElementReferencesResolve(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	idPattern := regexp.MustCompile(`\sid="([A-Za-z][A-Za-z0-9_-]*)"`)

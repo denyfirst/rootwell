@@ -249,6 +249,15 @@ server API-yə göndərilmir; asset loader və file-reading kod ayrı capability
 saxlanır. Private key və digər secret-bearing browser əməliyyatları ayrıca
 threat-model review olmadan bu sərhədə daxil edilmir.
 
+Sadə certificate import/Verify və public bundle explorer üçün konkret
+istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarları
+[`WORKBENCH-IMPORT-UX-AZ.md`](WORKBENCH-IMPORT-UX-AZ.md) sənədindədir.
+Default görünüş CA-nın verdiyi bir və ya bir neçə fayldan başlayacaq;
+Advanced eyni verification core-u və policy-ni istifadə edərək texniki
+rolları açıq göstərəcək. Bundle içindəki root avtomatik trusted
+sayılmayacaq. Public hissələri ayrıca endirmək planlanır, private
+key/PFX axını isə ayrıca security review tələb edir.
+
 - drag-and-drop inspection və conversion
 - bütün processing lokal
 - offline işləmə
