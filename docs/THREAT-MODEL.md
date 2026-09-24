@@ -133,6 +133,23 @@ It does not imply a valid signature, trusted chain, suitable hostname or usage,
 or non-revoked status. Reversed intervals fail closed as `invalid-range`, and
 relative-second calculations saturate rather than wrapping.
 
+## Public certificate collection boundary
+
+`rootwell explore <file>` accepts one DER X.509 certificate or 1–64 adjacent,
+header-free PEM `CERTIFICATE` blocks within 16 MiB total. It reuses the bounded
+single-certificate inspection parser for each object. Extensions are not
+trusted. Duplicate certificates, PEM headers, non-certificate blocks,
+malformed certificate data, surrounding non-whitespace content, and mixed
+secret-bearing input fail before any partial result is printed. Diagnostics
+are fixed and do not reflect the path or supplied bytes.
+
+The command prints only public metadata and makes no chain, root-trust,
+hostname, signature-validation, revocation, or live-endpoint claim. Public
+certificate contents can still reveal internal names and are kept local.
+The parsed DER copies are in process memory only; this increment has no file
+export or browser upload. A future browser bundle flow and any secret-bearing
+format require their own boundary review before implementation.
+
 ## Browser inspection boundary
 
 The static Workbench can inspect one public PEM or DER X.509 certificate with a

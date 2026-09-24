@@ -8,7 +8,7 @@ required. Anything not listed is unsupported and must fail explicitly.
 |---|---|---:|---:|---:|---:|---|
 | X.509 certificate | PEM | implemented (single) | planned | implemented (TLS server) | planned | exactly one header-free `CERTIFICATE` block |
 | X.509 certificate | DER | implemented (single) | planned | implemented (TLS server) | planned | exactly one certificate; trailing data rejected |
-| Certificate chain | PEM bundle | planned | n/a | implemented (explicit roots/intermediates) | planned | strict role separation; order is not a trust signal |
+| Certificate chain | PEM bundle | implemented (CLI `explore`) | n/a | implemented (explicit roots/intermediates) | planned | exploration is not trust verification; order is not a trust signal |
 | CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
 | CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
 | RSA private key | PKCS#8 PEM/DER | planned | planned | n/a | planned | unencrypted first; encrypted import reviewed separately |
@@ -27,7 +27,7 @@ Initial limits are deliberately conservative and become code constants with
 tests when parsing begins:
 
 - maximum input per command: 16 MiB;
-- maximum decoded PEM blocks: 64 for verification bundles; inspection accepts exactly one;
+- maximum decoded PEM blocks: 64 for verification and public exploration bundles; single-certificate inspection accepts exactly one;
 - maximum certificates in one chain operation: 64;
 - one DER object must consume the complete bounded input;
 - duplicate, unrelated, or unknown PEM blocks are reported rather than ignored;
