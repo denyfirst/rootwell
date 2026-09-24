@@ -153,16 +153,34 @@ Guarded by `TestVerifyCommand`, `TestVerifyDoesNotEchoSensitiveInput`,
 `TestHumanVerificationOutputEscapesText`, and
 `FuzzHumanVerificationOutput`.
 
-## C16 — The UI foundation is self-contained and cannot process secrets
+## C16 — Browser file access and asset loading are capability-separated
 
-The first Workbench UI has no remote subresources or connection capability.
-Its application script cannot read certificate bytes, send data, persist user
-input, or inject selected file names as markup. Sample results are identified
-as samples so the interface cannot imply that a selected file was inspected.
+Workbench assets are self-hosted and contain no third-party subresources. Only
+the WebAssembly loader can fetch, and it has no DOM or selected-file access.
+The application script can read an explicitly selected certificate but has no
+network, service-worker, dynamic-code, markup-injection, or input-persistence
+capability. Same-origin CSP access exists only so the loader can obtain the
+WebAssembly program.
 
 Guarded by `TestWorkbenchPreviewIsSelfContained`,
-`TestWorkbenchContentSecurityPolicyDeniesNetwork`,
-`TestWorkbenchScriptCannotReadOrTransmitFiles`,
-`TestWorkbenchPreviewDoesNotClaimRealProcessing`, and
+`TestWorkbenchContentSecurityPolicyRestrictsConnections`,
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`,
+`TestWorkbenchProcessingClaimsAreBounded`, and
 `TestWorkbenchElementReferencesResolve`. Text contrast in both themes is
 guarded by `TestWorkbenchTextContrast`.
+
+## C17 — Browser inspection is bounded, versioned, and secret-free
+
+The browser bridge accepts one byte array no larger than 16 MiB and invokes the
+same exact-certificate parser and report schema as the CLI. Oversized input is
+rejected before the bridge allocates a Go copy. Failures use fixed classes and
+never echo input; the result cannot include raw bytes, paths, private keys, or
+stack traces. The JS and Go entry buffers are cleared after use on a best-effort
+basis, but this public-certificate boundary makes no browser-wide erasure claim.
+
+Guarded by `TestProcessCertificate`,
+`TestProcessClassifiesFailuresWithoutEchoingInput`,
+`TestProcessRejectsOversizedInput`,
+`TestFailureResponseFailsClosedForUnknownCode`, and
+`FuzzProcessReturnsJSON`. The downloadable non-production input is guarded by
+`TestWorkbenchDemoCertificateIsPublicAndInspectable`.

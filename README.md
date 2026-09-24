@@ -31,14 +31,14 @@ tested.
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - [v0.1 format matrix](docs/FORMAT-MATRIX.md)
 
-## Workbench interface preview
+## Local Workbench interface
 
-The first dependency-free browser shell is available at
-[`web/workbench/index.html`](web/workbench/index.html). It establishes the
-Rootwell Inspect and Verify interaction model while remaining deliberately
-disconnected from certificate processing. It has no remote assets or network
-calls and does not read selected file bytes; every displayed result is labeled
-sample data. See the [preview boundary](web/workbench/README.md).
+The dependency-free browser shell is available at
+[`web/workbench/index.html`](web/workbench/index.html). Its functional Inspect
+tool compiles the same bounded Go certificate parser to WebAssembly, keeps the
+selected public certificate inside the browser process, and never posts it to
+a server API. Verify remains an explicitly labeled interface preview. Build and
+hosting requirements are documented in the [browser boundary](web/workbench/README.md).
 
 ## Implemented commands
 
