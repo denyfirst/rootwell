@@ -106,7 +106,7 @@
             <div>
               <p class="section-index">Tool 01 / Inspect</p>
               <h2>Inspect one certificate</h2>
-              <p>Choose one PEM or DER X.509 certificate. Bytes are read only after you press Inspect and are processed locally by WebAssembly.</p>
+              <p>Inspect one public X.509 certificate. Its content must be PEM or DER; bundles and PFX are not supported here. Bytes are read only after you press Inspect and are processed locally.</p>
             </div>
             <span class="capability">Read-only</span>
           </div>
@@ -115,8 +115,8 @@
             <input class="file-input" type="file" id="inspect-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
             <label for="inspect-file">
               <span class="file-symbol" aria-hidden="true">＋</span>
-              <strong>Choose a certificate</strong>
-              <span>or drop it here · PEM / DER · maximum 16 MiB in the CLI core</span>
+              <strong>Choose a certificate file (.pem, .crt, .cer, .der)</strong>
+              <span>or drop it here · one certificate · maximum 16 MiB</span>
             </label>
             <p class="file-selection" id="inspect-file-state" aria-live="polite">No file selected</p>
             <p class="demo-certificate">Need a safe input? <a href="rootwell-demo-certificate.pem" download>Download the public demo certificate</a> — no private key included.</p>

@@ -165,7 +165,8 @@ WebAssembly program.
 Guarded by `TestWorkbenchPreviewIsSelfContained`,
 `TestWorkbenchContentSecurityPolicyRestrictsConnections`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`,
-`TestWorkbenchProcessingClaimsAreBounded`, and
+`TestWorkbenchProcessingClaimsAreBounded`,
+`TestWorkbenchInspectFileHintMatchesParserBoundary`, and
 `TestWorkbenchElementReferencesResolve`. The Verify preview cannot offer
 nonfunctional file inputs or silently imply that an uploaded bundle root is
 trusted; this is guarded by

@@ -177,6 +177,23 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	}
 }
 
+func TestWorkbenchInspectFileHintMatchesParserBoundary(t *testing.T) {
+	html := workbenchAssets(t)["index.html"]
+	for _, required := range []string{
+		`accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`,
+		"Choose a certificate file (.pem, .crt, .cer, .der)",
+		"one certificate · maximum 16 MiB",
+		"Its content must be PEM or DER; bundles and PFX are not supported here",
+	} {
+		if !strings.Contains(html, required) {
+			t.Errorf("Inspect file hint is missing boundary %q", required)
+		}
+	}
+	if strings.Contains(html, "Any type") || strings.Contains(html, "All formats") {
+		t.Error("Inspect advertises unsupported input formats")
+	}
+}
+
 func TestWorkbenchVerifyPreviewDoesNotPretendToProcessFiles(t *testing.T) {
 	assets := workbenchAssets(t)
 	html := assets["index.html"]
