@@ -36,7 +36,9 @@ The trusted self-hosted origin, runtime shim, CSP, and asset checks from ADR
 
 ## Deferred
 
-Multiple separate files, role/chain inference, public certificate export,
-browser Verify, PFX/private-key import, and all secret-bearing conversion are
-separate increments. In particular, an included root certificate cannot
-authorize itself as a trust anchor.
+At this decision's date, multiple separate files and public certificate export
+were deferred. ADR 0005 adds single-certificate public export; ADR 0006 adds
+bounded multi-file metadata exploration. Role/chain inference, browser Verify,
+PFX/private-key import, and all secret-bearing conversion remain separate
+increments. In particular, an included root certificate cannot authorize
+itself as a trust anchor.

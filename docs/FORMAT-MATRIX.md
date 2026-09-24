@@ -7,6 +7,9 @@ required. Anything not listed is unsupported and must fail explicitly.
 For a single public browser export, `.crt` and `.cer` are allowed filename
 extensions for either PEM or DER certificate bytes; they are not separate
 encodings. `.pem` is paired only with PEM and `.der` only with DER.
+Browser Explore accepts 1–8 public files, each parsed separately, with a
+16 MiB/64-certificate combined limit and no trust inference. CLI `explore`
+still accepts one file.
 
 | Object | Encoding/container | Inspect | Match | Verify | Convert/write | v0.1 notes |
 |---|---|---:|---:|---:|---:|---|
@@ -34,6 +37,7 @@ tests when parsing begins:
 - maximum private-key input for matching: 64 KiB;
 - maximum accepted private-key size: 16,384 bits;
 - maximum decoded PEM blocks: 64 for verification and public exploration bundles; single-certificate inspection accepts exactly one;
+- browser Explore collection: at most 8 files, 16 MiB total, 64 distinct certificates, and 1 MiB aggregate subject/issuer text;
 - maximum certificates in one chain operation: 64;
 - one DER object must consume the complete bounded input;
 - duplicate, unrelated, or unknown PEM blocks are reported rather than ignored;

@@ -2,8 +2,9 @@
 
 This directory contains Rootwell's dependency-free, self-hosted browser UI.
 Inspect processes one public PEM or DER X.509 certificate. Explore processes
-one selected file containing a strict public PEM certificate bundle (up to 64
-certificates) or one DER certificate. Both use the same bounded Go core as the
+1–8 selected public files containing strict PEM certificate bundles or single
+DER certificates, with at most 64 certificates and 16 MiB combined. Each file
+uses the same bounded Go core as the
 CLI. Verify is still a clearly labeled interaction preview.
 
 ## Security boundary
@@ -17,14 +18,16 @@ CLI. Verify is still a clearly labeled interaction preview.
   service-worker, dynamic-code, or
   workbench-input storage capability;
 - selected values and certificate metadata are rendered through `textContent`;
-- the Go core enforces the 16 MiB input limit, strict one-certificate Inspect
-  or 1–64 certificate Explore limits, trailing-data and metadata limits before
-  returning a versioned, public-only response (Explore is also capped at 4 MiB);
+- the Go core enforces the 16 MiB per-file input limit, strict one-certificate
+  Inspect or 1–64 certificate per-file Explore limits, trailing-data and metadata
+  limits before returning a versioned, public-only response (Explore is also
+  capped at 4 MiB); the browser additionally bounds the selected collection
+  and rejects duplicates across files without showing partial results;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
 
 Explore displays subject, issuer, CA flag, expiry, encoding, and fingerprint.
-It does not select a leaf, choose a trust anchor, verify a chain, or combine
-separate files. A selected public certificate can be downloaded as one PEM
+It does not select a leaf, choose a trust anchor, verify a chain, or create a
+combined output file. A selected public certificate can be downloaded as one PEM
 `CERTIFICATE` block or exact DER bytes. The source is re-parsed and selected
 by fingerprint; the output is re-parsed and byte-checked before download.
 The user explicitly chooses both the encoding and filename extension:

@@ -161,7 +161,7 @@ memory in the same browser process.
 
 The browser scripts split capabilities. `wasm-loader.js` may fetch the exact
 same-origin `rootwell.wasm` application asset but has no DOM, file-selection,
-or file-byte access. `app.js` may read the selected file and invoke the already-
+or file-byte access. `app.js` may read explicitly selected files and invoke the already-
 loaded Go function, but it has no fetch, XHR, WebSocket, beacon, service-worker,
 dynamic-code, or workbench-input storage capability. CSP denies third-party
 assets and restricts connections to the self-hosted origin. Certificate-derived
@@ -187,18 +187,23 @@ engine.
 
 ## Browser public bundle exploration boundary
 
-The Explore tab reads one explicitly selected file only after **Explore
-bundle** is pressed. It accepts one complete DER certificate or 1–64 public
-PEM `CERTIFICATE` blocks under the shared 16 MiB input limit, using the same
-`publicbundle` parser as the CLI. Multiple separate files, private keys, and
-PFX are not accepted. Filenames and extensions never
-choose the parser. Malformed, mixed, duplicated, excessive, or secret-bearing
-input returns a fixed, input-free failure and no partial certificate list.
+The Explore tab reads 1–8 explicitly selected files only after **Explore
+bundle** is pressed. Each file accepts one complete DER certificate or 1–64
+public PEM `CERTIFICATE` blocks through the same `publicbundle` parser as the
+CLI. The browser additionally enforces a 16 MiB combined, 64-certificate
+combined, and 1 MiB aggregate metadata-text limit. It tracks full SHA-256
+fingerprints across files, rejecting duplicates without a partial result.
+Private keys and PFX are not accepted. Filenames and extensions never choose
+the parser. Malformed, mixed, excessive, or secret-bearing input produces a
+fixed, input-free failure and no partial certificate list.
 
 The versioned bridge response contains only subject, issuer, expiry, CA flag,
 encoding, and SHA-256 fingerprint for each certificate, with a 4 MiB response
 cap. The UI validates the response shape and puts certificate-derived text
-into DOM text nodes only. JS and Go entry buffers and parsed public DER copies
+into DOM text nodes only, including the user-supplied source filename. Each
+source file remains associated with its cards so export re-parses that exact
+source; selecting new files invalidates old cards. JS and Go entry buffers
+and parsed public DER copies
 are cleared on a best-effort basis, without a browser-wide erasure claim.
 Selected certificate data can still include sensitive internal identities.
 
@@ -207,7 +212,7 @@ Exploration is not verification. The bridge says `not-performed` and
 root or silently classifies a leaf. Chain building, hostname, time-policy,
 revocation, live endpoint, and private-key possession are outside this result.
 The same-origin asset, CSP, and no-upload trust boundaries above remain in
-force. See ADR 0004 for this extension.
+force. See ADR 0004 and ADR 0006 for this extension.
 
 ## Browser public certificate export boundary
 

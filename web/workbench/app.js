@@ -27,11 +27,15 @@
 
   let engine = null;
   let selectedInspectFile = null;
-  let selectedExploreFile = null;
+  let selectedExploreFiles = null;
   let inspecting = false;
   let exploring = false;
   let exporting = false;
   const pendingDownloadURLs = new Set();
+  const maxExploreFiles = 8;
+  const maxExploreCertificates = 64;
+  const maxExploreMetadataBytes = 1 << 20;
+  const metadataEncoder = new TextEncoder();
   const exportChoices = Object.freeze({
     "pem:pem": Object.freeze({ encoding: "pem", extension: "pem", label: "PEM text (.pem)" }),
     "pem:crt": Object.freeze({ encoding: "pem", extension: "crt", label: "PEM text (.crt)" }),
@@ -69,7 +73,7 @@
   }
 
   function updateExploreControls() {
-    exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFile === null;
+    exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFiles === null;
     exploreCertificates.querySelectorAll("button, select").forEach(function (control) {
       control.disabled = exploring || exporting;
     });
@@ -91,20 +95,44 @@
     setInspectFile(file);
   });
 
-  function setExploreFile(file) {
-    selectedExploreFile = file;
+  function setExploreFiles(files) {
+    selectedExploreFiles = null;
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     exploreError.hidden = true;
     exportError.hidden = true;
-    exploreSelection.textContent = file ? file.name + " · " + formatSize(file.size) : "No file selected";
-    if (file && engine) exploreStatus.textContent = "Ready for local exploration";
+    if (files.length > maxExploreFiles) {
+      exploreSelection.textContent = "Choose at most 8 public certificate files";
+      exploreStatus.textContent = "Too many files selected";
+    } else if (files.length === 0) {
+      exploreSelection.textContent = "No files selected";
+      exploreStatus.textContent = "Choose public certificate files to explore";
+    } else {
+      let totalBytes = 0;
+      for (const file of files) {
+        if (!Number.isSafeInteger(file.size) || file.size < 0) {
+          exploreSelection.textContent = "The selected file size is invalid";
+          exploreStatus.textContent = "Choose public certificate files to explore";
+          updateExploreControls();
+          return;
+        }
+        totalBytes += file.size;
+      }
+      if (totalBytes > (engine ? engine.maxBytes : 16 * 1024 * 1024)) {
+        exploreSelection.textContent = "Selected files exceed the 16 MiB combined limit";
+        exploreStatus.textContent = "Selected files exceed the combined limit";
+      } else {
+        selectedExploreFiles = Object.freeze(files.slice());
+        exploreSelection.textContent = files.length === 1 ? files[0].name + " · " + formatSize(totalBytes) :
+          files.length + " files · " + formatSize(totalBytes) + " total";
+        if (engine) exploreStatus.textContent = "Ready for local exploration";
+      }
+    }
     updateExploreControls();
   }
 
   exploreInput.addEventListener("change", function () {
-    const file = exploreInput.files && exploreInput.files.length === 1 ? exploreInput.files[0] : null;
-    setExploreFile(file);
+    setExploreFiles(exploreInput.files ? Array.from(exploreInput.files) : []);
   });
 
   document.querySelectorAll("[data-drop-target]").forEach(function (zone) {
@@ -122,14 +150,16 @@
     });
     zone.addEventListener("drop", function (event) {
       const isExplore = zone.dataset.dropTarget === "explore-file";
-      const selectFile = isExplore ? setExploreFile : setInspectFile;
-      const selection = isExplore ? exploreSelection : inspectSelection;
-      if (!event.dataTransfer || event.dataTransfer.files.length !== 1) {
-        selectFile(null);
-        selection.textContent = "Choose exactly one file";
+      if (isExplore) {
+        setExploreFiles(event.dataTransfer ? Array.from(event.dataTransfer.files) : []);
         return;
       }
-      selectFile(event.dataTransfer.files[0]);
+      if (!event.dataTransfer || event.dataTransfer.files.length !== 1) {
+        setInspectFile(null);
+        inspectSelection.textContent = "Choose exactly one file";
+        return;
+      }
+      setInspectFile(event.dataTransfer.files[0]);
     });
   });
 
@@ -165,7 +195,7 @@
       engine = readyEngine;
       engineState.textContent = "Ready · Go WebAssembly";
       inspectStatus.textContent = selectedInspectFile ? "Ready for local inspection" : "Choose one certificate to inspect";
-      exploreStatus.textContent = selectedExploreFile ? "Ready for local exploration" : "Choose one public bundle to explore";
+      exploreStatus.textContent = selectedExploreFiles ? "Ready for local exploration" : "Choose public certificate files to explore";
       updateInspectControls();
       updateExploreControls();
     }, engineUnavailable);
@@ -407,7 +437,7 @@
     listElement.append(row);
   }
 
-  function exportAction(fingerprint, index) {
+  function exportAction(file, fingerprint, index) {
     const controls = document.createElement("div");
     controls.className = "bundle-actions";
     const choice = document.createElement("select");
@@ -428,14 +458,15 @@
         return;
       }
       const selected = exportChoices[choice.value];
-      void exportCertificate(fingerprint, selected.encoding, selected.extension);
+      void exportCertificate(file, fingerprint, selected.encoding, selected.extension);
     });
     controls.append(choice, button);
     return controls;
   }
 
-  function renderExplore(result) {
-    const cards = result.certificates.map(function (certificate, index) {
+  function renderExplore(entries) {
+    const cards = entries.map(function (entry, index) {
+      const certificate = entry.certificate;
       const item = document.createElement("li");
       const heading = document.createElement("div");
       heading.className = "bundle-card-head";
@@ -445,18 +476,19 @@
       title.textContent = certificate.subject || "Subject not present";
       heading.append(number, title);
       const details = document.createElement("dl");
+      bundleDetail(details, "Source file", entry.file.name);
       bundleDetail(details, "Issuer", certificate.issuer || "Not present");
       bundleDetail(details, "CA flag", certificate.is_ca ? "Yes · not automatically trusted" : "No");
       bundleDetail(details, "Expires", certificate.not_after);
       bundleDetail(details, "Encoding", certificate.encoding.toUpperCase());
       bundleDetail(details, "SHA-256", certificate.sha256);
-      item.append(heading, details, exportAction(certificate.sha256, index));
+      item.append(heading, details, exportAction(entry.file, certificate.sha256, index));
       return item;
     });
     exploreCertificates.replaceChildren(...cards);
     exportError.hidden = true;
     exportStatus.textContent = "Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.";
-    text("explore-result-count", result.count + (result.count === 1 ? " certificate found" : " certificates found"));
+    text("explore-result-count", entries.length + (entries.length === 1 ? " certificate found" : " certificates found"));
     exploreResult.hidden = false;
     exploreResult.scrollIntoView({ block: "nearest" });
   }
@@ -523,13 +555,13 @@
     }
   }
 
-  async function exportCertificate(fingerprint, format, extension) {
-    if (!engine || !selectedExploreFile || exporting || exploring) return;
+  async function exportCertificate(file, fingerprint, format, extension) {
+    if (!engine || !selectedExploreFiles || !selectedExploreFiles.includes(file) || exporting || exploring) return;
     if (!Object.hasOwn(exportChoices, format + ":" + extension)) {
       showExportFailure("Choose a supported encoding and file extension.");
       return;
     }
-    const file = selectedExploreFile;
+    const files = selectedExploreFiles;
     if (file.size > engine.maxBytes) {
       showExportFailure(exportFailureMessages["input-too-large"]);
       return;
@@ -542,7 +574,7 @@
     let output = null;
     try {
       input = new Uint8Array(await file.arrayBuffer());
-      if (selectedExploreFile !== file) return;
+      if (selectedExploreFiles !== files) return;
       if (input.byteLength !== file.size || input.byteLength > engine.maxBytes) {
         showExportFailure("The selected file changed or exceeds the export limit.");
         return;
@@ -568,7 +600,7 @@
       requestBrowserDownload(output, downloadName);
       exportStatus.textContent = "Browser download requested. Check the browser's save location; Rootwell did not write to disk.";
     } catch {
-      if (selectedExploreFile === file) showExportFailure("Certificate export failed safely. No upload was made.");
+      if (selectedExploreFiles === files) showExportFailure("Certificate export failed safely. No upload was made.");
     } finally {
       if (input) input.fill(0);
       if (output) output.fill(0);
@@ -578,9 +610,10 @@
   }
 
   exploreButton.addEventListener("click", async function () {
-    if (!engine || !selectedExploreFile || exploring || exporting) return;
-    const file = selectedExploreFile;
-    if (file.size > engine.maxBytes) {
+    if (!engine || !selectedExploreFiles || exploring || exporting) return;
+    const files = selectedExploreFiles;
+    if (files.length < 1 || files.length > maxExploreFiles ||
+        files.reduce(function (total, file) { return total + file.size; }, 0) > engine.maxBytes) {
       showExploreFailure(exploreFailureMessages["input-too-large"]);
       return;
     }
@@ -592,46 +625,78 @@
     exploreStatus.textContent = "Exploring locally · no certificate upload";
     updateExploreControls();
 
-    let bytes = null;
     try {
-      const buffer = await file.arrayBuffer();
-      bytes = new Uint8Array(buffer);
-      if (selectedExploreFile !== file) return;
-      if (bytes.byteLength !== file.size || bytes.byteLength > engine.maxBytes) {
-        showExploreFailure("The selected file changed or exceeds the exploration limit.");
-        return;
-      }
-      const rawResponse = engine.explore(bytes);
-      if (typeof rawResponse !== "string" || rawResponse.length > 4 * 1024 * 1024) {
-        showExploreFailure("The local exploration engine returned an invalid response.");
-        return;
-      }
-      const response = JSON.parse(rawResponse);
-      if (!response || response.schema_version !== "rootwell.browser.explore.v1" || typeof response.ok !== "boolean") {
-        showExploreFailure("The local exploration engine returned an invalid response.");
-        return;
-      }
-      if (!response.ok) {
-        const failure = response.error;
-        const fixedMessage = failure && typeof failure.code === "string" && Object.hasOwn(exploreFailureMessages, failure.code) ? exploreFailureMessages[failure.code] : null;
-        if (response.result !== null || !fixedMessage || failure.message !== fixedMessage) {
-          showExploreFailure("Exploration failed safely.");
+      const entries = [];
+      const fingerprints = new Set();
+      let metadataBytes = 0;
+      let remainingBytes = engine.maxBytes;
+      for (const file of files) {
+        if (selectedExploreFiles !== files) return;
+        if (file.size > remainingBytes) {
+          showExploreFailure("The selected files changed or exceed the combined limit.");
           return;
         }
-        showExploreFailure(fixedMessage);
-        return;
+        let bytes = null;
+        try {
+          bytes = new Uint8Array(await file.arrayBuffer());
+          if (selectedExploreFiles !== files) return;
+          if (bytes.byteLength !== file.size || bytes.byteLength > remainingBytes) {
+            showExploreFailure("The selected files changed or exceed the combined limit.");
+            return;
+          }
+          remainingBytes -= bytes.byteLength;
+          const rawResponse = engine.explore(bytes);
+          if (typeof rawResponse !== "string" || rawResponse.length > 4 * 1024 * 1024) {
+            showExploreFailure("The local exploration engine returned an invalid response.");
+            return;
+          }
+          const response = JSON.parse(rawResponse);
+          if (!response || response.schema_version !== "rootwell.browser.explore.v1" || typeof response.ok !== "boolean") {
+            showExploreFailure("The local exploration engine returned an invalid response.");
+            return;
+          }
+          if (!response.ok) {
+            const failure = response.error;
+            const fixedMessage = failure && typeof failure.code === "string" && Object.hasOwn(exploreFailureMessages, failure.code) ? exploreFailureMessages[failure.code] : null;
+            if (response.result !== null || !fixedMessage || failure.message !== fixedMessage) {
+              showExploreFailure("Exploration failed safely.");
+              return;
+            }
+            showExploreFailure(fixedMessage);
+            return;
+          }
+          if (response.error !== null || !validExploreResult(response.result)) {
+            showExploreFailure("The local exploration engine returned an invalid response.");
+            return;
+          }
+          for (const certificate of response.result.certificates) {
+            if (fingerprints.has(certificate.sha256)) {
+              showExploreFailure("The selected files contain a duplicate certificate. Remove the duplicate and try again.");
+              return;
+            }
+            if (entries.length === maxExploreCertificates) {
+              showExploreFailure(exploreFailureMessages["certificate-count-limit"]);
+              return;
+            }
+            metadataBytes += metadataEncoder.encode(certificate.subject).byteLength +
+              metadataEncoder.encode(certificate.issuer).byteLength;
+            if (metadataBytes > maxExploreMetadataBytes) {
+              showExploreFailure(exploreFailureMessages["metadata-limit"]);
+              return;
+            }
+            fingerprints.add(certificate.sha256);
+            entries.push({ certificate: certificate, file: file });
+          }
+        } finally {
+          if (bytes) bytes.fill(0);
+        }
       }
-      if (response.error !== null || !validExploreResult(response.result)) {
-        showExploreFailure("The local exploration engine returned an invalid response.");
-        return;
-      }
-      renderExplore(response.result);
+      if (selectedExploreFiles === files) renderExplore(entries);
     } catch {
-      if (selectedExploreFile === file) showExploreFailure("Exploration failed safely. The selected file was not uploaded.");
+      if (selectedExploreFiles === files) showExploreFailure("Exploration failed safely. The selected files were not uploaded.");
     } finally {
-      if (bytes) bytes.fill(0);
       exploring = false;
-      if (selectedExploreFile === file) exploreStatus.textContent = "Local exploration finished · no certificate upload";
+      if (selectedExploreFiles === files) exploreStatus.textContent = "Local exploration finished · no certificate upload";
       updateExploreControls();
     }
   });

@@ -35,8 +35,9 @@ tested.
 
 The dependency-free browser shell is available at
 [`web/workbench/index.html`](web/workbench/index.html). Inspect handles one
-public certificate; Explore lists a single DER certificate or a strict public
-PEM bundle of up to 64 certificates. Both use the bounded Go core through
+public certificate; Explore lists certificates across 1–8 selected public
+files (single DER certificates or strict PEM bundles), up to 64 certificates
+and 16 MiB combined. Both use the bounded Go core through
 WebAssembly and never post selected bytes to a server API. A selected public
 certificate can be downloaded separately as PEM or DER from Explore, with a
 clearly labeled `.pem`, `.der`, `.crt`, or `.cer` filename extension;
@@ -78,11 +79,13 @@ rootwell explore certificates.crt
 and SHA-256 fingerprint. It does not select a leaf or trust anchor, verify a
 chain, export files, or process PFX/private keys. The filename extension does
 not determine the encoding; mixed blocks, junk, and duplicates are rejected.
-Browser Explore accepts one selected file, displays the same public-only
-collection locally, and can download one chosen certificate as PEM or DER.
+Browser Explore accepts 1–8 selected public files, rejects duplicates across
+them, displays the collection locally, and can download one chosen certificate
+as PEM or DER from its original source file.
 `.crt` and `.cer` are filename extensions, not additional encodings, and both
 can be selected for either PEM or DER bytes.
-It does not yet combine separate files. CLI `explore` remains read-only.
+It does not yet produce a combined bundle or infer chain roles. CLI `explore`
+remains one-file and read-only.
 
 Match one certificate to one unencrypted local private key:
 
