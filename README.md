@@ -64,6 +64,21 @@ current UTC instant. It reports `within-validity-window`, `not-yet-valid`,
 `expired`, or `invalid-range`, together with explicit relative seconds and whole
 days. This time-window observation is not a trust or verification verdict.
 
+Match one certificate to one unencrypted local private key:
+
+```text
+rootwell match --cert certificate.pem --key private-key.pem
+rootwell match --json --cert certificate.der --key private-key.der
+```
+
+Matching accepts strict PEM or DER PKCS#8, PKCS#1 RSA, and SEC1 ECDSA keys;
+PKCS#8 supports RSA, ECDSA, and Ed25519. Private-key input is capped at 64 KiB,
+never printed, and cleared from Rootwell-owned input buffers on a best-effort
+basis. Encrypted keys are deliberately rejected until safe passphrase input is
+implemented. A mismatch prints an explicit `false` verdict and exits `1`.
+Matching does not establish certificate trust or algorithm safety. See the
+[match contract](docs/MATCH.md).
+
 Verify a TLS server leaf against explicit local trust material:
 
 ```text
@@ -81,6 +96,6 @@ constraints, and Rootwell's initial algorithm policy. It does **not** check
 revocation, OCSP, CRLs, Certificate Transparency, or the certificate currently
 served by a remote endpoint. See [the TLS verification contract](docs/VERIFY-TLS.md).
 
-Private-key handling and conversion are intentionally not implemented yet.
+Private-key conversion and writing are intentionally not implemented yet.
 Their threat boundaries and failure contracts must be established before code
 is added.

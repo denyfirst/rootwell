@@ -6,16 +6,16 @@ required. Anything not listed is unsupported and must fail explicitly.
 
 | Object | Encoding/container | Inspect | Match | Verify | Convert/write | v0.1 notes |
 |---|---|---:|---:|---:|---:|---|
-| X.509 certificate | PEM | implemented (single) | planned | implemented (TLS server) | planned | exactly one header-free `CERTIFICATE` block |
-| X.509 certificate | DER | implemented (single) | planned | implemented (TLS server) | planned | exactly one certificate; trailing data rejected |
+| X.509 certificate | PEM | implemented (single) | implemented | implemented (TLS server) | planned | exactly one header-free `CERTIFICATE` block |
+| X.509 certificate | DER | implemented (single) | implemented | implemented (TLS server) | planned | exactly one certificate; trailing data rejected |
 | Certificate chain | PEM bundle | planned | n/a | implemented (explicit roots/intermediates) | planned | strict role separation; order is not a trust signal |
 | CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
 | CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
-| RSA private key | PKCS#8 PEM/DER | planned | planned | n/a | planned | unencrypted first; encrypted import reviewed separately |
-| ECDSA private key | PKCS#8 PEM/DER | planned | planned | n/a | planned | unencrypted first |
-| Ed25519 private key | PKCS#8 PEM/DER | planned | planned | n/a | planned | unencrypted first |
-| RSA private key | PKCS#1 PEM/DER | planned | planned | n/a | planned | legacy import; write defaults to PKCS#8 |
-| ECDSA private key | SEC1 PEM/DER | planned | planned | n/a | planned | legacy import; write defaults to PKCS#8 |
+| RSA private key | PKCS#8 PEM/DER | planned | implemented (unencrypted) | n/a | planned | encrypted import requires a password-input decision |
+| ECDSA private key | PKCS#8 PEM/DER | planned | implemented (unencrypted) | n/a | planned | encrypted import requires a password-input decision |
+| Ed25519 private key | PKCS#8 PEM/DER | planned | implemented (unencrypted) | n/a | planned | encrypted import requires a password-input decision |
+| RSA private key | PKCS#1 PEM/DER | planned | implemented (unencrypted) | n/a | planned | legacy import; write defaults to PKCS#8 |
+| ECDSA private key | SEC1 PEM/DER | planned | implemented (unencrypted) | n/a | planned | legacy import; write defaults to PKCS#8 |
 | Certificate and key bundle | PKCS#12/PFX | planned | planned | planned | planned | dependency and password-input decision required first |
 | Java keystore | JKS | deferred | deferred | deferred | deferred | target profile phase, not v0.1 |
 | SSH key | OpenSSH and RFC 4716 | deferred | deferred | deferred | deferred | separate lifecycle and threat model |
@@ -26,7 +26,9 @@ required. Anything not listed is unsupported and must fail explicitly.
 Initial limits are deliberately conservative and become code constants with
 tests when parsing begins:
 
-- maximum input per command: 16 MiB;
+- maximum public-object input per command: 16 MiB;
+- maximum private-key input for matching: 64 KiB;
+- maximum accepted private-key size: 16,384 bits;
 - maximum decoded PEM blocks: 64 for verification bundles; inspection accepts exactly one;
 - maximum certificates in one chain operation: 64;
 - one DER object must consume the complete bounded input;

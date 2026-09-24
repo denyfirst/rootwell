@@ -243,11 +243,15 @@ v0.1-də olmayacaq:
 **Məqsəd:** CLI istifadə etməyən istifadəçiyə online converter əvəzi vermək.
 
 İlk foundation increment-i Inspect və Verify axınlarının dependency-free statik
-UI shell-ini qurdu. Növbəti increment public PEM/DER X.509 inspection-u eyni Go
+UI shell-ini qurdu. İkinci increment public PEM/DER X.509 inspection-u eyni Go
 core-un WebAssembly build-i ilə browser daxilində işlədir. Certificate byte-ları
 server API-yə göndərilmir; asset loader və file-reading kod ayrı capability-lərdə
 saxlanır. Private key və digər secret-bearing browser əməliyyatları ayrıca
 threat-model review olmadan bu sərhədə daxil edilmir.
+
+CLI nüvəsində certificate/private-key uyğunluq yoxlaması strict və bounded
+sərhədlə mövcuddur. Bu, browserdə secret-bearing input qəbul etmək üçün
+avtomatik icazə deyil; browser match ayrıca review tələb edir.
 
 - drag-and-drop inspection və conversion
 - bütün processing lokal
@@ -525,7 +529,7 @@ edilməlidir.
 5. Minimal `cmd/rootwell` və sabit exit-code/error modeli.
 6. Təhlükəsiz input classification və parsing limit-ləri.
 7. `rootwell inspect`.
-8. `rootwell match`.
+8. `rootwell match`. *(implemented: unencrypted PKCS#8/PKCS#1/SEC1, PEM/DER)*
 9. Explicit trust bundle ilə `rootwell verify`.
 10. Conversion dependency review və `rootwell convert`.
 11. `rootwell csr`.

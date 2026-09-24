@@ -4,9 +4,9 @@ An invariant is a behavior Rootwell must preserve, not an aspiration. Every
 entry names tests that exist. A change that renames or removes a cited test must
 update this file in the same commit, and CI verifies that the citations resolve.
 
-This list guards the CLI, certificate-inspection, and offline TLS verification boundaries. File-writing
-and private-key invariants are added with the code that first creates those
-risks.
+This list guards the CLI, certificate-inspection, offline TLS verification,
+and certificate/private-key match boundaries. File-writing invariants are
+added with the code that first creates those risks.
 
 ## C1 — Diagnostics do not reflect command input
 
@@ -184,3 +184,32 @@ Guarded by `TestProcessCertificate`,
 `TestFailureResponseFailsClosedForUnknownCode`, and
 `FuzzProcessReturnsJSON`. The downloadable non-production input is guarded by
 `TestWorkbenchDemoCertificateIsPublicAndInspectable`.
+
+## C18 — Private-key matching is strict, bounded, and secret-free
+
+Matching accepts exactly one certificate and one unencrypted PKCS#8, PKCS#1,
+or SEC1 private key. Private-key files are bounded to 64 KiB, large RSA work is
+capped, encrypted/unsupported/malformed/mixed/trailing objects and extra DER
+fields fail closed, and input paths or bytes never appear in output. Only
+canonical public-key
+material is compared; result models contain no private values. A mismatch is
+an explicit `false` verdict with exit code 1, not a parser error or success.
+The command states that trust and algorithm policy were not evaluated and that
+the network is disabled.
+
+Guarded by `TestMatchSupportedPrivateKeyEncodings`,
+`TestMatchReportsMismatchAsVerdict`,
+`TestMatchRejectsUnsafePrivateKeyInputs`,
+`TestMatchRejectsInvalidCertificateWithoutParsingKey`,
+`TestMatchRejectsOversizedRSABeforePrivateArithmetic`, `TestMatchCommand`,
+`TestMatchRejectsPKCS8ExtraField`, `TestMatchRejectsPKCS8AlgorithmExtraField`,
+`TestMatchRejectsPKCS1AndSEC1ExtraFields`,
+`TestMatchRejectsPKCS8NestedExtraField`,
+`TestMatchRejectsSEC1EmbeddedPublicMismatch`,
+`TestMatchRejectsPKCS8ContradictoryECCurve`,
+`TestMatchJSONCommand`, `TestMatchMismatchIsObservableFailure`,
+`TestMatchJSONMismatchExitsOne`,
+`TestMatchRejectsEncryptedKeyWithoutEcho`, `TestMatchReadAndOutputFailures`,
+`TestMatchArgumentErrorsDoNotEchoInput`, `TestReadLimitedMapsReaderFailure`,
+`TestReadLimitedClearsOversizedInput`,
+`TestDestroyPrivateKeyClearsSupportedValues`, and `FuzzMatch`.
