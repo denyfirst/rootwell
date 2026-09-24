@@ -492,6 +492,11 @@ main {
 .bundle-list dl > div { min-width: 0; }
 .bundle-list dt { color: var(--ink-faint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .bundle-list dd { margin: 0.12rem 0 0; font-size: 0.76rem; overflow-wrap: anywhere; }
+.bundle-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.95rem; }
+.bundle-actions button { padding: 0.45rem 0.65rem; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); font: 600 0.72rem var(--sans); cursor: pointer; }
+.bundle-actions button:hover, .bundle-actions button:focus-visible { border-color: var(--brand); color: var(--brand); }
+.bundle-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
+.export-status { margin: 1rem 0 0; color: var(--ink-soft); font-size: 0.78rem; }
 
 .verify-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin: 1.4rem 0 0; padding: 0; list-style: none; }
 .verify-guide li { display: flex; gap: 0.75rem; min-width: 0; padding: 1rem; background: var(--paper-sunk); border: 1px solid var(--rule); }

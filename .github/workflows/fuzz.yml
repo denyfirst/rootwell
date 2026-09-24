@@ -38,6 +38,8 @@ jobs:
             package: ./internal/browserinspect
           - target: FuzzProcessPublicBundleReturnsJSON
             package: ./internal/browserexplore
+          - target: FuzzPrepareNeverReturnsUnselectedCertificate
+            package: ./internal/browserexport
           - target: FuzzParseCertificateBundle
             package: ./internal/certverify
           - target: FuzzParsePublicBundle

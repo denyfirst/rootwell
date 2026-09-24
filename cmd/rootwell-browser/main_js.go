@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/browserexplore"
+	"github.com/denyfirst/rootwell/internal/browserexport"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
 	"github.com/denyfirst/rootwell/internal/limits"
 )
@@ -15,8 +16,10 @@ import (
 func main() {
 	inspectFunction := js.FuncOf(inspectCertificate)
 	exploreFunction := js.FuncOf(exploreCertificates)
+	exportFunction := js.FuncOf(exportPublicCertificate)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
+	js.Global().Set("rootwellExport", exportFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
@@ -60,6 +63,57 @@ func exploreCertificates(_ js.Value, arguments []js.Value) (response any) {
 	}
 	defer clear(input)
 	return browserexplore.Process(input)
+}
+
+func exportPublicCertificate(_ js.Value, arguments []js.Value) (response any) {
+	response = exportFailure(browserexport.ErrorInternal)
+	defer func() {
+		if recover() != nil {
+			response = exportFailure(browserexport.ErrorInternal)
+		}
+	}()
+	if len(arguments) != 3 || arguments[1].Type() != js.TypeString || arguments[2].Type() != js.TypeString {
+		return exportFailure(browserexport.ErrorInvalidRequest)
+	}
+	input, failure := copyPublicInput(arguments[:1])
+	if failure == inputTooLarge {
+		return exportFailure(browserexport.ErrorTooLarge)
+	}
+	if failure != inputOK {
+		return exportFailure(browserexport.ErrorInvalidRequest)
+	}
+	defer clear(input)
+
+	result, code := browserexport.Prepare(input, arguments[1].String(), arguments[2].String())
+	if code != "" {
+		return exportFailure(code)
+	}
+	defer clear(result.Bytes)
+	output := js.Global().Get("Uint8Array").New(len(result.Bytes))
+	if copied := js.CopyBytesToJS(output, result.Bytes); copied != len(result.Bytes) {
+		output.Call("fill", 0)
+		return exportFailure(browserexport.ErrorInternal)
+	}
+	return js.ValueOf(map[string]any{
+		"schema_version": browserexport.SchemaVersion,
+		"ok":             true,
+		"error":          nil,
+		"result": js.ValueOf(map[string]any{
+			"encoding":    result.Encoding,
+			"fingerprint": result.Fingerprint,
+			"filename":    result.Filename,
+			"bytes":       output,
+		}),
+	})
+}
+
+func exportFailure(code browserexport.ErrorCode) js.Value {
+	return js.ValueOf(map[string]any{
+		"schema_version": browserexport.SchemaVersion,
+		"ok":             false,
+		"result":         nil,
+		"error":          string(code),
+	})
 }
 
 type inputFailure uint8

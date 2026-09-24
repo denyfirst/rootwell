@@ -254,3 +254,23 @@ Guarded by `TestProcessPublicCertificateAndBundle`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
 `TestWorkbenchDemoCertificateIsPublicAndInspectable`, and
 `TestWorkbenchDemoBundleIsPublicAndExplorable`.
+
+## C21 — Browser export contains only the explicitly chosen public certificate
+
+Export re-parses one bounded public source and selects a certificate by its
+full fingerprint, not bundle position, subject text, or filename. It rejects
+changed, secret-bearing, malformed, duplicate, excessive, and unmatched
+input without partial output. PEM and DER output are re-parsed and must match
+the selected DER bytes and fingerprint. Generated filenames contain only a
+fixed prefix, fingerprint fragment, random suffix, and fixed extension.
+The browser validates the versioned response and output again, requests a
+browser-managed download, and does not write directly to the filesystem or
+transmit certificate bytes to an API. Browser/OS overwrite policy is outside
+this guarantee; private key and PFX are never accepted here.
+
+Guarded by `TestPrepareExportsOnlySelectedCertificate`,
+`TestPrepareRejectsChangedOrUnsafeSource`,
+`FuzzPrepareNeverReturnsUnselectedCertificate`,
+`TestWorkbenchPublicExportIsLocalAndExplicit`,
+`TestWorkbenchDemoBundleIsPublicAndExplorable`, and
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`.

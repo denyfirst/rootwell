@@ -14,6 +14,7 @@
       if (settled) return;
       if (typeof globalThis.rootwellInspect !== "function" ||
           typeof globalThis.rootwellExplore !== "function" ||
+          typeof globalThis.rootwellExport !== "function" ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
         return;
@@ -22,6 +23,7 @@
       resolve(Object.freeze({
         inspect: globalThis.rootwellInspect,
         explore: globalThis.rootwellExplore,
+        exportPublic: globalThis.rootwellExport,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));
     };

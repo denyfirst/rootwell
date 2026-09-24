@@ -1,7 +1,8 @@
 # Certificate import, bundle explorer və Verify UX planı
 
-**Status:** bir fayllı public browser explorer işləkdir; çoxfayllı import,
-rol/chain təyini, export və browser Verify hələ plan mərhələsindədir.
+**Status:** bir fayllı public browser explorer və seçilmiş bir public
+certificate-in PEM/DER download-u işləkdir; çoxfayllı import, toplu export,
+rol/chain təyini və browser Verify hələ plan mərhələsindədir.
 
 ## İstifadəçinin yolu
 
@@ -48,12 +49,14 @@ Sadə görünüşdə təhlükəsizlik yoxlamalarını azaltmaq qadağandır.
 Hazırkı public explorer bir PEM bundle və ya tək DER faylındakı certificate-ləri
 ayrıca kartlarda göstərir: subject/issuer, expiry, CA flag, encoding və
 fingerprint. Rol namizədi və chain əlaqəsi hələ göstərilmir.
-Gələcək export mərhələsində istifadəçi seçdiyi **public certificate**-ləri PEM
-və ya DER kimi ayrıca və ya public-only bundle olaraq endirə bilər. Endirilən fayl adı
-certificate məzmunundan birbaşa götürülmür; sabit prefiks və qısa
-fingerprint əsasında təhlükəsiz ad seçilir. Export-dan sonra təkrar
-parse və semantik bərabərlik yoxlanılır. Heç bir private key bu axının
-parçası deyil.
+İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
+kimi ayrıca endirməyi tələb edə bilər. Fayl adı certificate məzmunundan
+birbaşa götürülmür; sabit prefiks, fingerprint hissəsi və random nonce
+istifadə olunur. Export-dan əvvəl mənbə, sonra çıxış təkrar parse edilir;
+DER byte uyğunluğu və fingerprint yoxlanılır. Rootwell fayl sisteminə
+birbaşa yazmır; browser download manager-in save/overwrite davranışına
+tam nəzarət edə bilmir. Public-only toplu export ayrıca mərhələdir.
+Heç bir private key bu axının parçası deyil.
 
 `PFX`/`P12` və private key ehtiva edə bilən digər materiallar public
 import sahəsində qəbul edilmir. Onlar üçün ayrıca secret-bearing threat
@@ -83,6 +86,10 @@ yazma risk yaratmamalıdır.
    **İşləkdir.** Çoxfayllı import və rol/chain təyini ayrıca incrementdir.
 3. Seçilən public certificate-lərin təhlükəsiz export-u: yeni fayl adı,
    no-overwrite, təkrar parse, byte/semantik uyğunluq testləri.
+   **Bir public certificate üçün browser download işləkdir.** Rootwell
+   birbaşa diskə yazmır və random ad yaradır; browserin son save qərarı
+   Rootwell-in nəzarətində deyil. Fayl sistemində qəti no-overwrite və
+   toplu export ayrıca mərhələdə qalır.
 4. Browser Verify-ni mövcud CLI Go core-u ilə bağla; explicit trust
    mənbəyi, hostname və policy olmadan hökm vermə.
 5. Advanced görünüşü və Simple/Advanced parity testlərini əlavə et.
