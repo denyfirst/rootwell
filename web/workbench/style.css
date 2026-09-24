@@ -493,6 +493,7 @@ main {
 .bundle-list dt { color: var(--ink-faint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .bundle-list dd { margin: 0.12rem 0 0; font-size: 0.76rem; overflow-wrap: anywhere; }
 .bundle-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.95rem; }
+.bundle-actions select { min-width: 0; max-width: 100%; padding: 0.45rem 0.65rem; border: 1px solid var(--rule); border-radius: 0; background: var(--paper); color: var(--ink); font: 600 0.72rem var(--sans); }
 .bundle-actions button { padding: 0.45rem 0.65rem; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); font: 600 0.72rem var(--sans); cursor: pointer; }
 .bundle-actions button:hover, .bundle-actions button:focus-visible { border-color: var(--brand); color: var(--brand); }
 .bundle-actions button:disabled { opacity: 0.55; cursor: not-allowed; }

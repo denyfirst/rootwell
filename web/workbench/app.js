@@ -32,6 +32,14 @@
   let exploring = false;
   let exporting = false;
   const pendingDownloadURLs = new Set();
+  const exportChoices = Object.freeze({
+    "pem:pem": Object.freeze({ encoding: "pem", extension: "pem", label: "PEM text (.pem)" }),
+    "pem:crt": Object.freeze({ encoding: "pem", extension: "crt", label: "PEM text (.crt)" }),
+    "pem:cer": Object.freeze({ encoding: "pem", extension: "cer", label: "PEM text (.cer)" }),
+    "der:der": Object.freeze({ encoding: "der", extension: "der", label: "DER binary (.der)" }),
+    "der:crt": Object.freeze({ encoding: "der", extension: "crt", label: "DER binary (.crt)" }),
+    "der:cer": Object.freeze({ encoding: "der", extension: "cer", label: "DER binary (.cer)" })
+  });
 
   function selectTool(name) {
     tabs.forEach(function (tab) {
@@ -62,8 +70,8 @@
 
   function updateExploreControls() {
     exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFile === null;
-    exploreCertificates.querySelectorAll("button").forEach(function (button) {
-      button.disabled = exploring || exporting;
+    exploreCertificates.querySelectorAll("button, select").forEach(function (control) {
+      control.disabled = exploring || exporting;
     });
   }
 
@@ -399,13 +407,31 @@
     listElement.append(row);
   }
 
-  function exportAction(label, fingerprint, format, index) {
+  function exportAction(fingerprint, index) {
+    const controls = document.createElement("div");
+    controls.className = "bundle-actions";
+    const choice = document.createElement("select");
+    choice.setAttribute("aria-label", "Encoding and file extension for certificate " + (index + 1));
+    for (const [value, option] of Object.entries(exportChoices)) {
+      const element = document.createElement("option");
+      element.value = value;
+      element.textContent = option.label;
+      choice.append(element);
+    }
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = label;
-    button.setAttribute("aria-label", "Download certificate " + (index + 1) + " as " + format.toUpperCase());
-    button.addEventListener("click", function () { void exportCertificate(fingerprint, format); });
-    return button;
+    button.textContent = "Download certificate";
+    button.setAttribute("aria-label", "Download certificate " + (index + 1) + " using the selected encoding and extension");
+    button.addEventListener("click", function () {
+      if (!Object.hasOwn(exportChoices, choice.value)) {
+        showExportFailure("Choose a supported encoding and file extension.");
+        return;
+      }
+      const selected = exportChoices[choice.value];
+      void exportCertificate(fingerprint, selected.encoding, selected.extension);
+    });
+    controls.append(choice, button);
+    return controls;
   }
 
   function renderExplore(result) {
@@ -424,18 +450,12 @@
       bundleDetail(details, "Expires", certificate.not_after);
       bundleDetail(details, "Encoding", certificate.encoding.toUpperCase());
       bundleDetail(details, "SHA-256", certificate.sha256);
-      const actions = document.createElement("div");
-      actions.className = "bundle-actions";
-      actions.append(
-        exportAction("Download PEM", certificate.sha256, "pem", index),
-        exportAction("Download DER", certificate.sha256, "der", index)
-      );
-      item.append(heading, details, actions);
+      item.append(heading, details, exportAction(certificate.sha256, index));
       return item;
     });
     exploreCertificates.replaceChildren(...cards);
     exportError.hidden = true;
-    exportStatus.textContent = "Choose PEM or DER on a certificate card to request a browser download. Rootwell does not write directly to disk.";
+    exportStatus.textContent = "Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.";
     text("explore-result-count", result.count + (result.count === 1 ? " certificate found" : " certificates found"));
     exploreResult.hidden = false;
     exploreResult.scrollIntoView({ block: "nearest" });
@@ -503,8 +523,12 @@
     }
   }
 
-  async function exportCertificate(fingerprint, format) {
+  async function exportCertificate(fingerprint, format, extension) {
     if (!engine || !selectedExploreFile || exporting || exploring) return;
+    if (!Object.hasOwn(exportChoices, format + ":" + extension)) {
+      showExportFailure("Choose a supported encoding and file extension.");
+      return;
+    }
     const file = selectedExploreFile;
     if (file.size > engine.maxBytes) {
       showExportFailure(exportFailureMessages["input-too-large"]);
@@ -540,7 +564,8 @@
         showExportFailure("The exported certificate did not match the selected card.");
         return;
       }
-      requestBrowserDownload(output, validated.filename);
+      const downloadName = validated.filename.slice(0, -format.length) + extension;
+      requestBrowserDownload(output, downloadName);
       exportStatus.textContent = "Browser download requested. Check the browser's save location; Rootwell did not write to disk.";
     } catch {
       if (selectedExploreFile === file) showExportFailure("Certificate export failed safely. No upload was made.");

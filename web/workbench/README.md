@@ -27,6 +27,9 @@ It does not select a leaf, choose a trust anchor, verify a chain, or combine
 separate files. A selected public certificate can be downloaded as one PEM
 `CERTIFICATE` block or exact DER bytes. The source is re-parsed and selected
 by fingerprint; the output is re-parsed and byte-checked before download.
+The user explicitly chooses both the encoding and filename extension:
+`.crt`/`.cer` may contain PEM or DER, whereas `.pem` and `.der` are paired
+only with their named encodings. The extension does not alter the certificate.
 The filename uses a fixed prefix, fingerprint fragment, and random suffix,
 never certificate subject text. Rootwell does not write to disk or silently
 overwrite a file; final save behavior belongs to the browser and operating
