@@ -38,6 +38,8 @@ jobs:
             package: ./internal/certverify
           - target: FuzzReadLimited
             package: ./internal/fileinput
+          - target: FuzzMatch
+            package: ./internal/keymatch
           - target: FuzzVersionValue
             package: ./internal/version
     steps:

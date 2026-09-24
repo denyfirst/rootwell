@@ -9,8 +9,9 @@ works; it must carry evidence for success, refusal, malformed input, and
 relevant abuse cases. Deliberately sabotage new behavior in both directions and
 confirm the intended tests fail.
 
-Use a purpose-specific branch, stage explicit paths, sign every commit, wait
-for all required checks and review, then merge with a merge commit. Never use
+Use a purpose-specific branch, stage explicit paths, sign every commit, and
+wait for all required checks. Follow the solo-maintainer review and release
+audit gates in `docs/ENGINEERING.md`, then merge with a merge commit. Never use
 `git add -A`, squash, rebase, auto-merge, or an administrative bypass.
 
 Rootwell and Porch are separate products. Do not edit, stage, commit, or change
