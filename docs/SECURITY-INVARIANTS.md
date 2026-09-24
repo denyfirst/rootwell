@@ -165,8 +165,12 @@ WebAssembly program.
 Guarded by `TestWorkbenchPreviewIsSelfContained`,
 `TestWorkbenchContentSecurityPolicyRestrictsConnections`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`,
-`TestWorkbenchProcessingClaimsAreBounded`, and
-`TestWorkbenchElementReferencesResolve`. Text contrast in both themes is
+`TestWorkbenchProcessingClaimsAreBounded`,
+`TestWorkbenchInspectFileHintMatchesParserBoundary`, and
+`TestWorkbenchElementReferencesResolve`. The Verify preview cannot offer
+nonfunctional file inputs or silently imply that an uploaded bundle root is
+trusted; this is guarded by
+`TestWorkbenchVerifyPreviewDoesNotPretendToProcessFiles`. Text contrast in both themes is
 guarded by `TestWorkbenchTextContrast`.
 
 ## C17 — Browser inspection is bounded, versioned, and secret-free
