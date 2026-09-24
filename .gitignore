@@ -22,6 +22,7 @@ go.work.sum
 !.env.example
 *.pem
 !/web/workbench/rootwell-demo-certificate.pem
+!/web/workbench/rootwell-demo-bundle.pem
 *.key
 *.p12
 *.pfx

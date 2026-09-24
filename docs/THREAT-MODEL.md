@@ -185,6 +185,30 @@ access, no third-party injection, and matching release checksums. Direct
 `file://` opening is only a visual fallback and does not provide the functional
 engine.
 
+## Browser public bundle exploration boundary
+
+The Explore tab reads one explicitly selected file only after **Explore
+bundle** is pressed. It accepts one complete DER certificate or 1–64 public
+PEM `CERTIFICATE` blocks under the shared 16 MiB input limit, using the same
+`publicbundle` parser as the CLI. Multiple separate files, private keys, PFX,
+and export are not accepted in this increment. Filenames and extensions never
+choose the parser. Malformed, mixed, duplicated, excessive, or secret-bearing
+input returns a fixed, input-free failure and no partial certificate list.
+
+The versioned bridge response contains only subject, issuer, expiry, CA flag,
+encoding, and SHA-256 fingerprint for each certificate, with a 4 MiB response
+cap. The UI validates the response shape and puts certificate-derived text
+into DOM text nodes only. JS and Go entry buffers and parsed public DER copies
+are cleared on a best-effort basis, without a browser-wide erasure claim.
+Selected certificate data can still include sensitive internal identities.
+
+Exploration is not verification. The bridge says `not-performed` and
+`not-selected`; the UI never promotes an included CA certificate to a trusted
+root or silently classifies a leaf. Chain building, hostname, time-policy,
+revocation, live endpoint, and private-key possession are outside this result.
+The same-origin asset, CSP, and no-upload trust boundaries above remain in
+force. See ADR 0004 for this extension.
+
 ## Implemented TLS verification boundary
 
 `rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The

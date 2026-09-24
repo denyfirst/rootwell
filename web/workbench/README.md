@@ -1,9 +1,10 @@
 # Rootwell local Workbench
 
 This directory contains Rootwell's dependency-free, self-hosted browser UI.
-Inspect is functional: it processes one public PEM or DER X.509 certificate in
-the browser with the same bounded Go core and `rootwell.inspect.x509.v1` report
-used by the CLI. Verify is still a clearly labeled interaction preview.
+Inspect processes one public PEM or DER X.509 certificate. Explore processes
+one selected file containing a strict public PEM certificate bundle (up to 64
+certificates) or one DER certificate. Both use the same bounded Go core as the
+CLI. Verify is still a clearly labeled interaction preview.
 
 ## Security boundary
 
@@ -11,17 +12,24 @@ used by the CLI. Verify is still a clearly labeled interaction preview.
 - only `wasm-loader.js` may fetch, and it loads the same-origin
   `rootwell.wasm` application asset;
 - the loader has no DOM, selected-file, or file-byte access;
-- `app.js` reads a file only after **Inspect certificate** is pressed and has no
-  network, service-worker, dynamic-code, or workbench-input storage capability;
+- `app.js` reads a file only after **Inspect certificate** or **Explore bundle**
+  is pressed and has no network, service-worker, dynamic-code, or
+  workbench-input storage capability;
 - selected values and certificate metadata are rendered through `textContent`;
-- the Go core enforces the 16 MiB, one-certificate, trailing-data, and metadata
-  limits before returning a versioned, secret-free response;
+- the Go core enforces the 16 MiB input limit, strict one-certificate Inspect
+  or 1–64 certificate Explore limits, trailing-data and metadata limits before
+  returning a versioned, public-only response (Explore is also capped at 4 MiB);
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
+
+Explore displays subject, issuer, CA flag, expiry, encoding, and fingerprint.
+It does not select a leaf, choose a trust anchor, verify a chain, combine
+separate files, or export any certificate. A CA flag is not a trust verdict.
 
 Browser-wide memory erasure is not guaranteed. This boundary is for public
 certificates only. Do not select private keys, passphrases, PFX/PKCS#12 files,
 or other secrets. See
 [`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
+and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
 for the decision and non-claims.
 
 ## Build the local engine
@@ -51,8 +59,9 @@ visual fallback because browsers do not consistently load local WebAssembly.
 The server must send `Content-Type: application/wasm` for `rootwell.wasm`.
 
 For a safe first test, download `rootwell-demo-certificate.pem` from the Inspect
-panel and select it again. It contains one non-production public certificate
-for `.invalid` names and deliberately contains no private key.
+panel and select it in Inspect or Explore. It contains one non-production public
+certificate for `.invalid` names and deliberately contains no private key. To
+see two cards in Explore, use the public `rootwell-demo-bundle.pem` link there.
 
 ## Required production headers
 

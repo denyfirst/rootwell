@@ -483,6 +483,16 @@ main {
 .detail-grid dd { margin: 0; font-size: 0.8rem; overflow-wrap: anywhere; }
 .detail-grid dd.multiline { white-space: pre-line; }
 
+.bundle-list { display: grid; gap: 0.75rem; margin: 1.2rem 0 0; padding: 0; list-style: none; }
+.bundle-list li { min-width: 0; padding: 1rem; background: var(--paper-sunk); border: 1px solid var(--rule); }
+.bundle-card-head { display: flex; align-items: baseline; gap: 0.6rem; }
+.bundle-card-head span { flex: none; color: var(--brand); font-family: var(--mono); font-size: 0.7rem; }
+.bundle-card-head strong { font-size: 0.88rem; overflow-wrap: anywhere; }
+.bundle-list dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem 1rem; margin: 0.8rem 0 0; }
+.bundle-list dl > div { min-width: 0; }
+.bundle-list dt { color: var(--ink-faint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.bundle-list dd { margin: 0.12rem 0 0; font-size: 0.76rem; overflow-wrap: anywhere; }
+
 .verify-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin: 1.4rem 0 0; padding: 0; list-style: none; }
 .verify-guide li { display: flex; gap: 0.75rem; min-width: 0; padding: 1rem; background: var(--paper-sunk); border: 1px solid var(--rule); }
 .verify-guide li > span { color: var(--brand); font-family: var(--mono); font-size: 0.7rem; }
@@ -545,7 +555,7 @@ main {
   .work-heading { display: block; }
   .preview-mark { margin-top: 1.2rem; }
   .tool-layout { display: block; }
-  .tool-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--rule); }
+  .tool-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--rule); }
   .tool-tab { display: block; min-height: 3.6rem; padding: 0.6rem 0.4rem; text-align: center; }
   .tool-tab + .tool-tab { margin: 0; }
   .tool-tab small, .tool-number { display: none; }
@@ -563,5 +573,6 @@ main {
   .work-heading h1 { font-size: 2rem; }
   .panel-head { display: block; }
   .capability { display: inline-block; margin-top: 0.8rem; }
+  .bundle-list dl { grid-template-columns: 1fr; }
   .chain li, .detail-grid dl > div { grid-template-columns: 1fr; gap: 0.2rem; }
 }

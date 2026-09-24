@@ -1,6 +1,7 @@
 # Certificate import, bundle explorer və Verify UX planı
 
-**Status:** məhsul planı; burada təsvir edilən import, export və browser Verify hələ işlək deyil.
+**Status:** bir fayllı public browser explorer işləkdir; çoxfayllı import,
+rol/chain təyini, export və browser Verify hələ plan mərhələsindədir.
 
 ## İstifadəçinin yolu
 
@@ -10,8 +11,9 @@ certificate faylı seçə bilər. Fayl uzantısı yalnız köməkçi ipucudur;
 format məhdud ölçüdə məzmundan müəyyən edilir. İlk addım faylların nə
 olduğunu göstərir, hələ **Verified** hökmü vermir.
 
-Rootwell hər certificate-i fingerprint ilə ayırır və istifadəçiyə sadə
-dildə göstərir: "saytın certificate-i", "aralıq CA", "root namizədi".
+Növbəti import mərhələsində Rootwell hər certificate-i fingerprint ilə ayırır
+və istifadəçiyə sadə dildə göstərir: "saytın certificate-i", "aralıq CA",
+"root namizədi".
 Bu rollar issuer/subject, CA məhdudiyyətləri və imza əlaqəsi kimi
 evidence-lə izah edilir. Birdən çox mümkün leaf, natamam chain və ya
 uyğunsuz fayl varsa, sistem səssiz seçim etmir; hansı məlumatın
@@ -43,10 +45,11 @@ Sadə görünüşdə təhlükəsizlik yoxlamalarını azaltmaq qadağandır.
 
 ## Bundle explorer və download
 
-Public PEM bundle-dəki certificate-lər ayrıca kartlarda göstərilir:
-rol namizədi, subject/issuer, expiry, fingerprint və chain əlaqəsi.
-İstifadəçi seçdiyi **public certificate**-ləri PEM və ya DER kimi
-ayrıca və ya public-only bundle olaraq endirə bilər. Endirilən fayl adı
+Hazırkı public explorer bir PEM bundle və ya tək DER faylındakı certificate-ləri
+ayrıca kartlarda göstərir: subject/issuer, expiry, CA flag, encoding və
+fingerprint. Rol namizədi və chain əlaqəsi hələ göstərilmir.
+Gələcək export mərhələsində istifadəçi seçdiyi **public certificate**-ləri PEM
+və ya DER kimi ayrıca və ya public-only bundle olaraq endirə bilər. Endirilən fayl adı
 certificate məzmunundan birbaşa götürülmür; sabit prefiks və qısa
 fingerprint əsasında təhlükəsiz ad seçilir. Export-dan sonra təkrar
 parse və semantik bərabərlik yoxlanılır. Heç bir private key bu axının
@@ -74,9 +77,10 @@ yazma risk yaratmamalıdır.
 
 1. Mövcud Verify preview-də işləməyən fayl seçicilərini çıxar, sadə
    gələcək yolu və preview sərhədini açıq göstər.
-2. Public-only, bounded bundle parser/explorer qur: malformed, mixed,
-   duplicate, trailing, həddən artıq böyük və secret-bearing input
-   rədd edilir; fuzz və negatif testlər əlavə olunur.
+2. Public-only, bounded bundle parser və bir-fayllı browser explorer qur:
+   malformed, mixed, duplicate, trailing, həddən artıq böyük və
+   secret-bearing input rədd edilir; fuzz və neqativ testlər əlavə olunur.
+   **İşləkdir.** Çoxfayllı import və rol/chain təyini ayrıca incrementdir.
 3. Seçilən public certificate-lərin təhlükəsiz export-u: yeni fayl adı,
    no-overwrite, təkrar parse, byte/semantik uyğunluq testləri.
 4. Browser Verify-ni mövcud CLI Go core-u ilə bağla; explicit trust

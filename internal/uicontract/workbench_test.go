@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/browserexplore"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
 )
 
 func TestWorkbenchPreviewIsSelfContained(t *testing.T) {
 	assets := workbenchAssets(t)
-	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem"} {
+	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem"} {
 		content, exists := assets[name]
 		if !exists {
 			t.Fatalf("required asset %q is missing", name)
@@ -48,6 +49,28 @@ func TestWorkbenchDemoCertificateIsPublicAndInspectable(t *testing.T) {
 	}
 	if !response.OK || response.Result == nil || response.Error != nil {
 		t.Fatalf("demo certificate response = %#v, want success", response)
+	}
+	var explored browserexplore.Response
+	if err := json.Unmarshal([]byte(browserexplore.Process([]byte(certificate))), &explored); err != nil {
+		t.Fatalf("explore demo certificate: %v", err)
+	}
+	if !explored.OK || explored.Result == nil || explored.Result.Count != 1 || explored.Result.Verification != "not-performed" {
+		t.Fatalf("demo certificate exploration = %#v, want unverified success", explored)
+	}
+}
+
+func TestWorkbenchDemoBundleIsPublicAndExplorable(t *testing.T) {
+	bundle := workbenchAssets(t)["rootwell-demo-bundle.pem"]
+	if strings.Contains(bundle, "PRIVATE KEY") || strings.Count(bundle, "-----BEGIN CERTIFICATE-----") != 2 {
+		t.Fatal("demo bundle must contain exactly two public certificates and no private key")
+	}
+	var response browserexplore.Response
+	if err := json.Unmarshal([]byte(browserexplore.Process([]byte(bundle))), &response); err != nil {
+		t.Fatalf("explore demo bundle: %v", err)
+	}
+	if !response.OK || response.Error != nil || response.Result == nil || response.Result.Count != 2 ||
+		response.Result.Certificates[0].SHA256 == response.Result.Certificates[1].SHA256 {
+		t.Fatalf("demo bundle response = %#v, want two different certificates", response)
 	}
 }
 
@@ -138,7 +161,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	if strings.Contains(application, "localStorage") || strings.Contains(application, "sessionStorage") {
 		t.Fatal("application script persists workbench input")
 	}
-	for _, required := range []string{"selectedInspectFile.arrayBuffer()", "engine.inspect(bytes)", "bytes.fill(0)", ".textContent ="} {
+	for _, required := range []string{"selectedInspectFile.arrayBuffer()", "engine.inspect(bytes)", "engine.explore(bytes)", "bytes.fill(0)", ".textContent ="} {
 		if !strings.Contains(application, required) {
 			t.Errorf("application script is missing local-processing guard %q", required)
 		}
@@ -151,6 +174,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	}
 	for _, required := range []string{
 		`fetch("rootwell.wasm"`,
+		"rootwellExplore",
 		`credentials: "omit"`,
 		`redirect: "error"`,
 		"WebAssembly.instantiateStreaming",
@@ -167,6 +191,8 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	for _, statement := range []string{
 		"Certificate bytes stay inside this browser process",
 		"Local inspection · not a trust verdict",
+		"Local exploration · not a trust verdict",
+		"No chain verification performed · no trust anchor selected",
 		"do not prove chain trust",
 		"Revocation</strong> Not checked",
 		"System roots</strong> Not used",
@@ -174,6 +200,36 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 		if !strings.Contains(html, statement) {
 			t.Errorf("workbench preview is missing boundary statement %q", statement)
 		}
+	}
+}
+
+func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
+	assets := workbenchAssets(t)
+	html := assets["index.html"]
+	for _, required := range []string{
+		`id="explore-tab" data-tool="explore"`,
+		`id="explore-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`,
+		"1–64 certificates · maximum 16 MiB",
+		"Private keys and PFX are not supported",
+		`href="rootwell-demo-bundle.pem" download`,
+		"The CA flag is certificate metadata, not proof that a root is trusted",
+		`id="explore-result" aria-live="polite" hidden`,
+	} {
+		if !strings.Contains(html, required) {
+			t.Errorf("Explore is missing boundary %q", required)
+		}
+	}
+	application := assets["app.js"]
+	for _, required := range []string{
+		"file.arrayBuffer()", "engine.explore(bytes)", "validExploreResult(response.result)",
+		"exploreCertificates.replaceChildren(...cards)", "description.textContent = value", "bytes.fill(0)",
+	} {
+		if !strings.Contains(application, required) {
+			t.Errorf("Explore is missing local-processing guard %q", required)
+		}
+	}
+	if strings.Contains(html, "Explore and verify") || strings.Contains(html, "Download selected certificate") {
+		t.Error("Explore advertises verification or export that is not implemented")
 	}
 }
 
@@ -256,7 +312,7 @@ func workbenchAssets(t *testing.T) map[string]string {
 	}
 	directory := filepath.Join(filepath.Dir(currentFile), "..", "..", "web", "workbench")
 	assets := make(map[string]string)
-	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem"} {
+	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem"} {
 		content, err := os.ReadFile(filepath.Join(directory, name))
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
