@@ -64,6 +64,18 @@ current UTC instant. It reports `within-validity-window`, `not-yet-valid`,
 `expired`, or `invalid-range`, together with explicit relative seconds and whole
 days. This time-window observation is not a trust or verification verdict.
 
+Explore public certificates in one DER file or a strict PEM bundle:
+
+```text
+rootwell explore certificates.crt
+```
+
+`explore` lists up to 64 certificates, their subject, issuer, expiry, CA flag,
+and SHA-256 fingerprint. It does not select a leaf or trust anchor, verify a
+chain, export files, or process PFX/private keys. The filename extension does
+not determine the encoding; mixed blocks, junk, and duplicates are rejected.
+Browser bundle exploration is not implemented yet.
+
 Match one certificate to one unencrypted local private key:
 
 ```text

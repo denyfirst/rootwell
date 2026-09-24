@@ -217,3 +217,21 @@ Guarded by `TestMatchSupportedPrivateKeyEncodings`,
 `TestMatchArgumentErrorsDoNotEchoInput`, `TestReadLimitedMapsReaderFailure`,
 `TestReadLimitedClearsOversizedInput`,
 `TestDestroyPrivateKeyClearsSupportedValues`, and `FuzzMatch`.
+
+## C19 — Public bundle exploration is strict and never implies trust
+
+`rootwell explore` accepts one complete DER certificate or a bounded PEM-only
+collection. It rejects duplicates, mixed/secret blocks, junk, malformed input,
+and excess size/count without printing partial certificate metadata. Results
+state that verification was not performed and no trust anchor was selected;
+certificate-derived text is escaped and error output does not echo input.
+
+Guarded by `TestParsePublicCertificateAndBundle`,
+`TestParsePublicBundleRejectsUnsafeContent`,
+`TestParsePublicBundleEnforcesLimits`,
+`TestParsePublicBundleEnforcesAggregateMetadataLimit`, `FuzzParsePublicBundle`,
+`TestExploreCommand`, `TestExploreSingleDERIgnoresExtension`,
+`TestExploreDoesNotPrintPartialResultOnDuplicate`,
+`TestExploreRejectsMalformedAndSecretInputWithoutEcho`,
+`TestExploreArgumentContract`, `TestExploreOutputEscapesCertificateText`, and
+`FuzzExploreOutputIsTerminalSafe`.

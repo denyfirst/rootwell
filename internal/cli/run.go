@@ -25,6 +25,7 @@ commands:
   inspect <file>   inspect one X.509 certificate
   inspect --json <file>
                    emit versioned JSON metadata
+  explore <file>   list public certificates in a PEM bundle or one DER file
   match --cert <file> --key <file> [--json]
                    compare a certificate with an unencrypted private key
   verify <file> --trust-bundle <roots.pem> [--intermediates <chain.pem>]
@@ -63,6 +64,11 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		default:
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
+	case "explore":
+		if len(args) != 2 {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runExplore(args[1], stdout, stderr)
 	case "verify":
 		arguments, ok := parseVerifyArguments(args[1:])
 		if !ok {
