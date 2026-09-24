@@ -61,7 +61,8 @@ for (const format of ["pem", "der"]) {
   assert.equal(exported.error, null);
   assert.equal(exported.result.encoding, format);
   assert.equal(exported.result.fingerprint, secondFingerprint);
-  assert.match(exported.result.filename, new RegExp(`^rootwell-public-[0-9a-f]{16}-[0-9a-f]{32}\\.${format}$`));
+  const fingerprintPrefix = secondFingerprint.replaceAll(":", "").slice(0, 16).toLowerCase();
+  assert.match(exported.result.filename, new RegExp(`^rootwell-public-${fingerprintPrefix}-[0-9a-f]{32}\\.${format}$`));
   assert.equal(exported.result.bytes instanceof Uint8Array, true);
   const reparsed = JSON.parse(globalThis.rootwellExplore(exported.result.bytes));
   assert.equal(reparsed.ok, true);

@@ -469,7 +469,8 @@
       return exportFailureMessages[response.error];
     }
     const result = response.result;
-    const expectedName = new RegExp("^rootwell-public-[0-9a-f]{16}-[0-9a-f]{32}\\." + format + "$");
+    const fingerprintPrefix = fingerprint.replaceAll(":", "").slice(0, 16).toLowerCase();
+    const expectedName = new RegExp("^rootwell-public-" + fingerprintPrefix + "-[0-9a-f]{32}\\." + format + "$");
     if (response.error !== null || !result || result.encoding !== format || result.fingerprint !== fingerprint ||
         typeof result.filename !== "string" || !expectedName.test(result.filename) ||
         !(result.bytes instanceof Uint8Array) || result.bytes.byteLength === 0 || result.bytes.byteLength > engine.maxBytes) return null;
