@@ -249,6 +249,12 @@ server API-yə göndərilmir; asset loader və file-reading kod ayrı capability
 saxlanır. Private key və digər secret-bearing browser əməliyyatları ayrıca
 threat-model review olmadan bu sərhədə daxil edilmir.
 
+Browser public bundle explorer artıq bir seçilmiş faylı (tək DER certificate
+və ya 1–64 public PEM certificate) eyni Go parser-i ilə lokal açır. O,
+certificate metadata-sını göstərir, amma leaf/chain/trust qərarı vermir,
+ayrı faylları birləşdirmir və export etmir. Bu sərhəd browser Verify-dan
+ayrıdır.
+
 Sadə certificate import/Verify və public bundle explorer üçün konkret
 istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarları
 [`WORKBENCH-IMPORT-UX-AZ.md`](WORKBENCH-IMPORT-UX-AZ.md) sənədindədir.

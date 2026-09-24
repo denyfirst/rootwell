@@ -95,7 +95,8 @@ jobs:
           node scripts/test-browser-wasm.mjs \
             "${RUNNER_TEMP}/rootwell.wasm" \
             "$(go env GOROOT)/lib/wasm/wasm_exec.js" \
-            web/workbench/rootwell-demo-certificate.pem
+            web/workbench/rootwell-demo-certificate.pem \
+            web/workbench/rootwell-demo-bundle.pem
 
       - name: Test with race detector
         run: go test -race -shuffle=on -coverprofile=coverage.out ./...

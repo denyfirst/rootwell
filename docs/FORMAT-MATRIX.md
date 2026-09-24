@@ -8,7 +8,7 @@ required. Anything not listed is unsupported and must fail explicitly.
 |---|---|---:|---:|---:|---:|---|
 | X.509 certificate | PEM | implemented (single) | implemented | implemented (TLS server) | planned | exactly one header-free `CERTIFICATE` block |
 | X.509 certificate | DER | implemented (single) | implemented | implemented (TLS server) | planned | exactly one certificate; trailing data rejected |
-| Certificate chain | PEM bundle | implemented (CLI `explore`) | n/a | implemented (explicit roots/intermediates) | planned | exploration is not trust verification; order is not a trust signal |
+| Certificate chain | PEM bundle | implemented (CLI/browser `explore`) | n/a | implemented (CLI explicit roots/intermediates) | planned | exploration is not trust verification; order is not a trust signal |
 | CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
 | CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
 | RSA private key | PKCS#8 PEM/DER | planned | implemented (unencrypted) | n/a | planned | encrypted import requires a password-input decision |

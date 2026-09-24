@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Rootwell local certificate inspection Workbench">
+  <meta name="description" content="Rootwell local public certificate Workbench">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="dark light">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
@@ -71,7 +71,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect public certificate metadata locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
+          <p class="lede">Inspect public certificates and explore PEM bundles locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -91,12 +91,16 @@
             <span class="tool-number">01</span>
             <span><strong>Inspect</strong><small>Read certificate metadata</small></span>
           </button>
-          <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
+          <button class="tool-tab" type="button" id="explore-tab" data-tool="explore" aria-controls="explore-panel" aria-selected="false">
             <span class="tool-number">02</span>
+            <span><strong>Explore</strong><small>Open a public PEM bundle</small></span>
+          </button>
+          <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
+            <span class="tool-number">03</span>
             <span><strong>Verify</strong><small>Check an explicit trust chain</small></span>
           </button>
           <button class="tool-tab" type="button" disabled aria-disabled="true">
-            <span class="tool-number">03</span>
+            <span class="tool-number">04</span>
             <span><strong>Convert</strong><small>Planned after write safety</small></span>
           </button>
         </nav>
@@ -169,10 +173,55 @@
           </section>
         </section>
 
+        <section class="tool-panel" id="explore-panel" aria-labelledby="explore-tab" hidden>
+          <div class="panel-head">
+            <div>
+              <p class="section-index">Tool 02 / Explore</p>
+              <h2>See what is inside a certificate bundle</h2>
+              <p>Choose one public PEM bundle, or one DER certificate. Rootwell lists every certificate locally without guessing which one to trust. Private keys and PFX are not supported.</p>
+            </div>
+            <span class="capability">Public only</span>
+          </div>
+
+          <div class="file-zone" data-drop-target="explore-file">
+            <input class="file-input" type="file" id="explore-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
+            <label for="explore-file">
+              <span class="file-symbol" aria-hidden="true">＋</span>
+              <strong>Choose one certificate file or PEM bundle</strong>
+              <span>or drop it here · 1–64 certificates · maximum 16 MiB</span>
+            </label>
+            <p class="file-selection" id="explore-file-state" aria-live="polite">No file selected</p>
+            <p class="demo-certificate">Need a safe bundle? <a href="rootwell-demo-bundle.pem" download>Download a two-certificate public demo bundle</a> — no private key included.</p>
+          </div>
+
+          <div class="panel-actions">
+            <p id="explore-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local exploration engine</p>
+            <button class="button button-primary" id="explore-button" type="button" disabled>Explore bundle</button>
+          </div>
+
+          <aside class="inspection-error" id="explore-error" role="alert" hidden></aside>
+
+          <section class="result" id="explore-result" aria-live="polite" hidden>
+            <div class="result-head">
+              <div>
+                <p class="result-kicker">Local exploration · not a trust verdict</p>
+                <h3 id="explore-result-count"></h3>
+                <p>No chain verification performed · no trust anchor selected</p>
+              </div>
+              <span class="stamp stamp-warn">Unverified</span>
+            </div>
+            <ol class="bundle-list" id="explore-certificates" aria-label="Certificates found in the selected file"></ol>
+            <aside class="nonclaim">
+              <strong>What these labels mean</strong>
+              <p>The CA flag is certificate metadata, not proof that a root is trusted. This view does not select a leaf, verify a chain or hostname, check revocation, or contact a server.</p>
+            </aside>
+          </section>
+        </section>
+
         <section class="tool-panel" id="verify-panel" aria-labelledby="verify-tab" hidden>
           <div class="panel-head">
             <div>
-              <p class="section-index">Tool 02 / Verify</p>
+              <p class="section-index">Tool 03 / Verify</p>
               <h2>Verify a TLS server certificate</h2>
               <p>Planned flow: add one certificate or several files from your CA. Rootwell will explain what it found before asking you to make a trust decision.</p>
             </div>
@@ -228,7 +277,7 @@
 
     <footer class="colophon">
       <p><span class="footer-brand"><span>root</span>well</span> · Your private root of trust.</p>
-      <p>Local WebAssembly inspection · no certificate uploads</p>
+      <p>Local WebAssembly inspection and exploration · no certificate uploads</p>
     </footer>
   </div>
 </body>

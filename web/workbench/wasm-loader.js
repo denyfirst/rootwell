@@ -13,6 +13,7 @@
     globalThis.rootwellWasmReady = function () {
       if (settled) return;
       if (typeof globalThis.rootwellInspect !== "function" ||
+          typeof globalThis.rootwellExplore !== "function" ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
         return;
@@ -20,6 +21,7 @@
       settled = true;
       resolve(Object.freeze({
         inspect: globalThis.rootwellInspect,
+        explore: globalThis.rootwellExplore,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));
     };

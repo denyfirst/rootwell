@@ -235,3 +235,22 @@ Guarded by `TestParsePublicCertificateAndBundle`,
 `TestExploreRejectsMalformedAndSecretInputWithoutEcho`,
 `TestExploreArgumentContract`, `TestExploreOutputEscapesCertificateText`, and
 `FuzzExploreOutputIsTerminalSafe`.
+
+## C20 — Browser bundle exploration stays public, bounded, and untrusted
+
+Explore accepts one selected public DER certificate or a strict PEM collection
+through the same Go parser as CLI `explore`. It rejects secret-bearing, mixed,
+malformed, duplicate, excessive, and trailing input without partial results or
+reflected input. The response is versioned, bounded, and contains public
+metadata only. Its explicit status is `not-performed` with trust anchor
+`not-selected`; the UI uses text nodes and never turns a CA flag into trust.
+The file-reading script has no network or storage capability.
+
+Guarded by `TestProcessPublicCertificateAndBundle`,
+`TestProcessRejectsUnsafeInputWithoutEchoOrPartialOutput`,
+`TestProcessEnforcesCertificateCountWithoutPartialResult`,
+`TestFailureResponseFailsClosed`, `FuzzProcessPublicBundleReturnsJSON`,
+`TestWorkbenchExploreIsPublicOnlyAndFunctional`,
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
+`TestWorkbenchDemoCertificateIsPublicAndInspectable`, and
+`TestWorkbenchDemoBundleIsPublicAndExplorable`.
