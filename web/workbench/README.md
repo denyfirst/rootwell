@@ -23,6 +23,9 @@ CLI. Verify is still a clearly labeled interaction preview.
   limits before returning a versioned, public-only response (Explore is also
   capped at 4 MiB); the browser additionally bounds the selected collection
   and rejects duplicates across files without showing partial results;
+- duplicate diagnostics name both local files and the full fingerprint across
+  files, or the source file for an in-file duplicate; filenames are bounded and
+  rendered as text, and duplicate certificates are never silently removed;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
 
 Explore displays subject, issuer, CA flag, expiry, encoding, and fingerprint.
@@ -76,7 +79,8 @@ For a safe first test, download `rootwell-demo-certificate.pem` from the Inspect
 panel and select it in Inspect or Explore. It contains one non-production public
 certificate for `.invalid` names and deliberately contains no private key. To
 see two cards in Explore, use the public `rootwell-demo-bundle.pem` link there.
-Each card has PEM and DER download actions for its own public certificate.
+Each card lets the user choose PEM or DER content and a compatible extension
+before downloading its own public certificate.
 
 ## Required production headers
 

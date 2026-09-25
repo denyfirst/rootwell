@@ -252,6 +252,8 @@ threat-model review olmadan bu sərhədə daxil edilmir.
 Browser public bundle explorer artıq 1–8 seçilmiş public faylı (tək DER
 certificate və ya PEM bundle) eyni Go parser-i ilə lokal açır. Ümumi limit
 16 MiB və 64 certificate-dir; fayllararası duplicate rədd edilir. O,
+bu halda iki faylı və tam fingerprint-i xəbərdarlıqda göstərir; eyni faylın
+daxilindəki duplicate üçün yalnız faylı göstərir. Qismən nəticə yoxdur.
 certificate metadata-sını göstərir, amma leaf/chain/trust qərarı vermir,
 fayllardan yeni bundle yaratmır. Seçilən bir public certificate-i PEM və ya DER
 kimi browser-managed download-a hazırlayır; `.crt` və `.cer` uzantıları

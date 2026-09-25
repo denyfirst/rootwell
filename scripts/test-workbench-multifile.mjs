@@ -54,6 +54,12 @@ const failure = JSON.stringify({
   result: null,
   error: { code: "invalid-certificate", message: "The file contains an invalid X.509 certificate." }
 });
+const duplicateFailure = JSON.stringify({
+  schema_version: "rootwell.browser.explore.v1",
+  ok: false,
+  result: null,
+  error: { code: "duplicate-certificate", message: "The bundle contains a duplicate certificate." }
+});
 let calls = 0;
 const engine = {
   maxBytes: 16 * 1024 * 1024,
@@ -61,6 +67,7 @@ const engine = {
   explore: (bytes) => {
     calls++;
     if (bytes[0] === 88) return failure;
+    if (bytes[0] === 68) return duplicateFailure;
     if (bytes[0] === 77) return success(Array.from({ length: 64 }, (_, index) => certificate(index)));
     if (bytes[0] === 85 || bytes[0] === 86) {
       const longName = certificate(bytes[0]);
@@ -102,7 +109,35 @@ select([file("A"), file("A")]);
 await explore();
 assert.equal(element("explore-result").hidden, true);
 assert.equal(element("explore-certificates").children.length, 0);
-assert.match(element("explore-error").textContent, /duplicate certificate/);
+assert.match(element("explore-error").textContent, /Duplicate certificate/);
+assert.match(element("explore-error").textContent, /File 1 \(public-A\.crt\).*File 2 \(public-A\.crt\)/);
+assert.ok(element("explore-error").textContent.includes(certificate(65).sha256));
+assert.match(element("explore-error").textContent, /No results were shown/);
+
+select([file("A"), file("D")]);
+await explore();
+assert.equal(element("explore-result").hidden, true);
+assert.equal(element("explore-certificates").children.length, 0);
+assert.match(element("explore-error").textContent, /File 2 \(public-D\.crt\) contains a duplicate certificate/);
+assert.match(element("explore-error").textContent, /No results were shown/);
+
+const unsafeName = file("A");
+unsafeName.name = "untrusted\u202ecert\n<script>.crt";
+select([unsafeName, file("A")]);
+await explore();
+assert.equal(element("explore-result").hidden, true);
+assert.equal(element("explore-certificates").children.length, 0);
+assert.ok(!element("explore-error").textContent.includes("\u202e"));
+assert.ok(!element("explore-error").textContent.includes("\n"));
+assert.match(element("explore-error").textContent, /File 1 \(untrusted�cert�<script>\.crt\)/);
+
+const overlongName = file("A");
+overlongName.name = "a".repeat(200);
+select([overlongName, file("A")]);
+await explore();
+assert.equal(element("explore-result").hidden, true);
+assert.ok(element("explore-error").textContent.includes("File 1 (" + "a".repeat(120) + "…)"));
+assert.ok(!element("explore-error").textContent.includes("a".repeat(121)));
 
 select([file("A"), file("X")]);
 await explore();

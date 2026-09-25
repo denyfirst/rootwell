@@ -241,9 +241,10 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"file.arrayBuffer()", "engine.explore(bytes)", "validExploreResult(response.result)",
 		"exploreCertificates.replaceChildren(...cards)", "description.textContent = value", "bytes.fill(0)",
 		"if (files.length > maxExploreFiles) {", "remainingBytes -= bytes.byteLength",
-		"if (fingerprints.has(certificate.sha256)) {", "entries.length === maxExploreCertificates",
+		"fingerprints.get(certificate.sha256)", "selectedFileLabel(previous.file, previous.index)",
+		"selectedFileLabel(file, fileIndex)", "entries.length === maxExploreCertificates",
 		"metadataBytes > maxExploreMetadataBytes", "if (selectedExploreFiles === files) renderExplore(entries)",
-		"bundleDetail(details, \"Source file\", entry.file.name)",
+		"bundleDetail(details, \"Source file\", displayFileName(entry.file))",
 	} {
 		if !strings.Contains(application, required) {
 			t.Errorf("Explore is missing local-processing guard %q", required)

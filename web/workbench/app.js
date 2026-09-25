@@ -68,6 +68,16 @@
     return (size / (1024 * 1024)).toFixed(1) + " MiB";
   }
 
+  function displayFileName(file) {
+    const name = typeof file.name === "string" && file.name ? file.name : "unnamed file";
+    const characters = Array.from(name.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "�"));
+    return characters.length > 120 ? characters.slice(0, 120).join("") + "…" : characters.join("");
+  }
+
+  function selectedFileLabel(file, index) {
+    return "File " + (index + 1) + " (" + displayFileName(file) + ")";
+  }
+
   function updateInspectControls() {
     inspectButton.disabled = inspecting || engine === null || selectedInspectFile === null;
   }
@@ -123,7 +133,7 @@
         exploreStatus.textContent = "Selected files exceed the combined limit";
       } else {
         selectedExploreFiles = Object.freeze(files.slice());
-        exploreSelection.textContent = files.length === 1 ? files[0].name + " · " + formatSize(totalBytes) :
+        exploreSelection.textContent = files.length === 1 ? displayFileName(files[0]) + " · " + formatSize(totalBytes) :
           files.length + " files · " + formatSize(totalBytes) + " total";
         if (engine) exploreStatus.textContent = "Ready for local exploration";
       }
@@ -476,7 +486,7 @@
       title.textContent = certificate.subject || "Subject not present";
       heading.append(number, title);
       const details = document.createElement("dl");
-      bundleDetail(details, "Source file", entry.file.name);
+      bundleDetail(details, "Source file", displayFileName(entry.file));
       bundleDetail(details, "Issuer", certificate.issuer || "Not present");
       bundleDetail(details, "CA flag", certificate.is_ca ? "Yes · not automatically trusted" : "No");
       bundleDetail(details, "Expires", certificate.not_after);
@@ -627,10 +637,10 @@
 
     try {
       const entries = [];
-      const fingerprints = new Set();
+      const fingerprints = new Map();
       let metadataBytes = 0;
       let remainingBytes = engine.maxBytes;
-      for (const file of files) {
+      for (const [fileIndex, file] of files.entries()) {
         if (selectedExploreFiles !== files) return;
         if (file.size > remainingBytes) {
           showExploreFailure("The selected files changed or exceed the combined limit.");
@@ -662,7 +672,9 @@
               showExploreFailure("Exploration failed safely.");
               return;
             }
-            showExploreFailure(fixedMessage);
+            showExploreFailure(failure.code === "duplicate-certificate" ?
+              selectedFileLabel(file, fileIndex) + " contains a duplicate certificate. No results were shown; remove one copy and try again." :
+              fixedMessage);
             return;
           }
           if (response.error !== null || !validExploreResult(response.result)) {
@@ -670,8 +682,11 @@
             return;
           }
           for (const certificate of response.result.certificates) {
-            if (fingerprints.has(certificate.sha256)) {
-              showExploreFailure("The selected files contain a duplicate certificate. Remove the duplicate and try again.");
+            const previous = fingerprints.get(certificate.sha256);
+            if (previous) {
+              showExploreFailure("Duplicate certificate (SHA-256 " + certificate.sha256 + ") in " +
+                selectedFileLabel(previous.file, previous.index) + " and " + selectedFileLabel(file, fileIndex) +
+                ". No results were shown; remove one copy and try again.");
               return;
             }
             if (entries.length === maxExploreCertificates) {
@@ -684,7 +699,7 @@
               showExploreFailure(exploreFailureMessages["metadata-limit"]);
               return;
             }
-            fingerprints.add(certificate.sha256);
+            fingerprints.set(certificate.sha256, { file: file, index: fileIndex });
             entries.push({ certificate: certificate, file: file });
           }
         } finally {

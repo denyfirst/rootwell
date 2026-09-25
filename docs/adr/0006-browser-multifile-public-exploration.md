@@ -28,6 +28,12 @@ Source filenames appear only as DOM text and never determine parsing, trust,
 or generated download names. Raw input buffers are cleared best-effort after
 each file. The existing same-origin, no-upload WebAssembly boundary remains.
 
+For cross-file duplicates, the browser reports both selected file positions,
+bounded display-safe filenames, and the full validated public SHA-256
+fingerprint. For duplicates detected inside one file by the Go parser, the
+browser can identify only that file, not the repeated block or fingerprint.
+Both cases fail closed with no partial cards; no automatic deduplication occurs.
+
 ## Non-claims and follow-up
 
 This is a metadata collection, not a concatenated certificate bundle or a

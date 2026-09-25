@@ -50,6 +50,10 @@ Hazırkı public explorer 1–8 PEM bundle və ya tək DER faylındakı certific
 ayrıca kartlarda göstərir: subject/issuer, expiry, CA flag, encoding və
 fingerprint. Ümumi 16 MiB/64 certificate limiti var, eyni certificate müxtəlif
 fayllarda təkrarlandısa bütün nəticə rədd olunur; qismən nəticə göstərilmir.
+Fayllararası dublikat xəbərdarlığı hər iki faylın seçilmə sırasını, təhlükəsiz
+göstərilən adını və certificate-in tam SHA-256 fingerprint-ini bildirir.
+Bir faylın daxilindəki dublikatda isə yalnız həmin fayl göstərilir; konkret
+PEM blokunu seçmək hələ mümkün deyil. Avtomatik dublikat silinmir.
 Rol namizədi və chain əlaqəsi hələ göstərilmir.
 İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
 kimi ayrıca endirməyi tələb edə bilər. `.crt` və `.cer` ayrıca format deyil:

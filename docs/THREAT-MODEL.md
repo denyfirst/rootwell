@@ -193,9 +193,16 @@ public PEM `CERTIFICATE` blocks through the same `publicbundle` parser as the
 CLI. The browser additionally enforces a 16 MiB combined, 64-certificate
 combined, and 1 MiB aggregate metadata-text limit. It tracks full SHA-256
 fingerprints across files, rejecting duplicates without a partial result.
+For a cross-file duplicate, the local UI reports both selected file positions,
+display-safe, length-bounded filenames, and the full certificate fingerprint.
+For a duplicate within one file, the core reports only a fixed error and the
+UI identifies that source file; it cannot identify the individual PEM blocks.
+Neither case silently deduplicates or displays a partial certificate list.
 Private keys and PFX are not accepted. Filenames and extensions never choose
 the parser. Malformed, mixed, excessive, or secret-bearing input produces a
-fixed, input-free failure and no partial certificate list.
+fixed, input-free failure and no partial certificate list. Duplicate errors
+are the only contextual diagnostics here; they use selected filenames and a
+validated public fingerprint, never certificate subject or raw input bytes.
 
 The versioned bridge response contains only subject, issuer, expiry, CA flag,
 encoding, and SHA-256 fingerprint for each certificate, with a 4 MiB response
