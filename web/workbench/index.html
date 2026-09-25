@@ -234,6 +234,13 @@
               <p id="explore-expiry-note">Based on this browser's clock at the time of Explore. A date window is not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.</p>
               <ol id="explore-expiry-list" aria-label="Public certificates ordered by expiry"></ol>
             </section>
+            <section class="report-guide" aria-labelledby="explore-report-heading">
+              <h4 id="explore-report-heading">Keep a local public report</h4>
+              <p>Download a JSON snapshot of the certificate details, fingerprints, possible signing links, and time windows shown here. It contains public certificate names that may reveal internal hostnames. Review where your browser saves it. This is not a trust, revocation, or live-server report.</p>
+              <button class="button" id="explore-report-button" type="button" disabled>Download public report (.json)</button>
+              <p id="explore-report-status" aria-live="polite"></p>
+              <aside class="inspection-error" id="explore-report-error" role="alert" hidden></aside>
+            </section>
             <ol class="bundle-list" id="explore-certificates" aria-label="Certificates found in the selected files"></ol>
             <div class="bundle-collection-actions">
               <p>Select public certificates above to create a PEM bundle in the displayed order. This does not build or verify a chain; no private key is included.</p>

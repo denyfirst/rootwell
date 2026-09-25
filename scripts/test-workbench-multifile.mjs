@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import { webcrypto } from "node:crypto";
 
 class Element {
   constructor() {
@@ -42,7 +43,8 @@ const document = {
   body: new Element()
 };
 let downloadedName = "";
-const objectURLs = { createObjectURL: () => "blob:rootwell-test", revokeObjectURL: () => {} };
+let downloadedBlob = null;
+const objectURLs = { createObjectURL: (blob) => { downloadedBlob = blob; return "blob:rootwell-test"; }, revokeObjectURL: () => {} };
 const certificate = (number) => ({
   subject: `CN=public-${number}.invalid`,
   issuer: "CN=non-production-demo.invalid",
@@ -140,7 +142,7 @@ let clock = Date.parse("2026-09-25T12:00:00Z");
 class FixedDate extends Date {
   static now() { return clock; }
 }
-const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, Date: FixedDate, URL: objectURLs, setTimeout: () => 0,
+const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, Date: FixedDate, URL: objectURLs, crypto: webcrypto, setTimeout: () => 0,
   rootwellWorkbenchReady: Promise.resolve(engine) });
 vm.runInContext(fs.readFileSync("web/workbench/app.js", "utf8"), context, { filename: "app.js" });
 await new Promise((resolve) => setImmediate(resolve));
@@ -163,6 +165,66 @@ async function explore() {
 function allText(node) {
   return node.textContent + node.children.map(allText).join(" ");
 }
+
+select([file("A"), file("B")]);
+await explore();
+assert.equal(element("explore-report-button").disabled, false);
+const reportDownloadCount = document.body.children.length;
+element("explore-report-button").listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(document.body.children.length, reportDownloadCount + 1);
+assert.match(document.body.children.at(-1).download, /^rootwell-public-report-[0-9a-f]{32}\.json$/);
+const report = JSON.parse(await downloadedBlob.text());
+assert.equal(downloadedBlob.type, "application/json");
+assert.equal(report.schema_version, "rootwell.public-health-report.v1");
+assert.equal(report.evaluated_at, "2026-09-25T12:00:00.000Z");
+assert.equal(report.verification, "not-performed");
+assert.equal(report.trust_anchor, "not-selected");
+assert.equal(report.revocation, "not-checked");
+assert.equal(report.live_server, "not-contacted");
+assert.equal(report.certificates.length, 2);
+assert.deepEqual(Array.from(report.certificates[0].possible_signer_numbers), [2]);
+assert.equal(report.certificates[0].source_file_number, 1);
+assert.equal(report.certificates[0].sha256, certificate(65).sha256);
+assert.ok(!JSON.stringify(report).includes("public-A.crt"), "report omits local file names");
+assert.match(element("explore-report-status").textContent, /unverified public report/);
+assert.equal(element("explore-report-error").hidden, true);
+assert.equal(element("verify-trust-file").files.length, 0, "report never selects trust");
+
+const changedReportFile = file("A");
+select([changedReportFile]);
+await explore();
+changedReportFile.arrayBuffer = async () => Uint8Array.of(66).buffer;
+const beforeChangedReport = document.body.children.length;
+element("explore-report-button").listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(document.body.children.length, beforeChangedReport, "changed source must not download a report");
+assert.match(element("explore-report-error").textContent, /changed since Explore/);
+assert.match(element("explore-report-status").textContent, /No report was downloaded/);
+
+const malformedReportFile = file("A");
+select([malformedReportFile]);
+await explore();
+malformedReportFile.arrayBuffer = async () => Uint8Array.of(88).buffer;
+const beforeMalformedReport = document.body.children.length;
+element("explore-report-button").listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(document.body.children.length, beforeMalformedReport, "malformed re-read must not download a report");
+assert.match(element("explore-report-error").textContent, /changed since Explore/);
+
+let releaseReportRead;
+const pendingReportFile = file("A");
+select([pendingReportFile]);
+await explore();
+pendingReportFile.arrayBuffer = () => new Promise((resolve) => { releaseReportRead = resolve; });
+const beforeStaleReport = document.body.children.length;
+element("explore-report-button").listeners.click();
+select([file("C")]);
+assert.equal(element("explore-report-button").disabled, true, "new selection disables report until Explore runs");
+assert.equal(element("explore-report-status").textContent, "", "new selection clears old report state");
+releaseReportRead(Uint8Array.of(65).buffer);
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(document.body.children.length, beforeStaleReport, "new selection invalidates pending report");
 
 select([file("A"), file("B")]);
 await explore();
@@ -230,10 +292,11 @@ assert.equal(element("export-bundle-button").disabled, true);
 firstSelection.checked = true;
 firstSelection.listeners.change();
 assert.equal(element("export-bundle-button").disabled, false);
+const beforeBundleDownload = document.body.children.length;
 element("export-bundle-button").listeners.click();
 await new Promise((resolve) => setImmediate(resolve));
-assert.equal(document.body.children.length, 1);
-downloadedName = document.body.children[0].download;
+assert.equal(document.body.children.length, beforeBundleDownload + 1);
+downloadedName = document.body.children.at(-1).download;
 assert.match(downloadedName, /^rootwell-public-bundle-[0-9a-f]{32}\.pem$/);
 
 const realAnalyze = engine.analyze;
