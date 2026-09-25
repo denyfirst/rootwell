@@ -135,6 +135,8 @@ assert.equal(explored.result.count, 1);
 assert.equal(explored.result.verification, "not-performed");
 assert.equal(explored.result.trust_anchor, "not-selected");
 assert.equal(explored.result.certificates[0].subject, "CN=workbench.rootwell.invalid,O=Rootwell non-production demo");
+assert.match(explored.result.certificates[0].not_before, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+assert.match(explored.result.certificates[0].not_after, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 
 const bundle = new Uint8Array(fs.readFileSync(bundlePath));
 const bundleResponse = JSON.parse(globalThis.rootwellExplore(bundle));

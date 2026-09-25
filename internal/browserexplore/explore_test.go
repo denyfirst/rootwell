@@ -70,7 +70,8 @@ func TestProcessPublicCertificateAndBundle(t *testing.T) {
 			}
 			first := response.Result.Certificates[0]
 			if first.Encoding != test.encoding || first.Subject != "CN=first.invalid" ||
-				first.Issuer != "CN=first.invalid" || first.SHA256 == "" || first.NotAfter != "2027-01-01T00:00:00Z" {
+				first.Issuer != "CN=first.invalid" || first.SHA256 == "" ||
+				first.NotBefore != "2026-01-01T00:00:00Z" || first.NotAfter != "2027-01-01T00:00:00Z" {
 				t.Fatalf("certificate metadata = %#v", first)
 			}
 		})

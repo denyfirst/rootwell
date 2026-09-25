@@ -38,10 +38,20 @@ const certificate = (number) => ({
   subject: `CN=public-${number}.invalid`,
   issuer: "CN=non-production-demo.invalid",
   is_ca: false,
+  not_before: "2020-01-01T00:00:00Z",
   not_after: "2030-01-01T00:00:00Z",
   encoding: "pem",
   sha256: Array(32).fill(number.toString(16).toUpperCase().padStart(2, "0")).join(":")
 });
+const timelineCertificates = [
+  { not_before: "2026-01-02T00:00:00Z", not_after: "2026-01-01T00:00:00Z" },
+  { not_before: "2020-01-01T00:00:00Z", not_after: "2026-09-25T11:59:59Z" },
+  { not_before: "2026-09-26T00:00:00Z", not_after: "2027-01-01T00:00:00Z" },
+  { not_before: "2020-01-01T00:00:00Z", not_after: "2026-10-25T12:00:00Z" },
+  { not_before: "2020-01-01T00:00:00Z", not_after: "2026-12-24T12:00:00Z" },
+  { not_before: "2020-01-01T00:00:00Z", not_after: "2026-12-24T12:00:01Z" },
+  { not_before: "2026-09-25T12:00:00Z", not_after: "2026-09-25T12:00:00Z" }
+].map((dates, index) => ({ ...certificate(index + 1), ...dates, is_ca: index === 5 }));
 const success = (certificates) => JSON.stringify({
   schema_version: "rootwell.browser.explore.v1",
   ok: true,
@@ -75,6 +85,8 @@ const engine = {
     if (bytes[0] === 88) return failure;
     if (bytes[0] === 80) return success(exportedCertificates);
     if (bytes[0] === 68) return duplicateFailure;
+    if (bytes[0] === 84) return success(timelineCertificates);
+    if (bytes[0] === 90) return success([{ ...certificate(90), not_after: "2026-02-30T00:00:00Z" }]);
     if (bytes[0] === 77) return success(Array.from({ length: 64 }, (_, index) => certificate(index)));
     if (bytes[0] === 85 || bytes[0] === 86) {
       const longName = certificate(bytes[0]);
@@ -91,7 +103,8 @@ const engine = {
       verification: "not-performed",
       trust_anchor: "not-selected",
       certificates: inputs.flatMap((bytes) =>
-        (bytes[0] === 77 ? Array.from({ length: 64 }, (_, index) => certificate(index)) : [certificate(bytes[0])])
+        (bytes[0] === 77 ? Array.from({ length: 64 }, (_, index) => certificate(index)) :
+          bytes[0] === 84 ? timelineCertificates : [certificate(bytes[0])])
           .map((item) => ({ sha256: item.sha256,
             parents: inputs.length === 2 && inputs[0][0] === 65 && inputs[1][0] === 66 && item.sha256 === certificate(65).sha256 ? [1] : [],
             self_signed: inputs.length === 2 && inputs[0][0] === 65 && inputs[1][0] === 66 && item.sha256 === certificate(66).sha256 })))
@@ -113,7 +126,11 @@ const engine = {
   exportVerifiedExplicit: () => { throw new Error("Verified export should not be called by Explore tests"); },
   exportPublic: () => { throw new Error("Export should not be called"); }
 };
-const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, URL: objectURLs, setTimeout: () => 0,
+let clock = Date.parse("2026-09-25T12:00:00Z");
+class FixedDate extends Date {
+  static now() { return clock; }
+}
+const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, Date: FixedDate, URL: objectURLs, setTimeout: () => 0,
   rootwellWorkbenchReady: Promise.resolve(engine) });
 vm.runInContext(fs.readFileSync("web/workbench/app.js", "utf8"), context, { filename: "app.js" });
 await new Promise((resolve) => setImmediate(resolve));
@@ -145,6 +162,41 @@ assert.equal(element("explore-certificates").children.length, 2);
 assert.equal(element("explore-error").hidden, true);
 assert.match(allText(element("explore-certificates")), /certificate #2 · issuer signature matches, not a trust verdict/);
 assert.match(allText(element("explore-certificates")), /Self-signed CA candidate · not automatically trusted/);
+assert.match(element("explore-expiry-summary").textContent, /Expires after 90 days: 2/);
+assert.match(element("explore-expiry-note").textContent, /2026-09-25T12:00:00.000Z \(browser clock\)/);
+assert.equal(element("explore-expiry-list").children.length, 2);
+
+select([file("T")]);
+await explore();
+assert.equal(element("explore-result").hidden, false);
+assert.equal(element("explore-expiry-list").children.length, 7);
+for (const label of ["Invalid date range", "Expired", "Not yet valid", "Expires in 31–90 days", "Expires after 90 days"]) {
+  assert.ok(element("explore-expiry-summary").textContent.includes(label + ": 1"));
+}
+assert.ok(element("explore-expiry-summary").textContent.includes("Expires within 30 days: 2"));
+assert.match(allText(element("explore-expiry-list")), /#4 · Expires within 30 days/);
+assert.match(allText(element("explore-expiry-list")), /#5 · Expires in 31–90 days/);
+assert.match(allText(element("explore-expiry-list")), /#6 · Expires after 90 days/);
+assert.match(allText(element("explore-expiry-list")), /CA flag set · not trusted/);
+assert.match(allText(element("explore-expiry-list")), /#7 · Expires within 30 days/);
+assert.match(element("explore-expiry-list").children[0].textContent, /#1 · Invalid date range/);
+
+select([file("Z")]);
+await explore();
+assert.equal(element("explore-result").hidden, true, "non-canonical date must fail closed");
+assert.equal(element("explore-expiry-list").children.length, 0);
+assert.equal(element("explore-expiry-summary").textContent, "");
+
+clock = 1e16;
+select([file("A")]);
+await explore();
+assert.equal(element("explore-result").hidden, true, "unrepresentable browser time must fail closed");
+assert.match(element("explore-error").textContent, /browser clock is unavailable/);
+assert.equal(element("explore-expiry-list").children.length, 0);
+clock = Date.parse("2026-09-25T12:00:00Z");
+
+select([file("A"), file("B")]);
+await explore();
 const firstSelection = element("explore-certificates").children[0].children[2].children[0];
 assert.equal(element("export-bundle-button").disabled, true);
 firstSelection.checked = true;
@@ -168,6 +220,7 @@ select([file("A"), file("B")]);
 await explore();
 assert.equal(element("explore-result").hidden, true, "mismatched analysis must hide all cards");
 assert.equal(element("explore-certificates").children.length, 0);
+assert.equal(element("explore-expiry-list").children.length, 0);
 engine.analyze = realAnalyze;
 
 select([file("A"), file("A")]);

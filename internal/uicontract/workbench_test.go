@@ -281,6 +281,9 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		`href="rootwell-demo-bundle.pem" download`,
 		"The CA flag and possible issuer links are public-certificate evidence, not proof that a root is trusted",
 		`id="explore-result" aria-live="polite" hidden`,
+		`id="explore-expiry-summary"`,
+		`id="explore-expiry-list" aria-label="Public certificates ordered by expiry"`,
+		"A date window is not a trust, revocation, deployment, or renewal verdict",
 	} {
 		if !strings.Contains(html, required) {
 			t.Errorf("Explore is missing boundary %q", required)
@@ -296,6 +299,8 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"metadataBytes > maxExploreMetadataBytes", "engine.analyze(analysisInputs)",
 		"validChainResult(analysis, entries)", "renderExplore(entries, analysis.result)",
 		"bundleDetail(details, \"Source file\", displayFileName(entry.file))",
+		"validUTCSecond(certificate.not_before)", "validUTCSecond(certificate.not_after)",
+		"renderExpiryOverview(entries, now)", "clearExpiryOverview()",
 	} {
 		if !strings.Contains(application, required) {
 			t.Errorf("Explore is missing local-processing guard %q", required)

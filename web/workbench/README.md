@@ -28,8 +28,16 @@ CLI. Verify uses the same explicit-trust TLS server verifier as the CLI.
   rendered as text, and duplicate certificates are never silently removed;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
 
-Explore displays subject, issuer, CA flag, expiry, encoding, fingerprint, and
+Explore displays subject, issuer, CA flag, validity start/end, encoding, fingerprint, and
 possible issuer links backed by issuer/subject names and signature checks.
+Its expiry overview sorts the selected public certificates by end date and
+groups invalid ranges, expired, not-yet-valid, 0–30 days, 31–90 days, and later
+dates using a single snapshot of the browser clock. The 30/90-day windows are
+fixed triage hints, not configurable alerts or automatic renewal. The overview
+exists only in the current page session, refreshes only after Explore is
+pressed again, and is cleared on a new selection or analysis failure. A wrong
+browser clock produces wrong time buckets; the displayed UTC evaluation time
+helps the operator spot this. CA dates are included without implying trust.
 It does not select a leaf, choose a trust anchor, or verify a chain. An
 explicitly selected set can be downloaded as a public PEM bundle in displayed
 order, without an automatic fullchain claim. A selected public certificate

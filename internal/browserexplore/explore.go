@@ -42,12 +42,13 @@ type Result struct {
 }
 
 type Certificate struct {
-	Encoding string `json:"encoding"`
-	Subject  string `json:"subject"`
-	Issuer   string `json:"issuer"`
-	IsCA     bool   `json:"is_ca"`
-	NotAfter string `json:"not_after"`
-	SHA256   string `json:"sha256"`
+	Encoding  string `json:"encoding"`
+	Subject   string `json:"subject"`
+	Issuer    string `json:"issuer"`
+	IsCA      bool   `json:"is_ca"`
+	NotBefore string `json:"not_before"`
+	NotAfter  string `json:"not_after"`
+	SHA256    string `json:"sha256"`
 }
 
 type Failure struct {
@@ -72,12 +73,13 @@ func Process(input []byte) string {
 	for _, entry := range entries {
 		inspection := entry.Inspection
 		certificates = append(certificates, Certificate{
-			Encoding: string(inspection.Encoding),
-			Subject:  inspection.Subject,
-			Issuer:   inspection.Issuer,
-			IsCA:     inspection.IsCA,
-			NotAfter: inspection.NotAfter.UTC().Format(time.RFC3339),
-			SHA256:   inspection.SHA256Fingerprint,
+			Encoding:  string(inspection.Encoding),
+			Subject:   inspection.Subject,
+			Issuer:    inspection.Issuer,
+			IsCA:      inspection.IsCA,
+			NotBefore: inspection.NotBefore.UTC().Format(time.RFC3339),
+			NotAfter:  inspection.NotAfter.UTC().Format(time.RFC3339),
+			SHA256:    inspection.SHA256Fingerprint,
 		})
 	}
 	return marshal(Response{

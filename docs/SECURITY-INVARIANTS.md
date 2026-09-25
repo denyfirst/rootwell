@@ -404,3 +404,18 @@ Guarded by `TestWorkbenchHasNoNetworkOrProcessImports`,
 `TestLiveProbeRequiresPeerToServeIntermediate`,
 `TestLiveProbeRefusesMismatchAndPreNetworkFailures`, and
 `TestLiveProbeRejectsMalformedArgumentsBeforeNetwork`.
+
+## C28 — Local expiry overview cannot become a trust or renewal verdict
+
+Explore returns both X.509 validity endpoints as canonical UTC timestamps.
+The browser rejects malformed dates before showing any result and classifies
+all selected public certificates against one browser-clock snapshot. It
+distinguishes expired, not-yet-valid, invalid ranges, 0–30 days, 31–90 days,
+and later expiry without treating CA certificates as trusted. The 30/90-day
+thresholds are fixed 24-hour intervals; the X.509 end instant is inclusive.
+Results are in-memory only, cleared on selection or failure, and never imply
+alerts, renewal, revocation, server deployment, or clock authenticity.
+
+Guarded by `TestProcessPublicCertificateAndBundle`,
+`TestWorkbenchExploreIsPublicOnlyAndFunctional`, and
+`scripts/test-workbench-multifile.mjs`.
