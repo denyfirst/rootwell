@@ -13,7 +13,7 @@ texniki işi gizlətməməlidir: CA flag, imza əlaqəsi, etibar mənbəyi və r
 verification ayrı vəziyyətlər olaraq qalır. Uğur hissi yaratmaq üçün sübut
 olunmamış nəticəyə “verified” demək qadağandır.
 
-## Növbəti increment-lər
+## Tamamlanan və növbəti increment-lər
 
 1. **Guided Certificate Health — tamamlanıb (PR #27).** Explore-da public fayllar
    üçün insan dilində xülasə; bir mümkün sayt sertifikatı olduqda istifadəçi
@@ -23,23 +23,30 @@ olunmamış nəticəyə “verified” demək qadağandır.
    oxumalı, Explore fingerprint-ləri ilə müqayisə etməli, hostname və ayrıca
    root tələb etməlidir. Private key, PFX, upload, storage və avtomatik trust
    əlavə edilmir.
-2. **Mümkün zənciri aydın göstər — tamamlanıb (PR #28).** Mövcud imza yoxlanmış issuer əlaqələrini
-   “kim kimi imzalaya bilər?” şəklində göstər; birdən çox namizəd və çatmayan
-   əlaqəni gizlətmə. Bu yalnız köməkçi vizual izahdır, verified path deyil.
+2. **Mümkün zənciri aydın göstər — tamamlanıb (PR #28).** Mövcud imza
+   yoxlanmış issuer əlaqələrini “kim kimi imzalaya bilər?” şəklində göstər;
+   birdən çox namizəd və çatmayan əlaqəni gizlətmə. Bu yalnız köməkçi vizual
+   izahdır, verified path deyil.
    Çıxış meyarı: eyni fayllar başqa sırada verilsə də heç bir root özü-özünə
    trusted olmur; ambiguity və natamamlıq testlidir.
-3. **Public health report — cari increment.** İstifadəçinin ayrıca klikiylə yalnız public
-   metadata, vaxt pəncərəsi, mənbə fingerprint-ləri və yoxlamanın sərhədləri
-   olan lokal hesabat hazırla. Secret və key export-u yoxdur; browser-managed
-   download və input recheck ayrıca yoxlanacaq.
-4. **Inventory mərhələsinin dizaynı.** Şirkət üçün owner, host/location,
-   expiry, dəyişiklik tarixçəsi və bildiriş axınını əvvəl threat model və
+3. **Public health report — tamamlanıb (PR #29).** İstifadəçinin ayrıca
+   klikiylə yalnız public metadata, vaxt pəncərəsi, certificate fingerprint-ləri
+   və yoxlamanın sərhədləri olan lokal JSON hesabat. Secret və key export-u
+   yoxdur; browser-managed download və input recheck testlərlə qorunur.
+4. **Inventory mərhələsinin dizaynı — növbəti iş.** Şirkət üçün owner,
+   host/location, expiry, dəyişiklik tarixçəsi və bildiriş axınını threat model və
    data-retention qərarı ilə layihələndir. Public metadata belə daxili adları
    aça bilər. Gizli, davamlı yaddaş və network discovery bu addımlardan
    avtomatik yaranmır.
 5. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.
+
+Inventory koduna başlamazdan əvvəl üç qərar açıq saxlanılır: metadata harada
+saxlanacaq (yalnız browser, yoxsa self-hosted server), nə qədər saxlanacaq və
+kim onu oxuya/dəyişə biləcək. Bu qərarlar verilmədən persistent database,
+notification və ya network discovery capability əlavə edilmir. Dizayn
+variantları threat model ilə hazırlana bilər; yekun seçim istifadəçinindir.
 
 ## Hər increment üçün dəyişməz qapılar
 
