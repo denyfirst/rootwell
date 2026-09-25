@@ -22,6 +22,9 @@
   const exploreError = document.getElementById("explore-error");
   const exploreResult = document.getElementById("explore-result");
   const exploreCertificates = document.getElementById("explore-certificates");
+  const exploreExpirySummary = document.getElementById("explore-expiry-summary");
+  const exploreExpiryNote = document.getElementById("explore-expiry-note");
+  const exploreExpiryList = document.getElementById("explore-expiry-list");
   const exportStatus = document.getElementById("export-status");
   const exportError = document.getElementById("export-error");
   const exportBundleButton = document.getElementById("export-bundle-button");
@@ -170,6 +173,7 @@
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    clearExpiryOverview();
     exploreError.hidden = true;
     exportError.hidden = true;
     if (files.length > maxExploreFiles) {
@@ -490,11 +494,57 @@
     "internal-failure": "Bundle exploration could not be completed safely."
   });
 
+  function validUTCSecond(value) {
+    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) &&
+      Number.isFinite(Date.parse(value)) && new Date(value).toISOString().replace(".000Z", "Z") === value;
+  }
+
   function validExploreCertificate(certificate) {
     return certificate && (certificate.encoding === "pem" || certificate.encoding === "der") &&
       typeof certificate.subject === "string" && typeof certificate.issuer === "string" &&
-      typeof certificate.is_ca === "boolean" && typeof certificate.not_after === "string" &&
+      typeof certificate.is_ca === "boolean" && validUTCSecond(certificate.not_before) &&
+      validUTCSecond(certificate.not_after) &&
       /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(certificate.sha256);
+  }
+
+  function clearExpiryOverview() {
+    exploreExpirySummary.textContent = "";
+    exploreExpiryNote.textContent = "Based on this browser's clock at the time of Explore. A date window is not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.";
+    exploreExpiryList.replaceChildren();
+  }
+
+  function expiryWindow(certificate, now) {
+    const starts = Date.parse(certificate.not_before);
+    const ends = Date.parse(certificate.not_after);
+    if (starts > ends) return "Invalid date range";
+    if (now < starts) return "Not yet valid";
+    if (now > ends) return "Expired";
+    const remaining = ends - now;
+    if (remaining <= 30 * 24 * 60 * 60 * 1000) return "Expires within 30 days";
+    if (remaining <= 90 * 24 * 60 * 60 * 1000) return "Expires in 31–90 days";
+    return "Expires after 90 days";
+  }
+
+  function renderExpiryOverview(entries, now) {
+    const windows = ["Invalid date range", "Expired", "Not yet valid", "Expires within 30 days",
+      "Expires in 31–90 days", "Expires after 90 days"];
+    const counts = new Map(windows.map(function (window) { return [window, 0]; }));
+    const ordered = entries.map(function (entry, index) {
+      const window = expiryWindow(entry.certificate, now);
+      counts.set(window, counts.get(window) + 1);
+      return { entry: entry, index: index, window: window, end: Date.parse(entry.certificate.not_after) };
+    }).sort(function (left, right) { return left.end - right.end || left.index - right.index; });
+    const items = ordered.map(function (item) {
+      const certificate = item.entry.certificate;
+      const row = document.createElement("li");
+      row.textContent = "#" + (item.index + 1) + " · " + item.window + " · " +
+        (certificate.subject || "Subject not present") + " · " + (certificate.is_ca ? "CA flag set · not trusted" : "CA flag not set") +
+        " · ends " + certificate.not_after + " · " + displayFileName(item.entry.file);
+      return row;
+    });
+    exploreExpirySummary.textContent = windows.map(function (window) { return window + ": " + counts.get(window); }).join(" · ");
+    exploreExpiryNote.textContent = "As of " + new Date(now).toISOString() + " (browser clock). Public certificate dates only; not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.";
+    exploreExpiryList.replaceChildren(...items);
   }
 
   function validExploreResult(result) {
@@ -557,6 +607,11 @@
   }
 
   function renderExplore(entries, chain) {
+    const now = Date.now();
+    if (!Number.isFinite(now) || Number.isNaN(new Date(now).getTime())) {
+      showExploreFailure("The browser clock is unavailable; expiry dates cannot be classified safely.");
+      return;
+    }
     const cards = entries.map(function (entry, index) {
       const certificate = entry.certificate;
       const item = document.createElement("li");
@@ -571,6 +626,7 @@
       bundleDetail(details, "Source file", displayFileName(entry.file));
       bundleDetail(details, "Issuer", certificate.issuer || "Not present");
       bundleDetail(details, "CA flag", certificate.is_ca ? "Yes · not automatically trusted" : "No");
+      bundleDetail(details, "Not before", certificate.not_before);
       bundleDetail(details, "Expires", certificate.not_after);
       bundleDetail(details, "Encoding", certificate.encoding.toUpperCase());
       bundleDetail(details, "SHA-256", certificate.sha256);
@@ -598,6 +654,7 @@
       return item;
     });
     exploreCertificates.replaceChildren(...cards);
+    renderExpiryOverview(entries, now);
     currentExploreEntries = entries;
     selectedBundleFingerprints.clear();
     updateExploreControls();
@@ -613,6 +670,7 @@
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    clearExpiryOverview();
     exploreError.textContent = message;
     exploreError.hidden = false;
     updateExploreControls();
@@ -1082,6 +1140,9 @@
     exploreError.hidden = true;
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    currentExploreEntries = null;
+    selectedBundleFingerprints.clear();
+    clearExpiryOverview();
     exploreStatus.textContent = "Exploring locally · no certificate upload";
     updateExploreControls();
 

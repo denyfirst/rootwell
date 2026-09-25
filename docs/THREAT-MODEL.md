@@ -206,7 +206,7 @@ fixed, input-free failure and no partial certificate list. Duplicate errors
 are the only contextual diagnostics here; they use selected filenames and a
 validated public fingerprint, never certificate subject or raw input bytes.
 
-The versioned bridge response contains only subject, issuer, expiry, CA flag,
+The versioned bridge response contains only subject, issuer, validity start/end, CA flag,
 encoding, and SHA-256 fingerprint for each certificate, with a 4 MiB response
 cap. The UI validates the response shape and puts certificate-derived text
 into DOM text nodes only, including the user-supplied source filename. Each
@@ -225,6 +225,12 @@ caps signature work, and returns only fingerprint-aligned index links. Raw
 issuer/subject names and signatures must match before showing an edge. A
 self-signed CA is only a candidate, not a trusted anchor. A changed file,
 malformed response, or analysis failure hides the entire Explore result.
+The session-only expiry overview uses one browser-clock snapshot and strict
+canonical UTC-second dates from the Go parser. It has no persistence, alert,
+network, or renewal capability. The 30/90-day groups are triage labels only;
+an incorrect local clock, untrusted CA, revoked certificate, or old selected
+file can invalidate an operational inference. New selection and failure clear
+the overview with the cards.
 The same-origin asset, CSP, and no-upload trust boundaries above remain in
 force. See ADR 0004, ADR 0006, and ADR 0007 for this extension.
 
