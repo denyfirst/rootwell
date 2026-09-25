@@ -286,3 +286,22 @@ Guarded by `TestPrepareExportsOnlySelectedCertificate`,
 `TestWorkbenchPublicExportIsLocalAndExplicit`,
 `TestWorkbenchDemoBundleIsPublicAndExplorable`, and
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`.
+
+## C22 — Issuer candidates are signed relationships, never trust verdicts
+
+The separate browser analysis accepts only a bounded, strict public
+collection. It checks raw issuer/subject name equality, CA constraints, and
+the certificate signature before listing a possible issuer. Ambiguous
+parents remain separate candidates; a self-signed CA is not a trust anchor.
+There is no hostname, time, complete path, algorithm-policy, revocation, or
+private-key verdict. Signature work is capped at 256 checks. Malformed,
+changed, duplicate, excessive, or secret-bearing input hides the entire
+Explore result. The UI validates ordered full fingerprints and index bounds
+before rendering relationships as text, and no network path is introduced.
+
+Guarded by `TestProcessFindsSignedCandidatesWithoutTrust`,
+`TestProcessRejectsUnsafeCollectionsWithoutEcho`,
+`TestProcessBoundsSignatureWork`,
+`FuzzProcessNeverReturnsTrust`,
+`TestWorkbenchExploreIsPublicOnlyAndFunctional`, and the browser-state
+regressions in `scripts/test-workbench-multifile.mjs`.

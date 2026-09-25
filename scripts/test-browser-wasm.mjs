@@ -31,6 +31,7 @@ await Promise.race([
 
 assert.equal(typeof globalThis.rootwellInspect, "function");
 assert.equal(typeof globalThis.rootwellExplore, "function");
+assert.equal(typeof globalThis.rootwellAnalyze, "function");
 assert.equal(typeof globalThis.rootwellExport, "function");
 assert.equal(globalThis.rootwellInspectMaxBytes, 16 * 1024 * 1024);
 
@@ -48,6 +49,12 @@ assert.equal(explored.result.certificates[0].subject, "CN=workbench.rootwell.inv
 
 const bundle = new Uint8Array(fs.readFileSync(bundlePath));
 const bundleResponse = JSON.parse(globalThis.rootwellExplore(bundle));
+const analyzed = JSON.parse(globalThis.rootwellAnalyze([bundle]));
+assert.equal(analyzed.ok, true);
+assert.equal(analyzed.result.verification, "not-performed");
+assert.equal(analyzed.result.trust_anchor, "not-selected");
+assert.equal(analyzed.result.certificates.length, 2);
+assert.equal(analyzed.result.certificates[0].sha256, bundleResponse.result.certificates[0].sha256);
 assert.equal(bundleResponse.ok, true);
 assert.equal(bundleResponse.result.count, 2);
 assert.equal(bundleResponse.result.verification, "not-performed");

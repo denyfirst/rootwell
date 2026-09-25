@@ -197,7 +197,7 @@
   } else {
     globalThis.rootwellWorkbenchReady.then(function (readyEngine) {
       if (!readyEngine || typeof readyEngine.inspect !== "function" || typeof readyEngine.explore !== "function" ||
-          typeof readyEngine.exportPublic !== "function" ||
+          typeof readyEngine.exportPublic !== "function" || typeof readyEngine.analyze !== "function" ||
           !Number.isSafeInteger(readyEngine.maxBytes) || readyEngine.maxBytes <= 0) {
         engineUnavailable();
         return;
@@ -437,6 +437,21 @@
       result.certificates.every(validExploreCertificate);
   }
 
+  function validChainResult(response, entries) {
+    if (!response || response.schema_version !== "rootwell.browser.chain.v1" || response.ok !== true ||
+        response.error !== "" || !response.result || response.result.verification !== "not-performed" ||
+        response.result.trust_anchor !== "not-selected" || !Array.isArray(response.result.certificates) ||
+        response.result.certificates.length !== entries.length) return false;
+    return response.result.certificates.every(function (certificate, index) {
+      return certificate && certificate.sha256 === entries[index].certificate.sha256 &&
+        typeof certificate.self_signed === "boolean" && Array.isArray(certificate.parents) &&
+        certificate.parents.every(function (parent, position) {
+          return Number.isSafeInteger(parent) && parent >= 0 && parent < entries.length && parent !== index &&
+            (position === 0 || parent > certificate.parents[position - 1]);
+        });
+    });
+  }
+
   function bundleDetail(listElement, label, value) {
     const row = document.createElement("div");
     const term = document.createElement("dt");
@@ -474,7 +489,7 @@
     return controls;
   }
 
-  function renderExplore(entries) {
+  function renderExplore(entries, chain) {
     const cards = entries.map(function (entry, index) {
       const certificate = entry.certificate;
       const item = document.createElement("li");
@@ -492,6 +507,12 @@
       bundleDetail(details, "Expires", certificate.not_after);
       bundleDetail(details, "Encoding", certificate.encoding.toUpperCase());
       bundleDetail(details, "SHA-256", certificate.sha256);
+      const relation = chain.certificates[index];
+      const issuerHint = relation.parents.length === 0 ?
+        (relation.self_signed ? "Self-signed CA candidate · not automatically trusted" : "No matching issuer in these files") :
+        relation.parents.map(function (parent) { return "certificate #" + (parent + 1); }).join(", ") +
+          " · issuer signature matches, not a trust verdict";
+      bundleDetail(details, "Possible issuer", issuerHint);
       item.append(heading, details, exportAction(entry.file, certificate.sha256, index));
       return item;
     });
@@ -706,7 +727,32 @@
           if (bytes) bytes.fill(0);
         }
       }
-      if (selectedExploreFiles === files) renderExplore(entries);
+      const analysisInputs = [];
+      try {
+        for (const file of files) {
+          if (selectedExploreFiles !== files) return;
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          analysisInputs.push(bytes);
+          if (bytes.byteLength !== file.size) {
+            showExploreFailure("The selected files changed during analysis.");
+            return;
+          }
+        }
+        if (selectedExploreFiles !== files) return;
+        const analysisText = engine.analyze(analysisInputs);
+        if (typeof analysisText !== "string" || analysisText.length > 64 * 1024) {
+          showExploreFailure("Local chain analysis failed safely.");
+          return;
+        }
+        const analysis = JSON.parse(analysisText);
+        if (!validChainResult(analysis, entries)) {
+          showExploreFailure("Local chain analysis failed safely or the selected files changed.");
+          return;
+        }
+        if (selectedExploreFiles === files) renderExplore(entries, analysis.result);
+      } finally {
+        for (const bytes of analysisInputs) bytes.fill(0);
+      }
     } catch {
       if (selectedExploreFiles === files) showExploreFailure("Exploration failed safely. The selected files were not uploaded.");
     } finally {

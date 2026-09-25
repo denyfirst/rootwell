@@ -218,8 +218,13 @@ Exploration is not verification. The bridge says `not-performed` and
 `not-selected`; the UI never promotes an included CA certificate to a trusted
 root or silently classifies a leaf. Chain building, hostname, time-policy,
 revocation, live endpoint, and private-key possession are outside this result.
+The separate public issuer-candidate analysis re-parses the selected files,
+caps signature work, and returns only fingerprint-aligned index links. Raw
+issuer/subject names and signatures must match before showing an edge. A
+self-signed CA is only a candidate, not a trusted anchor. A changed file,
+malformed response, or analysis failure hides the entire Explore result.
 The same-origin asset, CSP, and no-upload trust boundaries above remain in
-force. See ADR 0004 and ADR 0006 for this extension.
+force. See ADR 0004, ADR 0006, and ADR 0007 for this extension.
 
 ## Browser public certificate export boundary
 

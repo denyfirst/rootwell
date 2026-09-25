@@ -28,7 +28,8 @@ CLI. Verify is still a clearly labeled interaction preview.
   rendered as text, and duplicate certificates are never silently removed;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
 
-Explore displays subject, issuer, CA flag, expiry, encoding, and fingerprint.
+Explore displays subject, issuer, CA flag, expiry, encoding, fingerprint, and
+possible issuer links backed by issuer/subject names and signature checks.
 It does not select a leaf, choose a trust anchor, verify a chain, or create a
 combined output file. A selected public certificate can be downloaded as one PEM
 `CERTIFICATE` block or exact DER bytes. The source is re-parsed and selected
@@ -47,6 +48,7 @@ certificates only. Do not select private keys, passphrases, PFX/PKCS#12 files,
 or other secrets. See
 [`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
 and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
+and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)
 for the decision and non-claims.
 
 ## Build the local engine
