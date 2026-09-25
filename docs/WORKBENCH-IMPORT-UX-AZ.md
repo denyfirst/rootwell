@@ -1,8 +1,9 @@
 # Certificate import, bundle explorer və Verify UX planı
 
 **Status:** 1–8 public faylı birlikdə göstərən browser explorer və seçilmiş
-bir public certificate-in PEM/DER download-u işləkdir; toplu export,
-rol/chain təyini və browser Verify hələ plan mərhələsindədir.
+bir public certificate-in PEM/DER download-u işləkdir; mümkün issuer
+əlaqələri göstərilir; toplu export, qəti rol/chain təyini və browser Verify
+hələ plan mərhələsindədir.
 
 ## İstifadəçinin yolu
 
@@ -54,7 +55,8 @@ Fayllararası dublikat xəbərdarlığı hər iki faylın seçilmə sırasını,
 göstərilən adını və certificate-in tam SHA-256 fingerprint-ini bildirir.
 Bir faylın daxilindəki dublikatda isə yalnız həmin fayl göstərilir; konkret
 PEM blokunu seçmək hələ mümkün deyil. Avtomatik dublikat silinmir.
-Rol namizədi və chain əlaqəsi hələ göstərilmir.
+Mümkün issuer əlaqəsi eyni ad və imza yoxlaması ilə göstərilir; bu nə qəti
+chain, nə də trust hökmüdür. Birdən çox namizəd səssiz seçilmir.
 İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
 kimi ayrıca endirməyi tələb edə bilər. `.crt` və `.cer` ayrıca format deyil:
 istifadəçi iç məzmunu (PEM text və ya DER binary) və fayl uzantısını birlikdə

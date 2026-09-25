@@ -7,6 +7,7 @@ import (
 	"syscall/js"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/browserchain"
 	"github.com/denyfirst/rootwell/internal/browserexplore"
 	"github.com/denyfirst/rootwell/internal/browserexport"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
@@ -16,15 +17,59 @@ import (
 func main() {
 	inspectFunction := js.FuncOf(inspectCertificate)
 	exploreFunction := js.FuncOf(exploreCertificates)
+	analyzeFunction := js.FuncOf(analyzeChainCandidates)
 	exportFunction := js.FuncOf(exportPublicCertificate)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
+	js.Global().Set("rootwellAnalyze", analyzeFunction)
 	js.Global().Set("rootwellExport", exportFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
 	}
 	select {}
+}
+
+func analyzeChainCandidates(_ js.Value, arguments []js.Value) (response any) {
+	response = browserchain.FailureResponse("internal-failure")
+	defer func() {
+		if recover() != nil {
+			response = browserchain.FailureResponse("internal-failure")
+		}
+	}()
+	if len(arguments) != 1 || !js.Global().Get("Array").Call("isArray", arguments[0]).Bool() {
+		return browserchain.FailureResponse("invalid-browser-request")
+	}
+	files := arguments[0]
+	length := files.Get("length")
+	if length.Type() != js.TypeNumber || length.Float() < 1 || length.Float() > 8 {
+		return browserchain.FailureResponse("invalid-browser-request")
+	}
+	count := length.Int()
+	inputs := make([][]byte, 0, count)
+	defer func() {
+		for _, input := range inputs {
+			clear(input)
+		}
+	}()
+	totalBytes := 0
+	for index := 0; index < count; index++ {
+		file := files.Index(index)
+		if file.Type() != js.TypeObject || !file.InstanceOf(js.Global().Get("Uint8Array")) {
+			return browserchain.FailureResponse("invalid-browser-request")
+		}
+		length := file.Get("byteLength")
+		if length.Type() != js.TypeNumber || length.Float() > float64(int(limits.MaxInputBytes)-totalBytes) || length.Float() < 0 {
+			return browserchain.FailureResponse("invalid-browser-request")
+		}
+		input, failure := copyPublicInput([]js.Value{file})
+		if failure != inputOK {
+			return browserchain.FailureResponse("invalid-browser-request")
+		}
+		inputs = append(inputs, input)
+		totalBytes += len(input)
+	}
+	return browserchain.Process(inputs)
 }
 
 func inspectCertificate(_ js.Value, arguments []js.Value) (response any) {

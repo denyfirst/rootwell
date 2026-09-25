@@ -229,7 +229,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"duplicate certificates across files are rejected",
 		"Private keys and PFX are not supported",
 		`href="rootwell-demo-bundle.pem" download`,
-		"The CA flag is certificate metadata, not proof that a root is trusted",
+		"The CA flag and possible issuer links are public-certificate evidence, not proof that a root is trusted",
 		`id="explore-result" aria-live="polite" hidden`,
 	} {
 		if !strings.Contains(html, required) {
@@ -243,7 +243,8 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"if (files.length > maxExploreFiles) {", "remainingBytes -= bytes.byteLength",
 		"fingerprints.get(certificate.sha256)", "selectedFileLabel(previous.file, previous.index)",
 		"selectedFileLabel(file, fileIndex)", "entries.length === maxExploreCertificates",
-		"metadataBytes > maxExploreMetadataBytes", "if (selectedExploreFiles === files) renderExplore(entries)",
+		"metadataBytes > maxExploreMetadataBytes", "engine.analyze(analysisInputs)",
+		"validChainResult(analysis, entries)", "renderExplore(entries, analysis.result)",
 		"bundleDetail(details, \"Source file\", displayFileName(entry.file))",
 	} {
 		if !strings.Contains(application, required) {

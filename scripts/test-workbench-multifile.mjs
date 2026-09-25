@@ -76,6 +76,20 @@ const engine = {
     }
     return success([certificate(bytes[0])]);
   },
+  analyze: (inputs) => JSON.stringify({
+    schema_version: "rootwell.browser.chain.v1",
+    ok: true,
+    error: "",
+    result: {
+      verification: "not-performed",
+      trust_anchor: "not-selected",
+      certificates: inputs.flatMap((bytes) =>
+        (bytes[0] === 77 ? Array.from({ length: 64 }, (_, index) => certificate(index)) : [certificate(bytes[0])])
+          .map((item) => ({ sha256: item.sha256,
+            parents: inputs.length === 2 && inputs[0][0] === 65 && inputs[1][0] === 66 && item.sha256 === certificate(65).sha256 ? [1] : [],
+            self_signed: inputs.length === 2 && inputs[0][0] === 65 && inputs[1][0] === 66 && item.sha256 === certificate(66).sha256 })))
+    }
+  }),
   exportPublic: () => { throw new Error("Export should not be called"); }
 };
 const context = vm.createContext({ document, TextEncoder, rootwellWorkbenchReady: Promise.resolve(engine) });
@@ -97,6 +111,9 @@ async function explore() {
   assert.equal(element("explore-button").disabled, false);
   await element("explore-button").listeners.click();
 }
+function allText(node) {
+  return node.textContent + node.children.map(allText).join(" ");
+}
 
 select([file("A"), file("B")]);
 await explore();
@@ -104,6 +121,22 @@ assert.equal(element("explore-result").hidden, false);
 assert.equal(element("explore-result-count").textContent, "2 certificates found");
 assert.equal(element("explore-certificates").children.length, 2);
 assert.equal(element("explore-error").hidden, true);
+assert.match(allText(element("explore-certificates")), /certificate #2 · issuer signature matches, not a trust verdict/);
+assert.match(allText(element("explore-certificates")), /Self-signed CA candidate · not automatically trusted/);
+
+const realAnalyze = engine.analyze;
+engine.analyze = () => JSON.stringify({
+  schema_version: "rootwell.browser.chain.v1", ok: true, error: "",
+  result: { verification: "not-performed", trust_anchor: "not-selected", certificates: [
+    { sha256: certificate(66).sha256, parents: [], self_signed: false },
+    { sha256: certificate(65).sha256, parents: [], self_signed: false }
+  ] }
+});
+select([file("A"), file("B")]);
+await explore();
+assert.equal(element("explore-result").hidden, true, "mismatched analysis must hide all cards");
+assert.equal(element("explore-certificates").children.length, 0);
+engine.analyze = realAnalyze;
 
 select([file("A"), file("A")]);
 await explore();
