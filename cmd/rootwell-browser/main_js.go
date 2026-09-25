@@ -12,6 +12,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/browserexplore"
 	"github.com/denyfirst/rootwell/internal/browserexport"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
+	"github.com/denyfirst/rootwell/internal/browserverify"
 	"github.com/denyfirst/rootwell/internal/limits"
 )
 
@@ -20,17 +21,123 @@ func main() {
 	exploreFunction := js.FuncOf(exploreCertificates)
 	analyzeFunction := js.FuncOf(analyzeChainCandidates)
 	bundleExportFunction := js.FuncOf(exportPublicBundle)
+	verifySimpleFunction := js.FuncOf(verifySimple)
+	verifyExplicitFunction := js.FuncOf(verifyExplicit)
 	exportFunction := js.FuncOf(exportPublicCertificate)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
 	js.Global().Set("rootwellAnalyze", analyzeFunction)
 	js.Global().Set("rootwellExportBundle", bundleExportFunction)
+	js.Global().Set("rootwellVerifySimple", verifySimpleFunction)
+	js.Global().Set("rootwellVerifyExplicit", verifyExplicitFunction)
 	js.Global().Set("rootwellExport", exportFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
 	}
 	select {}
+}
+
+func verifySimple(_ js.Value, arguments []js.Value) (response any) {
+	response = browserverify.FailureResponse("internal-failure")
+	defer func() {
+		if recover() != nil {
+			response = browserverify.FailureResponse("internal-failure")
+		}
+	}()
+	if len(arguments) != 4 {
+		return browserverify.FailureResponse("invalid-browser-request")
+	}
+	hostname, now, contextFailure := verifyContext(arguments[2], arguments[3])
+	if contextFailure != "" {
+		return browserverify.FailureResponse(contextFailure)
+	}
+	sources, failure := copyPublicCollection(arguments[0])
+	if failure == inputTooLarge {
+		return browserverify.FailureResponse("input-too-large")
+	}
+	if failure != inputOK {
+		return browserverify.FailureResponse("invalid-browser-request")
+	}
+	defer clearCollection(sources)
+	remaining := int(limits.MaxInputBytes)
+	for _, source := range sources {
+		remaining -= len(source)
+	}
+	trust, failure := copyPublicInputLimited(arguments[1], remaining)
+	if failure == inputTooLarge {
+		return browserverify.FailureResponse("input-too-large")
+	}
+	if failure != inputOK {
+		return browserverify.FailureResponse("invalid-browser-request")
+	}
+	defer clear(trust)
+	return browserverify.Simple(sources, trust, hostname, now)
+}
+
+func verifyExplicit(_ js.Value, arguments []js.Value) (response any) {
+	response = browserverify.FailureResponse("internal-failure")
+	defer func() {
+		if recover() != nil {
+			response = browserverify.FailureResponse("internal-failure")
+		}
+	}()
+	if len(arguments) != 5 {
+		return browserverify.FailureResponse("invalid-browser-request")
+	}
+	hostname, now, contextFailure := verifyContext(arguments[3], arguments[4])
+	if contextFailure != "" {
+		return browserverify.FailureResponse(contextFailure)
+	}
+	inputs := make([][]byte, 0, 3)
+	defer func() { clearCollection(inputs) }()
+	remaining := int(limits.MaxInputBytes)
+	for _, argument := range arguments[:3] {
+		input, failure := copyPublicInputLimited(argument, remaining)
+		if failure == inputTooLarge {
+			return browserverify.FailureResponse("input-too-large")
+		}
+		if failure != inputOK {
+			return browserverify.FailureResponse("invalid-browser-request")
+		}
+		inputs = append(inputs, input)
+		remaining -= len(input)
+	}
+	return browserverify.Explicit(inputs[0], inputs[1], inputs[2], hostname, now)
+}
+
+func verifyContext(hostnameValue, timeValue js.Value) (string, time.Time, string) {
+	if hostnameValue.Type() != js.TypeString || timeValue.Type() != js.TypeString {
+		return "", time.Time{}, "invalid-browser-request"
+	}
+	stringType := js.Global().Get("String")
+	hostnameLength := stringType.New(hostnameValue).Get("length").Int()
+	timeLength := stringType.New(timeValue).Get("length").Int()
+	if hostnameLength < 1 || hostnameLength > 253 {
+		return "", time.Time{}, "invalid-browser-request"
+	}
+	if timeLength < 20 || timeLength > 64 {
+		return "", time.Time{}, "invalid-time"
+	}
+	now, err := time.Parse(time.RFC3339Nano, timeValue.String())
+	if err != nil {
+		return "", time.Time{}, "invalid-time"
+	}
+	return hostnameValue.String(), now, ""
+}
+
+func copyPublicInputLimited(value js.Value, remaining int) ([]byte, inputFailure) {
+	if value.Type() != js.TypeObject || !value.InstanceOf(js.Global().Get("Uint8Array")) {
+		return nil, inputInvalid
+	}
+	length := value.Get("byteLength")
+	if length.Type() != js.TypeNumber || length.Float() < 0 {
+		return nil, inputInvalid
+	}
+	if length.Float() > float64(remaining) {
+		return nil, inputTooLarge
+	}
+	return copyPublicInput([]js.Value{value})
 }
 
 func analyzeChainCandidates(_ js.Value, arguments []js.Value) (response any) {

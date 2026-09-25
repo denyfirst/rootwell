@@ -5,7 +5,7 @@ Inspect processes one public PEM or DER X.509 certificate. Explore processes
 1–8 selected public files containing strict PEM certificate bundles or single
 DER certificates, with at most 64 certificates and 16 MiB combined. Each file
 uses the same bounded Go core as the
-CLI. Verify is still a clearly labeled interaction preview.
+CLI. Verify uses the same explicit-trust TLS server verifier as the CLI.
 
 ## Security boundary
 
@@ -14,7 +14,7 @@ CLI. Verify is still a clearly labeled interaction preview.
   `rootwell.wasm` application asset;
 - the loader has no DOM, selected-file, or file-byte access;
 - `app.js` reads a file only after **Inspect certificate**, **Explore bundle**,
-  or a certificate card's download action is pressed and has no network,
+  **Verify certificate**, or a public download action is pressed and has no network,
   service-worker, dynamic-code, or
   workbench-input storage capability;
 - selected values and certificate metadata are rendered through `textContent`;
@@ -45,6 +45,14 @@ overwrite a file; final save behavior belongs to the browser and operating
 system and cannot be guaranteed by this web page. A CA flag is not a trust
 verdict.
 
+Verify is offline and requires a hostname and separately selected PEM trust
+anchor file. Simple classifies 1–8 strict public files and requires exactly
+one end-entity certificate; self-signed roots in these files are ignored as
+trust sources. Advanced accepts an explicit leaf, optional PEM intermediates,
+and optional RFC 3339 evaluation time. Both use the same Go verification
+policy. Success does not check revocation, live deployment, or private-key
+possession. Do not import private keys or PFX into this public-only UI.
+
 Browser-wide memory erasure is not guaranteed. This boundary is for public
 certificates only. Do not select private keys, passphrases, PFX/PKCS#12 files,
 or other secrets. See
@@ -52,6 +60,7 @@ or other secrets. See
 and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
 and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)
 and [bundle export decision](../../docs/adr/0008-browser-selected-public-bundle-export.md)
+and [Verify decision](../../docs/adr/0009-browser-explicit-trust-verification.md)
 for the decision and non-claims.
 
 ## Build the local engine

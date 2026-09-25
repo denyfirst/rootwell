@@ -266,6 +266,19 @@ key, direct disk write, or no-overwrite promise is made. See ADR 0008.
 
 ## Implemented TLS verification boundary
 
+The browser Verify panel calls the same `certverify.Verify` core as the CLI.
+It requires a user-entered hostname and a separately selected PEM trust
+bundle. Simple classifies 1–8 strict public source files but never promotes a
+self-signed source root into trust; it requires exactly one non-CA leaf.
+Advanced selects the leaf and optional intermediates explicitly. Both use
+the same policy and explicit evaluation time. Total input is bounded to
+16 MiB before Go copies are allocated. The browser accepts only a versioned
+success marked `explicit-file`, validates the hostname and chain shape, and
+uses text nodes for all certificate-derived strings. Failure or selection
+change hides any earlier Verified result. No private keys, PFX, system roots,
+network verification, revocation, or live endpoint claim is made. See ADR
+0009.
+
 `rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The
 caller must provide an ASCII hostname and a PEM bundle of explicit trust
 anchors. A separate optional PEM bundle supplies intermediates. Rootwell does

@@ -71,7 +71,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect public certificates and explore certificate files locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
+          <p class="lede">Inspect, explore, and verify public certificates locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -229,53 +229,63 @@
             <div>
               <p class="section-index">Tool 03 / Verify</p>
               <h2>Verify a TLS server certificate</h2>
-              <p>Planned flow: add one certificate or several files from your CA. Rootwell will explain what it found before asking you to make a trust decision.</p>
+              <p>Verify public certificate files locally against a separately selected trust anchor and hostname. No certificate upload, system roots, or live server check.</p>
             </div>
             <span class="capability">Explicit trust</span>
           </div>
-
-          <ol class="verify-guide" aria-label="Planned simple verification flow">
-            <li><span>01</span><div><strong>Add what your CA gave you</strong><p>One .crt or .cer, a PEM bundle, or several public certificate files. No need to know which is the leaf yet.</p></div></li>
-            <li><span>02</span><div><strong>Enter the website name</strong><p>For a TLS server check, tell Rootwell the hostname the certificate should protect.</p></div></li>
-            <li><span>03</span><div><strong>Choose what you trust</strong><p>Use a separately selected company root or, later, a reviewed public-root profile. A root found inside the uploaded bundle is never trusted automatically.</p></div></li>
-          </ol>
-
-          <details class="verify-advanced">
-            <summary>Advanced: what will be checked?</summary>
-            <p>The same verification engine will use an explicit leaf certificate, optional intermediates, an independently chosen trust anchor, hostname, evaluation time, and policy. Automatic file classification will not change the trust decision.</p>
-          </details>
-
-          <aside class="nonclaim">
-            <strong>What this profile will not claim</strong>
-            <p>No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check. A local file verdict is not deployment evidence.</p>
-          </aside>
-
-          <div class="panel-actions">
-            <p><span class="status-dot" aria-hidden="true"></span>Preview only — file analysis and verification are not active here yet</p>
-            <button class="button button-primary" type="button" data-show-sample="verify-result">Show sample result</button>
+          <div class="verify-inputs">
+            <label>Website hostname
+              <input id="verify-hostname" type="text" autocomplete="off" spellcheck="false" placeholder="service.example.com" maxlength="253">
+            </label>
+            <label>Explicit trust anchor PEM file
+              <input id="verify-trust-file" type="file" accept=".pem,.crt,.cer">
+            </label>
           </div>
-
+          <p class="verify-note">Choose a trusted root file separately. A root found in your CA's other files is never trusted automatically. Private keys and PFX are not accepted.</p>
+          <fieldset class="verify-mode">
+            <legend>Input mode</legend>
+            <label><input id="verify-simple-mode" type="radio" name="verify-mode" checked> Simple — classify CA files</label>
+            <label><input id="verify-advanced-mode" type="radio" name="verify-mode"> Advanced — choose roles yourself</label>
+          </fieldset>
+          <div id="verify-simple-inputs" class="verify-inputs">
+            <label>Files your CA gave you (1–8 public files)
+              <input id="verify-source-files" type="file" multiple accept=".pem,.crt,.cer,.der">
+            </label>
+            <p>Rootwell requires exactly one end-entity certificate and treats CA certificates as intermediate candidates. Self-signed roots in these files are ignored, not trusted.</p>
+          </div>
+          <div id="verify-advanced-inputs" class="verify-inputs" hidden>
+            <label>Leaf certificate (one PEM or DER certificate)
+              <input id="verify-leaf-file" type="file" accept=".pem,.crt,.cer,.der">
+            </label>
+            <label>Intermediate CA PEM bundle (optional)
+              <input id="verify-intermediates-file" type="file" accept=".pem,.crt,.cer">
+            </label>
+            <label>Evaluation time (RFC 3339; blank uses current browser time)
+              <input id="verify-time" type="text" autocomplete="off" spellcheck="false" placeholder="2026-09-25T09:00:00Z">
+            </label>
+          </div>
+          <div class="panel-actions">
+            <p id="verify-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Choose files and hostname to verify locally</p>
+            <button class="button button-primary" id="verify-button" type="button" disabled>Verify locally</button>
+          </div>
+          <aside class="inspection-error" id="verify-error" role="alert" hidden></aside>
           <section class="result" id="verify-result" aria-live="polite" hidden>
             <div class="result-head">
               <div>
-                <p class="result-kicker">Sample data · offline TLS server profile</p>
-                <h3>portal.company.local</h3>
-                <p>Three-certificate chain to an explicitly supplied root.</p>
+                <p class="result-kicker">Offline TLS server verification · explicit trust file</p>
+                <h3 id="verify-result-hostname"></h3>
+                <p id="verify-result-time"></p>
               </div>
               <span class="stamp stamp-good">Verified</span>
             </div>
-
             <div class="honesty-row">
               <span><strong>Network</strong> Disabled</span>
               <span><strong>System roots</strong> Not used</span>
               <span><strong>Revocation</strong> Not checked</span>
             </div>
-
-            <ol class="chain" aria-label="Sample verified certificate chain">
-              <li><span>Leaf</span><div><strong>portal.company.local</strong><small>ECDSA P-256 · expires in 38 days</small></div></li>
-              <li><span>Intermediate</span><div><strong>Company TLS Intermediate 01</strong><small>Certificate signing · path length 0</small></div></li>
-              <li><span>Trust anchor</span><div><strong>Company Root CA 01</strong><small>Explicitly supplied · self-signed</small></div></li>
-            </ol>
+            <p id="verify-ignored-roots" class="verify-note"></p>
+            <ol class="chain" id="verify-chain" aria-label="Verified certificate chain"></ol>
+            <aside class="nonclaim"><strong>What this verdict does not prove</strong><p>No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check. A local-file verdict is not deployment evidence.</p></aside>
           </section>
         </section>
       </div>
@@ -283,7 +293,7 @@
 
     <footer class="colophon">
       <p><span class="footer-brand"><span>root</span>well</span> · Your private root of trust.</p>
-      <p>Local WebAssembly inspection and exploration · no certificate uploads</p>
+      <p>Local WebAssembly inspection, exploration, and verification · no certificate uploads</p>
     </footer>
   </div>
 </body>

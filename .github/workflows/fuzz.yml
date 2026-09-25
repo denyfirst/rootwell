@@ -44,6 +44,8 @@ jobs:
             package: ./internal/browserexport
           - target: FuzzPrepareBundleNeverExportsUnselectedCertificate
             package: ./internal/browserbundleexport
+          - target: FuzzSimpleNeverUsesSourceAsTrust
+            package: ./internal/browserverify
           - target: FuzzParseCertificateBundle
             package: ./internal/certverify
           - target: FuzzParsePublicBundle
