@@ -36,6 +36,8 @@ assert.equal(typeof globalThis.rootwellAnalyze, "function");
 assert.equal(typeof globalThis.rootwellExportBundle, "function");
 assert.equal(typeof globalThis.rootwellVerifySimple, "function");
 assert.equal(typeof globalThis.rootwellVerifyExplicit, "function");
+assert.equal(typeof globalThis.rootwellExportVerifiedSimple, "function");
+assert.equal(typeof globalThis.rootwellExportVerifiedExplicit, "function");
 assert.equal(typeof globalThis.rootwellExport, "function");
 assert.equal(globalThis.rootwellInspectMaxBytes, 16 * 1024 * 1024);
 
@@ -72,6 +74,32 @@ const secretVerification = JSON.parse(globalThis.rootwellVerifySimple(
   [secretSource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at));
 assert.equal(secretVerification.ok, false);
 assert.equal(secretVerification.error.code, "invalid-public-source");
+const verifiedFingerprints = simpleVerification.result.chain.map((member) => member.SHA256Fingerprint);
+const simpleFullchain = globalThis.rootwellExportVerifiedSimple(
+  [verifySource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at, verifiedFingerprints);
+const explicitFullchain = globalThis.rootwellExportVerifiedExplicit(
+  verifyLeaf, verifyIntermediate, verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at, verifiedFingerprints);
+assert.equal(simpleFullchain.ok, true, simpleFullchain.error);
+assert.equal(explicitFullchain.ok, true, explicitFullchain.error);
+assert.equal(simpleFullchain.result.trust_source, "explicit-file");
+assert.equal(simpleFullchain.result.root_included, false);
+assert.deepEqual(Array.from(simpleFullchain.result.fingerprints), verifiedFingerprints.slice(0, -1));
+assert.deepEqual(Array.from(simpleFullchain.result.bytes), Array.from(explicitFullchain.result.bytes));
+const fullchainExploration = JSON.parse(globalThis.rootwellExplore(simpleFullchain.result.bytes));
+assert.equal(fullchainExploration.ok, true);
+assert.deepEqual(fullchainExploration.result.certificates.map((member) => member.sha256), verifiedFingerprints.slice(0, -1));
+const changedFullchain = globalThis.rootwellExportVerifiedSimple(
+  [verifySource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at,
+  [verifiedFingerprints[0], verifiedFingerprints[2], verifiedFingerprints[1]]);
+assert.equal(changedFullchain.ok, false);
+assert.equal(changedFullchain.result, null);
+assert.equal(changedFullchain.error, "changed-verification");
+const untrustedFullchain = globalThis.rootwellExportVerifiedSimple(
+  [verifySource], new Uint8Array(0), verifyFixture.hostname, verifyFixture.evaluated_at, verifiedFingerprints);
+assert.equal(untrustedFullchain.ok, false);
+assert.equal(untrustedFullchain.result, null);
+simpleFullchain.result.bytes.fill(0);
+explicitFullchain.result.bytes.fill(0);
 secretSource.fill(0);
 verifySource.fill(0);
 verifyLeaf.fill(0);

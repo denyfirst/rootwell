@@ -18,6 +18,8 @@
           typeof globalThis.rootwellExportBundle !== "function" ||
           typeof globalThis.rootwellVerifySimple !== "function" ||
           typeof globalThis.rootwellVerifyExplicit !== "function" ||
+          typeof globalThis.rootwellExportVerifiedSimple !== "function" ||
+          typeof globalThis.rootwellExportVerifiedExplicit !== "function" ||
           typeof globalThis.rootwellExport !== "function" ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
@@ -31,6 +33,8 @@
         exportBundle: globalThis.rootwellExportBundle,
         verifySimple: globalThis.rootwellVerifySimple,
         verifyExplicit: globalThis.rootwellVerifyExplicit,
+        exportVerifiedSimple: globalThis.rootwellExportVerifiedSimple,
+        exportVerifiedExplicit: globalThis.rootwellExportVerifiedExplicit,
         exportPublic: globalThis.rootwellExport,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));

@@ -15,11 +15,20 @@ import (
 	"github.com/denyfirst/rootwell/internal/browserexplore"
 	"github.com/denyfirst/rootwell/internal/browserexport"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
+	"github.com/denyfirst/rootwell/internal/browserverifiedexport"
+	"github.com/denyfirst/rootwell/internal/browserverify"
 )
+
+var workbenchAssetNames = []string{
+	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg",
+	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
+	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
+	"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
+}
 
 func TestWorkbenchPreviewIsSelfContained(t *testing.T) {
 	assets := workbenchAssets(t)
-	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem"} {
+	for _, name := range workbenchAssetNames {
 		content, exists := assets[name]
 		if !exists {
 			t.Fatalf("required asset %q is missing", name)
@@ -86,6 +95,47 @@ func TestWorkbenchDemoBundleIsPublicAndExplorable(t *testing.T) {
 			t.Fatalf("exported demo certificate = %#v", single)
 		}
 		clear(exported.Bytes)
+	}
+}
+
+func TestWorkbenchVerifyDemoIsPublicAndExportsOnlyVerifiedPath(t *testing.T) {
+	assets := workbenchAssets(t)
+	for _, name := range []string{
+		"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
+		"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
+	} {
+		if strings.Contains(assets[name], "PRIVATE KEY") || strings.Contains(assets[name], "PASSWORD") {
+			t.Fatalf("%s is not public-only", name)
+		}
+	}
+	leaf := assets["rootwell-verify-demo-leaf.pem"]
+	intermediate := assets["rootwell-verify-demo-intermediate.pem"]
+	root := assets["rootwell-verify-demo-root.pem"]
+	source := assets["rootwell-verify-demo-ca-files.pem"]
+	if source != leaf+intermediate+root {
+		t.Fatal("demo CA files differ from their separate public parts")
+	}
+	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+	var verified browserverify.Response
+	if err := json.Unmarshal([]byte(browserverify.Simple([][]byte{[]byte(source)}, []byte(root),
+		"verify.rootwell.invalid", now)), &verified); err != nil || !verified.OK || verified.Result == nil {
+		t.Fatalf("demo verification: %v, %#v", err, verified)
+	}
+	if len(verified.Result.Chain) != 3 || verified.Result.IgnoredSourceRoots != 1 {
+		t.Fatalf("demo verified chain = %#v", verified.Result)
+	}
+	var expected []string
+	for _, member := range verified.Result.Chain {
+		expected = append(expected, member.SHA256Fingerprint)
+	}
+	output, code := browserverifiedexport.PrepareSimple([][]byte{[]byte(source)}, []byte(root),
+		"verify.rootwell.invalid", now, expected)
+	if code != "" {
+		t.Fatalf("demo verified export: %s", code)
+	}
+	defer clear(output.Bytes)
+	if string(output.Bytes) != leaf+intermediate || strings.Contains(string(output.Bytes), root) {
+		t.Fatal("demo fullchain did not preserve leaf/intermediate order or included root")
 	}
 }
 
@@ -371,6 +421,9 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 		`id="verify-source-files"`, `id="verify-leaf-file"`,
 		`id="verify-intermediates-file"`, `id="verify-time"`,
 		`id="verify-button" type="button" disabled`,
+		`id="verify-export-button" type="button" disabled`,
+		`href="rootwell-verify-demo-ca-files.pem" download`,
+		`href="rootwell-verify-demo-root.pem" download`,
 		"A root found in your CA's other files is never trusted automatically",
 		"Self-signed roots in these files are ignored, not trusted",
 		"No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check",
@@ -382,6 +435,7 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 	application := assets["app.js"]
 	for _, required := range []string{
 		"engine.verifySimple(", "engine.verifyExplicit(",
+		"engine.exportVerifiedSimple(", "engine.exportVerifiedExplicit(",
 		"validVerifyResponse(response, hostname)",
 		"verifyGeneration++", "verifyResult.hidden = true",
 		"for (const bytes of buffers) bytes.fill(0)",
@@ -419,7 +473,7 @@ func workbenchAssets(t *testing.T) map[string]string {
 	}
 	directory := filepath.Join(filepath.Dir(currentFile), "..", "..", "web", "workbench")
 	assets := make(map[string]string)
-	for _, name := range []string{"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg", "rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem"} {
+	for _, name := range workbenchAssetNames {
 		content, err := os.ReadFile(filepath.Join(directory, name))
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)

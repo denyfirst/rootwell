@@ -3,8 +3,10 @@
 **Status:** 1–8 public faylı birlikdə göstərən browser explorer və seçilmiş
 bir public certificate-in PEM/DER download-u işləkdir; mümkün issuer
 əlaqələri göstərilir və seçilmiş public PEM bundle export-u işləkdir;
-avtomatik fullchain sırası və qəti rol/chain təyini hələ plan mərhələsindədir.
-Browser Verify ayrıca seçilmiş PEM trust anchor və hostname ilə işləyir.
+Explore daxilində avtomatik fullchain sırası və qəti rol/chain təyini hələ
+plan mərhələsindədir. Browser Verify ayrıca seçilmiş PEM trust anchor və
+hostname ilə işləyir; uğurlu Verify yolunu yenidən yoxlayıb public PEM
+fullchain (root xaric) kimi endirə bilir.
 
 ## İstifadəçinin yolu
 
@@ -104,13 +106,16 @@ yazma risk yaratmamalıdır.
    **Bir public certificate və seçilmiş public PEM bundle üçün browser download işləkdir.** Rootwell
    birbaşa diskə yazmır və random ad yaradır; browserin son save qərarı
    Rootwell-in nəzarətində deyil. Fayl sistemində qəti no-overwrite və
-   avtomatik fullchain sırası ayrıca mərhələdə qalır.
+   Explore üçün avtomatik fullchain sırası ayrıca mərhələdə qalır.
 4. Browser Verify-ni mövcud CLI Go core-u ilə bağla; explicit trust
    mənbəyi, hostname və policy olmadan hökm vermə. **İşləkdir.**
 5. Advanced görünüşü və Simple/Advanced parity testlərini əlavə et.
    **İşləkdir:** eyni explicit trust və policy ilə Go nüvəsində parity
    testi var; Simple birdən çox leaf olduqda səssiz seçim etmir.
-6. PFX/secret conversion-u yalnız ayrıca threat-model və dependency
+6. Verify nəticəsindən yalnız yenidən verification və tam fingerprint
+   uyğunluğu ilə public leaf + intermediate PEM export et. **İşləkdir;**
+   ayrıca demo root yalnız trust input-udur, output-a əlavə edilmir.
+7. PFX/secret conversion-u yalnız ayrıca threat-model və dependency
    review-dan sonra planlaşdır.
 
 Qəbul zamanı certificate terminlərini bilməyən şəxs CA-nın verdiyi

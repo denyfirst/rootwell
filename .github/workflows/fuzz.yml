@@ -46,6 +46,8 @@ jobs:
             package: ./internal/browserbundleexport
           - target: FuzzSimpleNeverUsesSourceAsTrust
             package: ./internal/browserverify
+          - target: FuzzPrepareNeverExportsUnverifiedSource
+            package: ./internal/browserverifiedexport
           - target: FuzzParseCertificateBundle
             package: ./internal/certverify
           - target: FuzzParsePublicBundle

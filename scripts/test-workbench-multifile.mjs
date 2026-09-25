@@ -109,6 +109,8 @@ const engine = {
   },
   verifySimple: () => { throw new Error("Verify should not be called by Explore tests"); },
   verifyExplicit: () => { throw new Error("Verify should not be called by Explore tests"); },
+  exportVerifiedSimple: () => { throw new Error("Verified export should not be called by Explore tests"); },
+  exportVerifiedExplicit: () => { throw new Error("Verified export should not be called by Explore tests"); },
   exportPublic: () => { throw new Error("Export should not be called"); }
 };
 const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, URL: objectURLs, setTimeout: () => 0,
@@ -282,12 +284,40 @@ assert.equal(simpleVerifyCalls, 1);
 assert.equal(element("verify-result").hidden, false);
 assert.equal(element("verify-chain").children.length, 2);
 assert.match(element("verify-ignored-roots").textContent, /ignored as trust sources/);
-
+assert.equal(element("verify-export-button").disabled, false);
+let verifiedSimpleExportCalls = 0;
+engine.exportVerifiedSimple = (sources, trust, hostname, evaluatedAt, expected) => {
+  verifiedSimpleExportCalls++;
+  assert.equal(sources.length, 1);
+  assert.equal(trust[0], 82);
+  assert.equal(hostname, "verify.rootwell.invalid");
+  assert.equal(typeof evaluatedAt, "string");
+  assert.deepEqual(Array.from(expected), [certificate(65).sha256, certificate(66).sha256]);
+  exportedCertificates = [certificate(65)];
+  return { schema_version: "rootwell.browser.verified-export.v1", ok: true, error: null,
+    result: { fingerprints: [certificate(65).sha256], hostname,
+      evaluated_at: "2026-09-25T09:00:00Z", trust_source: "explicit-file", root_included: false,
+      filename: "rootwell-verified-fullchain-" + "b".repeat(32) + ".pem", bytes: Uint8Array.of(80) } };
+};
+await element("verify-export-button").listeners.click();
+assert.equal(verifiedSimpleExportCalls, 1);
+assert.equal(element("verify-result").hidden, false);
+assert.equal(element("verify-export-button").disabled, false);
+assert.match(document.body.children.at(-1).download, /^rootwell-verified-fullchain-[0-9a-f]{32}\.pem$/);
+let finishDelayedVerifyRead;
+const originalVerifyRead = element("verify-source-files").files[0].arrayBuffer;
+element("verify-source-files").files[0].arrayBuffer = () => new Promise((resolve) => { finishDelayedVerifyRead = resolve; });
+const pendingVerifiedExport = element("verify-export-button").listeners.click();
 element("verify-trust-file").files = [];
 element("verify-trust-file").listeners.change();
+finishDelayedVerifyRead(Uint8Array.of(83).buffer);
+await pendingVerifiedExport;
+element("verify-source-files").files[0].arrayBuffer = originalVerifyRead;
+assert.equal(verifiedSimpleExportCalls, 1, "stale selection must not reach verified export");
 assert.equal(element("verify-result").hidden, true);
 assert.equal(element("verify-chain").children.length, 0);
 assert.equal(element("verify-button").disabled, true);
+assert.equal(element("verify-export-button").disabled, true);
 
 engine.verifySimple = () => verificationFailure;
 element("verify-trust-file").files = [file("R")];
@@ -329,5 +359,13 @@ await element("verify-button").listeners.click();
 assert.equal(advancedCalls, 1);
 assert.equal(element("verify-result").hidden, false);
 assert.equal(element("verify-chain").children.length, 2);
+engine.exportVerifiedExplicit = () => ({ schema_version: "rootwell.browser.verified-export.v1", ok: true, error: null,
+  result: { fingerprints: [certificate(65).sha256], hostname: "verify.rootwell.invalid",
+    evaluated_at: "2026-09-25T09:00:00Z", trust_source: "explicit-file", root_included: true,
+    filename: "rootwell-verified-fullchain-" + "c".repeat(32) + ".pem", bytes: Uint8Array.of(80) } });
+await element("verify-export-button").listeners.click();
+assert.equal(element("verify-result").hidden, true, "an invalid export response must invalidate Verified state");
+assert.equal(element("verify-export-button").disabled, true);
+assert.match(element("verify-error").textContent, /invalid response/);
 
 console.log("Rootwell multi-file and Verify Workbench behavior passed.");
