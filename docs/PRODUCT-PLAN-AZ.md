@@ -301,6 +301,19 @@ Web UI seçilərsə Content Security Policy, dependency-free və ya ciddi pinned
 dependency modeli, XSS threat model və browser memory məhdudiyyətləri ayrıca
 review edilməlidir. Lokal desktop shell yalnız real fayda verərsə əlavə olunur.
 
+### Mərhələ 2.5 — ayrıca, opt-in canlı TLS spot check
+
+Offline `rootwell` CLI və browser Workbench şəbəkəsiz qalır. Ayrıca
+`rootwell-probe` yalnız operatorun açıq verdiyi IP:port-a bir TLS bağlantısı
+qurur; DNS/SNI hostname, ayrıca trust bundle, müstəqil əldə edilmiş tam root
+SHA-256 fingerprint-i və gözlənilən public leaf tələb edir. Serverin həqiqətən
+verdiyi leaf və chain, TLS handshake və Rootwell policy-si yoxlanır. Şəbəkə
+sərhədi, sabit timeout, təhlükəsiz diagnostics və real lokal TLS integration
+testləri [`ADR 0011`](adr/0011-separate-explicit-live-tls-probe.md) ilə ayrıdır.
+Bu, bir nöqtədən bir anlıq müşahidədir; bütün load-balancer node-larının,
+revocation-un və ya başqa vantage point-in sübutu deyil. Porch sonrakı
+deployment üçün müstəqil xarici verification məhsulu olaraq qalır.
+
 ### Mərhələ 3 — Inventory və monitoring
 
 **Məqsəd:** əvvəl metadata-nı mərkəzləşdirmək; private key custody-ni yox.

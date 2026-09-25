@@ -29,6 +29,13 @@ const (
 	bundleIntermediates
 )
 
+// ParseTrustAnchors exposes the exact strict, bounded trust-bundle policy to
+// separately reviewed network clients. Callers must still select their own
+// authenticated trust anchor and apply Verify to any observed server chain.
+func ParseTrustAnchors(input []byte) ([]*x509.Certificate, error) {
+	return parseBundle(input, bundleTrustAnchors)
+}
+
 func parseBundle(input []byte, role bundleRole) ([]*x509.Certificate, error) {
 	invalidError := ErrInvalidTrustBundle
 	if role == bundleIntermediates {

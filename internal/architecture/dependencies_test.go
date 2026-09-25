@@ -35,11 +35,12 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if forbiddenImport(importPath) {
-					relative, relErr := filepath.Rel(root, path)
-					if relErr != nil {
-						relative = path
-					}
+				relative, relErr := filepath.Rel(root, path)
+				if relErr != nil {
+					relative = path
+				}
+				if forbiddenImport(importPath) && !(filepath.ToSlash(relative) == "cmd/rootwell-probe/main.go" &&
+					(importPath == "net" || strings.HasPrefix(importPath, "net/"))) {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
 			}

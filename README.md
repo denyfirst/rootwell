@@ -50,6 +50,28 @@ documented in the [browser boundary](web/workbench/README.md).
 
 ## Implemented commands
 
+The separately built, explicitly network-capable `rootwell-probe` performs a
+read-only TLS spot check of one literal IP and port. The regular `rootwell`
+Workbench and browser stay offline. Build with
+`go build ./cmd/rootwell-probe`, then run the resulting `rootwell-probe`
+(`rootwell-probe.exe` on Windows):
+
+```text
+rootwell-probe --hostname portal.company.local --connect-ip 192.0.2.10 --port 443 \
+  --trust-bundle company-roots.pem --root-sha256 <independently-verified-root-fingerprint> \
+  --expected-leaf intended-server.crt
+```
+
+The probe checks the live TLS handshake, hostname, chain, pinned root,
+Rootwell certificate policy, and exact served leaf. It does not resolve DNS,
+use system roots, fetch revocation data, or check every load-balancer node.
+Only probe endpoints you are authorized to contact. Obtain the expected root
+fingerprint from an independent trusted source, not the same root file. The
+hostname is sent as TLS SNI to the selected IP; do not disclose an internal
+name to an untrusted endpoint. See
+the [probe threat model](docs/LIVE-PROBE-THREAT-MODEL.md) and
+[ADR 0011](docs/adr/0011-separate-explicit-live-tls-probe.md).
+
 Inspect one local X.509 certificate in PEM or DER form:
 
 ```text

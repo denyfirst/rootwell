@@ -77,9 +77,11 @@ Guarded by `TestReadDoesNotExposePath` and `TestInspectDoesNotEchoPath`.
 
 ## C9 — The local Workbench has no network or child-process capability
 
-The executable and its production packages cannot directly import networking,
-process execution, plugins, or unsafe code. Inspection never follows URLs
-embedded in a certificate.
+The `rootwell` Workbench executable and its production packages cannot
+directly import networking, process execution, plugins, or unsafe code.
+Inspection never follows URLs embedded in a certificate. The separately
+invoked `rootwell-probe` is the sole, explicitly reviewed network exception;
+it does not change the Workbench's offline guarantee.
 
 Guarded by `TestWorkbenchHasNoNetworkOrProcessImports`.
 
@@ -381,3 +383,24 @@ only: independent authentication of its source is the operator's task.
 Guarded by `TestRootPinMatchesOnlyCompleteVerifiedPathAnchor`,
 `scripts/test-browser-wasm.mjs`, `scripts/test-workbench-multifile.mjs`, and
 `TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`.
+
+## C27 — A live TLS observation has a separate, explicit network boundary
+
+Only `cmd/rootwell-probe/main.go` may import Go networking in production.
+Invoking the offline `rootwell` or browser cannot trigger the probe. The probe
+requires literal IP, port, DNS hostname/SNI, a strict explicit trust bundle,
+an independently obtained full root SHA-256 pin present in that bundle, and
+an expected public leaf before connecting. It makes one bounded TCP/TLS
+connection, does no DNS, HTTP, AIA, CRL, OCSP, child process, application
+request, or file write, and never uses system roots. Go TLS must complete
+ordinary verification against only the pinned root; a connection callback
+checks exact served leaf identity and Rootwell policy using only intermediates
+the peer actually sent. A failed check emits no success result. A pass is one
+vantage's observation at one time, not universal MITM absence or revocation
+evidence. See ADR 0011 and the separate probe threat model.
+
+Guarded by `TestWorkbenchHasNoNetworkOrProcessImports`,
+`TestLiveProbeMatchesPinnedRootAndServedLeaf`,
+`TestLiveProbeRequiresPeerToServeIntermediate`,
+`TestLiveProbeRefusesMismatchAndPreNetworkFailures`, and
+`TestLiveProbeRejectsMalformedArgumentsBeforeNetwork`.

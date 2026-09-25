@@ -6,8 +6,10 @@
 
 This document covers the process that reads local certificate and key material,
 performs an explicitly requested operation, and writes a result to a caller-
-selected destination. The future server, agent, browser gateway, CA connectors,
-and vault each require a separate threat model before implementation.
+selected destination. The separate network-capable live TLS probe has its own
+[`LIVE-PROBE-THREAT-MODEL.md`](LIVE-PROBE-THREAT-MODEL.md). The future server,
+agent, browser gateway, CA connectors, and vault each require a separate
+threat model before implementation.
 
 ## Security objective
 
