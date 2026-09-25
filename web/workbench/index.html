@@ -222,6 +222,12 @@
               <button class="button" id="explore-verify-button" type="button" disabled>Continue to Verify</button>
               <p>“Possible website certificate” only means its CA flag is off. Verify still checks whether it really fits your website. Nothing here is trusted yet; an offline TLS check needs a website name and a separately chosen trusted root.</p>
             </section>
+            <section class="possible-links" aria-labelledby="explore-links-heading">
+              <h4 id="explore-links-heading">Who might have signed whom?</h4>
+              <p id="explore-links-summary"></p>
+              <ol id="explore-links-list" aria-label="Possible public certificate signing links"></ol>
+              <p>Numbers match the certificate cards below. A matching signature is a clue, not a complete or trusted chain. Rootwell does not choose between multiple signers or trust a self-signed certificate here.</p>
+            </section>
             <section class="expiry-overview" aria-labelledby="explore-expiry-heading">
               <h4 id="explore-expiry-heading">Expiry overview</h4>
               <p id="explore-expiry-summary"></p>

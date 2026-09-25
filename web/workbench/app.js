@@ -25,6 +25,8 @@
   const exploreHealthSummary = document.getElementById("explore-health-summary");
   const exploreHealthNext = document.getElementById("explore-health-next");
   const exploreVerifyButton = document.getElementById("explore-verify-button");
+  const exploreLinksSummary = document.getElementById("explore-links-summary");
+  const exploreLinksList = document.getElementById("explore-links-list");
   const exploreExpirySummary = document.getElementById("explore-expiry-summary");
   const exploreExpiryNote = document.getElementById("explore-expiry-note");
   const exploreExpiryList = document.getElementById("explore-expiry-list");
@@ -208,6 +210,7 @@
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     clearHealthGuide();
+    clearPossibleLinks();
     clearExpiryOverview();
     exploreError.hidden = true;
     exportError.hidden = true;
@@ -611,6 +614,38 @@
     exploreVerifyButton.textContent = possibleSiteCertificates === 1 ? "Continue to Verify with these files" : "Review Verify options";
   }
 
+  function clearPossibleLinks() {
+    exploreLinksSummary.textContent = "";
+    exploreLinksList.replaceChildren();
+  }
+
+  function renderPossibleLinks(entries, chain) {
+    const missing = chain.certificates.filter(function (item) { return item.parents.length === 0 && !item.self_signed; }).length;
+    const ambiguous = chain.certificates.filter(function (item) { return item.parents.length > 1; }).length;
+    exploreLinksSummary.textContent = counted(missing, "certificate has", "certificates have") +
+      " no matching signer in these files; " + counted(ambiguous, "certificate has", "certificates have") +
+      " more than one possible signer. No path or trust anchor was selected.";
+    const rows = chain.certificates.map(function (relation, index) {
+      const row = document.createElement("li");
+      const role = entries[index].certificate.is_ca ? "CA certificate" : "possible website certificate";
+      const prefix = "#" + (index + 1) + " (" + role + "): ";
+      if (relation.parents.length > 1) {
+        row.textContent = prefix + "more than one possible signer — " +
+          relation.parents.map(function (parent) { return "#" + (parent + 1); }).join(", ") +
+          ". Rootwell does not choose one; Verify needs an explicit trust root.";
+      } else if (relation.parents.length === 1) {
+        row.textContent = prefix + "signature matches possible signer #" + (relation.parents[0] + 1) +
+          ". This does not prove a complete or trusted chain.";
+      } else if (relation.self_signed) {
+        row.textContent = prefix + "self-signed candidate. It is not trusted automatically.";
+      } else {
+        row.textContent = prefix + "no matching signer in these files. The connection may be missing; ask your CA for the intermediate if needed.";
+      }
+      return row;
+    });
+    exploreLinksList.replaceChildren(...rows);
+  }
+
   function validChainResult(response, entries) {
     if (!response || response.schema_version !== "rootwell.browser.chain.v1" || response.ok !== true ||
         response.error !== "" || !response.result || response.result.verification !== "not-performed" ||
@@ -712,6 +747,7 @@
     });
     exploreCertificates.replaceChildren(...cards);
     renderHealthGuide(entries, chain);
+    renderPossibleLinks(entries, chain);
     renderExpiryOverview(entries, now);
     currentExploreEntries = entries;
     selectedBundleFingerprints.clear();
@@ -730,6 +766,7 @@
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     clearHealthGuide();
+    clearPossibleLinks();
     clearExpiryOverview();
     exploreError.textContent = message;
     exploreError.hidden = false;
@@ -1264,6 +1301,7 @@
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     clearHealthGuide();
+    clearPossibleLinks();
     currentExploreEntries = null;
     selectedBundleFingerprints.clear();
     clearExpiryOverview();

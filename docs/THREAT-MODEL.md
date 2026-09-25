@@ -233,7 +233,12 @@ file can invalidate an operational inference. New selection and failure clear
 the overview with the cards.
 The guided health summary only counts CA flags and signature-backed possible
 issuer links. It cannot promote a candidate to a leaf, trusted root, or
-verified path. An explicit Explore-to-Verify click carries public File
+verified path. The numbered possible-link guide only renders those same
+validated relations as text. An absent signer is reported as a gap, multiple
+signers remain ambiguous, and source-order changes only renumber the cards.
+It neither selects a path nor copies a source certificate into the trust
+input; new selection or failed analysis clears old rows. An explicit
+Explore-to-Verify click carries public File
 references only when exactly one certificate lacks the CA flag; no bytes are
 read by that click. Verify re-reads each source and compares ordered full
 certificate fingerprints with the Explore snapshot before invoking the same

@@ -494,6 +494,11 @@ main {
 .health-guide h4 { margin: 0; font-size: 0.88rem; }
 .health-guide p { margin: 0.55rem 0; color: var(--ink-soft); font-size: 0.76rem; line-height: 1.5; }
 .health-guide button { margin-top: 0.35rem; }
+.possible-links { margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--rule); background: var(--paper-sunk); }
+.possible-links h4 { margin: 0; font-size: 0.88rem; }
+.possible-links p { margin: 0.55rem 0; color: var(--ink-soft); font-size: 0.76rem; line-height: 1.5; }
+.possible-links ol { display: grid; gap: 0.5rem; margin: 0.8rem 0; padding: 0; list-style: none; }
+.possible-links li { font-size: 0.76rem; line-height: 1.5; overflow-wrap: anywhere; }
 .demo-guide { margin-top: 0.85rem; padding: 0.85rem 1rem; border: 1px solid var(--rule); background: var(--paper-sunk); }
 .demo-guide strong { font-size: 0.78rem; }
 .demo-guide p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.55; }

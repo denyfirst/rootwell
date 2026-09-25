@@ -69,6 +69,9 @@ Bir faylın daxilindəki dublikatda isə yalnız həmin fayl göstərilir; konkr
 PEM blokunu seçmək hələ mümkün deyil. Avtomatik dublikat silinmir.
 Mümkün issuer əlaqəsi eyni ad və imza yoxlaması ilə göstərilir; bu nə qəti
 chain, nə də trust hökmüdür. Birdən çox namizəd səssiz seçilmir.
+Nömrəli əlaqə izahı indi hər certificate üçün mümkün imzalayanı, çatışmayan
+əlaqəni və birdən çox imzalayan namizədini ayrıca göstərir. Sıra dəyişəndə
+nömrələr kartlarla birlikdə dəyişir; bu, yol seçimi və etibar hökmü deyil.
 İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
 kimi ayrıca endirməyi tələb edə bilər. `.crt` və `.cer` ayrıca format deyil:
 istifadəçi iç məzmunu (PEM text və ya DER binary) və fayl uzantısını birlikdə

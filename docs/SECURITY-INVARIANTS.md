@@ -436,3 +436,15 @@ failure guidance is fixed by allowlisted error code, not raw input text.
 Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional`,
 `TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`, and
 `scripts/test-workbench-multifile.mjs`.
+
+## C30 — Possible signing links never become a trust path
+
+The Explore link guide renders validated signature-backed possible-parent
+indices as text only. It neither chooses a signer when multiple candidates
+exist nor infers a trusted root from a self-signed certificate. Missing
+parents remain visible. Changing source order only changes card numbers;
+new selection or failed analysis clears old rows. The explicit Verify trust
+file remains untouched.
+
+Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional` and
+`scripts/test-workbench-multifile.mjs`.

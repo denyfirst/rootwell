@@ -30,6 +30,10 @@ CLI. Verify uses the same explicit-trust TLS server verifier as the CLI.
 
 Explore displays subject, issuer, CA flag, validity start/end, encoding, fingerprint, and
 possible issuer links backed by issuer/subject names and signature checks.
+The numbered signing-links guide repeats those relationships in plain language,
+shows missing links and multiple possible signers, and follows the displayed
+file order. It does not choose a path, identify a trusted root, or trigger
+verification; changing files or a failed Explore clears the guide.
 Its expiry overview sorts the selected public certificates by end date and
 groups invalid ranges, expired, not-yet-valid, 0–30 days, 31–90 days, and later
 dates using a single snapshot of the browser clock. The 30/90-day windows are
