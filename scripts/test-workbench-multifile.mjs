@@ -107,6 +107,8 @@ const engine = {
     return { schema_version: "rootwell.browser.bundle-export.v1", ok: true, error: null,
       result: { fingerprints: selected, filename: "rootwell-public-bundle-" + "a".repeat(32) + ".pem", bytes: Uint8Array.of(80) } };
   },
+  verifySimple: () => { throw new Error("Verify should not be called by Explore tests"); },
+  verifyExplicit: () => { throw new Error("Verify should not be called by Explore tests"); },
   exportPublic: () => { throw new Error("Export should not be called"); }
 };
 const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, URL: objectURLs, setTimeout: () => 0,
@@ -242,4 +244,90 @@ assert.equal(element("explore-button").disabled, true);
 assert.equal(element("explore-file-state").textContent, "Selected files exceed the 16 MiB combined limit");
 assert.equal(calls, callsBeforeSelectionRefusal, "rejected selections must not reach the engine");
 
-console.log("Rootwell multi-file Workbench behavior passed.");
+const verificationSuccess = JSON.stringify({
+  schema_version: "rootwell.browser.verify.v1", ok: true, error: null,
+  result: {
+    profile: "tls-server", verification: "passed", hostname: "verify.rootwell.invalid",
+    evaluated_at: "2026-09-25T09:00:00Z", trust_source: "explicit-file",
+    revocation: "not-checked", network: "disabled", ignored_source_roots: 1,
+    chain: [
+      { Subject: "CN=verify.rootwell.invalid", Issuer: "CN=Test Root", SHA256Fingerprint: certificate(65).sha256 },
+      { Subject: "CN=Test Root", Issuer: "CN=Test Root", SHA256Fingerprint: certificate(66).sha256 }
+    ]
+  }
+});
+const verificationFailure = JSON.stringify({
+  schema_version: "rootwell.browser.verify.v1", ok: false, result: null,
+  error: { code: "unknown-authority" }
+});
+let simpleVerifyCalls = 0;
+engine.verifySimple = (sources, trust, hostname) => {
+  simpleVerifyCalls++;
+  assert.equal(sources.length, 1);
+  assert.equal(trust[0], 82);
+  assert.equal(hostname, "verify.rootwell.invalid");
+  return verificationSuccess;
+};
+element("verify-simple-mode").checked = true;
+element("verify-advanced-mode").checked = false;
+element("verify-hostname").value = "verify.rootwell.invalid";
+element("verify-hostname").listeners.input();
+element("verify-trust-file").files = [file("R")];
+element("verify-trust-file").listeners.change();
+element("verify-source-files").files = [file("S")];
+element("verify-source-files").listeners.change();
+assert.equal(element("verify-button").disabled, false);
+await element("verify-button").listeners.click();
+assert.equal(simpleVerifyCalls, 1);
+assert.equal(element("verify-result").hidden, false);
+assert.equal(element("verify-chain").children.length, 2);
+assert.match(element("verify-ignored-roots").textContent, /ignored as trust sources/);
+
+element("verify-trust-file").files = [];
+element("verify-trust-file").listeners.change();
+assert.equal(element("verify-result").hidden, true);
+assert.equal(element("verify-chain").children.length, 0);
+assert.equal(element("verify-button").disabled, true);
+
+engine.verifySimple = () => verificationFailure;
+element("verify-trust-file").files = [file("R")];
+element("verify-trust-file").listeners.change();
+await element("verify-button").listeners.click();
+assert.equal(element("verify-result").hidden, true);
+assert.equal(element("verify-chain").children.length, 0);
+assert.match(element("verify-error").textContent, /No path reaches/);
+
+const forgedVerification = JSON.parse(verificationSuccess);
+forgedVerification.result.trust_source = "system-roots";
+engine.verifySimple = () => JSON.stringify(forgedVerification);
+await element("verify-button").listeners.click();
+assert.equal(element("verify-result").hidden, true, "untrusted success metadata must not render as verified");
+assert.equal(element("verify-chain").children.length, 0);
+assert.match(element("verify-error").textContent, /invalid response/);
+
+let advancedCalls = 0;
+engine.verifyExplicit = (leaf, intermediates, trust, hostname, evaluatedAt) => {
+  advancedCalls++;
+  assert.equal(leaf[0], 76);
+  assert.equal(intermediates[0], 73);
+  assert.equal(trust[0], 82);
+  assert.equal(hostname, "verify.rootwell.invalid");
+  assert.equal(evaluatedAt, "2026-09-25T09:00:00Z");
+  return verificationSuccess;
+};
+element("verify-simple-mode").checked = false;
+element("verify-advanced-mode").checked = true;
+element("verify-advanced-mode").listeners.change();
+element("verify-leaf-file").files = [file("L")];
+element("verify-leaf-file").listeners.change();
+element("verify-intermediates-file").files = [file("I")];
+element("verify-intermediates-file").listeners.change();
+element("verify-time").value = "2026-09-25T09:00:00Z";
+element("verify-time").listeners.input();
+assert.equal(element("verify-button").disabled, false);
+await element("verify-button").listeners.click();
+assert.equal(advancedCalls, 1);
+assert.equal(element("verify-result").hidden, false);
+assert.equal(element("verify-chain").children.length, 2);
+
+console.log("Rootwell multi-file and Verify Workbench behavior passed.");

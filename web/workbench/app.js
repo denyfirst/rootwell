@@ -25,6 +25,21 @@
   const exportStatus = document.getElementById("export-status");
   const exportError = document.getElementById("export-error");
   const exportBundleButton = document.getElementById("export-bundle-button");
+  const verifyHostname = document.getElementById("verify-hostname");
+  const verifyTrustFile = document.getElementById("verify-trust-file");
+  const verifySimpleMode = document.getElementById("verify-simple-mode");
+  const verifyAdvancedMode = document.getElementById("verify-advanced-mode");
+  const verifySimpleInputs = document.getElementById("verify-simple-inputs");
+  const verifyAdvancedInputs = document.getElementById("verify-advanced-inputs");
+  const verifySourceFiles = document.getElementById("verify-source-files");
+  const verifyLeafFile = document.getElementById("verify-leaf-file");
+  const verifyIntermediatesFile = document.getElementById("verify-intermediates-file");
+  const verifyTime = document.getElementById("verify-time");
+  const verifyButton = document.getElementById("verify-button");
+  const verifyStatus = document.getElementById("verify-status");
+  const verifyError = document.getElementById("verify-error");
+  const verifyResult = document.getElementById("verify-result");
+  const verifyChain = document.getElementById("verify-chain");
 
   let engine = null;
   let selectedInspectFile = null;
@@ -32,6 +47,8 @@
   let inspecting = false;
   let exploring = false;
   let exporting = false;
+  let verifying = false;
+  let verifyGeneration = 0;
   let currentExploreEntries = null;
   const selectedBundleFingerprints = new Set();
   const pendingDownloadURLs = new Set();
@@ -90,6 +107,33 @@
     exportBundleButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || selectedBundleFingerprints.size === 0;
     exploreCertificates.querySelectorAll("button, select, input").forEach(function (control) {
       control.disabled = exploring || exporting;
+    });
+  }
+
+  function updateVerifyControls() {
+    const trust = verifyTrustFile.files && verifyTrustFile.files.length === 1;
+    const hostname = verifyHostname.value && verifyHostname.value.trim();
+    const sources = verifySourceFiles.files && verifySourceFiles.files.length >= 1 && verifySourceFiles.files.length <= maxExploreFiles;
+    const leaf = verifyLeafFile.files && verifyLeafFile.files.length === 1;
+    verifyButton.disabled = verifying || !engine || !trust || !hostname || !(verifySimpleMode.checked ? sources : leaf);
+  }
+
+  function invalidateVerify() {
+    verifyGeneration++;
+    verifyResult.hidden = true;
+    verifyChain.replaceChildren();
+    verifyError.hidden = true;
+    updateVerifyControls();
+  }
+
+  for (const input of [verifyHostname, verifyTrustFile, verifySourceFiles, verifyLeafFile, verifyIntermediatesFile, verifyTime]) {
+    input.addEventListener(input === verifyHostname || input === verifyTime ? "input" : "change", invalidateVerify);
+  }
+  for (const mode of [verifySimpleMode, verifyAdvancedMode]) {
+    mode.addEventListener("change", function () {
+      verifySimpleInputs.hidden = !verifySimpleMode.checked;
+      verifyAdvancedInputs.hidden = !verifyAdvancedMode.checked;
+      invalidateVerify();
     });
   }
 
@@ -193,9 +237,11 @@
     engineState.textContent = "Unavailable · build assets required";
     inspectStatus.textContent = "Local inspection engine is unavailable";
     exploreStatus.textContent = "Local exploration engine is unavailable";
+    verifyStatus.textContent = "Local verification engine is unavailable";
     engine = null;
     updateInspectControls();
     updateExploreControls();
+    updateVerifyControls();
   }
 
   if (!globalThis.rootwellWorkbenchReady || typeof globalThis.rootwellWorkbenchReady.then !== "function") {
@@ -205,6 +251,7 @@
       if (!readyEngine || typeof readyEngine.inspect !== "function" || typeof readyEngine.explore !== "function" ||
           typeof readyEngine.exportPublic !== "function" || typeof readyEngine.analyze !== "function" ||
           typeof readyEngine.exportBundle !== "function" ||
+          typeof readyEngine.verifySimple !== "function" || typeof readyEngine.verifyExplicit !== "function" ||
           !Number.isSafeInteger(readyEngine.maxBytes) || readyEngine.maxBytes <= 0) {
         engineUnavailable();
         return;
@@ -215,6 +262,7 @@
       exploreStatus.textContent = selectedExploreFiles ? "Ready for local exploration" : "Choose public certificate files to explore";
       updateInspectControls();
       updateExploreControls();
+      updateVerifyControls();
     }, engineUnavailable);
   }
 
@@ -752,6 +800,139 @@
       updateExploreControls();
     }
   }
+
+  const verifyFailureMessages = Object.freeze({
+    "invalid-browser-request": "Choose valid public files, a hostname, and a separate trust file.",
+    "input-too-large": "The selected verification files exceed the 16 MiB combined limit.",
+    "invalid-time": "Enter an RFC 3339 evaluation time, for example 2026-09-25T09:00:00Z.",
+    "invalid-hostname": "Enter a valid ASCII TLS server hostname without a wildcard.",
+    "invalid-public-source": "One of the CA files is not a strict public certificate or bundle.",
+    "duplicate-certificate": "A certificate appears more than once in the CA files or verification bundles.",
+    "missing-leaf": "No end-entity certificate was found in the CA files.",
+    "ambiguous-leaf": "More than one end-entity certificate was found. Use Advanced to choose the leaf.",
+    "invalid-leaf": "The selected leaf is not one complete public end-entity certificate.",
+    "invalid-trust-bundle": "The separately selected trust file must contain self-signed CA certificates in PEM form.",
+    "invalid-intermediates": "The intermediate file must contain non-self-signed CA certificates in PEM form.",
+    "disallowed-algorithm": "A certificate in the path uses a disallowed signature or public key.",
+    "hostname-mismatch": "The certificate does not match the requested hostname.",
+    "unknown-authority": "No path reaches the separately selected trust anchor.",
+    "expired": "A certificate in the path has expired at the evaluation time.",
+    "not-yet-valid": "A certificate in the path is not yet valid at the evaluation time.",
+    "incompatible-usage": "The path is not valid for TLS server use.",
+    "unhandled-critical-extension": "A certificate has an unsupported critical extension.",
+    "constraint-failure": "The certificate path violates CA or name constraints.",
+    "verification-failed": "TLS verification failed under the current policy.",
+    "internal-failure": "Local verification could not be completed safely."
+  });
+
+  function validVerifyResponse(response, hostname) {
+    if (!response || response.schema_version !== "rootwell.browser.verify.v1" || typeof response.ok !== "boolean") return false;
+    if (!response.ok) return response.result === null && response.error && typeof response.error.code === "string" &&
+      Object.hasOwn(verifyFailureMessages, response.error.code);
+    const result = response.result;
+    return response.error === null && result && result.profile === "tls-server" && result.verification === "passed" &&
+      result.hostname === hostname && typeof result.evaluated_at === "string" &&
+      result.trust_source === "explicit-file" && result.revocation === "not-checked" && result.network === "disabled" &&
+      Number.isSafeInteger(result.ignored_source_roots) && result.ignored_source_roots >= 0 && result.ignored_source_roots <= 64 &&
+      Array.isArray(result.chain) && result.chain.length >= 1 && result.chain.length <= 64 &&
+      result.chain.every(function (certificate) {
+        return certificate && typeof certificate.Subject === "string" && typeof certificate.Issuer === "string" &&
+          /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(certificate.SHA256Fingerprint);
+      });
+  }
+
+  function showVerifyFailure(message) {
+    verifyResult.hidden = true;
+    verifyChain.replaceChildren();
+    verifyError.textContent = message;
+    verifyError.hidden = false;
+    verifyStatus.textContent = "Local verification did not pass · no certificate upload";
+  }
+
+  function renderVerify(result) {
+    text("verify-result-hostname", result.hostname);
+    text("verify-result-time", "Evaluated at " + result.evaluated_at + " · explicit trust file");
+    text("verify-ignored-roots", result.ignored_source_roots > 0 ?
+      result.ignored_source_roots + " self-signed CA certificate(s) in the CA files were ignored as trust sources." :
+      "Trust came only from the separately selected file.");
+    const cards = result.chain.map(function (certificate, index) {
+      const item = document.createElement("li");
+      const role = document.createElement("span");
+      role.textContent = index === 0 ? "Leaf" : index === result.chain.length - 1 ? "Trust anchor" : "Intermediate";
+      const content = document.createElement("div");
+      const subject = document.createElement("strong");
+      subject.textContent = certificate.Subject;
+      const detail = document.createElement("small");
+      detail.textContent = "SHA-256 " + certificate.SHA256Fingerprint;
+      content.append(subject, detail);
+      item.append(role, content);
+      return item;
+    });
+    verifyChain.replaceChildren(...cards);
+    verifyError.hidden = true;
+    verifyResult.hidden = false;
+    verifyStatus.textContent = "Verified locally against the explicit trust file · no certificate upload";
+    verifyResult.scrollIntoView({ block: "nearest" });
+  }
+
+  verifyButton.addEventListener("click", async function () {
+    if (!engine || verifying || verifyButton.disabled) return;
+    const generation = verifyGeneration;
+    const simple = verifySimpleMode.checked;
+    const hostname = verifyHostname.value.trim();
+    const trustFile = verifyTrustFile.files[0];
+    const sourceFiles = simple ? Array.from(verifySourceFiles.files) :
+      [verifyLeafFile.files[0], verifyIntermediatesFile.files && verifyIntermediatesFile.files.length === 1 ? verifyIntermediatesFile.files[0] : null];
+    const timeValue = !simple && verifyTime.value.trim() ? verifyTime.value.trim() : new Date().toISOString();
+    const actualFiles = sourceFiles.filter(Boolean);
+    if (!trustFile || !hostname || actualFiles.length < 1 || actualFiles.length > maxExploreFiles ||
+        [...actualFiles, trustFile].some(function (file) { return !Number.isSafeInteger(file.size) || file.size <= 0; }) ||
+        [...actualFiles, trustFile].reduce(function (sum, file) { return sum + file.size; }, 0) > engine.maxBytes) {
+      showVerifyFailure("Choose public files within the 16 MiB combined limit and a separate trust file.");
+      return;
+    }
+    verifying = true;
+    verifyResult.hidden = true;
+    verifyError.hidden = true;
+    verifyStatus.textContent = "Verifying locally · no certificate upload";
+    updateVerifyControls();
+    const buffers = [];
+    try {
+      for (const file of [...actualFiles, trustFile]) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        buffers.push(bytes);
+        if (generation !== verifyGeneration) return;
+        if (bytes.byteLength !== file.size) {
+          showVerifyFailure("A selected file changed while being read. Choose it again.");
+          return;
+        }
+      }
+      const trust = buffers[buffers.length - 1];
+      const raw = simple ? engine.verifySimple(buffers.slice(0, -1), trust, hostname, timeValue) :
+        engine.verifyExplicit(buffers[0], sourceFiles[1] ? buffers[1] : new Uint8Array(0), trust, hostname, timeValue);
+      if (typeof raw !== "string" || raw.length > 1 << 20) {
+        showVerifyFailure("The local verification engine returned an invalid response.");
+        return;
+      }
+      const response = JSON.parse(raw);
+      if (!validVerifyResponse(response, hostname)) {
+        showVerifyFailure("The local verification engine returned an invalid response.");
+        return;
+      }
+      if (generation !== verifyGeneration) return;
+      if (!response.ok) {
+        showVerifyFailure(verifyFailureMessages[response.error.code]);
+        return;
+      }
+      renderVerify(response.result);
+    } catch {
+      if (generation === verifyGeneration) showVerifyFailure("Verification failed safely. No certificate upload was made.");
+    } finally {
+      for (const bytes of buffers) bytes.fill(0);
+      verifying = false;
+      updateVerifyControls();
+    }
+  });
 
   exploreButton.addEventListener("click", async function () {
     if (!engine || !selectedExploreFiles || exploring || exporting) return;

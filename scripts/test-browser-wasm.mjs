@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import vm from "node:vm";
 
@@ -33,8 +34,49 @@ assert.equal(typeof globalThis.rootwellInspect, "function");
 assert.equal(typeof globalThis.rootwellExplore, "function");
 assert.equal(typeof globalThis.rootwellAnalyze, "function");
 assert.equal(typeof globalThis.rootwellExportBundle, "function");
+assert.equal(typeof globalThis.rootwellVerifySimple, "function");
+assert.equal(typeof globalThis.rootwellVerifyExplicit, "function");
 assert.equal(typeof globalThis.rootwellExport, "function");
 assert.equal(globalThis.rootwellInspectMaxBytes, 16 * 1024 * 1024);
+
+const verifyFixture = JSON.parse(execFileSync("go", ["run", "./scripts/generate-browser-verify-fixture.go"], { encoding: "utf8" }));
+const encodePublic = (value) => new TextEncoder().encode(value);
+const verifySource = encodePublic(verifyFixture.source);
+const verifyLeaf = encodePublic(verifyFixture.leaf);
+const verifyIntermediate = encodePublic(verifyFixture.intermediate);
+const verifyRoot = encodePublic(verifyFixture.root);
+const simpleVerification = JSON.parse(globalThis.rootwellVerifySimple(
+  [verifySource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at));
+const explicitVerification = JSON.parse(globalThis.rootwellVerifyExplicit(
+  verifyLeaf, verifyIntermediate, verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at));
+assert.equal(simpleVerification.ok, true, JSON.stringify(simpleVerification.error));
+assert.equal(explicitVerification.ok, true, JSON.stringify(explicitVerification.error));
+assert.equal(simpleVerification.result.trust_source, "explicit-file");
+assert.equal(simpleVerification.result.ignored_source_roots, 1);
+assert.equal(simpleVerification.result.chain.length, 3);
+assert.deepEqual(simpleVerification.result.chain, explicitVerification.result.chain);
+const noTrust = JSON.parse(globalThis.rootwellVerifySimple(
+  [verifySource], new Uint8Array(0), verifyFixture.hostname, verifyFixture.evaluated_at));
+assert.equal(noTrust.ok, false);
+assert.equal(noTrust.result, null);
+const wrongHostname = JSON.parse(globalThis.rootwellVerifyExplicit(
+  verifyLeaf, verifyIntermediate, verifyRoot, "other.rootwell.invalid", verifyFixture.evaluated_at));
+assert.equal(wrongHostname.ok, false);
+assert.equal(wrongHostname.error.code, "hostname-mismatch");
+const invalidTime = JSON.parse(globalThis.rootwellVerifyExplicit(
+  verifyLeaf, verifyIntermediate, verifyRoot, verifyFixture.hostname, "yesterday"));
+assert.equal(invalidTime.ok, false);
+assert.equal(invalidTime.error.code, "invalid-time");
+const secretSource = encodePublic("-----BEGIN PRIVATE KEY-----\nAA==\n-----END PRIVATE KEY-----\n");
+const secretVerification = JSON.parse(globalThis.rootwellVerifySimple(
+  [secretSource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at));
+assert.equal(secretVerification.ok, false);
+assert.equal(secretVerification.error.code, "invalid-public-source");
+secretSource.fill(0);
+verifySource.fill(0);
+verifyLeaf.fill(0);
+verifyIntermediate.fill(0);
+verifyRoot.fill(0);
 
 const certificate = new Uint8Array(fs.readFileSync(certificatePath));
 const explored = JSON.parse(globalThis.rootwellExplore(certificate));

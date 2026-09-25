@@ -167,10 +167,9 @@ Guarded by `TestWorkbenchPreviewIsSelfContained`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`,
 `TestWorkbenchProcessingClaimsAreBounded`,
 `TestWorkbenchInspectFileHintMatchesParserBoundary`, and
-`TestWorkbenchElementReferencesResolve`. The Verify preview cannot offer
-nonfunctional file inputs or silently imply that an uploaded bundle root is
-trusted; this is guarded by
-`TestWorkbenchVerifyPreviewDoesNotPretendToProcessFiles`. Text contrast in both themes is
+`TestWorkbenchElementReferencesResolve`. Browser Verify requires explicit
+trust and cannot silently promote a source root; this is guarded by
+`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`. Text contrast in both themes is
 guarded by `TestWorkbenchTextContrast`.
 
 ## C17 — Browser inspection is bounded, versioned, and secret-free
@@ -323,3 +322,24 @@ Guarded by `TestPrepareExportsExplicitOrderedSubset`,
 `FuzzPrepareBundleNeverExportsUnselectedCertificate`,
 `TestWorkbenchPublicBundleExportIsExplicit`, and the browser WebAssembly
 regressions in `scripts/test-browser-wasm.mjs`.
+
+## C24 — Browser Verify uses only explicit trust and the CLI policy
+
+Simple and Advanced use the same `certverify.Verify` TLS server core, with a
+separately selected PEM trust bundle, hostname, evaluation time, and no system
+roots or network. Simple accepts bounded strict public sources and requires
+one non-CA leaf; it never promotes a self-signed source root into trust or
+silently selects between multiple leaves. Advanced explicitly selects one
+leaf and optional intermediate bundle. The browser bridge rejects oversized
+combined input before allocating extra Go copies. A versioned success must
+identify explicit-file trust and the requested hostname; changed selections
+or failures hide the result. Revocation, live endpoint, and private-key
+possession are not claimed.
+
+Guarded by `TestSimpleAndExplicitUseSameTrustVerdict`,
+`TestSimpleNeverTrustsSourceRoot`,
+`TestSimpleRejectsAmbiguousAndSecretSources`,
+`TestExplicitClassifiesRefusalsWithoutPartialChain`,
+`FuzzSimpleNeverUsesSourceAsTrust`,
+`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`, and the real
+WebAssembly regressions in `scripts/test-browser-wasm.mjs`.
