@@ -50,8 +50,15 @@ func verifySimple(_ js.Value, arguments []js.Value) (response any) {
 			response = browserverify.FailureResponse("internal-failure")
 		}
 	}()
-	if len(arguments) != 4 {
+	if len(arguments) != 4 && len(arguments) != 5 {
 		return browserverify.FailureResponse("invalid-browser-request")
+	}
+	rootPin := ""
+	if len(arguments) == 5 {
+		if arguments[4].Type() != js.TypeString || js.Global().Get("String").New(arguments[4]).Get("length").Int() > 95 {
+			return browserverify.FailureResponse("invalid-browser-request")
+		}
+		rootPin = arguments[4].String()
 	}
 	hostname, now, contextFailure := verifyContext(arguments[2], arguments[3])
 	if contextFailure != "" {
@@ -77,7 +84,7 @@ func verifySimple(_ js.Value, arguments []js.Value) (response any) {
 		return browserverify.FailureResponse("invalid-browser-request")
 	}
 	defer clear(trust)
-	return browserverify.Simple(sources, trust, hostname, now)
+	return browserverify.SimpleWithRootPin(sources, trust, hostname, now, rootPin)
 }
 
 func verifyExplicit(_ js.Value, arguments []js.Value) (response any) {
@@ -87,8 +94,15 @@ func verifyExplicit(_ js.Value, arguments []js.Value) (response any) {
 			response = browserverify.FailureResponse("internal-failure")
 		}
 	}()
-	if len(arguments) != 5 {
+	if len(arguments) != 5 && len(arguments) != 6 {
 		return browserverify.FailureResponse("invalid-browser-request")
+	}
+	rootPin := ""
+	if len(arguments) == 6 {
+		if arguments[5].Type() != js.TypeString || js.Global().Get("String").New(arguments[5]).Get("length").Int() > 95 {
+			return browserverify.FailureResponse("invalid-browser-request")
+		}
+		rootPin = arguments[5].String()
 	}
 	hostname, now, contextFailure := verifyContext(arguments[3], arguments[4])
 	if contextFailure != "" {
@@ -108,7 +122,7 @@ func verifyExplicit(_ js.Value, arguments []js.Value) (response any) {
 		inputs = append(inputs, input)
 		remaining -= len(input)
 	}
-	return browserverify.Explicit(inputs[0], inputs[1], inputs[2], hostname, now)
+	return browserverify.ExplicitWithRootPin(inputs[0], inputs[1], inputs[2], hostname, now, rootPin)
 }
 
 func verifyContext(hostnameValue, timeValue js.Value) (string, time.Time, string) {

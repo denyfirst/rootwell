@@ -364,3 +364,20 @@ Guarded by `TestPrepareVerifiedFullchainExcludesRootAndPreservesVerifiedOrder`,
 `TestWorkbenchVerifyDemoIsPublicAndExportsOnlyVerifiedPath`, and the real
 WebAssembly and browser-state regressions in `scripts/test-browser-wasm.mjs`
 and `scripts/test-workbench-multifile.mjs`.
+
+## C26 — Optional root pin binds the offline verdict to a full fingerprint
+
+Browser Verify accepts an optional 32-byte SHA-256 certificate fingerprint,
+written as 64 hex digits or 32 colon-separated hex bytes. The Go verification
+core compares it against the final trust anchor in the verified path, not the
+first item in a bundle or a self-signed root in source files. A malformed or
+mismatched pin returns no chain or Verified result. Both Simple and Advanced
+use this rule. Editing the field invalidates the current verdict and export;
+the existing export re-verifies the complete ordered fingerprint path, including
+that root. An absent pin is reported as `not-provided`, never as authenticated
+root identity. A matching pin proves agreement with the supplied fingerprint
+only: independent authentication of its source is the operator's task.
+
+Guarded by `TestRootPinMatchesOnlyCompleteVerifiedPathAnchor`,
+`scripts/test-browser-wasm.mjs`, `scripts/test-workbench-multifile.mjs`, and
+`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`.

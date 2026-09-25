@@ -4,10 +4,13 @@ package browserverify
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/certverify"
@@ -28,6 +31,7 @@ type Result struct {
 	Hostname           string                          `json:"hostname"`
 	EvaluatedAt        string                          `json:"evaluated_at"`
 	TrustSource        string                          `json:"trust_source"`
+	RootPin            string                          `json:"root_pin"`
 	Revocation         string                          `json:"revocation"`
 	Network            string                          `json:"network"`
 	IgnoredSourceRoots int                             `json:"ignored_source_roots"`
@@ -44,10 +48,16 @@ type Response struct {
 // Explicit passes independently selected leaf, optional intermediate bundle,
 // and trust bundle directly to the reviewed CLI verifier core.
 func Explicit(leaf, intermediates, trust []byte, hostname string, now time.Time) string {
+	return ExplicitWithRootPin(leaf, intermediates, trust, hostname, now, "")
+}
+
+// ExplicitWithRootPin additionally checks the chosen path's trust anchor
+// against a full, independently obtained SHA-256 certificate fingerprint.
+func ExplicitWithRootPin(leaf, intermediates, trust []byte, hostname string, now time.Time, rootPin string) string {
 	if !withinCombinedLimit(leaf, intermediates, trust) {
 		return failure("input-too-large")
 	}
-	return verify(leaf, intermediates, trust, hostname, now, 0)
+	return verify(leaf, intermediates, trust, hostname, now, 0, rootPin)
 }
 
 // Simple classifies public source certificates but never obtains trust from
@@ -55,6 +65,11 @@ func Explicit(leaf, intermediates, trust []byte, hostname string, now time.Time)
 // CA certificates in the source are ignored; only the separately supplied
 // trust bundle can authenticate the resulting path.
 func Simple(sources [][]byte, trust []byte, hostname string, now time.Time) string {
+	return SimpleWithRootPin(sources, trust, hostname, now, "")
+}
+
+// SimpleWithRootPin never derives the expected fingerprint from source files.
+func SimpleWithRootPin(sources [][]byte, trust []byte, hostname string, now time.Time, rootPin string) string {
 	if len(sources) < 1 || len(sources) > 8 || len(trust) == 0 {
 		return failure("invalid-browser-request")
 	}
@@ -127,10 +142,14 @@ func Simple(sources [][]byte, trust []byte, hostname string, now time.Time) stri
 	if leaf == nil {
 		return failure("missing-leaf")
 	}
-	return verify(leaf, intermediates, trust, hostname, now, ignoredRoots)
+	return verify(leaf, intermediates, trust, hostname, now, ignoredRoots, rootPin)
 }
 
-func verify(leaf, intermediates, trust []byte, hostname string, now time.Time, ignoredRoots int) string {
+func verify(leaf, intermediates, trust []byte, hostname string, now time.Time, ignoredRoots int, rootPin string) string {
+	pin, valid := parseRootPin(rootPin)
+	if !valid {
+		return failure("invalid-root-pin")
+	}
 	result, err := certverify.Verify(leaf, certverify.Options{
 		TrustBundle: trust, IntermediateBundle: intermediates,
 		Hostname: hostname, CurrentTime: now,
@@ -138,15 +157,47 @@ func verify(leaf, intermediates, trust []byte, hostname string, now time.Time, i
 	if err != nil {
 		return failure(classify(err))
 	}
+	pinStatus := "not-provided"
+	if pin != nil {
+		if len(result.Chain) == 0 {
+			return failure("internal-failure")
+		}
+		root, valid := parseRootPin(result.Chain[len(result.Chain)-1].SHA256Fingerprint)
+		if !valid || subtle.ConstantTimeCompare(pin, root) != 1 {
+			return failure("root-pin-mismatch")
+		}
+		pinStatus = "matched"
+	}
 	return marshal(Response{
 		SchemaVersion: SchemaVersion, OK: true,
 		Result: &Result{
 			Profile: "tls-server", Verification: "passed", Hostname: result.Hostname,
 			EvaluatedAt: result.EvaluatedAt.UTC().Format(time.RFC3339Nano),
-			TrustSource: "explicit-file", Revocation: "not-checked", Network: "disabled",
+			TrustSource: "explicit-file", RootPin: pinStatus, Revocation: "not-checked", Network: "disabled",
 			IgnoredSourceRoots: ignoredRoots, Chain: result.Chain,
 		},
 	})
+}
+
+// parseRootPin accepts only a complete 32-byte SHA-256 fingerprint, with
+// either no separators or one colon between each byte. No prefix matches.
+func parseRootPin(value string) ([]byte, bool) {
+	if value == "" {
+		return nil, true
+	}
+	if len(value) == 95 {
+		for index := 2; index < len(value); index += 3 {
+			if value[index] != ':' {
+				return nil, false
+			}
+		}
+		value = strings.ReplaceAll(value, ":", "")
+	}
+	if len(value) != 64 {
+		return nil, false
+	}
+	decoded, err := hex.DecodeString(value)
+	return decoded, err == nil && len(decoded) == 32
 }
 
 func withinCombinedLimit(inputs ...[]byte) bool {

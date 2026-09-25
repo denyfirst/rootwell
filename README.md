@@ -41,8 +41,11 @@ and 16 MiB combined. Both use the bounded Go core through
 WebAssembly and never post selected bytes to a server API. A selected public
 certificate can be downloaded separately as PEM or DER from Explore, with a
 clearly labeled `.pem`, `.der`, `.crt`, or `.cer` filename extension;
-the browser manages the final save location. Verify remains an
-explicitly labeled interface preview. Build and hosting requirements are
+the browser manages the final save location. Verify checks a public server
+chain against a separately selected root and hostname without network access.
+An optional full SHA-256 root fingerprint pin must come from an independent
+trusted source; without it, the root's identity is not independently confirmed.
+Build and hosting requirements are
 documented in the [browser boundary](web/workbench/README.md).
 
 ## Implemented commands

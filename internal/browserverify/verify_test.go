@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"math/big"
@@ -124,6 +126,72 @@ func TestSimpleNeverTrustsSourceRoot(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRootPinMatchesOnlyCompleteVerifiedPathAnchor(t *testing.T) {
+	chain := makeChain(t)
+	rootBlock, _ := pem.Decode(chain.rootPEM)
+	if rootBlock == nil {
+		t.Fatal("missing test root")
+	}
+	digest := sha256.Sum256(rootBlock.Bytes)
+	plain := strings.ToUpper(hex.EncodeToString(digest[:]))
+	colon := strings.Join(splitHexBytes(plain), ":")
+	for _, pin := range []string{plain, strings.ToLower(colon)} {
+		for _, encoded := range []string{
+			SimpleWithRootPin([][]byte{chain.leafPEM, chain.intermediatePEM}, chain.rootPEM, "verify.rootwell.invalid", chain.now, pin),
+			ExplicitWithRootPin(chain.leafDER, chain.intermediatePEM, chain.rootPEM, "verify.rootwell.invalid", chain.now, pin),
+		} {
+			response := decode(t, encoded)
+			if !response.OK || response.Result == nil || response.Result.RootPin != "matched" ||
+				response.Result.Chain[len(response.Result.Chain)-1].SHA256Fingerprint != colon {
+				t.Fatalf("valid root pin refused: %#v", response)
+			}
+		}
+	}
+	other := makeChain(t)
+	otherBlock, _ := pem.Decode(other.rootPEM)
+	if otherBlock == nil {
+		t.Fatal("missing alternate test root")
+	}
+	otherDigest := sha256.Sum256(otherBlock.Bytes)
+	trustBundle := append(bytes.Clone(other.rootPEM), chain.rootPEM...)
+	chosen := decode(t, ExplicitWithRootPin(chain.leafDER, chain.intermediatePEM, trustBundle,
+		"verify.rootwell.invalid", chain.now, plain))
+	if !chosen.OK || chosen.Result == nil || chosen.Result.RootPin != "matched" {
+		t.Fatalf("pin must target verified path's root, not first bundle member: %#v", chosen)
+	}
+	wrongBundleMember := decode(t, ExplicitWithRootPin(chain.leafDER, chain.intermediatePEM, trustBundle,
+		"verify.rootwell.invalid", chain.now, hex.EncodeToString(otherDigest[:])))
+	if wrongBundleMember.OK || wrongBundleMember.Error == nil || wrongBundleMember.Error.Code != "root-pin-mismatch" {
+		t.Fatalf("unselected bundle root must not satisfy pin: %#v", wrongBundleMember)
+	}
+	for _, test := range []struct{ pin, want string }{
+		{strings.Repeat("00", 32), "root-pin-mismatch"},
+		{plain[:62], "invalid-root-pin"},
+		{plain + "00", "invalid-root-pin"},
+		{strings.Replace(colon, ":", "-", 1), "invalid-root-pin"},
+		{plain[:63] + "Z", "invalid-root-pin"},
+		{" SHA256:" + plain, "invalid-root-pin"},
+	} {
+		response := decode(t, ExplicitWithRootPin(chain.leafDER, chain.intermediatePEM, chain.rootPEM,
+			"verify.rootwell.invalid", chain.now, test.pin))
+		if response.OK || response.Result != nil || response.Error == nil || response.Error.Code != test.want {
+			t.Fatalf("pin %q: %#v", test.pin, response)
+		}
+	}
+	unpinned := decode(t, Explicit(chain.leafDER, chain.intermediatePEM, chain.rootPEM, "verify.rootwell.invalid", chain.now))
+	if !unpinned.OK || unpinned.Result == nil || unpinned.Result.RootPin != "not-provided" {
+		t.Fatalf("unpinned status = %#v", unpinned)
+	}
+}
+
+func splitHexBytes(value string) []string {
+	parts := make([]string, 0, 32)
+	for index := 0; index < len(value); index += 2 {
+		parts = append(parts, value[index:index+2])
+	}
+	return parts
 }
 
 func TestSimpleRejectsAmbiguousAndSecretSources(t *testing.T) {

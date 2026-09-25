@@ -417,7 +417,7 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		`id="verify-hostname"`, `id="verify-trust-file"`,
+		`id="verify-hostname"`, `id="verify-trust-file"`, `id="verify-root-pin"`,
 		`id="verify-source-files"`, `id="verify-leaf-file"`,
 		`id="verify-intermediates-file"`, `id="verify-time"`,
 		`id="verify-button" type="button" disabled`,
@@ -425,6 +425,8 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 		`href="rootwell-verify-demo-ca-files.pem" download`,
 		`href="rootwell-verify-demo-root.pem" download`,
 		"A root found in your CA's other files is never trusted automatically",
+		"Copying the fingerprint from the same file proves nothing extra",
+		"Without a pin, root identity is unconfirmed",
 		"Self-signed roots in these files are ignored, not trusted",
 		"No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check",
 	} {
@@ -436,7 +438,7 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 	for _, required := range []string{
 		"engine.verifySimple(", "engine.verifyExplicit(",
 		"engine.exportVerifiedSimple(", "engine.exportVerifiedExplicit(",
-		"validVerifyResponse(response, hostname)",
+		"validVerifyResponse(response, hostname, rootPin)",
 		"verifyGeneration++", "verifyResult.hidden = true",
 		"for (const bytes of buffers) bytes.fill(0)",
 	} {

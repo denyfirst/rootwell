@@ -7,6 +7,10 @@ Explore daxilində avtomatik fullchain sırası və qəti rol/chain təyini həl
 plan mərhələsindədir. Browser Verify ayrıca seçilmiş PEM trust anchor və
 hostname ilə işləyir; uğurlu Verify yolunu yenidən yoxlayıb public PEM
 fullchain (root xaric) kimi endirə bilir.
+İstəyə bağlı tam SHA-256 root fingerprint pin-i də qəbul edir: dəyər ayrıca
+etibarlı mənbədən alınmalıdır. Uyğun gəlməyən və ya natamam pin nəticəni
+rədd edir; pin verilməyəndə root-un kimliyi təsdiqlənmiş sayılmır. Bu,
+canlı server/MITM yoxlaması deyil.
 
 ## İstifadəçinin yolu
 

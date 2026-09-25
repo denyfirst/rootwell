@@ -279,6 +279,16 @@ change hides any earlier Verified result. No private keys, PFX, system roots,
 network verification, revocation, or live endpoint claim is made. See ADR
 0009.
 
+An optional full SHA-256 root fingerprint pin checks the trust anchor of the
+verified path after all chain policy checks. It accepts only complete hex or
+colon-separated byte notation. A malformed or mismatched pin fails without a
+partial chain. If no pin is supplied, the result explicitly says the root
+identity was not independently checked. A matching pin does not authenticate
+the expected fingerprint's origin: copying it from the same untrusted file is
+not an independent check. Editing the pin hides the old verdict and disables
+export. The export's complete path fingerprint re-check still binds the root.
+Neither mode connects to the hostname or detects a live MITM; see C26.
+
 ## Browser verified public fullchain export boundary
 
 The Verify result holds only ordered public fingerprints, file references,
