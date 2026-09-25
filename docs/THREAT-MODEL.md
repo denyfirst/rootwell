@@ -250,6 +250,18 @@ selected by allowlisted failure codes, never by reflected certificate data.
 The same-origin asset, CSP, and no-upload trust boundaries above remain in
 force. See ADR 0004, ADR 0006, and ADR 0007 for this extension.
 
+An optional public JSON report is a user-triggered browser download, never an
+automatic upload or background storage. Full certificate fingerprints are
+compared again after re-reading bounded public source files; stale, changed,
+malformed, or excessive inputs produce no download. The report omits local
+filenames and private material but preserves certificate subject/issuer names,
+which may expose internal hostnames if the operator shares the file. Expiry
+windows are based on the Explore-time browser clock, not a trusted time source.
+The JSON explicitly says no verification, trust selection, revocation or live
+server contact occurred. A random filename reduces accidental collision, but
+Rootwell cannot control the browser/OS final save or overwrite behavior. See
+ADR 0012.
+
 ## Browser public certificate export boundary
 
 The user explicitly chooses PEM or DER on one Explore card. Rootwell re-reads

@@ -448,3 +448,16 @@ file remains untouched.
 
 Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional` and
 `scripts/test-workbench-multifile.mjs`.
+
+## C31 — Public report is explicit, bounded, and snapshot-bound
+
+A report is requested only by the user after a successful public Explore.
+Every source is re-read and its ordered full certificate fingerprints must
+match the displayed snapshot. Selection changes, parse failure, oversized
+inputs or report output, and stale work prevent the browser download. The JSON
+contains public metadata and explicit non-verification markers, not source
+filenames, private keys or a trusted-root verdict. The browser controls final
+file saving; internal certificate names may still be sensitive to the owner.
+
+Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional` and
+`scripts/test-workbench-multifile.mjs`.

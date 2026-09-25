@@ -23,12 +23,12 @@ olunmamış nəticəyə “verified” demək qadağandır.
    oxumalı, Explore fingerprint-ləri ilə müqayisə etməli, hostname və ayrıca
    root tələb etməlidir. Private key, PFX, upload, storage və avtomatik trust
    əlavə edilmir.
-2. **Mümkün zənciri aydın göstər — cari increment.** Mövcud imza yoxlanmış issuer əlaqələrini
+2. **Mümkün zənciri aydın göstər — tamamlanıb (PR #28).** Mövcud imza yoxlanmış issuer əlaqələrini
    “kim kimi imzalaya bilər?” şəklində göstər; birdən çox namizəd və çatmayan
    əlaqəni gizlətmə. Bu yalnız köməkçi vizual izahdır, verified path deyil.
    Çıxış meyarı: eyni fayllar başqa sırada verilsə də heç bir root özü-özünə
    trusted olmur; ambiguity və natamamlıq testlidir.
-3. **Public health report.** İstifadəçinin ayrıca təsdiqi ilə yalnız public
+3. **Public health report — cari increment.** İstifadəçinin ayrıca klikiylə yalnız public
    metadata, vaxt pəncərəsi, mənbə fingerprint-ləri və yoxlamanın sərhədləri
    olan lokal hesabat hazırla. Secret və key export-u yoxdur; browser-managed
    download və input recheck ayrıca yoxlanacaq.

@@ -34,6 +34,18 @@ The numbered signing-links guide repeats those relationships in plain language,
 shows missing links and multiple possible signers, and follows the displayed
 file order. It does not choose a path, identify a trusted root, or trigger
 verification; changing files or a failed Explore clears the guide.
+The optional public JSON report is created only after its own download click.
+It includes certificate subjects/issuers, full fingerprints, source file
+numbers (not filenames), possible signing indices, validity dates, and expiry
+windows evaluated at the Explore-time browser clock. It explicitly records
+that verification, root selection, revocation and live contact did not occur.
+Before requesting a browser download, Rootwell re-reads every selected file
+and compares its ordered full certificate fingerprints with the displayed
+snapshot. Changed, malformed, oversized or stale selections fail closed. The
+report is capped at 2 MiB and gets a random filename. Public certificate names
+may still disclose internal hostnames; the operator chooses where the browser
+saves it. No automatic persistence or server upload is added. See
+[ADR 0012](../../docs/adr/0012-browser-public-health-report.md).
 Its expiry overview sorts the selected public certificates by end date and
 groups invalid ranges, expired, not-yet-valid, 0–30 days, 31–90 days, and later
 dates using a single snapshot of the browser clock. The 30/90-day windows are

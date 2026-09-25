@@ -72,6 +72,13 @@ chain, nə də trust hökmüdür. Birdən çox namizəd səssiz seçilmir.
 Nömrəli əlaqə izahı indi hər certificate üçün mümkün imzalayanı, çatışmayan
 əlaqəni və birdən çox imzalayan namizədini ayrıca göstərir. Sıra dəyişəndə
 nömrələr kartlarla birlikdə dəyişir; bu, yol seçimi və etibar hökmü deyil.
+İstifadəçi ayrıca kliklə JSON public health report endirə bilir: public
+metadata, tam fingerprint, mümkün imza əlaqəsi və Explore vaxtına görə
+bitmə pəncərəsi yazılır. Source fayl adları yazılmır, ancaq certificate
+subject/issuer sahələri daxili host adlarını aça bilər; bu risk düymə yanında
+bildirilir. Endirmədən əvvəl fayllar təkrar parse/fingerprint yoxlamasından
+keçir. Hesabat "verified" iddiası etmir və browserin save/overwrite qərarına
+nəzarət etmir.
 İndi istifadəçi kartda seçdiyi bir **public certificate**-i PEM və ya DER
 kimi ayrıca endirməyi tələb edə bilər. `.crt` və `.cer` ayrıca format deyil:
 istifadəçi iç məzmunu (PEM text və ya DER binary) və fayl uzantısını birlikdə

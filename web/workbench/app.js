@@ -27,6 +27,9 @@
   const exploreVerifyButton = document.getElementById("explore-verify-button");
   const exploreLinksSummary = document.getElementById("explore-links-summary");
   const exploreLinksList = document.getElementById("explore-links-list");
+  const exploreReportButton = document.getElementById("explore-report-button");
+  const exploreReportStatus = document.getElementById("explore-report-status");
+  const exploreReportError = document.getElementById("explore-report-error");
   const exploreExpirySummary = document.getElementById("explore-expiry-summary");
   const exploreExpiryNote = document.getElementById("explore-expiry-note");
   const exploreExpiryList = document.getElementById("explore-expiry-list");
@@ -67,6 +70,8 @@
   let verifyGeneration = 0;
   let currentVerifySnapshot = null;
   let currentExploreEntries = null;
+  let currentExploreAnalysis = null;
+  let currentExploreTime = null;
   let guidedVerifyFiles = null;
   let guidedVerifyFingerprints = null;
   const selectedBundleFingerprints = new Set();
@@ -128,6 +133,7 @@
   function updateExploreControls() {
     exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFiles === null;
     exploreVerifyButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null;
+    exploreReportButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || currentExploreAnalysis === null;
     exportBundleButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || selectedBundleFingerprints.size === 0;
     exploreCertificates.querySelectorAll("button, select, input").forEach(function (control) {
       control.disabled = exploring || exporting;
@@ -206,12 +212,16 @@
     clearGuidedVerifyFiles();
     selectedExploreFiles = null;
     currentExploreEntries = null;
+    currentExploreAnalysis = null;
+    currentExploreTime = null;
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     clearHealthGuide();
     clearPossibleLinks();
     clearExpiryOverview();
+    exploreReportStatus.textContent = "";
+    exploreReportError.hidden = true;
     exploreError.hidden = true;
     exportError.hidden = true;
     if (files.length > maxExploreFiles) {
@@ -750,6 +760,8 @@
     renderPossibleLinks(entries, chain);
     renderExpiryOverview(entries, now);
     currentExploreEntries = entries;
+    currentExploreAnalysis = chain;
+    currentExploreTime = now;
     selectedBundleFingerprints.clear();
     updateExploreControls();
     exportError.hidden = true;
@@ -762,12 +774,16 @@
   function showExploreFailure(message) {
     clearGuidedVerifyFiles();
     currentExploreEntries = null;
+    currentExploreAnalysis = null;
+    currentExploreTime = null;
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     clearHealthGuide();
     clearPossibleLinks();
     clearExpiryOverview();
+    exploreReportStatus.textContent = "";
+    exploreReportError.hidden = true;
     exploreError.textContent = message;
     exploreError.hidden = false;
     updateExploreControls();
@@ -850,8 +866,8 @@
     return result;
   }
 
-  function requestBrowserDownload(bytes, filename) {
-    const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  function requestBrowserDownload(bytes, filename, mimeType = "application/octet-stream") {
+    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = filename;
@@ -873,6 +889,112 @@
       throw error;
     } finally {
       anchor.remove();
+    }
+  }
+
+  exploreReportButton.addEventListener("click", function () { void downloadPublicReport(); });
+
+  function showReportFailure(message) {
+    exploreReportStatus.textContent = "No report was downloaded.";
+    exploreReportError.textContent = message;
+    exploreReportError.hidden = false;
+  }
+
+  async function downloadPublicReport() {
+    if (!engine || !selectedExploreFiles || !currentExploreEntries || !currentExploreAnalysis ||
+        currentExploreTime === null || exploring || exporting) return;
+    const files = selectedExploreFiles;
+    const entries = currentExploreEntries;
+    const analysis = currentExploreAnalysis;
+    const evaluatedAt = currentExploreTime;
+    exporting = true;
+    exploreReportError.hidden = true;
+    exploreReportStatus.textContent = "Rechecking public files before the local report…";
+    updateExploreControls();
+    let output = null;
+    try {
+      let remainingBytes = engine.maxBytes;
+      for (const file of files) {
+        if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+        if (file.size > remainingBytes) {
+          showReportFailure("The selected files changed or exceed the combined limit. Explore again.");
+          return;
+        }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        try {
+          if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+          if (bytes.byteLength !== file.size || bytes.byteLength > remainingBytes) {
+            showReportFailure("The selected files changed or exceed the combined limit. Explore again.");
+            return;
+          }
+          remainingBytes -= bytes.byteLength;
+          const raw = engine.explore(bytes);
+          if (typeof raw !== "string" || raw.length > 4 * 1024 * 1024) {
+            showReportFailure("The selected public files could not be rechecked. Explore again.");
+            return;
+          }
+          const response = JSON.parse(raw);
+          const expected = entries.filter(function (entry) { return entry.file === file; }).map(function (entry) {
+            return entry.certificate.sha256;
+          });
+          if (!response || response.schema_version !== "rootwell.browser.explore.v1" || response.ok !== true ||
+              response.error !== null || !validExploreResult(response.result) || response.result.count !== expected.length ||
+              !response.result.certificates.every(function (certificate, index) { return certificate.sha256 === expected[index]; })) {
+            showReportFailure("The selected public files changed since Explore. Explore again before reporting.");
+            return;
+          }
+        } finally {
+          bytes.fill(0);
+        }
+      }
+      if (selectedExploreFiles !== files || currentExploreEntries !== entries || currentExploreAnalysis !== analysis) return;
+      const report = {
+        schema_version: "rootwell.public-health-report.v1",
+        evaluated_at: new Date(evaluatedAt).toISOString(),
+        clock_source: "browser-clock-at-explore",
+        verification: "not-performed",
+        trust_anchor: "not-selected",
+        revocation: "not-checked",
+        live_server: "not-contacted",
+        certificates: entries.map(function (entry, index) {
+          const certificate = entry.certificate;
+          return {
+            number: index + 1,
+            source_file_number: files.indexOf(entry.file) + 1,
+            sha256: certificate.sha256,
+            subject: certificate.subject,
+            issuer: certificate.issuer,
+            ca_flag: certificate.is_ca,
+            not_before: certificate.not_before,
+            not_after: certificate.not_after,
+            expiry_window: expiryWindow(certificate, evaluatedAt),
+            possible_signer_numbers: analysis.certificates[index].parents.map(function (parent) { return parent + 1; }),
+            self_signed_candidate: analysis.certificates[index].self_signed
+          };
+        })
+      };
+      output = metadataEncoder.encode(JSON.stringify(report, null, 2) + "\n");
+      if (output.byteLength > 2 * 1024 * 1024) {
+        showReportFailure("The public report exceeds the 2 MiB limit. No download was requested.");
+        return;
+      }
+      const nonce = crypto.getRandomValues(new Uint8Array(16));
+      const filename = "rootwell-public-report-" + Array.from(nonce, function (byte) {
+        return byte.toString(16).padStart(2, "0");
+      }).join("") + ".json";
+      if (selectedExploreFiles !== files || currentExploreEntries !== entries || currentExploreAnalysis !== analysis) return;
+      requestBrowserDownload(output, filename, "application/json");
+      exploreReportStatus.textContent = "Browser download requested for the unverified public report. Rootwell did not write to disk.";
+    } catch {
+      if (selectedExploreFiles === files) {
+        exploreReportStatus.textContent = "Report request could not be confirmed. Check browser downloads.";
+        exploreReportError.textContent = "Public report failed safely. No certificate upload was made.";
+        exploreReportError.hidden = false;
+      }
+    } finally {
+      if (output) output.fill(0);
+      exporting = false;
+      updateExploreControls();
     }
   }
 
@@ -1303,8 +1425,12 @@
     clearHealthGuide();
     clearPossibleLinks();
     currentExploreEntries = null;
+    currentExploreAnalysis = null;
+    currentExploreTime = null;
     selectedBundleFingerprints.clear();
     clearExpiryOverview();
+    exploreReportStatus.textContent = "";
+    exploreReportError.hidden = true;
     exploreStatus.textContent = "Exploring locally · no certificate upload";
     updateExploreControls();
 

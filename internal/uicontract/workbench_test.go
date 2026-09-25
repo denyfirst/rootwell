@@ -284,6 +284,9 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		`id="explore-expiry-summary"`,
 		`id="explore-health-summary"`,
 		`id="explore-links-list" aria-label="Possible public certificate signing links"`,
+		`id="explore-report-button" type="button" disabled`,
+		`id="explore-report-status" aria-live="polite"`,
+		`id="explore-report-error" role="alert" hidden`,
 		`id="explore-verify-button" type="button" disabled`,
 		"Explore only the CA files, then continue to Verify",
 		"Nothing here is trusted yet",
@@ -307,6 +310,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"validUTCSecond(certificate.not_before)", "validUTCSecond(certificate.not_after)",
 		"renderExpiryOverview(entries, now)", "clearExpiryOverview()",
 		"renderHealthGuide(entries, chain)", "renderPossibleLinks(entries, chain)", "clearPossibleLinks()",
+		"downloadPublicReport()", "rootwell.public-health-report.v1",
 		"guidedVerifyFingerprints", "clearGuidedVerifyFiles()",
 	} {
 		if !strings.Contains(application, required) {
