@@ -194,6 +194,11 @@
             <p class="demo-certificate">Need a safe bundle? <a href="rootwell-demo-bundle.pem" download>Download a two-certificate public demo bundle</a> — no private key included.</p>
           </div>
 
+          <aside class="demo-guide">
+            <strong>Try the guided check with safe demo files</strong>
+            <p>Download <a href="rootwell-verify-demo-ca-files.pem" download>demo CA files</a> and <a href="rootwell-verify-demo-root.pem" download>the separate demo root</a>. Explore only the CA files, then continue to Verify with hostname <code>verify.rootwell.invalid</code> and choose the root there. Never install this root in your OS or browser.</p>
+          </aside>
+
           <div class="panel-actions">
             <p id="explore-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local exploration engine</p>
             <button class="button button-primary" id="explore-button" type="button" disabled>Explore bundle</button>
@@ -210,6 +215,13 @@
               </div>
               <span class="stamp stamp-warn">Unverified</span>
             </div>
+            <section class="health-guide" aria-labelledby="explore-health-heading">
+              <h4 id="explore-health-heading">What did Rootwell find?</h4>
+              <p id="explore-health-summary"></p>
+              <p id="explore-health-next"></p>
+              <button class="button" id="explore-verify-button" type="button" disabled>Continue to Verify</button>
+              <p>“Possible website certificate” only means its CA flag is off. Verify still checks whether it really fits your website. Nothing here is trusted yet; an offline TLS check needs a website name and a separately chosen trusted root.</p>
+            </section>
             <section class="expiry-overview" aria-labelledby="explore-expiry-heading">
               <h4 id="explore-expiry-heading">Expiry overview</h4>
               <p id="explore-expiry-summary"></p>
@@ -240,29 +252,30 @@
             <span class="capability">Explicit trust</span>
           </div>
           <div class="verify-inputs">
-            <label>Website hostname
+            <label>Website name (no https://)
               <input id="verify-hostname" type="text" autocomplete="off" spellcheck="false" placeholder="service.example.com" maxlength="253">
             </label>
-            <label>Explicit trust anchor PEM file
+            <label>Root certificate you trust from a separate source (.pem)
               <input id="verify-trust-file" type="file" accept=".pem,.crt,.cer">
             </label>
-            <label>Expected root SHA-256 fingerprint (optional)
+            <label>Expected root SHA-256 fingerprint (optional, if independently known)
               <input id="verify-root-pin" type="text" autocomplete="off" spellcheck="false" maxlength="95" placeholder="64 hex digits or colon-separated bytes">
             </label>
           </div>
           <p class="verify-note">Choose a root file separately. A root found in your CA's other files is never trusted automatically. For stronger identity assurance, compare its full fingerprint with one obtained from an independent trusted source and enter that value above. Copying the fingerprint from the same file proves nothing extra. Without a pin, Rootwell checks the chain against your selected root, not whether that root is authentic. Private keys and PFX are not accepted.</p>
           <p class="demo-certificate">Try it safely with public, non-production files: <a href="rootwell-verify-demo-ca-files.pem" download>CA files</a> and <a href="rootwell-verify-demo-root.pem" download>separate demo root</a>; hostname <code>verify.rootwell.invalid</code>. For Advanced: <a href="rootwell-verify-demo-leaf.pem" download>leaf</a> and <a href="rootwell-verify-demo-intermediate.pem" download>intermediate</a>. Never install the demo root in your OS or browser trust store.</p>
           <fieldset class="verify-mode">
-            <legend>Input mode</legend>
-            <label><input id="verify-simple-mode" type="radio" name="verify-mode" checked> Simple — classify CA files</label>
-            <label><input id="verify-advanced-mode" type="radio" name="verify-mode"> Advanced — choose roles yourself</label>
+            <legend>How would you like to add the public files?</legend>
+            <label><input id="verify-simple-mode" type="radio" name="verify-mode" checked> Simple — let Rootwell sort the files</label>
+            <label><input id="verify-advanced-mode" type="radio" name="verify-mode"> Advanced — choose certificate roles yourself</label>
           </fieldset>
           <div id="verify-simple-inputs" class="verify-inputs">
-            <label>Files your CA gave you (1–8 public files)
+            <label>Public certificate files to check (1–8 files)
               <input id="verify-source-files" type="file" multiple accept=".pem,.crt,.cer,.der">
             </label>
             <p>Rootwell requires exactly one end-entity certificate and treats CA certificates as intermediate candidates. Self-signed roots in these files are ignored, not trusted.</p>
           </div>
+          <p id="verify-guided-source" class="verify-note" aria-live="polite" hidden></p>
           <div id="verify-advanced-inputs" class="verify-inputs" hidden>
             <label>Leaf certificate (one PEM or DER certificate)
               <input id="verify-leaf-file" type="file" accept=".pem,.crt,.cer,.der">
@@ -279,6 +292,7 @@
             <button class="button button-primary" id="verify-button" type="button" disabled>Verify locally</button>
           </div>
           <aside class="inspection-error" id="verify-error" role="alert" hidden></aside>
+          <p id="verify-next-step" class="verify-note" hidden></p>
           <section class="result" id="verify-result" aria-live="polite" hidden>
             <div class="result-head">
               <div>

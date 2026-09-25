@@ -23,7 +23,16 @@ class Element {
 
 const elements = new Map();
 function element(id) {
-  if (!elements.has(id)) elements.set(id, new Element());
+  if (!elements.has(id)) {
+    const created = new Element();
+    if (id === "verify-source-files") {
+      Object.defineProperty(created, "value", {
+        get() { return this._value || ""; },
+        set(value) { this._value = value; if (value === "") this.files = []; }
+      });
+    }
+    elements.set(id, created);
+  }
   return elements.get(id);
 }
 const document = {
@@ -85,6 +94,7 @@ const engine = {
     if (bytes[0] === 88) return failure;
     if (bytes[0] === 80) return success(exportedCertificates);
     if (bytes[0] === 68) return duplicateFailure;
+    if (bytes[0] === 67) return success([{ ...certificate(67), is_ca: true }]);
     if (bytes[0] === 84) return success(timelineCertificates);
     if (bytes[0] === 90) return success([{ ...certificate(90), not_after: "2026-02-30T00:00:00Z" }]);
     if (bytes[0] === 77) return success(Array.from({ length: 64 }, (_, index) => certificate(index)));
@@ -165,6 +175,10 @@ assert.match(allText(element("explore-certificates")), /Self-signed CA candidate
 assert.match(element("explore-expiry-summary").textContent, /Expires after 90 days: 2/);
 assert.match(element("explore-expiry-note").textContent, /2026-09-25T12:00:00.000Z \(browser clock\)/);
 assert.equal(element("explore-expiry-list").children.length, 2);
+assert.match(element("explore-health-summary").textContent, /2 possible website certificates/);
+assert.match(element("explore-health-summary").textContent, /1 possible signing link/);
+assert.match(element("explore-health-next").textContent, /will not guess/);
+assert.equal(element("explore-verify-button").textContent, "Review Verify options");
 
 select([file("T")]);
 await explore();
@@ -186,6 +200,7 @@ await explore();
 assert.equal(element("explore-result").hidden, true, "non-canonical date must fail closed");
 assert.equal(element("explore-expiry-list").children.length, 0);
 assert.equal(element("explore-expiry-summary").textContent, "");
+assert.equal(element("explore-health-summary").textContent, "");
 
 clock = 1e16;
 select([file("A")]);
@@ -299,6 +314,76 @@ assert.equal(element("explore-button").disabled, true);
 assert.equal(element("explore-file-state").textContent, "Selected files exceed the 16 MiB combined limit");
 assert.equal(calls, callsBeforeSelectionRefusal, "rejected selections must not reach the engine");
 
+select([file("A")]);
+await explore();
+assert.match(element("explore-health-summary").textContent, /1 possible website certificate/);
+assert.match(element("explore-health-next").textContent, /One certificate could be the website certificate/);
+assert.equal(element("explore-verify-button").textContent, "Continue to Verify with these files");
+element("explore-verify-button").listeners.click();
+assert.equal(element("verify-panel").hidden, false);
+assert.equal(element("verify-simple-mode").checked, true);
+assert.match(element("verify-guided-source").textContent, /Using 1 public file from Explore/);
+assert.equal(element("verify-button").disabled, true, "guided source cannot bypass hostname and separate root");
+element("verify-hostname").value = "verify.rootwell.invalid";
+element("verify-hostname").listeners.input();
+element("verify-trust-file").files = [file("R")];
+element("verify-trust-file").listeners.change();
+assert.equal(element("verify-button").disabled, false);
+let guidedCalls = 0;
+engine.verifySimple = (sources, trust) => {
+  guidedCalls++;
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0][0], 65);
+  assert.equal(trust[0], 82);
+  return JSON.stringify({ schema_version: "rootwell.browser.verify.v1", ok: false, result: null,
+    error: { code: "unknown-authority" } });
+};
+await element("verify-button").listeners.click();
+assert.equal(guidedCalls, 1);
+assert.match(element("verify-next-step").textContent, /Do not trust a root merely because it came in the same bundle/);
+assert.equal(element("verify-result").hidden, true);
+element("verify-source-files").files = [file("S")];
+element("verify-source-files").listeners.change();
+assert.equal(element("verify-guided-source").hidden, true, "manual source choice replaces guided files");
+
+select([file("A"), file("B")]);
+await explore();
+element("explore-verify-button").listeners.click();
+assert.match(element("verify-guided-source").textContent, /Nothing was transferred to Simple Verify/);
+assert.equal(element("verify-button").disabled, true, "ambiguous public files cannot inherit a previous source");
+
+const changingGuidedFile = file("A");
+select([changingGuidedFile]);
+await explore();
+element("explore-verify-button").listeners.click();
+assert.equal(element("verify-button").disabled, false);
+element("verify-simple-mode").checked = false;
+element("verify-advanced-mode").checked = true;
+element("verify-advanced-mode").listeners.change();
+assert.equal(element("verify-guided-source").hidden, true, "Advanced cannot silently reuse Simple's handoff");
+element("verify-simple-mode").checked = true;
+element("verify-advanced-mode").checked = false;
+element("verify-simple-mode").listeners.change();
+assert.equal(element("verify-button").disabled, true, "switching back requires explicit source selection");
+element("explore-verify-button").listeners.click();
+assert.equal(element("verify-button").disabled, false);
+changingGuidedFile.arrayBuffer = async () => Uint8Array.of(66).buffer;
+await element("verify-button").listeners.click();
+assert.equal(guidedCalls, 1, "changed guided source must not reach verification");
+assert.match(element("verify-error").textContent, /Files changed since Explore/);
+assert.equal(element("verify-result").hidden, true);
+select([file("B")]);
+assert.equal(element("verify-guided-source").hidden, true, "new Explore selection clears transferred files");
+assert.equal(element("verify-button").disabled, true);
+
+select([file("C")]);
+await explore();
+assert.match(element("explore-health-summary").textContent, /0 possible website certificates, 1 CA certificate/);
+assert.match(element("explore-health-next").textContent, /root or bundle alone is not enough/);
+element("explore-verify-button").listeners.click();
+assert.match(element("verify-guided-source").textContent, /Nothing was transferred to Simple Verify/);
+assert.equal(element("verify-button").disabled, true);
+
 const verificationSuccess = JSON.stringify({
   schema_version: "rootwell.browser.verify.v1", ok: true, error: null,
   result: {
@@ -315,6 +400,22 @@ const verificationFailure = JSON.stringify({
   schema_version: "rootwell.browser.verify.v1", ok: false, result: null,
   error: { code: "unknown-authority" }
 });
+select([file("A")]);
+await explore();
+element("explore-verify-button").listeners.click();
+assert.equal(element("verify-button").disabled, false);
+engine.verifySimple = (sources, trust) => {
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0][0], 65);
+  assert.equal(trust[0], 82);
+  return verificationSuccess;
+};
+await element("verify-button").listeners.click();
+assert.equal(element("verify-result").hidden, false, "unchanged guided files can reach the existing verifier");
+element("verify-source-files").files = [file("S")];
+element("verify-source-files").listeners.change();
+assert.equal(element("verify-result").hidden, true, "manual replacement invalidates guided verdict");
+assert.equal(element("verify-guided-source").hidden, true);
 let simpleVerifyCalls = 0;
 engine.verifySimple = (sources, trust, hostname, _time, rootPin) => {
   simpleVerifyCalls++;
@@ -337,6 +438,7 @@ assert.equal(element("verify-button").disabled, false);
 await element("verify-button").listeners.click();
 assert.equal(simpleVerifyCalls, 1);
 assert.equal(element("verify-result").hidden, false);
+assert.equal(element("verify-next-step").hidden, true);
 assert.equal(element("verify-chain").children.length, 2);
 assert.match(element("verify-ignored-roots").textContent, /ignored as trust sources/);
 assert.equal(element("verify-export-button").disabled, false);
@@ -406,6 +508,14 @@ await element("verify-button").listeners.click();
 assert.equal(element("verify-result").hidden, true);
 assert.equal(element("verify-chain").children.length, 0);
 assert.match(element("verify-error").textContent, /No path reaches/);
+assert.match(element("verify-next-step").textContent, /check whether the CA-provided intermediate is missing/);
+
+engine.verifySimple = () => JSON.stringify({ schema_version: "rootwell.browser.verify.v1", ok: false,
+  result: null, error: { code: "attacker-controlled", message: "<script>secret-marker</script>" } });
+await element("verify-button").listeners.click();
+assert.match(element("verify-error").textContent, /invalid response/);
+assert.ok(!element("verify-error").textContent.includes("secret-marker"));
+assert.ok(!element("verify-next-step").textContent.includes("secret-marker"));
 
 const forgedVerification = JSON.parse(verificationSuccess);
 forgedVerification.result.trust_source = "system-roots";
