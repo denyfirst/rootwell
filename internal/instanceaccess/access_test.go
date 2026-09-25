@@ -43,6 +43,9 @@ func TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable(t *testing.T) {
 	if err := ChangeInitialPassword(path, initial, "another sufficiently long password"); !errors.Is(err, ErrWrongPassword) {
 		t.Fatalf("initial password changed twice: %v", err)
 	}
+	if err := ChangeInitialPassword(path, "correct horse battery staple 2026", "another sufficiently long password"); err == nil {
+		t.Fatal("setup operation accepted after activation")
+	}
 	if err := ChangePassword(path, "correct horse battery staple 2026", "a different sufficiently long password"); err != nil {
 		t.Fatal(err)
 	}

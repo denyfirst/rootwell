@@ -12,9 +12,12 @@ password cannot be used through `Open` to obtain the data key; only an explicit
 successful change makes the file ready. Password changes rewrap the same data
 key, so future encrypted records need not be rewritten.
 
-The file must live in a private, operator-controlled directory. Creation
-refuses existing paths and uses mode 0600; reads are bounded to 4 KiB and
-reject symlinks, non-regular files, and (on POSIX) group/world permissions.
+The file must live in a private, operator-controlled directory. File operations
+are scoped to an `os.Root` opened on that directory. Creation refuses existing
+paths and uses mode 0600; reads are bounded to 4 KiB and reject symlinks,
+non-regular files, and (on POSIX) group/world permissions. A read compares the
+opened file identity with the file checked before opening, so a swapped final
+path cannot silently redirect the read.
 The Windows file mode does not prove a restrictive ACL. Parent-directory
 ownership, symlink races, ACLs, crash durability of directory rename, and
 concurrent writers require platform-specific hardening before a server or

@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -77,23 +78,28 @@ func Create(path, initialPassword string) error {
 	if err != nil {
 		return err
 	}
-	// #nosec G304 -- path is a local operator configuration, never an HTTP input.
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return errors.New("installation directory could not be opened")
+	}
+	defer root.Close()
+	name := filepath.Base(path)
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return errors.New("installation access file could not be created")
 	}
 	if _, err := f.Write(body); err != nil {
 		_ = f.Close()
-		_ = os.Remove(path)
+		_ = root.Remove(name)
 		return errors.New("installation access file could not be written")
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		_ = os.Remove(path)
+		_ = root.Remove(name)
 		return errors.New("installation access file could not be written")
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(path)
+		_ = root.Remove(name)
 		return errors.New("installation access file could not be closed")
 	}
 	return nil
@@ -186,16 +192,26 @@ func unseal(path, password string) ([]byte, string, error) {
 	if len(password) == 0 || len(password) > maxPass {
 		return nil, "", ErrWrongPassword
 	}
-	info, err := os.Lstat(path)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, "", ErrInvalidAccess
+	}
+	defer root.Close()
+	name := filepath.Base(path)
+	info, err := root.Lstat(name)
 	if err != nil || !info.Mode().IsRegular() || (runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
 		return nil, "", ErrInvalidAccess
 	}
-	// #nosec G304 -- path is a local operator configuration, never an HTTP input.
-	f, err := os.Open(path)
+	f, err := root.Open(name)
 	if err != nil {
 		return nil, "", ErrInvalidAccess
 	}
 	defer f.Close()
+	opened, err := f.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) ||
+		(runtime.GOOS != "windows" && opened.Mode().Perm()&0o077 != 0) {
+		return nil, "", ErrInvalidAccess
+	}
 	body, err := io.ReadAll(io.LimitReader(f, maxFile+1))
 	if err != nil || len(body) > maxFile {
 		return nil, "", ErrInvalidAccess
@@ -229,15 +245,26 @@ func unseal(path, password string) ([]byte, string, error) {
 }
 
 func replace(path string, body []byte) error {
-	info, err := os.Lstat(path)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return ErrInvalidAccess
+	}
+	defer root.Close()
+	name := filepath.Base(path)
+	info, err := root.Lstat(name)
 	if err != nil || !info.Mode().IsRegular() {
 		return ErrInvalidAccess
 	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".rootwell-access-*")
+	random := make([]byte, 16)
+	if _, err := rand.Read(random); err != nil {
+		return errors.New("new password could not be saved")
+	}
+	tempName := ".rootwell-access-" + hex.EncodeToString(random)
+	f, err := root.OpenFile(tempName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return errors.New("new password could not be saved")
 	}
-	defer os.Remove(f.Name())
+	defer root.Remove(tempName)
 	if err := f.Chmod(0o600); err != nil {
 		_ = f.Close()
 		return errors.New("new password could not be saved")
@@ -253,7 +280,7 @@ func replace(path string, body []byte) error {
 	if err := f.Close(); err != nil {
 		return errors.New("new password could not be saved")
 	}
-	if err := os.Rename(f.Name(), path); err != nil {
+	if err := root.Rename(tempName, name); err != nil {
 		return errors.New("new password could not be saved")
 	}
 	return nil
