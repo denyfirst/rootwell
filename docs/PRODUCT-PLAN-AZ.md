@@ -280,6 +280,9 @@ leaf + intermediate yolunu public PEM kimi endirmək də mümkündür; root və
 private key output-a daxil edilmir. Bu, canlı endpoint və revocation hökmü
 vermir. Public demo faylları ilə hər iki rejim sınana bilir.
 Private key/PFX axını isə ayrıca security review tələb edir.
+Browser Verify-da ayrıca etibarlı mənbədən alınmış tam root SHA-256 fingerprint-i
+istəyə bağlı pin etmək olur; yanlış pin rədd edilir, boş pin isə root kimliyini
+təsdiqləmir. Bu, canlı endpoint/MITM yoxlamasını əvəz etmir.
 
 CLI nüvəsində certificate/private-key uyğunluq yoxlaması strict və bounded
 sərhədlə mövcuddur. Bu, browserdə secret-bearing input qəbul etmək üçün

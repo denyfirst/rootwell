@@ -54,6 +54,7 @@ const explicitVerification = JSON.parse(globalThis.rootwellVerifyExplicit(
 assert.equal(simpleVerification.ok, true, JSON.stringify(simpleVerification.error));
 assert.equal(explicitVerification.ok, true, JSON.stringify(explicitVerification.error));
 assert.equal(simpleVerification.result.trust_source, "explicit-file");
+assert.equal(simpleVerification.result.root_pin, "not-provided");
 assert.equal(simpleVerification.result.ignored_source_roots, 1);
 assert.equal(simpleVerification.result.chain.length, 3);
 assert.deepEqual(simpleVerification.result.chain, explicitVerification.result.chain);
@@ -75,6 +76,23 @@ const secretVerification = JSON.parse(globalThis.rootwellVerifySimple(
 assert.equal(secretVerification.ok, false);
 assert.equal(secretVerification.error.code, "invalid-public-source");
 const verifiedFingerprints = simpleVerification.result.chain.map((member) => member.SHA256Fingerprint);
+const rootFingerprint = verifiedFingerprints.at(-1);
+const pinnedSimple = JSON.parse(globalThis.rootwellVerifySimple(
+  [verifySource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at, rootFingerprint));
+const pinnedExplicit = JSON.parse(globalThis.rootwellVerifyExplicit(
+  verifyLeaf, verifyIntermediate, verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at,
+  rootFingerprint.replaceAll(":", "").toLowerCase()));
+assert.equal(pinnedSimple.ok, true);
+assert.equal(pinnedSimple.result.root_pin, "matched");
+assert.equal(pinnedExplicit.ok, true);
+assert.equal(pinnedExplicit.result.root_pin, "matched");
+for (const pin of ["00".repeat(32), rootFingerprint.slice(0, -3), rootFingerprint + ":00"]) {
+  const refused = JSON.parse(globalThis.rootwellVerifySimple(
+    [verifySource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at, pin));
+  assert.equal(refused.ok, false);
+  assert.equal(refused.result, null);
+  assert.equal(refused.error.code, pin.length === 64 ? "root-pin-mismatch" : pin.length > 95 ? "invalid-browser-request" : "invalid-root-pin");
+}
 const simpleFullchain = globalThis.rootwellExportVerifiedSimple(
   [verifySource], verifyRoot, verifyFixture.hostname, verifyFixture.evaluated_at, verifiedFingerprints);
 const explicitFullchain = globalThis.rootwellExportVerifiedExplicit(

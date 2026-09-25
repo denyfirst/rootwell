@@ -250,7 +250,7 @@ const verificationSuccess = JSON.stringify({
   schema_version: "rootwell.browser.verify.v1", ok: true, error: null,
   result: {
     profile: "tls-server", verification: "passed", hostname: "verify.rootwell.invalid",
-    evaluated_at: "2026-09-25T09:00:00Z", trust_source: "explicit-file",
+    evaluated_at: "2026-09-25T09:00:00Z", trust_source: "explicit-file", root_pin: "not-provided",
     revocation: "not-checked", network: "disabled", ignored_source_roots: 1,
     chain: [
       { Subject: "CN=verify.rootwell.invalid", Issuer: "CN=Test Root", SHA256Fingerprint: certificate(65).sha256 },
@@ -263,17 +263,19 @@ const verificationFailure = JSON.stringify({
   error: { code: "unknown-authority" }
 });
 let simpleVerifyCalls = 0;
-engine.verifySimple = (sources, trust, hostname) => {
+engine.verifySimple = (sources, trust, hostname, _time, rootPin) => {
   simpleVerifyCalls++;
   assert.equal(sources.length, 1);
   assert.equal(trust[0], 82);
   assert.equal(hostname, "verify.rootwell.invalid");
+  assert.equal(rootPin, "");
   return verificationSuccess;
 };
 element("verify-simple-mode").checked = true;
 element("verify-advanced-mode").checked = false;
 element("verify-hostname").value = "verify.rootwell.invalid";
 element("verify-hostname").listeners.input();
+element("verify-root-pin").value = "";
 element("verify-trust-file").files = [file("R")];
 element("verify-trust-file").listeners.change();
 element("verify-source-files").files = [file("S")];
@@ -304,6 +306,31 @@ assert.equal(verifiedSimpleExportCalls, 1);
 assert.equal(element("verify-result").hidden, false);
 assert.equal(element("verify-export-button").disabled, false);
 assert.match(document.body.children.at(-1).download, /^rootwell-verified-fullchain-[0-9a-f]{32}\.pem$/);
+element("verify-root-pin").value = certificate(66).sha256;
+element("verify-root-pin").listeners.input();
+assert.equal(element("verify-result").hidden, true, "editing root pin must invalidate the old verdict");
+assert.equal(element("verify-export-button").disabled, true);
+const pinnedSuccess = JSON.parse(verificationSuccess);
+pinnedSuccess.result.root_pin = "matched";
+engine.verifySimple = (_sources, _trust, _hostname, _time, rootPin) => {
+  assert.equal(rootPin, certificate(66).sha256);
+  return JSON.stringify(pinnedSuccess);
+};
+await element("verify-button").listeners.click();
+assert.equal(element("verify-result").hidden, false);
+assert.match(element("verify-root-pin-status").textContent, /matches the expected full SHA-256/);
+const forgedPinSuccess = JSON.parse(verificationSuccess);
+forgedPinSuccess.result.root_pin = "matched";
+forgedPinSuccess.result.chain[1].SHA256Fingerprint = certificate(67).sha256;
+engine.verifySimple = () => JSON.stringify(forgedPinSuccess);
+await element("verify-button").listeners.click();
+assert.equal(element("verify-result").hidden, true, "a fabricated pin match must not render as verified");
+assert.match(element("verify-error").textContent, /invalid response/);
+element("verify-root-pin").value = "";
+element("verify-root-pin").listeners.input();
+assert.equal(element("verify-result").hidden, true);
+engine.verifySimple = () => verificationSuccess;
+await element("verify-button").listeners.click();
 let finishDelayedVerifyRead;
 const originalVerifyRead = element("verify-source-files").files[0].arrayBuffer;
 element("verify-source-files").files[0].arrayBuffer = () => new Promise((resolve) => { finishDelayedVerifyRead = resolve; });

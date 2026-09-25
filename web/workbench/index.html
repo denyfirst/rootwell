@@ -240,8 +240,11 @@
             <label>Explicit trust anchor PEM file
               <input id="verify-trust-file" type="file" accept=".pem,.crt,.cer">
             </label>
+            <label>Expected root SHA-256 fingerprint (optional)
+              <input id="verify-root-pin" type="text" autocomplete="off" spellcheck="false" maxlength="95" placeholder="64 hex digits or colon-separated bytes">
+            </label>
           </div>
-          <p class="verify-note">Choose a trusted root file separately. A root found in your CA's other files is never trusted automatically. Private keys and PFX are not accepted.</p>
+          <p class="verify-note">Choose a root file separately. A root found in your CA's other files is never trusted automatically. For stronger identity assurance, compare its full fingerprint with one obtained from an independent trusted source and enter that value above. Copying the fingerprint from the same file proves nothing extra. Without a pin, Rootwell checks the chain against your selected root, not whether that root is authentic. Private keys and PFX are not accepted.</p>
           <p class="demo-certificate">Try it safely with public, non-production files: <a href="rootwell-verify-demo-ca-files.pem" download>CA files</a> and <a href="rootwell-verify-demo-root.pem" download>separate demo root</a>; hostname <code>verify.rootwell.invalid</code>. For Advanced: <a href="rootwell-verify-demo-leaf.pem" download>leaf</a> and <a href="rootwell-verify-demo-intermediate.pem" download>intermediate</a>. Never install the demo root in your OS or browser trust store.</p>
           <fieldset class="verify-mode">
             <legend>Input mode</legend>
@@ -277,7 +280,7 @@
                 <h3 id="verify-result-hostname"></h3>
                 <p id="verify-result-time"></p>
               </div>
-              <span class="stamp stamp-good">Verified</span>
+              <span class="stamp stamp-good">Chain valid</span>
             </div>
             <div class="honesty-row">
               <span><strong>Network</strong> Disabled</span>
@@ -285,6 +288,7 @@
               <span><strong>Revocation</strong> Not checked</span>
             </div>
             <p id="verify-ignored-roots" class="verify-note"></p>
+            <p id="verify-root-pin-status" class="verify-note"></p>
             <ol class="chain" id="verify-chain" aria-label="Verified certificate chain"></ol>
             <div class="bundle-collection-actions">
               <p>Download the verified public server chain in leaf → intermediate order. The separately selected trust root and all private keys are excluded. This reflects the shown evaluation time, not a live server check.</p>
@@ -292,7 +296,7 @@
               <p class="export-status" id="verify-export-status" aria-live="polite"></p>
               <aside class="inspection-error" id="verify-export-error" role="alert" hidden></aside>
             </div>
-            <aside class="nonclaim"><strong>What this verdict does not prove</strong><p>No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check. A local-file verdict is not deployment evidence.</p></aside>
+            <aside class="nonclaim"><strong>What this verdict does not prove</strong><p>A matching pin confirms only agreement with the fingerprint you supplied; Rootwell cannot authenticate where you obtained it. Without a pin, root identity is unconfirmed. No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check. A local-file verdict is not deployment evidence.</p></aside>
           </section>
         </section>
       </div>

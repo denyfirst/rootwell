@@ -27,6 +27,8 @@
   const exportBundleButton = document.getElementById("export-bundle-button");
   const verifyHostname = document.getElementById("verify-hostname");
   const verifyTrustFile = document.getElementById("verify-trust-file");
+  const verifyRootPin = document.getElementById("verify-root-pin");
+  const verifyRootPinStatus = document.getElementById("verify-root-pin-status");
   const verifySimpleMode = document.getElementById("verify-simple-mode");
   const verifyAdvancedMode = document.getElementById("verify-advanced-mode");
   const verifySimpleInputs = document.getElementById("verify-simple-inputs");
@@ -135,8 +137,8 @@
     updateVerifyControls();
   }
 
-  for (const input of [verifyHostname, verifyTrustFile, verifySourceFiles, verifyLeafFile, verifyIntermediatesFile, verifyTime]) {
-    input.addEventListener(input === verifyHostname || input === verifyTime ? "input" : "change", invalidateVerify);
+  for (const input of [verifyHostname, verifyRootPin, verifyTrustFile, verifySourceFiles, verifyLeafFile, verifyIntermediatesFile, verifyTime]) {
+    input.addEventListener(input === verifyHostname || input === verifyRootPin || input === verifyTime ? "input" : "change", invalidateVerify);
   }
   for (const mode of [verifySimpleMode, verifyAdvancedMode]) {
     mode.addEventListener("change", function () {
@@ -816,6 +818,8 @@
     "input-too-large": "The selected verification files exceed the 16 MiB combined limit.",
     "invalid-time": "Enter an RFC 3339 evaluation time, for example 2026-09-25T09:00:00Z.",
     "invalid-hostname": "Enter a valid ASCII TLS server hostname without a wildcard.",
+    "invalid-root-pin": "Enter the complete root SHA-256 fingerprint: 64 hex digits or 32 colon-separated bytes.",
+    "root-pin-mismatch": "The verified path ends at a different root than the expected fingerprint. No verified result was produced.",
     "invalid-public-source": "One of the CA files is not a strict public certificate or bundle.",
     "duplicate-certificate": "A certificate appears more than once in the CA files or verification bundles.",
     "missing-leaf": "No end-entity certificate was found in the CA files.",
@@ -835,7 +839,7 @@
     "internal-failure": "Local verification could not be completed safely."
   });
 
-  function validVerifyResponse(response, hostname) {
+  function validVerifyResponse(response, hostname, pin) {
     if (!response || response.schema_version !== "rootwell.browser.verify.v1" || typeof response.ok !== "boolean") return false;
     if (!response.ok) return response.result === null && response.error && typeof response.error.code === "string" &&
       Object.hasOwn(verifyFailureMessages, response.error.code);
@@ -843,12 +847,14 @@
     return response.error === null && result && result.profile === "tls-server" && result.verification === "passed" &&
       result.hostname === hostname && typeof result.evaluated_at === "string" &&
       result.trust_source === "explicit-file" && result.revocation === "not-checked" && result.network === "disabled" &&
+      result.root_pin === (pin ? "matched" : "not-provided") &&
       Number.isSafeInteger(result.ignored_source_roots) && result.ignored_source_roots >= 0 && result.ignored_source_roots <= 64 &&
       Array.isArray(result.chain) && result.chain.length >= 1 && result.chain.length <= 64 &&
       result.chain.every(function (certificate) {
         return certificate && typeof certificate.Subject === "string" && typeof certificate.Issuer === "string" &&
           /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(certificate.SHA256Fingerprint);
-      });
+      }) && (!pin || (/^(?:[0-9A-Fa-f]{2}:){31}[0-9A-Fa-f]{2}$|^[0-9A-Fa-f]{64}$/.test(pin) &&
+        result.chain.at(-1).SHA256Fingerprint.replaceAll(":", "") === pin.replaceAll(":", "").toUpperCase()));
   }
 
   const verifiedExportFailureMessages = Object.freeze({
@@ -902,6 +908,9 @@
     text("verify-ignored-roots", result.ignored_source_roots > 0 ?
       result.ignored_source_roots + " self-signed CA certificate(s) in the CA files were ignored as trust sources." :
       "Trust came only from the separately selected file.");
+    verifyRootPinStatus.textContent = result.root_pin === "matched" ?
+      "The verified path's root matches the expected full SHA-256 fingerprint you supplied. Its source must still be independently trusted." :
+      "No root fingerprint pin was supplied. The chain is valid against your selected root file, but Rootwell has not confirmed that root's identity.";
     const cards = result.chain.map(function (certificate, index) {
       const item = document.createElement("li");
       const role = document.createElement("span");
@@ -927,6 +936,7 @@
     const generation = verifyGeneration;
     const simple = verifySimpleMode.checked;
     const hostname = verifyHostname.value.trim();
+    const rootPin = verifyRootPin.value;
     const trustFile = verifyTrustFile.files[0];
     const sourceFiles = simple ? Array.from(verifySourceFiles.files) :
       [verifyLeafFile.files[0], verifyIntermediatesFile.files && verifyIntermediatesFile.files.length === 1 ? verifyIntermediatesFile.files[0] : null];
@@ -958,14 +968,14 @@
         }
       }
       const trust = buffers[buffers.length - 1];
-      const raw = simple ? engine.verifySimple(buffers.slice(0, -1), trust, hostname, timeValue) :
-        engine.verifyExplicit(buffers[0], sourceFiles[1] ? buffers[1] : new Uint8Array(0), trust, hostname, timeValue);
+      const raw = simple ? engine.verifySimple(buffers.slice(0, -1), trust, hostname, timeValue, rootPin) :
+        engine.verifyExplicit(buffers[0], sourceFiles[1] ? buffers[1] : new Uint8Array(0), trust, hostname, timeValue, rootPin);
       if (typeof raw !== "string" || raw.length > 1 << 20) {
         showVerifyFailure("The local verification engine returned an invalid response.");
         return;
       }
       const response = JSON.parse(raw);
-      if (!validVerifyResponse(response, hostname)) {
+      if (!validVerifyResponse(response, hostname, rootPin)) {
         showVerifyFailure("The local verification engine returned an invalid response.");
         return;
       }

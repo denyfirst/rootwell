@@ -52,6 +52,12 @@ trust sources. Advanced accepts an explicit leaf, optional PEM intermediates,
 and optional RFC 3339 evaluation time. Both use the same Go verification
 policy. Success does not check revocation, live deployment, or private-key
 possession. Do not import private keys or PFX into this public-only UI.
+An optional full SHA-256 root certificate fingerprint can be entered as
+64 hex digits or colon-separated bytes. Rootwell compares it with the final
+anchor of the verified path and refuses a malformed or mismatched pin. Obtain
+the expected value through a separately trusted channel; copying it from the
+same root file adds no assurance. Without a pin, Rootwell reports that root
+identity remains unconfirmed. A pin does not check a live server or MITM.
 
 After success, **Download verified fullchain PEM** re-reads the selected
 files, re-verifies with the same separate trust file, hostname and evaluation
