@@ -33,20 +33,28 @@ olunmamış nəticəyə “verified” demək qadağandır.
    klikiylə yalnız public metadata, vaxt pəncərəsi, certificate fingerprint-ləri
    və yoxlamanın sərhədləri olan lokal JSON hesabat. Secret və key export-u
    yoxdur; browser-managed download və input recheck testlərlə qorunur.
-4. **Inventory mərhələsinin dizaynı — növbəti iş.** Şirkət üçün owner,
+4. **Instance access təməli — icradadır.** Hər qurulum üçün ayrıca təsadüfi
+   ilkin parol yalnız setup üçündür; parol dəyişənə qədər data açarı verilmir.
+   Bu ilkin increment yalnız lokal key-envelope paketidir, hələ web giriş
+   qapısı və istifadəçi datasının saxlanması deyil. Növbəti ayrıca increment:
+   təhlükə modelində göstərilən OS fayl qorunması və atomik dəyişməni
+   möhkəmlət, lokal interaktiv init, setup-only sessiya, məcburi dəyişmə və
+   normal giriş; sonra şifrəli inventory. Daemon/Docker loguna parol yazılmır.
+5. **Inventory mərhələsinin dizaynı.** Şirkət üçün owner,
    host/location, expiry, dəyişiklik tarixçəsi və bildiriş axınını threat model və
    data-retention qərarı ilə layihələndir. Public metadata belə daxili adları
    aça bilər. Gizli, davamlı yaddaş və network discovery bu addımlardan
    avtomatik yaranmır.
-5. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
+6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.
 
-Inventory koduna başlamazdan əvvəl üç qərar açıq saxlanılır: metadata harada
-saxlanacaq (yalnız browser, yoxsa self-hosted server), nə qədər saxlanacaq və
-kim onu oxuya/dəyişə biləcək. Bu qərarlar verilmədən persistent database,
-notification və ya network discovery capability əlavə edilmir. Dizayn
-variantları threat model ilə hazırlana bilər; yekun seçim istifadəçinindir.
+İstifadəçi inventory üçün self-hosted, lokal şifrəli saxlanma seçib: məlumat
+onun öz qurulumunda, özü silənədək qalacaq; avtomatik köhnə qeydləri silmək
+olmaz. İlk access modeli bir qurulumun tək operatorudur. Çoxistifadəçi rolu,
+backup/recovery, disk limitində yeni yazının təhlükəsiz rəddi və audit izi
+ayrıca dizayn və test tələb edir. Bu seçim persistent database, notification
+və ya network discovery-ni avtomatik icazəli etmir.
 
 ## Hər increment üçün dəyişməz qapılar
 
