@@ -461,3 +461,17 @@ file saving; internal certificate names may still be sensitive to the owner.
 
 Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional` and
 `scripts/test-workbench-multifile.mjs`.
+
+## C32 — Initial installation password cannot open stored data
+
+The generated password is per-installation and exists only for first-use
+rotation. The access envelope authenticates its state. Before rotation,
+`Open` never returns the data key; after rotation, the initial password no
+longer works. Failed and weak changes leave the original setup state intact.
+An existing access file is not overwritten and malformed or unsafe files fail
+closed. This package is not yet an HTTP login or production vault.
+
+Guarded by `TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable`,
+`TestFailedChangesKeepInitialPasswordAndRejectWeakReplacement`,
+`TestInitialPasswordIsUniqueAndNotStoredInPlaintext`, and
+`TestMalformedAndUnsafeAccessFilesFailClosed`.
