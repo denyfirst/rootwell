@@ -38,6 +38,16 @@ exists only in the current page session, refreshes only after Explore is
 pressed again, and is cleared on a new selection or analysis failure. A wrong
 browser clock produces wrong time buckets; the displayed UTC evaluation time
 helps the operator spot this. CA dates are included without implying trust.
+The guided health summary explains what was found without assigning trusted
+roles. With exactly one certificate lacking the CA flag, an explicit button
+can carry the already selected public file references to Simple Verify. The
+source files are re-read and their ordered certificate fingerprints compared
+with Explore before verification; the user must still enter a hostname and
+choose a separate trusted root. Zero or multiple candidates transfer no files.
+Manual source selection replaces the handoff; new Explore selections and
+analysis failures invalidate it. Fixed next-step guidance accompanies Verify
+failures without echoing certificate or file contents. This does not weaken
+the existing Go verification policy or authenticate a root from the bundle.
 It does not select a leaf, choose a trust anchor, or verify a chain. An
 explicitly selected set can be downloaded as a public PEM bundle in displayed
 order, without an automatic fullchain claim. A selected public certificate

@@ -7,6 +7,11 @@ Explore daxilində avtomatik fullchain sırası və qəti rol/chain təyini həl
 plan mərhələsindədir. Browser Verify ayrıca seçilmiş PEM trust anchor və
 hostname ilə işləyir; uğurlu Verify yolunu yenidən yoxlayıb public PEM
 fullchain (root xaric) kimi endirə bilir.
+Guided Certificate Health increment-i Explore nəticəsində sadə xülasə,
+istifadəçi klikiylə Verify-a public fayl ötürülməsi və sabit növbəti-addım
+izahları əlavə edir; source fingerprint-ləri yenidən yoxlanır, root/hostname
+yenə ayrıca seçilir. Ardıcıllıq üçün aktiv plan
+[`ACTIVE-EXECUTION-PLAN-AZ.md`](ACTIVE-EXECUTION-PLAN-AZ.md) sənədindədir.
 İstəyə bağlı tam SHA-256 root fingerprint pin-i də qəbul edir: dəyər ayrıca
 etibarlı mənbədən alınmalıdır. Uyğun gəlməyən və ya natamam pin nəticəni
 rədd edir; pin verilməyəndə root-un kimliyi təsdiqlənmiş sayılmır. Bu,

@@ -231,6 +231,17 @@ network, or renewal capability. The 30/90-day groups are triage labels only;
 an incorrect local clock, untrusted CA, revoked certificate, or old selected
 file can invalidate an operational inference. New selection and failure clear
 the overview with the cards.
+The guided health summary only counts CA flags and signature-backed possible
+issuer links. It cannot promote a candidate to a leaf, trusted root, or
+verified path. An explicit Explore-to-Verify click carries public File
+references only when exactly one certificate lacks the CA flag; no bytes are
+read by that click. Verify re-reads each source and compares ordered full
+certificate fingerprints with the Explore snapshot before invoking the same
+Go Simple verifier. A changed, malformed, or ambiguous source fails without a
+trust verdict. Hostname and a separate trust file are still mandatory; no
+root or pin is copied from the source collection. Manual source choice and a
+new Explore selection invalidate the handoff. Fixed next-step messages are
+selected by allowlisted failure codes, never by reflected certificate data.
 The same-origin asset, CSP, and no-upload trust boundaries above remain in
 force. See ADR 0004, ADR 0006, and ADR 0007 for this extension.
 

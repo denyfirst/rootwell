@@ -22,6 +22,9 @@
   const exploreError = document.getElementById("explore-error");
   const exploreResult = document.getElementById("explore-result");
   const exploreCertificates = document.getElementById("explore-certificates");
+  const exploreHealthSummary = document.getElementById("explore-health-summary");
+  const exploreHealthNext = document.getElementById("explore-health-next");
+  const exploreVerifyButton = document.getElementById("explore-verify-button");
   const exploreExpirySummary = document.getElementById("explore-expiry-summary");
   const exploreExpiryNote = document.getElementById("explore-expiry-note");
   const exploreExpiryList = document.getElementById("explore-expiry-list");
@@ -37,12 +40,14 @@
   const verifySimpleInputs = document.getElementById("verify-simple-inputs");
   const verifyAdvancedInputs = document.getElementById("verify-advanced-inputs");
   const verifySourceFiles = document.getElementById("verify-source-files");
+  const verifyGuidedSource = document.getElementById("verify-guided-source");
   const verifyLeafFile = document.getElementById("verify-leaf-file");
   const verifyIntermediatesFile = document.getElementById("verify-intermediates-file");
   const verifyTime = document.getElementById("verify-time");
   const verifyButton = document.getElementById("verify-button");
   const verifyStatus = document.getElementById("verify-status");
   const verifyError = document.getElementById("verify-error");
+  const verifyNextStep = document.getElementById("verify-next-step");
   const verifyResult = document.getElementById("verify-result");
   const verifyChain = document.getElementById("verify-chain");
   const verifyExportButton = document.getElementById("verify-export-button");
@@ -60,6 +65,8 @@
   let verifyGeneration = 0;
   let currentVerifySnapshot = null;
   let currentExploreEntries = null;
+  let guidedVerifyFiles = null;
+  let guidedVerifyFingerprints = null;
   const selectedBundleFingerprints = new Set();
   const pendingDownloadURLs = new Set();
   const maxExploreFiles = 8;
@@ -98,6 +105,10 @@
     return (size / (1024 * 1024)).toFixed(1) + " MiB";
   }
 
+  function counted(number, singular, plural) {
+    return number + " " + (number === 1 ? singular : plural);
+  }
+
   function displayFileName(file) {
     const name = typeof file.name === "string" && file.name ? file.name : "unnamed file";
     const characters = Array.from(name.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "�"));
@@ -114,6 +125,7 @@
 
   function updateExploreControls() {
     exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFiles === null;
+    exploreVerifyButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null;
     exportBundleButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || selectedBundleFingerprints.size === 0;
     exploreCertificates.querySelectorAll("button, select, input").forEach(function (control) {
       control.disabled = exploring || exporting;
@@ -123,7 +135,8 @@
   function updateVerifyControls() {
     const trust = verifyTrustFile.files && verifyTrustFile.files.length === 1;
     const hostname = verifyHostname.value && verifyHostname.value.trim();
-    const sources = verifySourceFiles.files && verifySourceFiles.files.length >= 1 && verifySourceFiles.files.length <= maxExploreFiles;
+    const sourceFiles = guidedVerifyFiles || verifySourceFiles.files;
+    const sources = sourceFiles && sourceFiles.length >= 1 && sourceFiles.length <= maxExploreFiles;
     const leaf = verifyLeafFile.files && verifyLeafFile.files.length === 1;
     verifyButton.disabled = verifying || exportingVerified || !engine || !trust || !hostname || !(verifySimpleMode.checked ? sources : leaf);
     verifyExportButton.disabled = verifying || exportingVerified || !engine || currentVerifySnapshot === null;
@@ -135,16 +148,36 @@
     verifyResult.hidden = true;
     verifyChain.replaceChildren();
     verifyError.hidden = true;
+    verifyNextStep.hidden = true;
     verifyExportError.hidden = true;
     verifyExportStatus.textContent = "";
     updateVerifyControls();
   }
 
-  for (const input of [verifyHostname, verifyRootPin, verifyTrustFile, verifySourceFiles, verifyLeafFile, verifyIntermediatesFile, verifyTime]) {
+  function clearGuidedVerifyFiles() {
+    const hadGuidedFiles = guidedVerifyFiles !== null;
+    guidedVerifyFiles = null;
+    guidedVerifyFingerprints = null;
+    verifyGuidedSource.textContent = "";
+    verifyGuidedSource.hidden = true;
+    if (hadGuidedFiles) invalidateVerify();
+  }
+
+  for (const input of [verifyHostname, verifyRootPin, verifyTrustFile, verifyLeafFile, verifyIntermediatesFile, verifyTime]) {
     input.addEventListener(input === verifyHostname || input === verifyRootPin || input === verifyTime ? "input" : "change", invalidateVerify);
   }
+  verifySourceFiles.addEventListener("change", function () {
+    guidedVerifyFiles = null;
+    guidedVerifyFingerprints = null;
+    verifyGuidedSource.hidden = true;
+    invalidateVerify();
+  });
   for (const mode of [verifySimpleMode, verifyAdvancedMode]) {
     mode.addEventListener("change", function () {
+      guidedVerifyFiles = null;
+      guidedVerifyFingerprints = null;
+      verifyGuidedSource.textContent = "";
+      verifyGuidedSource.hidden = true;
       verifySimpleInputs.hidden = !verifySimpleMode.checked;
       verifyAdvancedInputs.hidden = !verifyAdvancedMode.checked;
       invalidateVerify();
@@ -168,11 +201,13 @@
   });
 
   function setExploreFiles(files) {
+    clearGuidedVerifyFiles();
     selectedExploreFiles = null;
     currentExploreEntries = null;
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    clearHealthGuide();
     clearExpiryOverview();
     exploreError.hidden = true;
     exportError.hidden = true;
@@ -554,6 +589,28 @@
       result.certificates.every(validExploreCertificate);
   }
 
+  function clearHealthGuide() {
+    exploreHealthSummary.textContent = "";
+    exploreHealthNext.textContent = "";
+    exploreVerifyButton.textContent = "Continue to Verify";
+  }
+
+  function renderHealthGuide(entries, chain) {
+    const possibleSiteCertificates = entries.filter(function (entry) { return !entry.certificate.is_ca; }).length;
+    const caCertificates = entries.length - possibleSiteCertificates;
+    const signedLinks = chain.certificates.reduce(function (total, item) { return total + item.parents.length; }, 0);
+    exploreHealthSummary.textContent = "Opened " + counted(entries.length, "public certificate", "public certificates") + ": " +
+      counted(possibleSiteCertificates, "possible website certificate", "possible website certificates") + ", " +
+      counted(caCertificates, "CA certificate", "CA certificates") + ", and " +
+      counted(signedLinks, "possible signing link", "possible signing links") + ". These are clues, not a verified chain.";
+    exploreHealthNext.textContent = possibleSiteCertificates === 1 ?
+      "One certificate could be the website certificate. Continue to Verify with these same files; enter the website name and choose a separate trusted root. Rootwell will check the actual role and chain there." :
+      possibleSiteCertificates === 0 ?
+        "No possible website certificate was found. Ask for the website's own public .crt/.cer file, then explore again. A root or bundle alone is not enough for Simple Verify." :
+        "More than one possible website certificate was found. Rootwell will not guess which one you mean. Separate the intended certificate or choose it explicitly in Advanced Verify.";
+    exploreVerifyButton.textContent = possibleSiteCertificates === 1 ? "Continue to Verify with these files" : "Review Verify options";
+  }
+
   function validChainResult(response, entries) {
     if (!response || response.schema_version !== "rootwell.browser.chain.v1" || response.ok !== true ||
         response.error !== "" || !response.result || response.result.verification !== "not-performed" ||
@@ -654,6 +711,7 @@
       return item;
     });
     exploreCertificates.replaceChildren(...cards);
+    renderHealthGuide(entries, chain);
     renderExpiryOverview(entries, now);
     currentExploreEntries = entries;
     selectedBundleFingerprints.clear();
@@ -666,15 +724,42 @@
   }
 
   function showExploreFailure(message) {
+    clearGuidedVerifyFiles();
     currentExploreEntries = null;
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    clearHealthGuide();
     clearExpiryOverview();
     exploreError.textContent = message;
     exploreError.hidden = false;
     updateExploreControls();
   }
+
+  exploreVerifyButton.addEventListener("click", function () {
+    if (!selectedExploreFiles || !currentExploreEntries || exploring || exporting || !engine) return;
+    const possibleSiteCertificates = currentExploreEntries.filter(function (entry) { return !entry.certificate.is_ca; }).length;
+    verifySourceFiles.value = "";
+    guidedVerifyFiles = possibleSiteCertificates === 1 ? selectedExploreFiles : null;
+    guidedVerifyFingerprints = guidedVerifyFiles ? Object.freeze(guidedVerifyFiles.map(function (file) {
+      return Object.freeze(currentExploreEntries.filter(function (entry) { return entry.file === file; }).map(function (entry) {
+        return entry.certificate.sha256;
+      }));
+    })) : null;
+    verifySimpleMode.checked = true;
+    verifyAdvancedMode.checked = false;
+    verifySimpleInputs.hidden = false;
+    verifyAdvancedInputs.hidden = true;
+    invalidateVerify();
+    verifyGuidedSource.hidden = false;
+    verifyGuidedSource.textContent = guidedVerifyFiles ?
+      "Using " + counted(guidedVerifyFiles.length, "public file", "public files") + " from Explore. Rootwell will re-read them only when you press Verify locally. Enter the website name and choose a separate trusted root; no root from these files is trusted automatically. Choosing new files below replaces this selection." :
+      "These files do not contain exactly one certificate without the CA flag. Nothing was transferred to Simple Verify. Add the site's public certificate or select a specific leaf in Advanced; never trust a root just because it appeared in the bundle.";
+    verifyStatus.textContent = guidedVerifyFiles ?
+      "Add a website hostname and separate trust file to verify locally" :
+      "Choose one website certificate before verifying";
+    selectTool("verify");
+  });
 
   const exportFailureMessages = Object.freeze({
     "invalid-browser-request": "The local export request was rejected.",
@@ -897,6 +982,19 @@
     "internal-failure": "Local verification could not be completed safely."
   });
 
+  const verifyNextSteps = Object.freeze({
+    "missing-leaf": "Next: add the website's own public certificate. A CA bundle or root by itself is not the website certificate.",
+    "ambiguous-leaf": "Next: remove unrelated website certificates from the CA files, or use Advanced to choose exactly one leaf. Rootwell will not guess.",
+    "duplicate-certificate": "Next: remove the repeated public certificate from the selected files and try again; no copy is silently discarded.",
+    "invalid-public-source": "Next: choose only public PEM certificate blocks or single DER certificates. Do not add PFX or private keys here.",
+    "invalid-trust-bundle": "Next: choose a separate PEM file containing a trusted self-signed CA certificate. Its identity must come from a source you trust independently.",
+    "unknown-authority": "Next: check whether the CA-provided intermediate is missing and whether the separately chosen root is the intended trusted root. Do not trust a root merely because it came in the same bundle.",
+    "hostname-mismatch": "Next: compare the website name you entered with the certificate's DNS names in Inspect. Do not change the hostname just to obtain a pass.",
+    "expired": "Next: check the shown evaluation time and the path's validity dates. Obtain a renewed or reissued certificate through the authorized CA if needed.",
+    "not-yet-valid": "Next: check the browser clock, evaluation time, and certificate validity start. Do not bypass the time check.",
+    "root-pin-mismatch": "Next: stop and compare the expected full root fingerprint against an independently trusted source. Do not copy the value from the rejected file."
+  });
+
   function validVerifyResponse(response, hostname, pin) {
     if (!response || response.schema_version !== "rootwell.browser.verify.v1" || typeof response.ok !== "boolean") return false;
     if (!response.ok) return response.result === null && response.error && typeof response.error.code === "string" &&
@@ -948,7 +1046,7 @@
     verifyExportError.hidden = false;
   }
 
-  function showVerifyFailure(message) {
+  function showVerifyFailure(message, code) {
     currentVerifySnapshot = null;
     verifyResult.hidden = true;
     verifyChain.replaceChildren();
@@ -956,6 +1054,9 @@
     verifyExportStatus.textContent = "";
     verifyError.textContent = message;
     verifyError.hidden = false;
+    verifyNextStep.textContent = code && Object.hasOwn(verifyNextSteps, code) ? verifyNextSteps[code] :
+      "Next: review the public files, website name, and separately chosen trusted root. No trust result was produced.";
+    verifyNextStep.hidden = false;
     verifyStatus.textContent = "Local verification did not pass · no certificate upload";
     updateVerifyControls();
   }
@@ -964,7 +1065,7 @@
     text("verify-result-hostname", result.hostname);
     text("verify-result-time", "Evaluated at " + result.evaluated_at + " · explicit trust file");
     text("verify-ignored-roots", result.ignored_source_roots > 0 ?
-      result.ignored_source_roots + " self-signed CA certificate(s) in the CA files were ignored as trust sources." :
+      counted(result.ignored_source_roots, "self-signed CA certificate", "self-signed CA certificates") + " in the CA files were ignored as trust sources." :
       "Trust came only from the separately selected file.");
     verifyRootPinStatus.textContent = result.root_pin === "matched" ?
       "The verified path's root matches the expected full SHA-256 fingerprint you supplied. Its source must still be independently trusted." :
@@ -984,6 +1085,7 @@
     });
     verifyChain.replaceChildren(...cards);
     verifyError.hidden = true;
+    verifyNextStep.hidden = true;
     verifyResult.hidden = false;
     verifyStatus.textContent = "Verified locally against the explicit trust file · no certificate upload";
     verifyResult.scrollIntoView({ block: "nearest" });
@@ -996,8 +1098,9 @@
     const hostname = verifyHostname.value.trim();
     const rootPin = verifyRootPin.value;
     const trustFile = verifyTrustFile.files[0];
-    const sourceFiles = simple ? Array.from(verifySourceFiles.files) :
+    const sourceFiles = simple ? Array.from(guidedVerifyFiles || verifySourceFiles.files) :
       [verifyLeafFile.files[0], verifyIntermediatesFile.files && verifyIntermediatesFile.files.length === 1 ? verifyIntermediatesFile.files[0] : null];
+    const guidedFingerprints = simple ? guidedVerifyFingerprints : null;
     const timeValue = !simple && verifyTime.value.trim() ? verifyTime.value.trim() : new Date().toISOString();
     const actualFiles = sourceFiles.filter(Boolean);
     if (!trustFile || !hostname || actualFiles.length < 1 || actualFiles.length > maxExploreFiles ||
@@ -1015,14 +1118,33 @@
     verifyStatus.textContent = "Verifying locally · no certificate upload";
     updateVerifyControls();
     const buffers = [];
+    let remainingBytes = engine.maxBytes;
     try {
-      for (const file of [...actualFiles, trustFile]) {
+      for (const [index, file] of [...actualFiles, trustFile].entries()) {
         const bytes = new Uint8Array(await file.arrayBuffer());
         buffers.push(bytes);
         if (generation !== verifyGeneration) return;
-        if (bytes.byteLength !== file.size) {
+        if (bytes.byteLength !== file.size || bytes.byteLength > remainingBytes) {
           showVerifyFailure("A selected file changed while being read. Choose it again.");
           return;
+        }
+        remainingBytes -= bytes.byteLength;
+        if (guidedFingerprints && index < actualFiles.length) {
+          const rawExplore = engine.explore(bytes);
+          if (typeof rawExplore !== "string" || rawExplore.length > 4 * 1024 * 1024) {
+            showVerifyFailure("Files changed since Explore. Explore them again before verifying.");
+            return;
+          }
+          const rechecked = JSON.parse(rawExplore);
+          const expected = guidedFingerprints[index];
+          if (!rechecked || rechecked.schema_version !== "rootwell.browser.explore.v1" || rechecked.ok !== true ||
+              rechecked.error !== null || !validExploreResult(rechecked.result) || rechecked.result.count !== expected.length ||
+              !rechecked.result.certificates.every(function (certificate, position) {
+                return certificate.sha256 === expected[position];
+              })) {
+            showVerifyFailure("Files changed since Explore. Explore them again before verifying.");
+            return;
+          }
         }
       }
       const trust = buffers[buffers.length - 1];
@@ -1039,7 +1161,7 @@
       }
       if (generation !== verifyGeneration) return;
       if (!response.ok) {
-        showVerifyFailure(verifyFailureMessages[response.error.code]);
+        showVerifyFailure(verifyFailureMessages[response.error.code], response.error.code);
         return;
       }
       currentVerifySnapshot = Object.freeze({
@@ -1137,9 +1259,11 @@
     }
 
     exploring = true;
+    clearGuidedVerifyFiles();
     exploreError.hidden = true;
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    clearHealthGuide();
     currentExploreEntries = null;
     selectedBundleFingerprints.clear();
     clearExpiryOverview();

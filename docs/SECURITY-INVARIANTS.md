@@ -419,3 +419,20 @@ alerts, renewal, revocation, server deployment, or clock authenticity.
 Guarded by `TestProcessPublicCertificateAndBundle`,
 `TestWorkbenchExploreIsPublicOnlyAndFunctional`, and
 `scripts/test-workbench-multifile.mjs`.
+
+## C29 — Guided handoff cannot choose trust or conceal changed sources
+
+Explore's plain-language guide is based only on validated public metadata
+and signature-backed possible issuer links. It never says a candidate is
+trusted or verified. Only an explicit click transfers selected File references,
+and only when exactly one certificate lacks the CA flag. The user must still
+provide a hostname and a separate trust file. Before invoking the unchanged
+Go Simple verifier, the browser re-parses every guided source and compares
+its ordered full SHA-256 certificate fingerprints with the Explore snapshot.
+Changed or malformed files, new selection, and manual source replacement
+invalidate the handoff. No source root becomes a trust anchor. Verification
+failure guidance is fixed by allowlisted error code, not raw input text.
+
+Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional`,
+`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`, and
+`scripts/test-workbench-multifile.mjs`.

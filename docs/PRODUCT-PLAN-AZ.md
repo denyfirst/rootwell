@@ -267,6 +267,8 @@ ayrıdır.
 Sadə certificate import/Verify və public bundle explorer üçün konkret
 istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarları
 [`WORKBENCH-IMPORT-UX-AZ.md`](WORKBENCH-IMPORT-UX-AZ.md) sənədindədir.
+Hazırkı ardıcıl UX/security increment-lərinin icra sırası
+[`ACTIVE-EXECUTION-PLAN-AZ.md`](ACTIVE-EXECUTION-PLAN-AZ.md) sənədindədir.
 Default görünüş CA-nın verdiyi bir və ya bir neçə fayldan başlayacaq;
 Advanced eyni verification core-u və policy-ni istifadə edərək texniki
 rolları açıq göstərəcək. Bundle içindəki root avtomatik trusted

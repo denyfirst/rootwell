@@ -282,6 +282,10 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"The CA flag and possible issuer links are public-certificate evidence, not proof that a root is trusted",
 		`id="explore-result" aria-live="polite" hidden`,
 		`id="explore-expiry-summary"`,
+		`id="explore-health-summary"`,
+		`id="explore-verify-button" type="button" disabled`,
+		"Explore only the CA files, then continue to Verify",
+		"Nothing here is trusted yet",
 		`id="explore-expiry-list" aria-label="Public certificates ordered by expiry"`,
 		"A date window is not a trust, revocation, deployment, or renewal verdict",
 	} {
@@ -301,6 +305,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"bundleDetail(details, \"Source file\", displayFileName(entry.file))",
 		"validUTCSecond(certificate.not_before)", "validUTCSecond(certificate.not_after)",
 		"renderExpiryOverview(entries, now)", "clearExpiryOverview()",
+		"renderHealthGuide(entries, chain)", "guidedVerifyFingerprints", "clearGuidedVerifyFiles()",
 	} {
 		if !strings.Contains(application, required) {
 			t.Errorf("Explore is missing local-processing guard %q", required)
@@ -424,6 +429,7 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 	for _, required := range []string{
 		`id="verify-hostname"`, `id="verify-trust-file"`, `id="verify-root-pin"`,
 		`id="verify-source-files"`, `id="verify-leaf-file"`,
+		`id="verify-guided-source"`, `id="verify-next-step"`,
 		`id="verify-intermediates-file"`, `id="verify-time"`,
 		`id="verify-button" type="button" disabled`,
 		`id="verify-export-button" type="button" disabled`,
@@ -446,6 +452,7 @@ func TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview(t *testing.T) {
 		"validVerifyResponse(response, hostname, rootPin)",
 		"verifyGeneration++", "verifyResult.hidden = true",
 		"for (const bytes of buffers) bytes.fill(0)",
+		"certificate.sha256 === expected[position]", "verifyNextSteps", "guidedVerifyFiles || verifySourceFiles.files",
 	} {
 		if !strings.Contains(application, required) {
 			t.Errorf("Verify is missing local guard %q", required)
