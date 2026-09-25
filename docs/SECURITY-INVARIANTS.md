@@ -343,3 +343,24 @@ Guarded by `TestSimpleAndExplicitUseSameTrustVerdict`,
 `FuzzSimpleNeverUsesSourceAsTrust`,
 `TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`, and the real
 WebAssembly regressions in `scripts/test-browser-wasm.mjs`.
+
+## C25 — Verified fullchain export re-verifies and excludes the root
+
+A visible Verified result alone does not authorize a download. The export
+path re-reads bounded public inputs and requires the complete new verified
+path to match the displayed ordered fingerprint snapshot under the same
+hostname, explicit trust, mode, and evaluation time. Any refusal or changed
+path returns no bytes and invalidates the browser's earlier verdict. The
+output is canonical PEM in leaf/intermediate path order; the trust root,
+private key, unrelated certificates, and unverified candidates are absent.
+Go and browser code re-parse and compare the output before requesting a
+browser-managed download. The file is a verdict at the displayed evaluation
+time, not proof of current validity or live deployment.
+
+Guarded by `TestPrepareVerifiedFullchainExcludesRootAndPreservesVerifiedOrder`,
+`TestPrepareRefusesUnverifiedChangedAndUnsafeInputs`,
+`TestPrepareExplicitNeedsSameVerifiedPath`,
+`FuzzPrepareNeverExportsUnverifiedSource`,
+`TestWorkbenchVerifyDemoIsPublicAndExportsOnlyVerifiedPath`, and the real
+WebAssembly and browser-state regressions in `scripts/test-browser-wasm.mjs`
+and `scripts/test-workbench-multifile.mjs`.

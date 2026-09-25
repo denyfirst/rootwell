@@ -53,6 +53,16 @@ and optional RFC 3339 evaluation time. Both use the same Go verification
 policy. Success does not check revocation, live deployment, or private-key
 possession. Do not import private keys or PFX into this public-only UI.
 
+After success, **Download verified fullchain PEM** re-reads the selected
+files, re-verifies with the same separate trust file, hostname and evaluation
+time, and requires the complete ordered path to match the displayed one.
+Only the verified leaf and intermediates are exported, in path order. The
+trust root, unrelated certificates, and private keys are excluded. The output
+is capped at 4 MiB, re-parsed in Go and the browser, and downloaded with a
+random browser-managed filename. An Advanced historical evaluation time is
+not a claim that the chain is valid now. See
+[ADR 0010](../../docs/adr/0010-browser-verified-public-fullchain-export.md).
+
 Browser-wide memory erasure is not guaranteed. This boundary is for public
 certificates only. Do not select private keys, passphrases, PFX/PKCS#12 files,
 or other secrets. See
@@ -95,6 +105,15 @@ certificate for `.invalid` names and deliberately contains no private key. To
 see two cards in Explore, use the public `rootwell-demo-bundle.pem` link there.
 Each card lets the user choose PEM or DER content and a compatible extension
 before downloading its own public certificate.
+
+To test Verify without production material, download the public
+`rootwell-verify-demo-ca-files.pem` and `rootwell-verify-demo-root.pem` links
+in the Verify panel. Enter `verify.rootwell.invalid` as hostname. Select the
+CA-files PEM in Simple and the root PEM as the separate trust file. For
+Advanced, use the separate demo leaf and intermediate links. The demo has
+no private key; never install its root into a browser or OS trust store. Its
+fixed validity window ends on 2035-01-01, after which historical evaluation
+time is required for testing.
 
 ## Required production headers
 

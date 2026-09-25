@@ -40,6 +40,9 @@
   const verifyError = document.getElementById("verify-error");
   const verifyResult = document.getElementById("verify-result");
   const verifyChain = document.getElementById("verify-chain");
+  const verifyExportButton = document.getElementById("verify-export-button");
+  const verifyExportStatus = document.getElementById("verify-export-status");
+  const verifyExportError = document.getElementById("verify-export-error");
 
   let engine = null;
   let selectedInspectFile = null;
@@ -48,7 +51,9 @@
   let exploring = false;
   let exporting = false;
   let verifying = false;
+  let exportingVerified = false;
   let verifyGeneration = 0;
+  let currentVerifySnapshot = null;
   let currentExploreEntries = null;
   const selectedBundleFingerprints = new Set();
   const pendingDownloadURLs = new Set();
@@ -115,14 +120,18 @@
     const hostname = verifyHostname.value && verifyHostname.value.trim();
     const sources = verifySourceFiles.files && verifySourceFiles.files.length >= 1 && verifySourceFiles.files.length <= maxExploreFiles;
     const leaf = verifyLeafFile.files && verifyLeafFile.files.length === 1;
-    verifyButton.disabled = verifying || !engine || !trust || !hostname || !(verifySimpleMode.checked ? sources : leaf);
+    verifyButton.disabled = verifying || exportingVerified || !engine || !trust || !hostname || !(verifySimpleMode.checked ? sources : leaf);
+    verifyExportButton.disabled = verifying || exportingVerified || !engine || currentVerifySnapshot === null;
   }
 
   function invalidateVerify() {
     verifyGeneration++;
+    currentVerifySnapshot = null;
     verifyResult.hidden = true;
     verifyChain.replaceChildren();
     verifyError.hidden = true;
+    verifyExportError.hidden = true;
+    verifyExportStatus.textContent = "";
     updateVerifyControls();
   }
 
@@ -252,6 +261,7 @@
           typeof readyEngine.exportPublic !== "function" || typeof readyEngine.analyze !== "function" ||
           typeof readyEngine.exportBundle !== "function" ||
           typeof readyEngine.verifySimple !== "function" || typeof readyEngine.verifyExplicit !== "function" ||
+          typeof readyEngine.exportVerifiedSimple !== "function" || typeof readyEngine.exportVerifiedExplicit !== "function" ||
           !Number.isSafeInteger(readyEngine.maxBytes) || readyEngine.maxBytes <= 0) {
         engineUnavailable();
         return;
@@ -841,12 +851,49 @@
       });
   }
 
+  const verifiedExportFailureMessages = Object.freeze({
+    "invalid-browser-request": "The verification inputs are no longer valid. Verify again before exporting.",
+    "not-verified": "The current files did not pass verification. Verify again before exporting.",
+    "changed-verification": "The verified chain changed. Review and verify the files again before exporting.",
+    "invalid-public-source": "A public source changed or is invalid. Verify again before exporting.",
+    "input-too-large": "The selected files or PEM output exceed the export limits.",
+    "internal-failure": "The local verified export could not be completed safely."
+  });
+
+  function validateVerifiedExportResponse(response, snapshot) {
+    if (!response || response.schema_version !== "rootwell.browser.verified-export.v1" || typeof response.ok !== "boolean") return null;
+    if (!response.ok) {
+      if (response.result !== null || !Object.hasOwn(verifiedExportFailureMessages, response.error)) return null;
+      return verifiedExportFailureMessages[response.error];
+    }
+    const result = response.result;
+    const selected = snapshot.chain.slice(0, -1);
+    if (response.error !== null || !result || result.hostname !== snapshot.hostname ||
+        result.evaluated_at !== snapshot.evaluatedAt || result.trust_source !== "explicit-file" ||
+        result.root_included !== false || !Array.isArray(result.fingerprints) ||
+        result.fingerprints.length !== selected.length ||
+        !result.fingerprints.every(function (fingerprint, index) { return fingerprint === selected[index]; }) ||
+        typeof result.filename !== "string" || !/^rootwell-verified-fullchain-[0-9a-f]{32}\.pem$/.test(result.filename) ||
+        !(result.bytes instanceof Uint8Array) || result.bytes.byteLength === 0 || result.bytes.byteLength > 4 * 1024 * 1024) return null;
+    return result;
+  }
+
+  function refuseVerifiedExport(message) {
+    showVerifyFailure(message);
+    verifyExportError.textContent = message;
+    verifyExportError.hidden = false;
+  }
+
   function showVerifyFailure(message) {
+    currentVerifySnapshot = null;
     verifyResult.hidden = true;
     verifyChain.replaceChildren();
+    verifyExportError.hidden = true;
+    verifyExportStatus.textContent = "";
     verifyError.textContent = message;
     verifyError.hidden = false;
     verifyStatus.textContent = "Local verification did not pass · no certificate upload";
+    updateVerifyControls();
   }
 
   function renderVerify(result) {
@@ -892,8 +939,11 @@
       return;
     }
     verifying = true;
+    currentVerifySnapshot = null;
     verifyResult.hidden = true;
     verifyError.hidden = true;
+    verifyExportError.hidden = true;
+    verifyExportStatus.textContent = "";
     verifyStatus.textContent = "Verifying locally · no certificate upload";
     updateVerifyControls();
     const buffers = [];
@@ -924,6 +974,11 @@
         showVerifyFailure(verifyFailureMessages[response.error.code]);
         return;
       }
+      currentVerifySnapshot = Object.freeze({
+        simple, hostname, timeValue, sourceFiles: Object.freeze(sourceFiles.slice()), trustFile,
+        evaluatedAt: response.result.evaluated_at,
+        chain: Object.freeze(response.result.chain.map(function (member) { return member.SHA256Fingerprint; }))
+      });
       renderVerify(response.result);
     } catch {
       if (generation === verifyGeneration) showVerifyFailure("Verification failed safely. No certificate upload was made.");
@@ -933,6 +988,76 @@
       updateVerifyControls();
     }
   });
+
+  verifyExportButton.addEventListener("click", exportVerifiedFullchain);
+
+  async function exportVerifiedFullchain() {
+    if (!engine || !currentVerifySnapshot || verifying || exportingVerified) return;
+    const snapshot = currentVerifySnapshot;
+    const generation = verifyGeneration;
+    const files = snapshot.sourceFiles.filter(Boolean);
+    const selectedFiles = [...files, snapshot.trustFile];
+    if (selectedFiles.some(function (file) { return !Number.isSafeInteger(file.size) || file.size <= 0; }) ||
+        selectedFiles.reduce(function (total, file) { return total + file.size; }, 0) > engine.maxBytes) {
+      refuseVerifiedExport("The selected files changed or exceed the combined limit. Verify again.");
+      return;
+    }
+    exportingVerified = true;
+    verifyExportError.hidden = true;
+    verifyExportStatus.textContent = "Re-verifying the public chain locally before download…";
+    updateVerifyControls();
+    const buffers = [];
+    let output = null;
+    try {
+      let remaining = engine.maxBytes;
+      for (const file of selectedFiles) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        buffers.push(bytes);
+        if (generation !== verifyGeneration || snapshot !== currentVerifySnapshot) return;
+        if (bytes.byteLength !== file.size || bytes.byteLength > remaining) {
+          refuseVerifiedExport("A selected file changed while being read. Verify again.");
+          return;
+        }
+        remaining -= bytes.byteLength;
+      }
+      const trust = buffers[buffers.length - 1];
+      const response = snapshot.simple ?
+        engine.exportVerifiedSimple(buffers.slice(0, -1), trust, snapshot.hostname, snapshot.timeValue, snapshot.chain) :
+        engine.exportVerifiedExplicit(buffers[0], snapshot.sourceFiles[1] ? buffers[1] : new Uint8Array(0),
+          trust, snapshot.hostname, snapshot.timeValue, snapshot.chain);
+      const validated = validateVerifiedExportResponse(response, snapshot);
+      if (typeof validated === "string") {
+        refuseVerifiedExport(validated);
+        return;
+      }
+      if (!validated) {
+        refuseVerifiedExport("The local verified export returned an invalid response. Verify again.");
+        return;
+      }
+      output = validated.bytes;
+      const reparsed = JSON.parse(engine.explore(output));
+      const selected = snapshot.chain.slice(0, -1);
+      if (!reparsed.ok || !validExploreResult(reparsed.result) || reparsed.result.count !== selected.length ||
+          !reparsed.result.certificates.every(function (certificate, index) {
+            return certificate.sha256 === selected[index] && certificate.encoding === "pem";
+          })) {
+        refuseVerifiedExport("The exported PEM did not match the verified chain. Verify again.");
+        return;
+      }
+      if (generation !== verifyGeneration || snapshot !== currentVerifySnapshot) return;
+      requestBrowserDownload(output, validated.filename);
+      verifyExportStatus.textContent = "Browser download requested for the verified public server chain. The trust root and private key were not included.";
+    } catch {
+      if (generation === verifyGeneration && snapshot === currentVerifySnapshot) {
+        refuseVerifiedExport("Verified fullchain export failed safely. Verify again before downloading.");
+      }
+    } finally {
+      for (const bytes of buffers) bytes.fill(0);
+      if (output) output.fill(0);
+      exportingVerified = false;
+      updateVerifyControls();
+    }
+  }
 
   exploreButton.addEventListener("click", async function () {
     if (!engine || !selectedExploreFiles || exploring || exporting) return;

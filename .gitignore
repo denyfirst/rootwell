@@ -23,6 +23,10 @@ go.work.sum
 *.pem
 !/web/workbench/rootwell-demo-certificate.pem
 !/web/workbench/rootwell-demo-bundle.pem
+!/web/workbench/rootwell-verify-demo-leaf.pem
+!/web/workbench/rootwell-verify-demo-intermediate.pem
+!/web/workbench/rootwell-verify-demo-root.pem
+!/web/workbench/rootwell-verify-demo-ca-files.pem
 *.key
 *.p12
 *.pfx

@@ -242,6 +242,7 @@
             </label>
           </div>
           <p class="verify-note">Choose a trusted root file separately. A root found in your CA's other files is never trusted automatically. Private keys and PFX are not accepted.</p>
+          <p class="demo-certificate">Try it safely with public, non-production files: <a href="rootwell-verify-demo-ca-files.pem" download>CA files</a> and <a href="rootwell-verify-demo-root.pem" download>separate demo root</a>; hostname <code>verify.rootwell.invalid</code>. For Advanced: <a href="rootwell-verify-demo-leaf.pem" download>leaf</a> and <a href="rootwell-verify-demo-intermediate.pem" download>intermediate</a>. Never install the demo root in your OS or browser trust store.</p>
           <fieldset class="verify-mode">
             <legend>Input mode</legend>
             <label><input id="verify-simple-mode" type="radio" name="verify-mode" checked> Simple — classify CA files</label>
@@ -285,6 +286,12 @@
             </div>
             <p id="verify-ignored-roots" class="verify-note"></p>
             <ol class="chain" id="verify-chain" aria-label="Verified certificate chain"></ol>
+            <div class="bundle-collection-actions">
+              <p>Download the verified public server chain in leaf → intermediate order. The separately selected trust root and all private keys are excluded. This reflects the shown evaluation time, not a live server check.</p>
+              <button class="button" id="verify-export-button" type="button" disabled>Download verified fullchain PEM</button>
+              <p class="export-status" id="verify-export-status" aria-live="polite"></p>
+              <aside class="inspection-error" id="verify-export-error" role="alert" hidden></aside>
+            </div>
             <aside class="nonclaim"><strong>What this verdict does not prove</strong><p>No OCSP, CRL, Certificate Transparency, private-key possession, or live endpoint check. A local-file verdict is not deployment evidence.</p></aside>
           </section>
         </section>

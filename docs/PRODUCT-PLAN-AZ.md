@@ -272,9 +272,13 @@ Advanced eyni verification core-u və policy-ni istifadə edərək texniki
 rolları açıq göstərəcək. Bundle içindəki root avtomatik trusted
 sayılmayacaq. Bir public hissəni ayrıca endirmək, çoxfayllı metadata və
 mümkün issuer əlaqələri və seçilmiş public PEM bundle export-u işləkdir;
-avtomatik fullchain sırası və qəti rol/chain təyini planlanır. Browser Verify
-artıq ayrıca seçilən PEM trust anchor, hostname və eyni CLI Go policy-si ilə
-Simple/Advanced rejimlərində işləyir; canlı endpoint və revocation hökmü vermir.
+Explore daxilində avtomatik fullchain sırası və qəti rol/chain təyini hələ
+ayrıca mərhələdir. Browser Verify artıq ayrıca seçilən PEM trust anchor,
+hostname və eyni CLI Go policy-si ilə Simple/Advanced rejimlərində işləyir.
+Uğurlu Verify nəticəsindən sonra faylları yenidən yoxlayıb yalnız təsdiqlənmiş
+leaf + intermediate yolunu public PEM kimi endirmək də mümkündür; root və
+private key output-a daxil edilmir. Bu, canlı endpoint və revocation hökmü
+vermir. Public demo faylları ilə hər iki rejim sınana bilir.
 Private key/PFX axını isə ayrıca security review tələb edir.
 
 CLI nüvəsində certificate/private-key uyğunluq yoxlaması strict və bounded

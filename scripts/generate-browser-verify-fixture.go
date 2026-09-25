@@ -15,7 +15,10 @@ import (
 )
 
 func main() {
-	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)
+	// Static public demo assets have a bounded, non-production validity window.
+	// They must never be installed as a browser or OS trust anchor.
+	demoExpiry := time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC)
 	key := func() (ed25519.PublicKey, ed25519.PrivateKey) {
 		public, private, err := ed25519.GenerateKey(rand.Reader)
 		must(err)
@@ -24,7 +27,7 @@ func main() {
 	rootPublic, rootKey := key()
 	rootTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Rootwell Browser Test Root"},
-		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(365 * 24 * time.Hour),
+		NotBefore: now.Add(-time.Hour), NotAfter: demoExpiry,
 		KeyUsage: x509.KeyUsageCertSign, BasicConstraintsValid: true, IsCA: true, MaxPathLen: 1,
 	}
 	rootDER, err := x509.CreateCertificate(rand.Reader, rootTemplate, rootTemplate, rootPublic, rootKey)
@@ -34,7 +37,7 @@ func main() {
 	intermediatePublic, intermediateKey := key()
 	intermediateTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(2), Subject: pkix.Name{CommonName: "Rootwell Browser Test Intermediate"},
-		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(180 * 24 * time.Hour),
+		NotBefore: now.Add(-time.Hour), NotAfter: demoExpiry,
 		KeyUsage: x509.KeyUsageCertSign, BasicConstraintsValid: true, IsCA: true, MaxPathLenZero: true,
 	}
 	intermediateDER, err := x509.CreateCertificate(rand.Reader, intermediateTemplate, root, intermediatePublic, rootKey)
@@ -45,7 +48,7 @@ func main() {
 	leafTemplate := &x509.Certificate{
 		SerialNumber: big.NewInt(3), Subject: pkix.Name{CommonName: "verify.rootwell.invalid"},
 		DNSNames:  []string{"verify.rootwell.invalid"},
-		NotBefore: now.Add(-time.Hour), NotAfter: now.Add(90 * 24 * time.Hour),
+		NotBefore: now.Add(-time.Hour), NotAfter: demoExpiry,
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}

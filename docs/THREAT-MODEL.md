@@ -279,6 +279,20 @@ change hides any earlier Verified result. No private keys, PFX, system roots,
 network verification, revocation, or live endpoint claim is made. See ADR
 0009.
 
+## Browser verified public fullchain export boundary
+
+The Verify result holds only ordered public fingerprints, file references,
+hostname, mode, and evaluation time. A download click re-reads bounded public
+inputs and re-runs the same explicit-trust Go verifier. All displayed path
+fingerprints, including the separately trusted root, must match the new
+verdict exactly. A mismatch or failure returns no bytes and hides the prior
+Verified state. The output contains only the selected verified leaf and
+intermediates, in verified order; the trust root and any private key are
+excluded. Go and browser code re-parse the PEM before a browser-managed
+download; no direct disk write or no-overwrite promise is made. An Advanced
+backdated evaluation time remains a historical verdict, not present-tense
+deployment evidence. See ADR 0010.
+
 `rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The
 caller must provide an ASCII hostname and a PEM bundle of explicit trust
 anchors. A separate optional PEM bundle supplies intermediates. Rootwell does

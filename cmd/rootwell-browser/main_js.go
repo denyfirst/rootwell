@@ -12,6 +12,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/browserexplore"
 	"github.com/denyfirst/rootwell/internal/browserexport"
 	"github.com/denyfirst/rootwell/internal/browserinspect"
+	"github.com/denyfirst/rootwell/internal/browserverifiedexport"
 	"github.com/denyfirst/rootwell/internal/browserverify"
 	"github.com/denyfirst/rootwell/internal/limits"
 )
@@ -23,6 +24,8 @@ func main() {
 	bundleExportFunction := js.FuncOf(exportPublicBundle)
 	verifySimpleFunction := js.FuncOf(verifySimple)
 	verifyExplicitFunction := js.FuncOf(verifyExplicit)
+	verifiedExportSimpleFunction := js.FuncOf(exportVerifiedSimple)
+	verifiedExportExplicitFunction := js.FuncOf(exportVerifiedExplicit)
 	exportFunction := js.FuncOf(exportPublicCertificate)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
@@ -30,6 +33,8 @@ func main() {
 	js.Global().Set("rootwellExportBundle", bundleExportFunction)
 	js.Global().Set("rootwellVerifySimple", verifySimpleFunction)
 	js.Global().Set("rootwellVerifyExplicit", verifyExplicitFunction)
+	js.Global().Set("rootwellExportVerifiedSimple", verifiedExportSimpleFunction)
+	js.Global().Set("rootwellExportVerifiedExplicit", verifiedExportExplicitFunction)
 	js.Global().Set("rootwellExport", exportFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
@@ -138,6 +143,124 @@ func copyPublicInputLimited(value js.Value, remaining int) ([]byte, inputFailure
 		return nil, inputTooLarge
 	}
 	return copyPublicInput([]js.Value{value})
+}
+
+func exportVerifiedSimple(_ js.Value, arguments []js.Value) (response any) {
+	response = verifiedExportFailure(browserverifiedexport.ErrorInternal)
+	defer func() {
+		if recover() != nil {
+			response = verifiedExportFailure(browserverifiedexport.ErrorInternal)
+		}
+	}()
+	if len(arguments) != 5 {
+		return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+	}
+	hostname, now, failureCode := verifyContext(arguments[2], arguments[3])
+	if failureCode != "" {
+		return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+	}
+	expected, ok := copyFingerprints(arguments[4])
+	if !ok {
+		return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+	}
+	sources, failure := copyPublicCollection(arguments[0])
+	if failure != inputOK {
+		return verifiedExportInputFailure(failure)
+	}
+	defer clearCollection(sources)
+	remaining := int(limits.MaxInputBytes)
+	for _, source := range sources {
+		remaining -= len(source)
+	}
+	trust, failure := copyPublicInputLimited(arguments[1], remaining)
+	if failure != inputOK {
+		return verifiedExportInputFailure(failure)
+	}
+	defer clear(trust)
+	result, code := browserverifiedexport.PrepareSimple(sources, trust, hostname, now, expected)
+	if code != "" {
+		return verifiedExportFailure(code)
+	}
+	return verifiedExportSuccess(result)
+}
+
+func exportVerifiedExplicit(_ js.Value, arguments []js.Value) (response any) {
+	response = verifiedExportFailure(browserverifiedexport.ErrorInternal)
+	defer func() {
+		if recover() != nil {
+			response = verifiedExportFailure(browserverifiedexport.ErrorInternal)
+		}
+	}()
+	if len(arguments) != 6 {
+		return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+	}
+	hostname, now, failureCode := verifyContext(arguments[3], arguments[4])
+	if failureCode != "" {
+		return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+	}
+	expected, ok := copyFingerprints(arguments[5])
+	if !ok {
+		return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+	}
+	inputs := make([][]byte, 0, 3)
+	defer func() { clearCollection(inputs) }()
+	remaining := int(limits.MaxInputBytes)
+	for _, argument := range arguments[:3] {
+		input, failure := copyPublicInputLimited(argument, remaining)
+		if failure != inputOK {
+			return verifiedExportInputFailure(failure)
+		}
+		inputs = append(inputs, input)
+		remaining -= len(input)
+	}
+	result, code := browserverifiedexport.PrepareExplicit(inputs[0], inputs[1], inputs[2], hostname, now, expected)
+	if code != "" {
+		return verifiedExportFailure(code)
+	}
+	return verifiedExportSuccess(result)
+}
+
+func verifiedExportInputFailure(failure inputFailure) js.Value {
+	if failure == inputTooLarge {
+		return verifiedExportFailure(browserverifiedexport.ErrorTooLarge)
+	}
+	return verifiedExportFailure(browserverifiedexport.ErrorInvalidRequest)
+}
+
+func verifiedExportSuccess(result browserverifiedexport.Result) js.Value {
+	defer clear(result.Bytes)
+	output := js.Global().Get("Uint8Array").New(len(result.Bytes))
+	if copied := js.CopyBytesToJS(output, result.Bytes); copied != len(result.Bytes) {
+		output.Call("fill", 0)
+		return verifiedExportFailure(browserverifiedexport.ErrorInternal)
+	}
+	fingerprints := js.Global().Get("Array").New()
+	for _, fingerprint := range result.Fingerprints {
+		fingerprints.Call("push", fingerprint)
+	}
+	return js.ValueOf(map[string]any{
+		"schema_version": browserverifiedexport.SchemaVersion,
+		"ok":             true,
+		"error":          nil,
+		"result": js.ValueOf(map[string]any{
+			"fingerprints":  fingerprints,
+			"hostname":      result.Hostname,
+			"evaluated_at":  result.EvaluatedAt,
+			"trust_source":  "explicit-file",
+			"root_included": false,
+			"filename":      result.Filename,
+			"bytes":         output,
+		}),
+	})
+}
+
+func verifiedExportFailure(code browserverifiedexport.ErrorCode) js.Value {
+	return js.ValueOf(map[string]any{
+		"schema_version": browserverifiedexport.SchemaVersion,
+		"ok":             false,
+		"result":         nil,
+		"error":          string(code),
+	})
 }
 
 func analyzeChainCandidates(_ js.Value, arguments []js.Value) (response any) {
