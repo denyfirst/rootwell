@@ -7,6 +7,7 @@ import (
 	"syscall/js"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/browserbundleexport"
 	"github.com/denyfirst/rootwell/internal/browserchain"
 	"github.com/denyfirst/rootwell/internal/browserexplore"
 	"github.com/denyfirst/rootwell/internal/browserexport"
@@ -18,10 +19,12 @@ func main() {
 	inspectFunction := js.FuncOf(inspectCertificate)
 	exploreFunction := js.FuncOf(exploreCertificates)
 	analyzeFunction := js.FuncOf(analyzeChainCandidates)
+	bundleExportFunction := js.FuncOf(exportPublicBundle)
 	exportFunction := js.FuncOf(exportPublicCertificate)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
 	js.Global().Set("rootwellAnalyze", analyzeFunction)
+	js.Global().Set("rootwellExportBundle", bundleExportFunction)
 	js.Global().Set("rootwellExport", exportFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
@@ -37,39 +40,138 @@ func analyzeChainCandidates(_ js.Value, arguments []js.Value) (response any) {
 			response = browserchain.FailureResponse("internal-failure")
 		}
 	}()
-	if len(arguments) != 1 || !js.Global().Get("Array").Call("isArray", arguments[0]).Bool() {
+	if len(arguments) != 1 {
 		return browserchain.FailureResponse("invalid-browser-request")
 	}
-	files := arguments[0]
-	length := files.Get("length")
-	if length.Type() != js.TypeNumber || length.Float() < 1 || length.Float() > 8 {
+	inputs, failure := copyPublicCollection(arguments[0])
+	if failure != inputOK {
 		return browserchain.FailureResponse("invalid-browser-request")
 	}
-	count := length.Int()
-	inputs := make([][]byte, 0, count)
+	defer clearCollection(inputs)
+	return browserchain.Process(inputs)
+}
+
+func exportPublicBundle(_ js.Value, arguments []js.Value) (response any) {
+	response = bundleExportFailure(browserbundleexport.ErrorInternal)
 	defer func() {
-		for _, input := range inputs {
-			clear(input)
+		if recover() != nil {
+			response = bundleExportFailure(browserbundleexport.ErrorInternal)
 		}
 	}()
+	if len(arguments) != 3 {
+		return bundleExportFailure(browserbundleexport.ErrorInvalidRequest)
+	}
+	expected, ok := copyFingerprints(arguments[1])
+	if !ok {
+		return bundleExportFailure(browserbundleexport.ErrorInvalidRequest)
+	}
+	selected, ok := copyFingerprints(arguments[2])
+	if !ok || len(selected) > len(expected) {
+		return bundleExportFailure(browserbundleexport.ErrorInvalidRequest)
+	}
+	inputs, failure := copyPublicCollection(arguments[0])
+	if failure == inputTooLarge {
+		return bundleExportFailure(browserbundleexport.ErrorTooLarge)
+	}
+	if failure != inputOK {
+		return bundleExportFailure(browserbundleexport.ErrorInvalidRequest)
+	}
+	defer clearCollection(inputs)
+	result, code := browserbundleexport.Prepare(inputs, expected, selected)
+	if code != "" {
+		return bundleExportFailure(code)
+	}
+	defer clear(result.Bytes)
+	output := js.Global().Get("Uint8Array").New(len(result.Bytes))
+	if copied := js.CopyBytesToJS(output, result.Bytes); copied != len(result.Bytes) {
+		output.Call("fill", 0)
+		return bundleExportFailure(browserbundleexport.ErrorInternal)
+	}
+	selectedValues := js.Global().Get("Array").New()
+	for _, fingerprint := range result.Fingerprints {
+		selectedValues.Call("push", fingerprint)
+	}
+	return js.ValueOf(map[string]any{
+		"schema_version": browserbundleexport.SchemaVersion,
+		"ok":             true,
+		"error":          nil,
+		"result": js.ValueOf(map[string]any{
+			"fingerprints": selectedValues,
+			"filename":     result.Filename,
+			"bytes":        output,
+		}),
+	})
+}
+
+func bundleExportFailure(code browserbundleexport.ErrorCode) js.Value {
+	return js.ValueOf(map[string]any{
+		"schema_version": browserbundleexport.SchemaVersion,
+		"ok":             false,
+		"result":         nil,
+		"error":          string(code),
+	})
+}
+
+func copyFingerprints(value js.Value) ([]string, bool) {
+	if !js.Global().Get("Array").Call("isArray", value).Bool() {
+		return nil, false
+	}
+	length := value.Get("length")
+	if length.Type() != js.TypeNumber || length.Float() < 1 || length.Float() > 64 {
+		return nil, false
+	}
+	result := make([]string, 0, length.Int())
+	for index := 0; index < length.Int(); index++ {
+		item := value.Index(index)
+		if item.Type() != js.TypeString || js.Global().Get("String").New(item).Get("length").Int() != 95 {
+			return nil, false
+		}
+		result = append(result, item.String())
+	}
+	return result, true
+}
+
+func copyPublicCollection(value js.Value) (inputs [][]byte, failure inputFailure) {
+	failure = inputInvalid
+	defer func() {
+		if failure != inputOK {
+			clearCollection(inputs)
+			inputs = nil
+		}
+	}()
+	if !js.Global().Get("Array").Call("isArray", value).Bool() {
+		return nil, inputInvalid
+	}
+	length := value.Get("length")
+	if length.Type() != js.TypeNumber || length.Float() < 1 || length.Float() > 8 {
+		return nil, inputInvalid
+	}
+	count := length.Int()
+	inputs = make([][]byte, 0, count)
 	totalBytes := 0
 	for index := 0; index < count; index++ {
-		file := files.Index(index)
+		file := value.Index(index)
 		if file.Type() != js.TypeObject || !file.InstanceOf(js.Global().Get("Uint8Array")) {
-			return browserchain.FailureResponse("invalid-browser-request")
+			return inputs, inputInvalid
 		}
-		length := file.Get("byteLength")
-		if length.Type() != js.TypeNumber || length.Float() > float64(int(limits.MaxInputBytes)-totalBytes) || length.Float() < 0 {
-			return browserchain.FailureResponse("invalid-browser-request")
+		byteLength := file.Get("byteLength")
+		if byteLength.Type() != js.TypeNumber || byteLength.Float() > float64(int(limits.MaxInputBytes)-totalBytes) || byteLength.Float() < 0 {
+			return inputs, inputTooLarge
 		}
-		input, failure := copyPublicInput([]js.Value{file})
-		if failure != inputOK {
-			return browserchain.FailureResponse("invalid-browser-request")
+		input, copyFailure := copyPublicInput([]js.Value{file})
+		if copyFailure != inputOK {
+			return inputs, copyFailure
 		}
 		inputs = append(inputs, input)
 		totalBytes += len(input)
 	}
-	return browserchain.Process(inputs)
+	return inputs, inputOK
+}
+
+func clearCollection(inputs [][]byte) {
+	for _, input := range inputs {
+		clear(input)
+	}
 }
 
 func inspectCertificate(_ js.Value, arguments []js.Value) (response any) {

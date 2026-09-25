@@ -15,6 +15,7 @@
       if (typeof globalThis.rootwellInspect !== "function" ||
           typeof globalThis.rootwellExplore !== "function" ||
           typeof globalThis.rootwellAnalyze !== "function" ||
+          typeof globalThis.rootwellExportBundle !== "function" ||
           typeof globalThis.rootwellExport !== "function" ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
@@ -25,6 +26,7 @@
         inspect: globalThis.rootwellInspect,
         explore: globalThis.rootwellExplore,
         analyze: globalThis.rootwellAnalyze,
+        exportBundle: globalThis.rootwellExportBundle,
         exportPublic: globalThis.rootwellExport,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));

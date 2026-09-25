@@ -254,10 +254,12 @@ certificate və ya PEM bundle) eyni Go parser-i ilə lokal açır. Ümumi limit
 16 MiB və 64 certificate-dir; fayllararası duplicate rədd edilir. O,
 bu halda iki faylı və tam fingerprint-i xəbərdarlıqda göstərir; eyni faylın
 daxilindəki duplicate üçün yalnız faylı göstərir. Qismən nəticə yoxdur.
-certificate metadata-sını və imzası uyğun gələn mümkün issuer əlaqələrini
-göstərir, amma leaf/verified chain/trust qərarı vermir,
-fayllardan yeni bundle yaratmır. Seçilən bir public certificate-i PEM və ya DER
-kimi browser-managed download-a hazırlayır; `.crt` və `.cer` uzantıları
+Rootwell certificate metadata-sını və imzası uyğun gələn mümkün issuer
+əlaqələrini göstərir, amma leaf/verified chain/trust qərarı vermir. Kartlardan
+açıq seçilmiş public hissələri göstərilən sırada yeni PEM bundle
+kimi hazırlaya bilir, amma onu verified fullchain adlandırmır. Seçilən bir
+public certificate-i PEM və ya DER kimi browser-managed download-a hazırlayır;
+`.crt` və `.cer` uzantıları
 hər iki encoding ilə açıq seçilə bilir. Private key/PFX qəbul etmir.
 Bu sərhəd browser Verify-dan
 ayrıdır.
@@ -269,9 +271,9 @@ Default görünüş CA-nın verdiyi bir və ya bir neçə fayldan başlayacaq;
 Advanced eyni verification core-u və policy-ni istifadə edərək texniki
 rolları açıq göstərəcək. Bundle içindəki root avtomatik trusted
 sayılmayacaq. Bir public hissəni ayrıca endirmək, çoxfayllı metadata və
-mümkün issuer əlaqələri görünüşü işləkdir; toplu export, qəti rol/chain təyini
-və browser Verify planlanır. Private
-key/PFX axını isə ayrıca security review tələb edir.
+mümkün issuer əlaqələri və seçilmiş public PEM bundle export-u işləkdir;
+avtomatik fullchain sırası, qəti rol/chain təyini və browser Verify planlanır.
+Private key/PFX axını isə ayrıca security review tələb edir.
 
 CLI nüvəsində certificate/private-key uyğunluq yoxlaması strict və bounded
 sərhədlə mövcuddur. Bu, browserdə secret-bearing input qəbul etmək üçün

@@ -252,6 +252,18 @@ control browser/OS save prompts, destination, or overwrite policy; the
 application guarantees no direct disk overwrite, not a browser-wide
 no-overwrite guarantee. See ADR 0005.
 
+## Browser selected public bundle export boundary
+
+The user checks specific Explore cards to export one public PEM collection
+in displayed order. The Go/WebAssembly export path re-parses every selected
+source file and requires the full ordered fingerprint list to match Explore;
+the requested subset must be order-preserving and nonempty. Mixed,
+secret-bearing, malformed, duplicate, excessive, or changed input produces
+no output. The output is re-parsed and its DER bytes and fingerprints are
+checked before a bounded browser-managed download. Its randomized filename
+contains no certificate or source text. No inferred ordering, trust, private
+key, direct disk write, or no-overwrite promise is made. See ADR 0008.
+
 ## Implemented TLS verification boundary
 
 `rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The

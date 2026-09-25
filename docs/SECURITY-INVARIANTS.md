@@ -305,3 +305,21 @@ Guarded by `TestProcessFindsSignedCandidatesWithoutTrust`,
 `FuzzProcessNeverReturnsTrust`,
 `TestWorkbenchExploreIsPublicOnlyAndFunctional`, and the browser-state
 regressions in `scripts/test-workbench-multifile.mjs`.
+
+## C23 — Selected public bundle export cannot add or reorder certificates
+
+The browser downloads only an explicitly checked, order-preserving subset
+of the current Explore fingerprint snapshot. At export time the Go bridge
+re-parses every 1–8 public source under combined 16 MiB/64-certificate
+limits, rejects changed or unsafe input, and re-parses the output. Every
+output DER byte string must match the corresponding selected original.
+The UI validates the versioned response, ordered fingerprints, generated
+filename, and output again before a browser-managed download. No private
+key, automatic chain/trust verdict, network path, or direct filesystem
+write is added; browser/OS save and overwrite behavior is outside scope.
+
+Guarded by `TestPrepareExportsExplicitOrderedSubset`,
+`TestPrepareRejectsChangedUnsafeAndUnselectedInput`,
+`FuzzPrepareBundleNeverExportsUnselectedCertificate`,
+`TestWorkbenchPublicBundleExportIsExplicit`, and the browser WebAssembly
+regressions in `scripts/test-browser-wasm.mjs`.

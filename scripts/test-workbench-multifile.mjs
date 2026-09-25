@@ -17,6 +17,8 @@ class Element {
   replaceChildren(...children) { this.children = children; }
   querySelectorAll() { return []; }
   scrollIntoView() {}
+  click() { this.clicked = true; }
+  remove() {}
 }
 
 const elements = new Map();
@@ -27,8 +29,11 @@ function element(id) {
 const document = {
   getElementById: element,
   querySelectorAll: () => [],
-  createElement: () => new Element()
+  createElement: () => new Element(),
+  body: new Element()
 };
+let downloadedName = "";
+const objectURLs = { createObjectURL: () => "blob:rootwell-test", revokeObjectURL: () => {} };
 const certificate = (number) => ({
   subject: `CN=public-${number}.invalid`,
   issuer: "CN=non-production-demo.invalid",
@@ -61,12 +66,14 @@ const duplicateFailure = JSON.stringify({
   error: { code: "duplicate-certificate", message: "The bundle contains a duplicate certificate." }
 });
 let calls = 0;
+let exportedCertificates = [];
 const engine = {
   maxBytes: 16 * 1024 * 1024,
   inspect: () => { throw new Error("Inspect should not be called"); },
   explore: (bytes) => {
     calls++;
     if (bytes[0] === 88) return failure;
+    if (bytes[0] === 80) return success(exportedCertificates);
     if (bytes[0] === 68) return duplicateFailure;
     if (bytes[0] === 77) return success(Array.from({ length: 64 }, (_, index) => certificate(index)));
     if (bytes[0] === 85 || bytes[0] === 86) {
@@ -90,9 +97,20 @@ const engine = {
             self_signed: inputs.length === 2 && inputs[0][0] === 65 && inputs[1][0] === 66 && item.sha256 === certificate(66).sha256 })))
     }
   }),
+  exportBundle: (_inputs, _expected, selected) => {
+    exportedCertificates = selected.map((fingerprint) => {
+      for (const marker of [65, 66]) {
+        if (certificate(marker).sha256 === fingerprint) return certificate(marker);
+      }
+      throw new Error("unexpected selected fingerprint");
+    });
+    return { schema_version: "rootwell.browser.bundle-export.v1", ok: true, error: null,
+      result: { fingerprints: selected, filename: "rootwell-public-bundle-" + "a".repeat(32) + ".pem", bytes: Uint8Array.of(80) } };
+  },
   exportPublic: () => { throw new Error("Export should not be called"); }
 };
-const context = vm.createContext({ document, TextEncoder, rootwellWorkbenchReady: Promise.resolve(engine) });
+const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, URL: objectURLs, setTimeout: () => 0,
+  rootwellWorkbenchReady: Promise.resolve(engine) });
 vm.runInContext(fs.readFileSync("web/workbench/app.js", "utf8"), context, { filename: "app.js" });
 await new Promise((resolve) => setImmediate(resolve));
 
@@ -123,6 +141,16 @@ assert.equal(element("explore-certificates").children.length, 2);
 assert.equal(element("explore-error").hidden, true);
 assert.match(allText(element("explore-certificates")), /certificate #2 · issuer signature matches, not a trust verdict/);
 assert.match(allText(element("explore-certificates")), /Self-signed CA candidate · not automatically trusted/);
+const firstSelection = element("explore-certificates").children[0].children[2].children[0];
+assert.equal(element("export-bundle-button").disabled, true);
+firstSelection.checked = true;
+firstSelection.listeners.change();
+assert.equal(element("export-bundle-button").disabled, false);
+element("export-bundle-button").listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(document.body.children.length, 1);
+downloadedName = document.body.children[0].download;
+assert.match(downloadedName, /^rootwell-public-bundle-[0-9a-f]{32}\.pem$/);
 
 const realAnalyze = engine.analyze;
 engine.analyze = () => JSON.stringify({
