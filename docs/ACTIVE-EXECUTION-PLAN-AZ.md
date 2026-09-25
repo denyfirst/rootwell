@@ -15,7 +15,7 @@ olunmamış nəticəyə “verified” demək qadağandır.
 
 ## Növbəti increment-lər
 
-1. **Guided Certificate Health — cari increment.** Explore-da public fayllar
+1. **Guided Certificate Health — tamamlanıb (PR #27).** Explore-da public fayllar
    üçün insan dilində xülasə; bir mümkün sayt sertifikatı olduqda istifadəçi
    klikiylə həmin faylların Verify Simple-a təhlükəsiz ötürülməsi; sıfır və ya
    birdən çox namizəd olduqda seçim etmədən yol göstərilməsi; Verify
@@ -23,7 +23,7 @@ olunmamış nəticəyə “verified” demək qadağandır.
    oxumalı, Explore fingerprint-ləri ilə müqayisə etməli, hostname və ayrıca
    root tələb etməlidir. Private key, PFX, upload, storage və avtomatik trust
    əlavə edilmir.
-2. **Mümkün zənciri aydın göstər.** Mövcud imza yoxlanmış issuer əlaqələrini
+2. **Mümkün zənciri aydın göstər — cari increment.** Mövcud imza yoxlanmış issuer əlaqələrini
    “kim kimi imzalaya bilər?” şəklində göstər; birdən çox namizəd və çatmayan
    əlaqəni gizlətmə. Bu yalnız köməkçi vizual izahdır, verified path deyil.
    Çıxış meyarı: eyni fayllar başqa sırada verilsə də heç bir root özü-özünə

@@ -283,6 +283,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		`id="explore-result" aria-live="polite" hidden`,
 		`id="explore-expiry-summary"`,
 		`id="explore-health-summary"`,
+		`id="explore-links-list" aria-label="Possible public certificate signing links"`,
 		`id="explore-verify-button" type="button" disabled`,
 		"Explore only the CA files, then continue to Verify",
 		"Nothing here is trusted yet",
@@ -305,7 +306,8 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		"bundleDetail(details, \"Source file\", displayFileName(entry.file))",
 		"validUTCSecond(certificate.not_before)", "validUTCSecond(certificate.not_after)",
 		"renderExpiryOverview(entries, now)", "clearExpiryOverview()",
-		"renderHealthGuide(entries, chain)", "guidedVerifyFingerprints", "clearGuidedVerifyFiles()",
+		"renderHealthGuide(entries, chain)", "renderPossibleLinks(entries, chain)", "clearPossibleLinks()",
+		"guidedVerifyFingerprints", "clearGuidedVerifyFiles()",
 	} {
 		if !strings.Contains(application, required) {
 			t.Errorf("Explore is missing local-processing guard %q", required)

@@ -179,6 +179,18 @@ assert.match(element("explore-health-summary").textContent, /2 possible website 
 assert.match(element("explore-health-summary").textContent, /1 possible signing link/);
 assert.match(element("explore-health-next").textContent, /will not guess/);
 assert.equal(element("explore-verify-button").textContent, "Review Verify options");
+assert.match(element("explore-links-summary").textContent, /0 certificates have no matching signer/);
+assert.match(element("explore-links-summary").textContent, /0 certificates have more than one possible signer/);
+assert.match(element("explore-links-list").children[0].textContent, /#1 .*signature matches possible signer #2/);
+assert.match(element("explore-links-list").children[1].textContent, /#2 .*self-signed candidate.*not trusted automatically/);
+assert.equal(element("verify-trust-file").files.length, 0, "possible links must not choose a trust file");
+
+const originalAnalyze = engine.analyze;
+engine.analyze = () => "invalid-analysis";
+await explore();
+assert.equal(element("explore-result").hidden, true, "failed re-analysis must hide old result");
+assert.equal(element("explore-links-list").children.length, 0, "failed re-analysis must clear old signing links");
+engine.analyze = originalAnalyze;
 
 select([file("T")]);
 await explore();
@@ -201,6 +213,7 @@ assert.equal(element("explore-result").hidden, true, "non-canonical date must fa
 assert.equal(element("explore-expiry-list").children.length, 0);
 assert.equal(element("explore-expiry-summary").textContent, "");
 assert.equal(element("explore-health-summary").textContent, "");
+assert.equal(element("explore-links-list").children.length, 0, "failed Explore must clear old signing clues");
 
 clock = 1e16;
 select([file("A")]);
@@ -236,6 +249,34 @@ await explore();
 assert.equal(element("explore-result").hidden, true, "mismatched analysis must hide all cards");
 assert.equal(element("explore-certificates").children.length, 0);
 assert.equal(element("explore-expiry-list").children.length, 0);
+engine.analyze = realAnalyze;
+
+engine.analyze = () => JSON.stringify({
+  schema_version: "rootwell.browser.chain.v1", ok: true, error: "",
+  result: { verification: "not-performed", trust_anchor: "not-selected", certificates: [
+    { sha256: certificate(66).sha256, parents: [], self_signed: true },
+    { sha256: certificate(65).sha256, parents: [0], self_signed: false }
+  ] }
+});
+select([file("B"), file("A")]);
+await explore();
+assert.match(element("explore-links-list").children[1].textContent, /#2 .*signature matches possible signer #1/,
+  "source order must change only card numbers, never silently select a signer or root");
+assert.equal(element("verify-trust-file").files.length, 0);
+engine.analyze = () => JSON.stringify({
+  schema_version: "rootwell.browser.chain.v1", ok: true, error: "",
+  result: { verification: "not-performed", trust_anchor: "not-selected", certificates: [
+    { sha256: certificate(65).sha256, parents: [1, 2], self_signed: false },
+    { sha256: certificate(66).sha256, parents: [], self_signed: true },
+    { sha256: certificate(67).sha256, parents: [], self_signed: true }
+  ] }
+});
+select([file("A"), file("B"), file("C")]);
+await explore();
+assert.match(element("explore-links-summary").textContent, /1 certificate has more than one possible signer/);
+assert.match(element("explore-links-list").children[0].textContent, /more than one possible signer — #2, #3/);
+assert.match(element("explore-links-list").children[0].textContent, /does not choose one/);
+assert.equal(element("verify-button").disabled, true, "ambiguous hints cannot invoke verification");
 engine.analyze = realAnalyze;
 
 select([file("A"), file("A")]);
@@ -317,6 +358,8 @@ assert.equal(calls, callsBeforeSelectionRefusal, "rejected selections must not r
 select([file("A")]);
 await explore();
 assert.match(element("explore-health-summary").textContent, /1 possible website certificate/);
+assert.match(element("explore-links-summary").textContent, /1 certificate has no matching signer/);
+assert.match(element("explore-links-list").children[0].textContent, /connection may be missing/);
 assert.match(element("explore-health-next").textContent, /One certificate could be the website certificate/);
 assert.equal(element("explore-verify-button").textContent, "Continue to Verify with these files");
 element("explore-verify-button").listeners.click();
