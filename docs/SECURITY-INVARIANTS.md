@@ -244,9 +244,12 @@ enforces a 16 MiB combined and 64-certificate combined limit, rejects
 fingerprint duplicates across files, and reveals no partial list if any file
 fails. It rejects secret-bearing, mixed,
 malformed, duplicate, excessive, and trailing input without partial results or
-reflected input. The response is versioned, bounded, and contains public
+reflected certificate text or raw bytes. The response is versioned, bounded, and contains public
 metadata only. Its explicit status is `not-performed` with trust anchor
 `not-selected`; the UI uses text nodes and never turns a CA flag into trust.
+Cross-file duplicate diagnostics identify the two local file positions and
+display-safe bounded filenames plus the full fingerprint; within-file
+duplicates identify the file only. No duplicate is silently discarded.
 The file-reading script has no network or storage capability.
 
 Guarded by `TestProcessPublicCertificateAndBundle`,
@@ -258,7 +261,8 @@ Guarded by `TestProcessPublicCertificateAndBundle`,
 `TestWorkbenchDemoCertificateIsPublicAndInspectable`, and
 `TestWorkbenchDemoBundleIsPublicAndExplorable`, plus the browser-state
 regressions in `scripts/test-workbench-multifile.mjs` for successful
-aggregation, cross-file duplicates, malformed second input, stale-selection
+aggregation, cross-file and within-file duplicate diagnostics, unsafe filenames,
+malformed second input, stale-selection
 suppression, and size/count/UTF-8 metadata refusals.
 
 ## C21 — Browser export contains only the explicitly chosen public certificate

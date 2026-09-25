@@ -434,6 +434,7 @@ main {
 .inspection-error {
   margin-top: 1rem;
   padding: 0.85rem 1rem;
+  overflow-wrap: anywhere;
   color: var(--ink);
   background: color-mix(in srgb, var(--brand) 7%, var(--paper));
   border: 1px solid color-mix(in srgb, var(--brand) 48%, var(--rule));
