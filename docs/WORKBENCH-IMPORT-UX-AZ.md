@@ -2,7 +2,8 @@
 
 **Status:** 1–8 public faylı birlikdə göstərən browser explorer və seçilmiş
 bir public certificate-in PEM/DER download-u işləkdir; mümkün issuer
-əlaqələri göstərilir; toplu export, qəti rol/chain təyini və browser Verify
+əlaqələri göstərilir və seçilmiş public PEM bundle export-u işləkdir;
+avtomatik fullchain sırası, qəti rol/chain təyini və browser Verify
 hələ plan mərhələsindədir.
 
 ## İstifadəçinin yolu
@@ -66,7 +67,9 @@ birbaşa götürülmür; sabit prefiks, fingerprint hissəsi və random nonce
 istifadə olunur. Export-dan əvvəl mənbə, sonra çıxış təkrar parse edilir;
 DER byte uyğunluğu və fingerprint yoxlanılır. Rootwell fayl sisteminə
 birbaşa yazmır; browser download manager-in save/overwrite davranışına
-tam nəzarət edə bilmir. Public-only toplu export ayrıca mərhələdir.
+tam nəzarət edə bilmir. Seçilmiş public sertifikatlar göstərilən sırada PEM
+bundle kimi endirilə bilir; Rootwell sıranı avtomatik dəyişmir və bunu
+verified fullchain saymır.
 Heç bir private key bu axının parçası deyil.
 
 `PFX`/`P12` və private key ehtiva edə bilən digər materiallar public
@@ -85,7 +88,7 @@ yazma risk yaratmamalıdır.
 4. Eyni core imza, zaman, hostname, usage, chain və algorithm policy-ni
    yoxlayır; çatışmayan materialı açıq bildirir.
 5. İstifadəçi istəsə, yalnız seçdiyi public certificate hissələrini
-   ayrıca endirir.
+   ayrıca və ya açıq seçilmiş sırada bir PEM bundle kimi endirir.
 
 ## İcra sırası və qəbul meyarları
 
@@ -98,10 +101,10 @@ yazma risk yaratmamalıdır.
    təyini ayrıca incrementdir.
 3. Seçilən public certificate-lərin təhlükəsiz export-u: yeni fayl adı,
    no-overwrite, təkrar parse, byte/semantik uyğunluq testləri.
-   **Bir public certificate üçün browser download işləkdir.** Rootwell
+   **Bir public certificate və seçilmiş public PEM bundle üçün browser download işləkdir.** Rootwell
    birbaşa diskə yazmır və random ad yaradır; browserin son save qərarı
    Rootwell-in nəzarətində deyil. Fayl sistemində qəti no-overwrite və
-   toplu export ayrıca mərhələdə qalır.
+   avtomatik fullchain sırası ayrıca mərhələdə qalır.
 4. Browser Verify-ni mövcud CLI Go core-u ilə bağla; explicit trust
    mənbəyi, hostname və policy olmadan hökm vermə.
 5. Advanced görünüşü və Simple/Advanced parity testlərini əlavə et.

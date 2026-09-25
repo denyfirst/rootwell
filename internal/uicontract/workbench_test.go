@@ -304,6 +304,34 @@ func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
 	}
 }
 
+func TestWorkbenchPublicBundleExportIsExplicit(t *testing.T) {
+	assets := workbenchAssets(t)
+	html := assets["index.html"]
+	for _, required := range []string{
+		`id="export-bundle-button" type="button" disabled`,
+		"Download selected PEM bundle",
+		"This does not build or verify a chain; no private key is included",
+	} {
+		if !strings.Contains(html, required) {
+			t.Errorf("public bundle export is missing boundary %q", required)
+		}
+	}
+	application := assets["app.js"]
+	for _, required := range []string{
+		"selectedBundleFingerprints.size === 0",
+		"engine.exportBundle(inputs, expected, selected)",
+		"validateBundleExportResponse",
+		"result.fingerprints.every",
+		"certificate.sha256 === selected[index] && certificate.encoding === \"pem\"",
+		"for (const bytes of inputs) bytes.fill(0)",
+		"requestBrowserDownload(output, validated.filename)",
+	} {
+		if !strings.Contains(application, required) {
+			t.Errorf("public bundle export is missing guard %q", required)
+		}
+	}
+}
+
 func TestWorkbenchInspectFileHintMatchesParserBoundary(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, required := range []string{

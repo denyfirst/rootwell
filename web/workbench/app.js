@@ -24,6 +24,7 @@
   const exploreCertificates = document.getElementById("explore-certificates");
   const exportStatus = document.getElementById("export-status");
   const exportError = document.getElementById("export-error");
+  const exportBundleButton = document.getElementById("export-bundle-button");
 
   let engine = null;
   let selectedInspectFile = null;
@@ -31,6 +32,8 @@
   let inspecting = false;
   let exploring = false;
   let exporting = false;
+  let currentExploreEntries = null;
+  const selectedBundleFingerprints = new Set();
   const pendingDownloadURLs = new Set();
   const maxExploreFiles = 8;
   const maxExploreCertificates = 64;
@@ -84,7 +87,8 @@
 
   function updateExploreControls() {
     exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFiles === null;
-    exploreCertificates.querySelectorAll("button, select").forEach(function (control) {
+    exportBundleButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || selectedBundleFingerprints.size === 0;
+    exploreCertificates.querySelectorAll("button, select, input").forEach(function (control) {
       control.disabled = exploring || exporting;
     });
   }
@@ -107,6 +111,8 @@
 
   function setExploreFiles(files) {
     selectedExploreFiles = null;
+    currentExploreEntries = null;
+    selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     exploreError.hidden = true;
@@ -198,6 +204,7 @@
     globalThis.rootwellWorkbenchReady.then(function (readyEngine) {
       if (!readyEngine || typeof readyEngine.inspect !== "function" || typeof readyEngine.explore !== "function" ||
           typeof readyEngine.exportPublic !== "function" || typeof readyEngine.analyze !== "function" ||
+          typeof readyEngine.exportBundle !== "function" ||
           !Number.isSafeInteger(readyEngine.maxBytes) || readyEngine.maxBytes <= 0) {
         engineUnavailable();
         return;
@@ -513,10 +520,27 @@
         relation.parents.map(function (parent) { return "certificate #" + (parent + 1); }).join(", ") +
           " · issuer signature matches, not a trust verdict";
       bundleDetail(details, "Possible issuer", issuerHint);
-      item.append(heading, details, exportAction(entry.file, certificate.sha256, index));
+      const selection = document.createElement("label");
+      selection.className = "bundle-select";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.setAttribute("aria-label", "Include certificate " + (index + 1) + " in public PEM bundle");
+      checkbox.addEventListener("change", function () {
+        if (currentExploreEntries !== entries) return;
+        if (checkbox.checked) selectedBundleFingerprints.add(certificate.sha256);
+        else selectedBundleFingerprints.delete(certificate.sha256);
+        updateExploreControls();
+      });
+      const selectionText = document.createElement("span");
+      selectionText.textContent = "Include in public PEM bundle";
+      selection.append(checkbox, selectionText);
+      item.append(heading, details, selection, exportAction(entry.file, certificate.sha256, index));
       return item;
     });
     exploreCertificates.replaceChildren(...cards);
+    currentExploreEntries = entries;
+    selectedBundleFingerprints.clear();
+    updateExploreControls();
     exportError.hidden = true;
     exportStatus.textContent = "Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.";
     text("explore-result-count", entries.length + (entries.length === 1 ? " certificate found" : " certificates found"));
@@ -525,10 +549,13 @@
   }
 
   function showExploreFailure(message) {
+    currentExploreEntries = null;
+    selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
     exploreError.textContent = message;
     exploreError.hidden = false;
+    updateExploreControls();
   }
 
   const exportFailureMessages = Object.freeze({
@@ -556,6 +583,29 @@
     const expectedName = new RegExp("^rootwell-public-" + fingerprintPrefix + "-[0-9a-f]{32}\\." + format + "$");
     if (response.error !== null || !result || result.encoding !== format || result.fingerprint !== fingerprint ||
         typeof result.filename !== "string" || !expectedName.test(result.filename) ||
+        !(result.bytes instanceof Uint8Array) || result.bytes.byteLength === 0 || result.bytes.byteLength > engine.maxBytes) return null;
+    return result;
+  }
+
+  const bundleExportFailureMessages = Object.freeze({
+    "invalid-browser-request": "Choose public certificates from the current Explore result.",
+    "invalid-public-source": "A selected source is no longer a valid public certificate collection. Explore again.",
+    "changed-public-source": "The selected files changed since Explore. Explore again before downloading.",
+    "input-too-large": "The public bundle would exceed the 16 MiB limit.",
+    "internal-failure": "The local bundle export could not be completed safely."
+  });
+
+  function validateBundleExportResponse(response, selected) {
+    if (!response || response.schema_version !== "rootwell.browser.bundle-export.v1" || typeof response.ok !== "boolean") return null;
+    if (!response.ok) {
+      if (response.result !== null || !Object.hasOwn(bundleExportFailureMessages, response.error)) return null;
+      return bundleExportFailureMessages[response.error];
+    }
+    const result = response.result;
+    if (response.error !== null || !result || !Array.isArray(result.fingerprints) ||
+        result.fingerprints.length !== selected.length ||
+        !result.fingerprints.every(function (fingerprint, index) { return fingerprint === selected[index]; }) ||
+        typeof result.filename !== "string" || !/^rootwell-public-bundle-[0-9a-f]{32}\.pem$/.test(result.filename) ||
         !(result.bytes instanceof Uint8Array) || result.bytes.byteLength === 0 || result.bytes.byteLength > engine.maxBytes) return null;
     return result;
   }
@@ -634,6 +684,69 @@
       if (selectedExploreFiles === files) showExportFailure("Certificate export failed safely. No upload was made.");
     } finally {
       if (input) input.fill(0);
+      if (output) output.fill(0);
+      exporting = false;
+      updateExploreControls();
+    }
+  }
+
+  exportBundleButton.addEventListener("click", function () { void exportPublicBundle(); });
+
+  async function exportPublicBundle() {
+    if (!engine || !selectedExploreFiles || !currentExploreEntries || selectedBundleFingerprints.size === 0 || exporting || exploring) return;
+    const files = selectedExploreFiles;
+    const entries = currentExploreEntries;
+    const expected = entries.map(function (entry) { return entry.certificate.sha256; });
+    const selected = expected.filter(function (fingerprint) { return selectedBundleFingerprints.has(fingerprint); });
+    if (selected.length === 0) return;
+    exporting = true;
+    exportError.hidden = true;
+    exportStatus.textContent = "Preparing the selected public PEM bundle locally…";
+    updateExploreControls();
+    const inputs = [];
+    let output = null;
+    try {
+      let remainingBytes = engine.maxBytes;
+      for (const file of files) {
+        if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+        if (file.size > remainingBytes) {
+          showExportFailure("The selected files changed or exceed the combined limit.");
+          return;
+        }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        inputs.push(bytes);
+        if (bytes.byteLength !== file.size || bytes.byteLength > remainingBytes) {
+          showExportFailure("The selected files changed or exceed the combined limit.");
+          return;
+        }
+        remainingBytes -= bytes.byteLength;
+      }
+      if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+      const validated = validateBundleExportResponse(engine.exportBundle(inputs, expected, selected), selected);
+      if (typeof validated === "string") {
+        showExportFailure(validated);
+        return;
+      }
+      if (!validated) {
+        showExportFailure("The local bundle export engine returned an invalid response.");
+        return;
+      }
+      output = validated.bytes;
+      const reparsed = JSON.parse(engine.explore(output));
+      if (!reparsed.ok || !validExploreResult(reparsed.result) || reparsed.result.count !== selected.length ||
+          !reparsed.result.certificates.every(function (certificate, index) {
+            return certificate.sha256 === selected[index] && certificate.encoding === "pem";
+          })) {
+        showExportFailure("The exported public bundle did not match the selected certificates.");
+        return;
+      }
+      if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+      requestBrowserDownload(output, validated.filename);
+      exportStatus.textContent = "Browser download requested for the public PEM bundle. Rootwell did not write to disk or verify a chain.";
+    } catch {
+      if (selectedExploreFiles === files) showExportFailure("Public bundle export failed safely. No upload was made.");
+    } finally {
+      for (const bytes of inputs) bytes.fill(0);
       if (output) output.fill(0);
       exporting = false;
       updateExploreControls();

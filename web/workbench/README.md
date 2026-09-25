@@ -30,8 +30,10 @@ CLI. Verify is still a clearly labeled interaction preview.
 
 Explore displays subject, issuer, CA flag, expiry, encoding, fingerprint, and
 possible issuer links backed by issuer/subject names and signature checks.
-It does not select a leaf, choose a trust anchor, verify a chain, or create a
-combined output file. A selected public certificate can be downloaded as one PEM
+It does not select a leaf, choose a trust anchor, or verify a chain. An
+explicitly selected set can be downloaded as a public PEM bundle in displayed
+order, without an automatic fullchain claim. A selected public certificate
+can also be downloaded as one PEM
 `CERTIFICATE` block or exact DER bytes. The source is re-parsed and selected
 by fingerprint; the output is re-parsed and byte-checked before download.
 The user explicitly chooses both the encoding and filename extension:
@@ -49,6 +51,7 @@ or other secrets. See
 [`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
 and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
 and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)
+and [bundle export decision](../../docs/adr/0008-browser-selected-public-bundle-export.md)
 for the decision and non-claims.
 
 ## Build the local engine
