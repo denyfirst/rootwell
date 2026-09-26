@@ -27,6 +27,9 @@ func TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable(t *testing.T) {
 	if _, err := Open(path, initial); !errors.Is(err, ErrChangeRequired) {
 		t.Fatalf("initial password opened the data key: %v", err)
 	}
+	if changeRequired, err := Authenticate(path, initial); err != nil || !changeRequired {
+		t.Fatalf("setup authentication did not require change: %v", err)
+	}
 	if _, err := Open(path, "not-the-password"); !errors.Is(err, ErrWrongPassword) {
 		t.Fatalf("wrong password: %v", err)
 	}
@@ -39,6 +42,9 @@ func TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable(t *testing.T) {
 	}
 	if _, err := Open(path, initial); !errors.Is(err, ErrWrongPassword) {
 		t.Fatalf("initial password still works: %v", err)
+	}
+	if changeRequired, err := Authenticate(path, "correct horse battery staple 2026"); err != nil || changeRequired {
+		t.Fatalf("activated authentication failed: %v", err)
 	}
 	if err := ChangeInitialPassword(path, initial, "another sufficiently long password"); !errors.Is(err, ErrWrongPassword) {
 		t.Fatalf("initial password changed twice: %v", err)
@@ -107,8 +113,11 @@ func TestFailedChangesKeepInitialPasswordAndRejectWeakReplacement(t *testing.T) 
 	if _, err := Open(path, initial); !errors.Is(err, ErrChangeRequired) {
 		t.Fatalf("failed change activated installation: %v", err)
 	}
-	if err := ChangeInitialPassword(path, initial, initial); err == nil {
-		t.Fatal("unchanged initial password accepted")
+	if err := ChangeInitialPassword(path, initial, initial); !errors.Is(err, ErrPasswordUnchanged) {
+		t.Fatalf("unchanged initial password accepted: %v", err)
+	}
+	if err := ChangeInitialPassword(path, initial, strings.Repeat("x", maxPass+1)); !errors.Is(err, ErrPasswordTooLong) {
+		t.Fatalf("oversized replacement accepted: %v", err)
 	}
 }
 

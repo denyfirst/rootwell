@@ -30,10 +30,12 @@ const (
 )
 
 var (
-	ErrWrongPassword  = errors.New("installation password is incorrect")
-	ErrChangeRequired = errors.New("initial password must be changed")
-	ErrWeakPassword   = errors.New("password must contain at least 15 characters")
-	ErrInvalidAccess  = errors.New("installation access file is invalid")
+	ErrWrongPassword     = errors.New("installation password is incorrect")
+	ErrChangeRequired    = errors.New("initial password must be changed")
+	ErrWeakPassword      = errors.New("password must contain at least 15 characters")
+	ErrPasswordTooLong   = errors.New("password must not exceed 1024 bytes")
+	ErrPasswordUnchanged = errors.New("new password must differ from current password")
+	ErrInvalidAccess     = errors.New("installation access file is invalid")
 )
 
 type envelope struct {
@@ -119,6 +121,17 @@ func Open(path, password string) ([]byte, error) {
 	return key, nil
 }
 
+// Authenticate checks a password without releasing the data key. The boolean
+// is true only when the installation still requires its first password change.
+func Authenticate(path, password string) (bool, error) {
+	key, state, err := unseal(path, password)
+	if err != nil {
+		return false, err
+	}
+	clear(key)
+	return state == setup, nil
+}
+
 // ChangeInitialPassword is the only operation accepted with the initial
 // password. It rewraps the same data key and ends setup mode atomically.
 func ChangeInitialPassword(path, initialPassword, nextPassword string) error {
@@ -135,7 +148,7 @@ func change(path, current, next, requiredState string) error {
 		return err
 	}
 	if current == next {
-		return errors.New("new password must differ from current password")
+		return ErrPasswordUnchanged
 	}
 	key, state, err := unseal(path, current)
 	if err != nil {
@@ -154,7 +167,7 @@ func change(path, current, next, requiredState string) error {
 
 func checkPassword(password string) error {
 	if len(password) > maxPass {
-		return errors.New("password is too long")
+		return ErrPasswordTooLong
 	}
 	if len([]rune(password)) < 15 {
 		return ErrWeakPassword

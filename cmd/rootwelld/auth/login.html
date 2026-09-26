@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Sign in · Rootwell</title>
+  <link rel="stylesheet" href="/auth.css">
+  <script src="/auth.js" defer></script>
+</head>
+<body data-mode="login">
+  <main class="shell">
+    <div class="brand"><span class="mark">◇</span><span>root<span class="accent">well</span></span></div>
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow">YOUR SELF-HOSTED WORKSPACE</p>
+      <h1 id="title">Sign in to Rootwell</h1>
+      <p class="hint">Use the password for this installation. No certificate or key is uploaded to DenyFirst.</p>
+      <form id="auth-form" method="post" action="/api/session">
+        <label for="password">Installation password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Sign in</button>
+        <p id="status" role="alert" aria-live="polite"></p>
+      </form>
+    </section>
+    <p class="foot">The first password is shown only by the local <code>rootwelld init</code> command. You must change it before Workbench opens.</p>
+  </main>
+</body>
+</html>

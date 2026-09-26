@@ -1,16 +1,16 @@
 # DenyFirst Rootwell
 
-**Status:** early Workbench implementation
+**Status:** early Workbench and loopback-only access-gate implementation
 
 Rootwell is a privacy-first, self-hosted workspace for certificates,
 cryptographic keys, and machine identities.
 
 > Your private root of trust.
 
-The first product increment is a local-first Workbench CLI for safe inspection,
-matching, verification, and conversion. Server, vault, automation, and access
-features are added only after their trust boundaries and failure modes are
-tested.
+The first product increments are a local-first Workbench CLI and browser for
+safe public-certificate inspection and verification. An experimental local
+access gate protects the browser; vault, automation, and remote access remain
+outside this release boundary.
 
 ## Project doctrine
 
@@ -32,6 +32,34 @@ tested.
 - [v0.1 format matrix](docs/FORMAT-MATRIX.md)
 
 ## Local Workbench interface
+
+For a local test of the password-gated Workbench on Windows, from the Rootwell
+repository in an interactive PowerShell terminal:
+
+```powershell
+$dataDir = Join-Path $env:LOCALAPPDATA "Rootwell"
+$env:GOOS = "js"
+$env:GOARCH = "wasm"
+go build -trimpath -o web/workbench/rootwell.wasm ./cmd/rootwell-browser
+Copy-Item -Force (Join-Path (go env GOROOT) "lib/wasm/wasm_exec.js") web/workbench/wasm_exec.js
+Remove-Item Env:GOOS
+Remove-Item Env:GOARCH
+go run ./cmd/rootwelld init $dataDir
+go run ./cmd/rootwelld serve $dataDir web/workbench
+```
+
+Save the one-time setup password when `init` displays it and type `SAVED` to
+confirm. Open `http://localhost:4180` in the same host's browser. Signing in
+with the setup password permits **only** the mandatory password-change page;
+after changing it, sign in again with the replacement. Passwords are never
+accepted as command-line arguments or written to daemon logs. An existing
+installation's setup password cannot be redisplayed. The gateway listens on
+127.0.0.1 only; it is not a remote TLS endpoint or production vault. Secure
+cookies over HTTP localhost are not supported by every browser, and the
+Windows ACL/backup/recovery boundary is not yet complete. See the
+[loopback gate threat model](docs/LOOPBACK-GATE-THREAT-MODEL.md).
+Serving `web/workbench` directly with a separate static server remains an
+unauthenticated developer preview; it is not protected by `rootwelld`.
 
 The dependency-free browser shell is available at
 [`web/workbench/index.html`](web/workbench/index.html). Inspect handles one
