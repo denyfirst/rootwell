@@ -12,6 +12,11 @@ safe public-certificate inspection and verification. An experimental local
 access gate protects the browser; vault, automation, and remote access remain
 outside this release boundary.
 
+The first public-certificate inventory increment is an in-memory model only:
+there is no save/import UI or persistent encrypted inventory yet. The
+[inventory threat model](docs/INVENTORY-THREAT-MODEL.md) defines the gates before
+durable records are accepted.
+
 ## Project doctrine
 
 - Security is the first requirement, not a later hardening phase.

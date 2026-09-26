@@ -38,15 +38,19 @@ olunmamış nəticəyə “verified” demək qadağandır.
    açarı və Workbench verilmir. `rootwelld init` parolu yalnız lokal interaktiv
    terminalda göstərir. `localhost` gateway setup-only sessiya verir; uğurlu
    dəyişmə bütün sessiyaları bağlayır və yeni parolla yenidən giriş tələb edir.
-   Bu hələ production remote access və vault deyil. Növbəti ayrıca increment:
-   Access faylı kənardan dəyişəndə köhnə sessiyanın rəddi ayrıca sərtləşdirilib.
-   Növbəti ayrıca increment: Windows ACL, backup/recovery və sonra şifrəli inventory. Daemon/Docker
-   loguna parol yazılmır.
-5. **Inventory mərhələsinin dizaynı.** Şirkət üçün owner,
+   Bu hələ production remote access və vault deyil. Access faylı kənardan
+   dəyişəndə köhnə sessiyanın rəddi ayrıca sərtləşdirilib (PR #33).
+   Daemon/Docker loguna parol yazılmır.
+5. **Inventory mərhələsinin ilk modeli.** Şirkət üçün owner,
    host/location, expiry, dəyişiklik tarixçəsi və bildiriş axınını threat model və
-   data-retention qərarı ilə layihələndir. Public metadata belə daxili adları
-   aça bilər. Gizli, davamlı yaddaş və network discovery bu addımlardan
-   avtomatik yaranmır.
+   data-retention qərarı ilə layihələndir. İlk kod increment-i yalnız public
+   certificate-lər üçün RAM-da all-or-nothing import və duplicate rəddidir;
+   diskə yazmır və istifadəçi UI-si deyil. Sərhəd
+   [`INVENTORY-THREAT-MODEL.md`](INVENTORY-THREAT-MODEL.md) sənədindədir.
+   Sonrakı şifrəli saxlanma üçün Linux/container permission, backup/restore,
+   itmiş parolun bərpası və Windows native support ayrıca yoxlanmalıdır.
+   Public metadata belə daxili adları aça bilər. Gizli, davamlı yaddaş və
+   network discovery bu addımlardan avtomatik yaranmır.
 6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.
