@@ -33,13 +33,14 @@ olunmamış nəticəyə “verified” demək qadağandır.
    klikiylə yalnız public metadata, vaxt pəncərəsi, certificate fingerprint-ləri
    və yoxlamanın sərhədləri olan lokal JSON hesabat. Secret və key export-u
    yoxdur; browser-managed download və input recheck testlərlə qorunur.
-4. **Instance access təməli (PR #31) və lokal giriş qapısı.** Hər qurulum üçün
+4. **Instance access təməli (PR #31) və lokal giriş qapısı (PR #32).** Hər qurulum üçün
    ayrıca təsadüfi ilkin parol yalnız setup üçündür; parol dəyişənə qədər data
    açarı və Workbench verilmir. `rootwelld init` parolu yalnız lokal interaktiv
    terminalda göstərir. `localhost` gateway setup-only sessiya verir; uğurlu
    dəyişmə bütün sessiyaları bağlayır və yeni parolla yenidən giriş tələb edir.
    Bu hələ production remote access və vault deyil. Növbəti ayrıca increment:
-   Windows ACL, backup/recovery və sonra şifrəli inventory. Daemon/Docker
+   Access faylı kənardan dəyişəndə köhnə sessiyanın rəddi ayrıca sərtləşdirilib.
+   Növbəti ayrıca increment: Windows ACL, backup/recovery və sonra şifrəli inventory. Daemon/Docker
    loguna parol yazılmır.
 5. **Inventory mərhələsinin dizaynı.** Şirkət üçün owner,
    host/location, expiry, dəyişiklik tarixçəsi və bildiriş axınını threat model və

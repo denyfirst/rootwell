@@ -495,3 +495,15 @@ Guarded by `TestInitialLoginIsSetupOnlyUntilPasswordChange`,
 `TestGatewayRefusesIncompleteBrowserAssets`,
 `TestPasswordChangeValidationIsSpecificWithoutEchoingSecrets`, and
 `scripts/test-rootwelld-auth.mjs`.
+
+## C34 — Sessions cannot silently survive an observed access-file change
+
+A session is tied to the exact encrypted access-file bytes seen during login.
+The gateway refuses login if that file changes across password verification.
+For subsequent requests, an unreadable, reader-rejected, or different access file
+invalidates the old session, including external password rotation. A new
+password can create a new session. This does not provide interprocess locking,
+request-atomic authorization, or protection against same-byte rollback.
+
+Guarded by `TestSessionIsRevokedWhenAccessFileChangesOutsideGate` and
+`TestInitialLoginIsSetupOnlyUntilPasswordChange`.

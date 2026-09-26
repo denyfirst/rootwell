@@ -151,6 +151,42 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	}
 }
 
+func TestSessionIsRevokedWhenAccessFileChangesOutsideGate(t *testing.T) {
+	g, path := testGate(t)
+	setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
+	if setup.Code != http.StatusOK {
+		t.Fatalf("setup sign-in: %d", setup.Code)
+	}
+	setupCookie := sessionCookie(t, setup)
+	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
+		t.Fatal(err)
+	}
+	if w := call(g, "GET", "/setup", "", setupCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
+		t.Fatalf("externally changed setup credential survived: %d", w.Code)
+	}
+	ready := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
+	if ready.Code != http.StatusOK {
+		t.Fatalf("ready sign-in: %d", ready.Code)
+	}
+	readyCookie := sessionCookie(t, ready)
+	if err := instanceaccess.ChangePassword(path, nextTestPassword, "a third sufficiently long password"); err != nil {
+		t.Fatal(err)
+	}
+	if w := call(g, "GET", "/", "", readyCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
+		t.Fatalf("externally rotated credential reached Workbench: %d", w.Code)
+	}
+	newLogin := call(g, "POST", "/api/session", `{"password":"a third sufficiently long password"}`, nil)
+	if newLogin.Code != http.StatusOK {
+		t.Fatalf("new password was refused: %d", newLogin.Code)
+	}
+	if err := os.WriteFile(path, []byte("malformed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if w := call(g, "GET", "/", "", sessionCookie(t, newLogin)); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
+		t.Fatalf("session survived malformed access file: %d", w.Code)
+	}
+}
+
 func TestGateRejectsCrossOriginHostAndMalformedAuthentication(t *testing.T) {
 	g, _ := testGate(t)
 	malformed := []string{`{`, `{"password":"x","unknown":1}`, `{"password":"x"}{}`, strings.Repeat("x", 2049)}
