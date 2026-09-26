@@ -46,3 +46,13 @@ Required next review for production: TLS/reverse-proxy policy, rate limiting
 across restarts, concurrent process instances, OS ACL/locking,
 backup/restore, and recovery. The loopback gateway separately tests its
 origin, session fixation, CSRF, and first-login restrictions.
+
+New installations use access envelope v2: a random 128-bit installation ID
+is authenticated together with the setup/ready state when the same 256-bit
+data key is wrapped. The ID is not secret and is visible in the access file.
+Password rotation preserves the key and ID. Existing v1 envelopes remain
+readable and password-rotatable, but have no ID; future durable inventory must
+refuse them until an explicit, separately reviewed enrollment operation is
+available. This change does not migrate or rewrite existing user files.
+An ID alone does not stop record rollback, make backups recoverable, or prove
+host integrity.
