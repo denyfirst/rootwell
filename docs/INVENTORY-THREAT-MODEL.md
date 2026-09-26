@@ -1,9 +1,9 @@
 # Public certificate inventory: first boundary
 
-**Status:** in-memory data model only. No persistent inventory, HTTP import
-endpoint, browser save button, backup, recovery key, or vault is shipped by this
-increment. Do not place real operational records here expecting them to survive
-a restart.
+**Status:** in-memory data model and standalone encrypted-record codec only.
+No persistent inventory, HTTP import endpoint, browser save button, backup,
+recovery key, or vault is shipped by these increments. Do not place real
+operational records here expecting them to survive a restart.
 
 ## Data and trust boundaries
 
@@ -28,10 +28,17 @@ retention promise because it is not exposed as a user-facing inventory yet.
 
 ## Gate before durable storage or an import API
 
-1. Define a versioned encrypted record format and bind record type, schema,
-   installation identity, and record identity as authenticated context. Use a
-   reviewed standard-library AEAD with unique nonces; the existing installation
-   data key must never appear in logs, URLs, browser storage, or configuration.
+1. The first codec is versioned and binds record type/schema, installation
+   identity, certificate identity, and expected generation as AES-256-GCM
+   authenticated context. Go's standard-library random-nonce AEAD supplies a
+   fresh 96-bit nonce on each seal. It accepts only 32-byte keys and bounded
+   plaintext/ciphertext. It does not validate record payloads, allocate stable
+   installation IDs, or supply a persisted monotonic generation source. Those
+   must be built before any storage write. The installation data key must never
+   appear in logs, URLs, browser storage, or configuration. The random-nonce
+   AEAD has a per-key message-count limit; the future storage layer must count
+   writes and rotate keys well before that limit. Ciphertext length remains
+   visible even when its contents are encrypted.
 2. Establish a single-writer/locking strategy, private data-directory checks
    for every supported OS, bounded reads, disk-full and crash-fault tests,
    and rollback/corruption behavior. Windows `0600` is not proof of a private
@@ -53,3 +60,6 @@ plaintext in memory while Rootwell is unlocked. Encryption at rest does not
 protect a fully compromised host. Automatic deletion is not part of the
 planned inventory retention policy; explicit deletion and its backup effects
 need their own review.
+An older, intact ciphertext can be replayed with the same context unless a
+future trusted manifest rejects stale generations. The codec alone is not an
+anti-rollback or recoverability solution.

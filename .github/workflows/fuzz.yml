@@ -52,6 +52,8 @@ jobs:
             package: ./internal/certverify
           - target: FuzzParsePublicBundle
             package: ./internal/publicbundle
+          - target: FuzzOpenSealedRecord
+            package: ./internal/inventoryseal
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzMatch

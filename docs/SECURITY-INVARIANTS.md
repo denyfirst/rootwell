@@ -521,3 +521,16 @@ Guarded by `TestImportPublicCertificateAndDetachResults`,
 `TestConcurrentDuplicateImportHasOneWinner`, and
 `TestBundledPublicCertificatesRemainUnverified` and
 `TestOversizedSingleCertificateIsRejectedWithoutMutation`.
+
+## C36 — In-memory inventory encryption binds its expected context
+
+The standalone codec uses AES-256-GCM with a random nonce and rejects an
+invalid key, missing installation/record/generation context, oversized input,
+tampering, wrong key, and cross-installation/cross-record/cross-generation
+substitution without returning partial plaintext. It does not persist data or
+stop rollback to an older ciphertext with the same expected generation.
+
+Guarded by `TestSealRoundTripUsesFreshNonceAndHidesPlaintext`,
+`TestSealRejectsWrongKeyContextSwapAndTampering`,
+`TestSealBoundsAndMissingContextFailClosed`, `TestSealWorksWithRandomDataKey`,
+and `FuzzOpenSealedRecord`.
