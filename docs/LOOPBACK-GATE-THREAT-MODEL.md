@@ -27,6 +27,15 @@ The server refuses startup when a required browser engine or script is missing;
 directly serving the same static source directory elsewhere bypasses this gate
 and is only a developer preview.
 
+Each issued session is bound to a SHA-256 revision of the bounded, privately
+opened encrypted access file. Sign-in refuses an access-file change observed
+between password verification and session issuance. On later requests, a
+missing, reader-rejected, or different access file invalidates that session, including
+when another process changes the password. This is fail-closed detection at
+request boundaries, not a cross-process lock or a monotonic anti-rollback
+record: a same-byte rollback between requests or a change during one request
+is not proven impossible. The reader still does not validate Windows ACLs.
+
 **Residual boundaries:** HTTP over host loopback is not a remote transport
 security claim. Remote access requires an SSH tunnel to the host loopback or
 future reviewed TLS deployment. Some browsers do not support Secure cookies

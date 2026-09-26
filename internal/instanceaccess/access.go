@@ -205,29 +205,9 @@ func unseal(path, password string) ([]byte, string, error) {
 	if len(password) == 0 || len(password) > maxPass {
 		return nil, "", ErrWrongPassword
 	}
-	root, err := os.OpenRoot(filepath.Dir(path))
+	body, err := readAccess(path)
 	if err != nil {
-		return nil, "", ErrInvalidAccess
-	}
-	defer root.Close()
-	name := filepath.Base(path)
-	info, err := root.Lstat(name)
-	if err != nil || !info.Mode().IsRegular() || (runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
-		return nil, "", ErrInvalidAccess
-	}
-	f, err := root.Open(name)
-	if err != nil {
-		return nil, "", ErrInvalidAccess
-	}
-	defer f.Close()
-	opened, err := f.Stat()
-	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) ||
-		(runtime.GOOS != "windows" && opened.Mode().Perm()&0o077 != 0) {
-		return nil, "", ErrInvalidAccess
-	}
-	body, err := io.ReadAll(io.LimitReader(f, maxFile+1))
-	if err != nil || len(body) > maxFile {
-		return nil, "", ErrInvalidAccess
+		return nil, "", err
 	}
 	var e envelope
 	decoder := json.NewDecoder(bytes.NewReader(body))
@@ -255,6 +235,44 @@ func unseal(path, password string) ([]byte, string, error) {
 		return nil, "", ErrWrongPassword
 	}
 	return key, e.State, nil
+}
+
+// Revision identifies the exact encrypted access-file contents observed by a
+// session. It does not authenticate an installation or release its data key.
+func Revision(path string) ([32]byte, error) {
+	body, err := readAccess(path)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return sha256.Sum256(body), nil
+}
+
+func readAccess(path string) ([]byte, error) {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, ErrInvalidAccess
+	}
+	defer root.Close()
+	name := filepath.Base(path)
+	info, err := root.Lstat(name)
+	if err != nil || !info.Mode().IsRegular() || (runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
+		return nil, ErrInvalidAccess
+	}
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, ErrInvalidAccess
+	}
+	defer f.Close()
+	opened, err := f.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) ||
+		(runtime.GOOS != "windows" && opened.Mode().Perm()&0o077 != 0) {
+		return nil, ErrInvalidAccess
+	}
+	body, err := io.ReadAll(io.LimitReader(f, maxFile+1))
+	if err != nil || len(body) > maxFile {
+		return nil, ErrInvalidAccess
+	}
+	return body, nil
 }
 
 func replace(path string, body []byte) error {

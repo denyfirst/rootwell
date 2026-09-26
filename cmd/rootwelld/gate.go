@@ -25,8 +25,9 @@ var authAssets embed.FS
 const cookieName = "__Host-rootwell_session"
 
 type session struct {
-	setup   bool
-	expires time.Time
+	setup    bool
+	expires  time.Time
+	revision [32]byte
 }
 
 type gate struct {
@@ -156,10 +157,11 @@ func (g *gate) currentSession(r *http.Request) (session, bool) {
 		return session{}, false
 	}
 	id := sha256.Sum256([]byte(c.Value))
+	revision, revisionErr := instanceaccess.Revision(g.accessPath)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	s, ok := g.sessions[id]
-	if !ok || !g.now().Before(s.expires) {
+	if !ok || revisionErr != nil || s.revision != revision || !g.now().Before(s.expires) {
 		delete(g.sessions, id)
 		return session{}, false
 	}
@@ -198,7 +200,7 @@ func (g *gate) startDerivation() bool {
 	}
 }
 
-func (g *gate) issueSession(w http.ResponseWriter, setup bool) error {
+func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte) error {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return errors.New("session could not be created")
@@ -220,7 +222,7 @@ func (g *gate) issueSession(w http.ResponseWriter, setup bool) error {
 		}
 		delete(g.sessions, oldest)
 	}
-	g.sessions[id] = session{setup: setup, expires: g.now().Add(lifetime)}
+	g.sessions[id] = session{setup: setup, expires: g.now().Add(lifetime), revision: revision}
 	g.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", MaxAge: int(lifetime / time.Second),
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
@@ -303,6 +305,11 @@ func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request, signedIn 
 		return
 	}
 	defer func() { <-g.derive }()
+	revisionBefore, err := instanceaccess.Revision(g.accessPath)
+	if err != nil {
+		http.Error(w, "installation unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	setup, err := instanceaccess.Authenticate(g.accessPath, body.Password)
 	if err != nil {
 		if errors.Is(err, instanceaccess.ErrWrongPassword) {
@@ -312,7 +319,12 @@ func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request, signedIn 
 		}
 		return
 	}
-	if err := g.issueSession(w, setup); err != nil {
+	revisionAfter, err := instanceaccess.Revision(g.accessPath)
+	if err != nil || revisionBefore != revisionAfter {
+		http.Error(w, "installation changed during sign-in", http.StatusServiceUnavailable)
+		return
+	}
+	if err := g.issueSession(w, setup, revisionAfter); err != nil {
 		http.Error(w, "session unavailable", http.StatusServiceUnavailable)
 		return
 	}
