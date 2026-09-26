@@ -507,3 +507,17 @@ request-atomic authorization, or protection against same-byte rollback.
 
 Guarded by `TestSessionIsRevokedWhenAccessFileChangesOutsideGate` and
 `TestInitialLoginIsSetupOnlyUntilPasswordChange`.
+
+## C35 — Draft inventory cannot accept secret-bearing or partial imports
+
+The in-memory catalog imports only bounded, strictly parsed public X.509
+objects. Mixed, malformed, secret-bearing, oversized, and duplicate inputs
+leave the catalog unchanged. Concurrent duplicate attempts add at most one
+record. Returned byte slices cannot mutate stored records. No trust verdict,
+disk persistence, or HTTP import is introduced by this draft.
+
+Guarded by `TestImportPublicCertificateAndDetachResults`,
+`TestDuplicateAndMalformedImportsAreAtomic`, `TestLabelsAndCapacityFailClosed`,
+`TestConcurrentDuplicateImportHasOneWinner`, and
+`TestBundledPublicCertificatesRemainUnverified` and
+`TestOversizedSingleCertificateIsRejectedWithoutMutation`.
