@@ -39,9 +39,17 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				if relErr != nil {
 					relative = path
 				}
-				if forbiddenImport(importPath) && !(filepath.ToSlash(relative) == "cmd/rootwell-probe/main.go" &&
-					(importPath == "net" || strings.HasPrefix(importPath, "net/"))) {
+				allowedProbe := filepath.ToSlash(relative) == "cmd/rootwell-probe/main.go" &&
+					(importPath == "net" || strings.HasPrefix(importPath, "net/"))
+				allowedLoopbackServer := (filepath.ToSlash(relative) == "cmd/rootwelld/main.go" &&
+					(importPath == "net" || importPath == "net/http")) ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/gate.go" && importPath == "net/http")
+				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
+				}
+				if importPath == "github.com/denyfirst/rootwell/internal/instanceaccess" &&
+					!strings.HasPrefix(filepath.ToSlash(relative), "cmd/rootwelld/") {
+					t.Errorf("installation access must remain outside the offline Workbench: %s", relative)
 				}
 			}
 			return nil

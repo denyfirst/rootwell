@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Change initial password · Rootwell</title>
+  <link rel="stylesheet" href="/auth.css">
+  <script src="/auth.js" defer></script>
+</head>
+<body data-mode="setup">
+  <main class="shell">
+    <div class="brand"><span class="mark">◇</span><span>root<span class="accent">well</span></span></div>
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow">REQUIRED FIRST STEP</p>
+      <h1 id="title">Change the initial password</h1>
+      <p class="hint">Workbench stays locked until this is complete. Choose a new, unique password of at least 15 characters and save it in your password manager.</p>
+      <form id="auth-form" method="post" action="/api/password">
+        <label for="password">Initial password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <label for="next">New password</label>
+        <input id="next" name="next" type="password" autocomplete="new-password" minlength="15" required>
+        <label for="confirm">Confirm new password</label>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="15" required>
+        <button type="submit">Change password</button>
+        <p id="status" role="alert" aria-live="polite"></p>
+      </form>
+    </section>
+    <button class="secondary" type="button" id="sign-out">Sign out</button>
+    <p class="foot">If you leave now, the initial password still works only for returning to this step. It never opens Workbench.</p>
+  </main>
+</body>
+</html>

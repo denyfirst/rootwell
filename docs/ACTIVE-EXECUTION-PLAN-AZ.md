@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-09-25. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-09-27. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -33,13 +33,14 @@ olunmamış nəticəyə “verified” demək qadağandır.
    klikiylə yalnız public metadata, vaxt pəncərəsi, certificate fingerprint-ləri
    və yoxlamanın sərhədləri olan lokal JSON hesabat. Secret və key export-u
    yoxdur; browser-managed download və input recheck testlərlə qorunur.
-4. **Instance access təməli — icradadır.** Hər qurulum üçün ayrıca təsadüfi
-   ilkin parol yalnız setup üçündür; parol dəyişənə qədər data açarı verilmir.
-   Bu ilkin increment yalnız lokal key-envelope paketidir, hələ web giriş
-   qapısı və istifadəçi datasının saxlanması deyil. Növbəti ayrıca increment:
-   təhlükə modelində göstərilən OS fayl qorunması və atomik dəyişməni
-   möhkəmlət, lokal interaktiv init, setup-only sessiya, məcburi dəyişmə və
-   normal giriş; sonra şifrəli inventory. Daemon/Docker loguna parol yazılmır.
+4. **Instance access təməli (PR #31) və lokal giriş qapısı.** Hər qurulum üçün
+   ayrıca təsadüfi ilkin parol yalnız setup üçündür; parol dəyişənə qədər data
+   açarı və Workbench verilmir. `rootwelld init` parolu yalnız lokal interaktiv
+   terminalda göstərir. `localhost` gateway setup-only sessiya verir; uğurlu
+   dəyişmə bütün sessiyaları bağlayır və yeni parolla yenidən giriş tələb edir.
+   Bu hələ production remote access və vault deyil. Növbəti ayrıca increment:
+   Windows ACL, backup/recovery və sonra şifrəli inventory. Daemon/Docker
+   loguna parol yazılmır.
 5. **Inventory mərhələsinin dizaynı.** Şirkət üçün owner,
    host/location, expiry, dəyişiklik tarixçəsi və bildiriş axınını threat model və
    data-retention qərarı ilə layihələndir. Public metadata belə daxili adları

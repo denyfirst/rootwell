@@ -475,3 +475,23 @@ Guarded by `TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable`,
 `TestFailedChangesKeepInitialPasswordAndRejectWeakReplacement`,
 `TestInitialPasswordIsUniqueAndNotStoredInPlaintext`, and
 `TestMalformedAndUnsafeAccessFilesFailClosed`.
+
+## C33 — Loopback gate separates setup from normal access
+
+Only a local interactive init can show a new per-installation setup password.
+An initial-password session can see the password-change page, never the
+Workbench or its assets. A successful change invalidates every prior session;
+normal access requires fresh sign-in with the replacement password. The server
+binds loopback only and rejects unexpected Host, cross-origin mutation,
+malformed requests, oversized bodies and excess password attempts. No vault or
+remote transport is implied.
+
+Guarded by `TestInitialLoginIsSetupOnlyUntilPasswordChange`,
+`TestGateRejectsCrossOriginHostAndMalformedAuthentication`,
+`TestGateRateLimitsAndExpiresSessions`,
+`TestInitRequiresSaveConfirmationAndNeverReprintsPassword`,
+`TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn`,
+`TestAuthFormsCannotFallBackToPasswordInGetURL`,
+`TestGatewayRefusesIncompleteBrowserAssets`,
+`TestPasswordChangeValidationIsSpecificWithoutEchoingSecrets`, and
+`scripts/test-rootwelld-auth.mjs`.

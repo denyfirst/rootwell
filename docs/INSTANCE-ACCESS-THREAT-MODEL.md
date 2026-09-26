@@ -20,12 +20,14 @@ opened file identity with the file checked before opening, so a swapped final
 path cannot silently redirect the read.
 The Windows file mode does not prove a restrictive ACL. Parent-directory
 ownership, symlink races, ACLs, crash durability of directory rename, and
-concurrent writers require platform-specific hardening before a server or
-secret vault may use this package in production. In particular, this increment
-must **not** be wired to an HTTP gate yet.
+concurrent writers require platform-specific hardening before a production
+server or secret vault may rely on this package. The separately reviewed
+loopback-only development gateway is described in
+[`LOOPBACK-GATE-THREAT-MODEL.md`](LOOPBACK-GATE-THREAT-MODEL.md); it does not
+enable production secret custody.
 
-The package never prints a password. A future local interactive init command
-may show the generated password exactly once on its terminal, not daemon
+The package never prints a password. The local interactive init command
+shows the generated password exactly once on its terminal, not daemon
 stderr, application logs, CLI arguments, URLs, or browser storage. Initial
 password loss before change cannot be recovered from the access file. After
 activation, lost password means encrypted data is inaccessible without a
@@ -40,6 +42,7 @@ Argon2id; its cost is bounded by requiring exactly the configured round count
 on reads. No rate limiting is provided by this package; the future HTTP gate
 must supply it before exposing any password check.
 
-Required next review: server origin/TLS and loopback policy, session fixation,
-CSRF, rate limiting across restarts, first-login restricted session,
-concurrent password changes, OS ACL/locking, backup/restore, and recovery.
+Required next review for production: TLS/reverse-proxy policy, rate limiting
+across restarts, concurrent process instances, OS ACL/locking,
+backup/restore, and recovery. The loopback gateway separately tests its
+origin, session fixation, CSRF, and first-login restrictions.

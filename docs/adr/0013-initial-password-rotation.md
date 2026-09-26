@@ -1,6 +1,7 @@
 # ADR 0013: Mandatory first-login password rotation
 
-Status: accepted for the instance-access foundation; web integration pending.
+Status: accepted. Loopback development gateway integration implemented;
+production server integration pending.
 
 Each self-hosted installation will receive a distinct randomly generated
 initial password. It is a setup credential, not a normal operator credential.
@@ -12,11 +13,11 @@ used later to attempt the required change.
 
 Porch's current first-start password appears on daemon stderr and may persist
 in Docker logs. Rootwell's product invariant forbids password material in
-logs. Its future init workflow will be interactive on the local host, and the
-runtime will not redisplay or recover the initial password. The future web
-gate must issue a setup-only session until rotation succeeds, then invalidate
-that session and require a fresh normal sign-in. This package alone does not
-implement that gate, so no protected web capability is enabled by this ADR.
+logs. Its `rootwelld init` workflow is interactive on the local host, and the
+runtime does not redisplay or recover the initial password. The loopback web
+gate issues a setup-only session until rotation succeeds, then invalidates
+all sessions and requires a fresh normal sign-in. Production remote access and
+secret custody remain outside this ADR.
 
 See [the threat model](../INSTANCE-ACCESS-THREAT-MODEL.md) for residual risks
 and deployment blockers.

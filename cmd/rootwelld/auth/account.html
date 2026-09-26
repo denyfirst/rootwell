@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Access · Rootwell</title>
+  <link rel="stylesheet" href="/auth.css">
+  <script src="/auth.js" defer></script>
+</head>
+<body data-mode="account">
+  <main class="shell">
+    <div class="brand"><span class="mark">◇</span><span>root<span class="accent">well</span></span></div>
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow">THIS INSTALLATION</p>
+      <h1 id="title">Change your password</h1>
+      <p class="hint">Changing it ends every active session. Your installation data key stays the same.</p>
+      <form id="auth-form" method="post" action="/api/password">
+        <label for="password">Current password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <label for="next">New password</label>
+        <input id="next" name="next" type="password" autocomplete="new-password" minlength="15" required>
+        <label for="confirm">Confirm new password</label>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="15" required>
+        <button type="submit">Change password</button>
+        <p id="status" role="alert" aria-live="polite"></p>
+      </form>
+    </section>
+    <div class="links">
+      <a href="/">Back to Workbench</a>
+      <button class="secondary" type="button" id="sign-out">Sign out</button>
+    </div>
+    <p class="foot">There is no password recovery yet. Keep a secure copy before changing it.</p>
+  </main>
+</body>
+</html>
