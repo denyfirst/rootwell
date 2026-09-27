@@ -370,19 +370,30 @@ func (g *gate) passwordEndpoint(w http.ResponseWriter, r *http.Request, s sessio
 		err = instanceaccess.ChangePassword(g.accessPath, body.Password, body.Next)
 	}
 	if err != nil {
-		if errors.Is(err, instanceaccess.ErrWrongPassword) {
-			http.Error(w, "current password not accepted", http.StatusUnauthorized)
-		} else if errors.Is(err, instanceaccess.ErrWeakPassword) ||
-			errors.Is(err, instanceaccess.ErrPasswordTooLong) ||
-			errors.Is(err, instanceaccess.ErrPasswordUnchanged) {
-			http.Error(w, "choose a different password between 15 characters and 1024 bytes", http.StatusBadRequest)
-		} else {
-			http.Error(w, "password change was not saved", http.StatusConflict)
-		}
+		g.passwordChangeError(w, err)
 		return
 	}
 	g.revokeAll(w)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (g *gate) passwordChangeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, instanceaccess.ErrWrongPassword):
+		http.Error(w, "current password not accepted", http.StatusUnauthorized)
+	case errors.Is(err, instanceaccess.ErrWeakPassword),
+		errors.Is(err, instanceaccess.ErrPasswordTooLong),
+		errors.Is(err, instanceaccess.ErrPasswordUnchanged):
+		http.Error(w, "choose a different password between 15 characters and 1024 bytes", http.StatusBadRequest)
+	case errors.Is(err, instanceaccess.ErrAccessBusy):
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "another installation change is running; retry later", http.StatusServiceUnavailable)
+	case errors.Is(err, instanceaccess.ErrWriteUncertain):
+		g.revokeAll(w)
+		http.Error(w, "password change outcome is uncertain; sign in again before taking further action", http.StatusServiceUnavailable)
+	default:
+		http.Error(w, "password change could not be confirmed", http.StatusConflict)
+	}
 }
 
 func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentType string) {

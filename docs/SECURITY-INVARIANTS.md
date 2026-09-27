@@ -570,3 +570,16 @@ alone is not a lock or authorization to install the candidate.
 
 Guarded by `TestPrepareIdentityUpgradePreservesKeyWithoutChangingSource` and
 `TestPrepareIdentityUpgradeRefusesWrongStateAndUnsafeInput`.
+
+## C40 — Linux access changes serialize cooperating writers
+
+Linux access-password changes require an exclusive advisory lock on a stable,
+private lock file inside an owner-private directory. Busy, permissive, and
+symlink lock paths are refused without changing access. Once replacement
+succeeds, the directory is synced; a failure leaves an explicitly uncertain
+outcome. The lock protocol does not bind external writers or network volumes.
+
+Guarded by `TestLinuxAccessWriterLockRejectsConcurrentPasswordChange` and
+`TestLinuxAccessWriterRefusesUnsafeDirectoryAndLock`, and
+`TestPostReplaceSyncFailureReportsUncertainOutcome`, and
+`TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess`.

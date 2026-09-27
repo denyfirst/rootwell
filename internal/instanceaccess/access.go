@@ -39,6 +39,9 @@ var (
 	ErrInvalidAccess     = errors.New("installation access file is invalid")
 	ErrIdentityMissing   = errors.New("installation identity is not enrolled")
 	ErrIdentityExists    = errors.New("installation identity is already enrolled")
+	ErrAccessBusy        = errors.New("installation access is being changed by another writer")
+	ErrUnsafeAccessStore = errors.New("installation access directory or lock is unsafe")
+	ErrWriteUncertain    = errors.New("installation access may have changed; inspect it before retrying")
 )
 
 type envelope struct {
@@ -225,6 +228,16 @@ func change(path, current, next, requiredState string) error {
 	if current == next {
 		return ErrPasswordUnchanged
 	}
+	return withAccessWriteLock(path, func() error {
+		return changeLocked(path, current, next, requiredState)
+	})
+}
+
+func changeLocked(path, current, next, requiredState string) error {
+	return changeLockedWithSync(path, current, next, requiredState, syncAccessDirectory)
+}
+
+func changeLockedWithSync(path, current, next, requiredState string, syncDir func(string) error) error {
 	key, state, id, err := unseal(path, current)
 	if err != nil {
 		return err
@@ -237,7 +250,13 @@ func change(path, current, next, requiredState string) error {
 	if err != nil {
 		return err
 	}
-	return replace(path, body)
+	if err := replace(path, body); err != nil {
+		return err
+	}
+	if err := syncDir(path); err != nil {
+		return ErrWriteUncertain
+	}
+	return nil
 }
 
 func checkPassword(password string) error {

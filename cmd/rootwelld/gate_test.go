@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,11 @@ const nextTestPassword = "a different long test password"
 func testGate(t *testing.T) (*gate, string) {
 	t.Helper()
 	data := t.TempDir()
+	if runtime.GOOS == "linux" {
+		if err := os.Chmod(data, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	path := filepath.Join(data, "access.json")
 	if err := instanceaccess.Create(path, initialTestPassword); err != nil {
 		t.Fatal(err)
@@ -299,6 +305,28 @@ func TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn(t *testing.T) {
 	}
 	if key, err := instanceaccess.Open(path, replacement); err != nil || len(key) != 32 {
 		t.Fatalf("new ready password does not open key: %v", err)
+	}
+}
+
+func TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess(t *testing.T) {
+	g, _ := testGate(t)
+	login := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("setup sign-in failed: %d", login.Code)
+	}
+	cookie := sessionCookie(t, login)
+	w := httptest.NewRecorder()
+	g.passwordChangeError(w, instanceaccess.ErrWriteUncertain)
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "uncertain") {
+		t.Fatalf("uncertain write was misreported: %d %q", w.Code, w.Body.String())
+	}
+	if response := call(g, "GET", "/setup", "", cookie); response.Code != http.StatusSeeOther {
+		t.Fatal("uncertain write left an authenticated session active")
+	}
+	w = httptest.NewRecorder()
+	g.passwordChangeError(w, instanceaccess.ErrAccessBusy)
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") != "1" {
+		t.Fatal("busy writer was not reported as temporary")
 	}
 }
 
