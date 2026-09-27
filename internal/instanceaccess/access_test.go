@@ -128,6 +128,24 @@ func emptyUpgrade(candidate IdentityUpgradeCandidate) bool {
 	return candidate.ExpectedRevision == [32]byte{} && len(candidate.EncryptedAccess) == 0 && len(candidate.InstallationID) == 0
 }
 
+func TestPostReplaceSyncFailureReportsUncertainOutcome(t *testing.T) {
+	const initial = "a sufficiently long initial password"
+	const next = "a sufficiently long changed password"
+	path := accessPath(t)
+	if err := Create(path, initial); err != nil {
+		t.Fatal(err)
+	}
+	err := changeLockedWithSync(path, initial, next, setup, func(string) error {
+		return errors.New("simulated directory sync failure")
+	})
+	if !errors.Is(err, ErrWriteUncertain) {
+		t.Fatalf("post-replacement failure reported a definite outcome: %v", err)
+	}
+	if key, err := Open(path, next); err != nil || len(key) != 32 {
+		t.Fatalf("uncertain outcome hid the new, valid access file: %v", err)
+	}
+}
+
 func TestV2IdentityIsUniqueAuthenticatedAndSurvivesPasswordChanges(t *testing.T) {
 	const initial = "an initial password for this test"
 	const activated = "an activated password for this test"

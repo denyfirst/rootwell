@@ -302,6 +302,28 @@ func TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn(t *testing.T) {
 	}
 }
 
+func TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess(t *testing.T) {
+	g, _ := testGate(t)
+	login := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
+	if login.Code != http.StatusOK {
+		t.Fatalf("setup sign-in failed: %d", login.Code)
+	}
+	cookie := sessionCookie(t, login)
+	w := httptest.NewRecorder()
+	g.passwordChangeError(w, instanceaccess.ErrWriteUncertain)
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "uncertain") {
+		t.Fatalf("uncertain write was misreported: %d %q", w.Code, w.Body.String())
+	}
+	if response := call(g, "GET", "/setup", "", cookie); response.Code != http.StatusSeeOther {
+		t.Fatal("uncertain write left an authenticated session active")
+	}
+	w = httptest.NewRecorder()
+	g.passwordChangeError(w, instanceaccess.ErrAccessBusy)
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") != "1" {
+		t.Fatal("busy writer was not reported as temporary")
+	}
+}
+
 func TestInitRequiresSaveConfirmationAndNeverReprintsPassword(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "private")
 	var output bytes.Buffer

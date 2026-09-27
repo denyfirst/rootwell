@@ -78,3 +78,14 @@ online guessing endpoint, but stolen wraps allow unthrottled offline attacks;
 the code's random entropy, not a memorized password, is the protection.
 The printable Go string cannot be reliably erased from process memory.
 Loss of both the login password and recovery code remains irrecoverable.
+
+Linux password changes now use a persistent private lock file and nonblocking
+advisory `flock` so cooperating processes cannot both rewrap from the same
+source state. The private directory and lock file ownership/mode are checked;
+the lock file is not removed. The writer syncs the directory after replacement
+and reports an uncertain outcome if that sync fails; the gateway then revokes
+all sessions instead of claiming the password change failed. This is not protection
+against a process that ignores advisory locking, a compromised same-user host,
+or unreviewed network filesystems. Native Windows and other non-Linux access
+changes retain development behavior; they are not an approved durable-storage
+writer. See [ADR 0015](adr/0015-linux-access-writer-lock.md).
