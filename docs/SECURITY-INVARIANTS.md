@@ -740,5 +740,7 @@ tampered snapshot, permissive data directory, duplicate import, overwrite,
 and live-daemon backup. It does not establish offsite durability, automatic
 backup, external anti-rollback, Windows support, or production readiness.
 
-Guarded by `TestContainerVolumeDrill` and
-`scripts/test-container-volume.sh` in the required Linux container CI job.
+Guarded by `TestContainerVolumeDrill`,
+`scripts/test-container-config.mjs` (overprivileged and ephemeral-volume
+sabotage), and `scripts/test-container-volume.sh` in the required Linux
+container CI job.

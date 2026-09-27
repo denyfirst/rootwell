@@ -33,7 +33,9 @@ jobs:
           git checkout -q FETCH_HEAD
 
       - name: Exercise isolated persistent volumes and fresh restore
-        run: bash scripts/test-container-volume.sh
+        run: |
+          node scripts/test-container-config.mjs
+          bash scripts/test-container-volume.sh
 
   build:
     name: Build and test

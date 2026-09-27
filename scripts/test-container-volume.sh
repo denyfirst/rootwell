@@ -30,16 +30,8 @@ if [[ "$(docker image inspect --format '{{.Config.User}}' rootwell:local)" != "6
   echo "production image must default to a non-root user" >&2
   exit 1
 fi
-compose_config="$(docker compose -f compose.yaml -p rootwell-volume-ci config --format json)"
-if ! jq -e '
-  .services.rootwell.network_mode == "host" and
-  .services.maintenance.network_mode == "none" and
-  ([.services.rootwell.volumes[].target] == ["/data"]) and
-  (([.services.maintenance.volumes[].target] | sort) == ["/backup", "/data"])
-' <<< "$compose_config" >/dev/null; then
-  echo "Compose network or volume isolation changed" >&2
-  exit 1
-fi
+docker compose -f compose.yaml -p rootwell-volume-ci config --format json \
+  | node scripts/check-container-config.mjs
 
 volume_test() {
   local phase="$1"
