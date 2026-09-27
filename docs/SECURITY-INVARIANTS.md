@@ -546,3 +546,15 @@ inventory, recovery credential, or backup is enabled by this invariant.
 Guarded by `TestV2IdentityIsUniqueAuthenticatedAndSurvivesPasswordChanges`,
 `TestLegacyV1CanStillOpenButCannotClaimAnIdentity`, and
 `TestV2RejectsMalformedIdentityAndVersion`.
+
+## C38 — Offline recovery codec does not silently enroll credentials
+
+The standalone codec generates a fresh 256-bit random code and wraps only an
+existing 256-bit data key for an explicit 128-bit installation ID. Wrong code,
+altered wrap, changed ID, malformed input, and cross-installation substitution
+return no key. It creates no file or endpoint, and is not a backup or working
+lost-password recovery ceremony.
+
+Guarded by `TestRecoveryWrapRoundTripIsRandomAndBoundToInstallation`,
+`TestRecoveryWrapRejectsTamperingAndMalformedInputs`, and
+`FuzzOpenRecoveryWrap`.
