@@ -56,9 +56,12 @@ retention promise because it is not exposed as a user-facing inventory yet.
    `access.json` must never be treated as recovery.
    The Linux-only internal v3 access writer now embeds a recovery wrap with
    the access envelope and can reset a password with a code. It is not yet an
-   operator-facing ceremony: trusted one-time display, backup export, fresh
-   restore drill, and stopped-daemon coordination remain required before any
-   inventory write. The standalone codec alone is not an enrolled credential.
+   operator-facing ceremony: trusted one-time display, full inventory backup,
+   fresh restore drill, and stopped-daemon coordination remain required before
+   any inventory write. A Linux-only internal access-envelope snapshot now
+   exists, with a tested fresh access restore. It contains no inventory
+   records and cannot substitute for the future full backup. The standalone
+   codec alone is not an enrolled credential.
 4. Only then expose a bounded, authenticated, same-origin API to **ready**
    sessions. The current standalone Workbench remains an offline, public-file
    processor. Any browser-to-server import is an explicit new capability and

@@ -17,23 +17,11 @@ const accessLockName = ".rootwell-access.lock"
 // Advisory locks do not constrain processes that ignore this protocol.
 func withAccessWriteLock(path string, fn func() error) error {
 	dir := filepath.Dir(path)
-	root, err := os.OpenRoot(dir)
+	root, err := openPrivateRoot(dir)
 	if err != nil {
-		return fmt.Errorf("%w: directory open", ErrUnsafeAccessStore)
+		return err
 	}
 	defer root.Close()
-	listed, err := os.Lstat(dir)
-	if err != nil || !listed.IsDir() || listed.Mode().Perm()&0o077 != 0 {
-		return fmt.Errorf("%w: directory mode", ErrUnsafeAccessStore)
-	}
-	opened, err := root.Stat(".")
-	if err != nil || !os.SameFile(listed, opened) {
-		return fmt.Errorf("%w: directory identity", ErrUnsafeAccessStore)
-	}
-	owner, ok := listed.Sys().(*syscall.Stat_t)
-	if !ok || int64(owner.Uid) != int64(os.Geteuid()) {
-		return fmt.Errorf("%w: directory owner", ErrUnsafeAccessStore)
-	}
 	lock, err := root.OpenFile(accessLockName, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return fmt.Errorf("%w: lock open", ErrUnsafeAccessStore)
@@ -59,6 +47,29 @@ func withAccessWriteLock(path string, fn func() error) error {
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
 	return fn()
+}
+
+func openPrivateRoot(dir string) (*os.Root, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("%w: directory open", ErrUnsafeAccessStore)
+	}
+	listed, err := os.Lstat(dir)
+	if err != nil || !listed.IsDir() || listed.Mode().Perm()&0o077 != 0 {
+		root.Close()
+		return nil, fmt.Errorf("%w: directory mode", ErrUnsafeAccessStore)
+	}
+	opened, err := root.Stat(".")
+	if err != nil || !os.SameFile(listed, opened) {
+		root.Close()
+		return nil, fmt.Errorf("%w: directory identity", ErrUnsafeAccessStore)
+	}
+	owner, ok := listed.Sys().(*syscall.Stat_t)
+	if !ok || int64(owner.Uid) != int64(os.Geteuid()) {
+		root.Close()
+		return nil, fmt.Errorf("%w: directory owner", ErrUnsafeAccessStore)
+	}
+	return root, nil
 }
 
 func syncAccessDirectory(path string) error {

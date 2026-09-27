@@ -623,3 +623,25 @@ Guarded by `TestRecoveryEnrollmentRotationAndPasswordResetPreserveIdentity`,
 `TestLinuxRecoveryRefusesUnsafeStore`, and
 `TestNonLinuxRecoveryCeremonyFailsClosed`, plus
 `FuzzRecoveryEnvelopeParsing`.
+
+## C43 — Access snapshots prove both recovery paths and never overwrite
+
+Linux access-only export requires an authenticated ready v3 source, current
+password, and matching offline recovery code under the access writer lock.
+The snapshot has a fresh ID and data-key MAC over its exact bounded encrypted
+access bytes. It is written as a new private file in a separate private
+directory, synced, and read back. Verification refuses wrong credentials,
+tampering, truncation, trailing data, and oversized input without releasing a
+key. Restore verifies before writing and accepts only an otherwise empty
+private directory; it never overwrites an installation. Post-write faults are
+uncertain. This does not back up inventory records or prevent old-snapshot
+replay.
+
+Guarded by `TestAccessSnapshotVerifiesWithPasswordOrRecoveryCode`,
+`TestAccessSnapshotRejectsWrongCredentialsTamperingAndTruncation`,
+`TestAccessSnapshotRequiresEnrolledRecovery`,
+`TestLinuxAccessSnapshotFreshRestoreDrill`,
+`TestLinuxAccessSnapshotRefusesUnsafePathsAndTampering`,
+`TestLinuxAccessSnapshotPostWriteSyncFailureIsUncertain`,
+`TestNonLinuxAccessSnapshotFilesystemOperationsFailClosed`, and
+`FuzzOpenAccessSnapshot`.

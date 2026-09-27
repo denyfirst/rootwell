@@ -117,3 +117,19 @@ This internal core is not a user-facing enrollment/reset workflow and creates
 no backup or inventory durability. The daemon must be stopped before any
 future offline reset ceremony; browser sessions are not a recovery authority.
 See [ADR 0017](adr/0017-embedded-recovery-linux.md).
+
+An internal Linux-only **access snapshot** can now be exported only after the
+operator proves both the current password and the separately stored recovery
+code. It is a bounded copy of the encrypted v3 access envelope with a random
+snapshot ID and data-key MAC over the exact bytes. The destination must be a
+different owner-private directory and a new 0600 file; no overwrite occurs.
+Verification can use either password or code. Restore accepts only a fresh,
+otherwise empty owner-private directory and verifies the complete snapshot
+before creating `access.json`; it does not overwrite an installation. A
+code-backed restore still needs a subsequent password reset if the old
+password is lost. Files and containing directories are synced, and post-write
+faults report uncertainty. The snapshot includes **no inventory records**,
+vault keys, or deployment data. It cannot protect against rollback to an old
+but valid snapshot, storage loss of both snapshot and code, or a compromised
+host. There is no CLI/browser operation yet. See
+[ADR 0018](adr/0018-access-only-snapshot-linux.md).
