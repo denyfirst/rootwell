@@ -15,6 +15,62 @@ var errOfflineUsage = errors.New("invalid offline recovery command or arguments;
 
 func runOfflineCommand(args []string, read secretReader, out io.Writer) error {
 	switch args[0] {
+	case "inventory-init", "inventory-snapshot":
+		if len(args) != 3 {
+			return errOfflineUsage
+		}
+		password, err := read("Current login password: ")
+		if err != nil {
+			return err
+		}
+		code, err := read("Recovery code: ")
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(args[1], "access.json")
+		if args[0] == "inventory-init" {
+			err = instanceaccess.InitializeInventory(path, args[2], password, code)
+		} else {
+			err = instanceaccess.ExportFullSnapshot(path, args[2], password, code)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(out, "Complete public inventory snapshot written and verified. Keep it separately from the recovery code.\n")
+		return err
+	case "inventory-verify", "inventory-restore":
+		want := 3
+		if args[0] == "inventory-restore" {
+			want = 4
+		}
+		if len(args) != want {
+			return errOfflineUsage
+		}
+		method, err := parseUnlockMethod(args[len(args)-1])
+		if err != nil {
+			return err
+		}
+		credential, err := read("Snapshot password or recovery code: ")
+		if err != nil {
+			return err
+		}
+		if args[0] == "inventory-verify" {
+			id, gen, err := instanceaccess.VerifyFullSnapshot(args[1], credential, method)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintf(out, "Complete public inventory snapshot authenticated. Installation ID: %x; generation: %d\n", id, gen)
+			return err
+		}
+		if err := instanceaccess.RestoreFullSnapshot(args[1], filepath.Join(args[2], "access.json"), credential, method); err != nil {
+			return err
+		}
+		message := "Complete public inventory snapshot restored into a fresh private directory.\n"
+		if method == instanceaccess.SnapshotRecoveryCode {
+			message += "If the old password is lost, run recovery-reset on the restored directory before starting rootwelld.\n"
+		}
+		_, err = io.WriteString(out, message)
+		return err
 	case "recovery-enroll", "recovery-rotate", "recovery-reset":
 		if len(args) != 2 {
 			return errOfflineUsage

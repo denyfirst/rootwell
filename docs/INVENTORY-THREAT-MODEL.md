@@ -1,11 +1,9 @@
 # Public certificate inventory: first boundary
 
-**Status:** in-memory data model, encrypted-record codec, and a standalone
-authenticated complete-image codec only.
-Linux access-envelope recovery and access-only snapshots are separate; no
-persistent inventory, HTTP import endpoint, browser save button, inventory
-backup, or vault is shipped. Do not place real operational records here
-expecting them to survive a restart.
+**Status:** Linux-only private-file persistence and complete access+public
+inventory snapshots are implemented, but browser import and native Windows
+storage are not enabled. The storage boundary is still development-only and
+not externally audited. No vault or private-key storage is shipped.
 
 ## Data and trust boundaries
 
@@ -42,10 +40,11 @@ retention promise because it is not exposed as a user-facing inventory yet.
    migration, backup enrollment, or automatic migration does. An
    authenticated complete-image manifest codec now supplies an image-local
    generation source and validates every encrypted record before returning any
-   result. It has no filesystem transaction or external anti-rollback anchor;
-   an older complete authenticated image can still be replayed. A safe
-   persisted writer and full restore drill remain required before any storage
-   write. The installation data key must never appear in logs, URLs, browser
+   result. A Linux private-file writer now uses an owner-private directory,
+   an advisory writer lock, a bounded read, and an atomic single-file replace
+   followed by directory sync/readback. An older complete authenticated image
+   can still be replayed: there is no external anti-rollback anchor. The
+   installation data key must never appear in logs, URLs, browser
    storage, or configuration. The random-nonce
    AEAD has a per-key message-count limit; the future storage layer must count
    writes and rotate keys well before that limit. Ciphertext length remains
@@ -61,12 +60,15 @@ retention promise because it is not exposed as a user-facing inventory yet.
    `access.json` must never be treated as recovery.
    The Linux-only internal v3 access writer now embeds a recovery wrap with
    the access envelope and can reset a password with a code. It is not yet an
-   full inventory backup, fresh restore drill with records, and stopped-daemon
-   coordination remain required before any inventory write. A Linux terminal
-   ceremony now supports recovery enrollment/reset and an access-envelope-only
-   snapshot with a fresh access restore drill. It contains no inventory
-   records and cannot substitute for the future full backup. The standalone
-   codec alone is not an enrolled credential.
+   Linux complete backup now pairs an authenticated access snapshot with the
+   exact encrypted inventory image, requiring password and separately stored
+   recovery code at export. It is verified with either credential and restored
+   only to a fresh private directory, inventory first and access last.
+   Inventory initialization writes a matching empty full backup before
+   enabling storage. Offline export and restore exclude a live daemon via the
+   operation lock. Access-only snapshots remain insufficient for inventory.
+   Operators must make new full snapshots after imports; backups are not
+   automatic. The standalone codec alone is not an enrolled credential.
 4. Only then expose a bounded, authenticated, same-origin API to **ready**
    sessions. The current standalone Workbench remains an offline, public-file
    processor. Any browser-to-server import is an explicit new capability and

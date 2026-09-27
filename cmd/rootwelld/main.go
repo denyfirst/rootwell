@@ -52,7 +52,7 @@ func run(args []string) int {
 		}
 		return 0
 	}
-	fmt.Fprintln(os.Stderr, "usage: rootwelld init <private-data-dir> | rootwelld serve <private-data-dir> <workbench-assets-dir> | rootwelld recovery-enroll|recovery-rotate|recovery-reset <private-data-dir> | rootwelld access-snapshot <private-data-dir> <new-snapshot-file> | rootwelld access-verify <snapshot-file> password|code | rootwelld access-restore <snapshot-file> <fresh-private-data-dir> password|code")
+	fmt.Fprintln(os.Stderr, "usage: rootwelld init <private-data-dir> | rootwelld serve <private-data-dir> <workbench-assets-dir> | rootwelld recovery-enroll|recovery-rotate|recovery-reset <private-data-dir> | rootwelld access-snapshot|inventory-init|inventory-snapshot <private-data-dir> <new-snapshot-file> | rootwelld access-verify|inventory-verify <snapshot-file> password|code | rootwelld access-restore|inventory-restore <snapshot-file> <fresh-private-data-dir> password|code")
 	return 2
 }
 

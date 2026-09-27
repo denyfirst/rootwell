@@ -1,8 +1,9 @@
 # Rootwell access bərpası — Linux terminal mərasimi
 
-**Status:** inkişaf mərhələsi. Bu prosedur yalnız `access.json` üçün nəzərdə
-tutulub; certificate inventory, vault və serverdəki başqa məlumatların tam
-backup-u deyil. İlk public/production istifadə üçün müstəqil təhlükəsizlik
+**Status:** inkişaf mərhələsi. Access-only prosedur yalnız `access.json` üçündür.
+Yeni Linux public-certificate inventory üçün ayrıca tam snapshot proseduru
+aşağıdadır; vault və gələcək başqa məlumatlar ora daxil deyil. İlk
+public/production istifadə üçün müstəqil təhlükəsizlik
 auditi və real restore drill tələb olunur. Windows-da bu əmrlər qəsdən bağlıdır.
 
 Parol və recovery kodunu heç vaxt komanda argumenti, environment variable,
@@ -49,5 +50,44 @@ Parol və kodun ikisi də itibsə, şifrəli məlumatı bərpa etmək mümkün d
 Fayl/volume korlanması, enerji kəsilməsi və ya `uncertain` nəticəsi zamanı
 əmri kor-koranə təkrarlamayın; cari faylın vəziyyətini yoxlayın. Köhnə,
 amma düzgün snapshot geri qaytarıla bilər — bu format rollback hücumunu
-aşkar etmir. Daha sonra yaradılacaq inventory qeydləri bu snapshot-a daxil
-olmadığı üçün hələ qalıcı inventory aktiv edilməyib.
+aşkar etmir. Inventory aktivdirsə access-only snapshot onun qeydlərini
+qaytarmır; onu tam backup əvəzi kimi istifadə etməyin.
+
+## Linux public inventory: tam snapshot və bərpa
+
+Bu əmrlər yalnız Linux-da və daemon dayandırıldıqda işləyir. Əvvəl
+`recovery-enroll` ilə kod yaradılmalı, ayrıca owner-private (`0700`) backup
+qovluğu hazırlanmalıdır. İlk aktivləşmə planlanan boş inventory-nin tam
+snapshot-unu **əvvəl** yazır, sonra inventory faylını yaradır:
+
+```text
+rootwelld inventory-init /private/rootwell-data /private/backup/initial.rwfull
+rootwelld inventory-verify /private/backup/initial.rwfull code
+```
+
+Export cari parolu və ayrıca recovery kodunu terminalda soruşur. Sertifikat
+importundan və parol/kod dəyişməsindən sonra yeni, fərqli adla tam snapshot
+yaradın; köhnə faylın üzərinə yazılmır:
+
+```text
+rootwelld inventory-snapshot /private/rootwell-data /private/backup/dated.rwfull
+rootwelld inventory-verify /private/backup/dated.rwfull password
+```
+
+Təzə, boş və `0700` qovluqda bərpa məşqi:
+
+```text
+rootwelld inventory-restore /private/backup/dated.rwfull /private/fresh-rootwell-data code
+rootwelld recovery-reset /private/fresh-rootwell-data
+```
+
+`inventory-restore` həm access envelope-u, həm inventory image-ni birlikdə
+autentifikasiya edir və heç bir mövcud qurulumu əvəz etmir. Restore-un yarıda
+qalması mümkün olduqda həmin qovluğu əllə araşdırın; təkrar sınaq üçün **yeni**
+boş qovluq seçin. Snapshot-un özündə olan köhnə parol/kod qüvvədə qala bilər;
+restore-dan sonra kodu və parolu dəyişib yeni snapshot alın. Snapshot da
+inventory kimi daxili host/owner adları haqqında metadata sızdıra bilər.
+Tam köhnə, autentik snapshot geri qaytarıla bilər; ayrıca etibarlı monotonic
+anchor olmadan bu rollback aşkarlanmır. Backup-ı və recovery kodunu ayrı,
+offsite yerlərdə saxlayın. Windows native inventory storage və Docker volume
+icazələri/restore-u hələ release qapısıdır.

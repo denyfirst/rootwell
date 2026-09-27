@@ -136,3 +136,53 @@ func TestLinuxOfflineCeremonyRefusesRunningDaemonAndBadArguments(t *testing.T) {
 		t.Fatalf("busy refusal changed access: %v", err)
 	}
 }
+
+func TestLinuxInventoryCeremoniesRequireRecoveryAndRestoreFresh(t *testing.T) {
+	dir := ceremonyPrivateDir(t)
+	path := filepath.Join(dir, "access.json")
+	const initial = "a sufficiently long setup password"
+	const password = "a sufficiently long login password"
+	if err := instanceaccess.Create(path, initial); err != nil {
+		t.Fatal(err)
+	}
+	if err := instanceaccess.ChangeInitialPassword(path, initial, password); err != nil {
+		t.Fatal(err)
+	}
+	backup := filepath.Join(ceremonyPrivateDir(t), "initial.rwfull")
+	var output bytes.Buffer
+	if err := runOfflineCommand([]string{"inventory-init", dir, backup}, ceremonySecrets(t, password, "invalid-code"), &output); err == nil {
+		t.Fatal("unenrolled inventory initialized")
+	}
+	if _, err := os.Lstat(backup); !os.IsNotExist(err) {
+		t.Fatal("rejected inventory initialization wrote backup")
+	}
+	if err := runOfflineCommand([]string{"recovery-enroll", dir}, ceremonySecrets(t, password), &output); err != nil {
+		t.Fatal(err)
+	}
+	code := displayedCode(t, output.String())
+	output.Reset()
+	if err := runOfflineCommand([]string{"inventory-init", dir, backup}, ceremonySecrets(t, password, code), &output); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), password) || strings.Contains(output.String(), code) {
+		t.Fatal("inventory CLI leaked a credential")
+	}
+	output.Reset()
+	if err := runOfflineCommand([]string{"inventory-verify", backup, "code"}, ceremonySecrets(t, code), &output); err != nil || !strings.Contains(output.String(), "generation: 1") {
+		t.Fatalf("inventory verification: %v", err)
+	}
+	fresh := ceremonyPrivateDir(t)
+	output.Reset()
+	if err := runOfflineCommand([]string{"inventory-restore", backup, fresh, "code"}, ceremonySecrets(t, code), &output); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := instanceaccess.OpenWithIdentity(filepath.Join(fresh, "access.json"), password); err != nil {
+		t.Fatalf("restored login: %v", err)
+	}
+	if err := runOfflineCommand([]string{"inventory-restore", backup, fresh, "code"}, ceremonySecrets(t, code), &output); err == nil {
+		t.Fatal("restore overwrote existing installation")
+	}
+	if err := runOfflineCommand([]string{"inventory-snapshot", dir, filepath.Join(ceremonyPrivateDir(t), "next.rwfull"), "secret-as-arg"}, ceremonySecrets(t), &output); !errors.Is(err, errOfflineUsage) {
+		t.Fatal("secret-looking extra argument accepted")
+	}
+}

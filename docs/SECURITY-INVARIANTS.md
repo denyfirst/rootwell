@@ -680,3 +680,27 @@ generation anchor, or prevent replay of an older complete authenticated image.
 Guarded by `TestCreateAppendOpenAndRejectDuplicate`,
 `TestCorruptionContextAndMalformedImportFailClosed`,
 `TestManifestRejectsAuthorizedButInconsistentRecord`, and `FuzzOpenImage`.
+
+## C46 — Linux inventory activation and full snapshots preserve recoverability
+
+Only a recovery-enrolled ready installation can initialize durable Linux
+public inventory. A verified full snapshot of the planned empty image is
+created in a separate private directory before the inventory file is made
+visible. Subsequent imports validate the entire authenticated image and
+atomically replace it under the installation writer lock; post-rename faults
+are uncertain. Offline full export captures the exact access envelope and
+inventory image under both the daemon operation lock and writer lock. Restore
+authenticates the pair before writing only into a fresh private directory,
+inventory first and access last. Neither an access-only backup nor an older
+complete snapshot guarantees current inventory state. Windows operations
+fail closed; filesystem-level full-image rollback remains undetectable.
+
+Guarded by `TestFullSnapshotPasswordAndCodeRoundTrip`,
+`TestFullSnapshotRefusesWrongCredentialsAndIncompletePairs`,
+`TestLinuxInventoryDurableImportAndFreshFullRestore`,
+`TestLinuxInventoryRefusesUnsafeAndBusyOperations`,
+`TestLinuxInventoryPostRenameSyncFaultIsUncertain`,
+`TestLinuxInventoryPreRenameDiskFaultPreservesOriginal`,
+`TestLinuxFullSnapshotRefusesUnsafePathsAndTampering`,
+`TestLinuxInventoryCeremoniesRequireRecoveryAndRestoreFresh`,
+`TestNonLinuxDurableInventoryFailsClosed`, and `FuzzOpenFullSnapshot`.
