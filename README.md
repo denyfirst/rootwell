@@ -36,6 +36,7 @@ durable records are accepted.
 - [Workbench threat model](docs/THREAT-MODEL.md)
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - [v0.1 format matrix](docs/FORMAT-MATRIX.md)
+- [Linux access recovery and snapshot guide](docs/RECOVERY-AZ.md)
 
 ## Local Workbench interface
 
@@ -62,7 +63,10 @@ accepted as command-line arguments or written to daemon logs. An existing
 installation's setup password cannot be redisplayed. The gateway listens on
 127.0.0.1 only; it is not a remote TLS endpoint or production vault. Secure
 cookies over HTTP localhost are not supported by every browser, and the
-Windows ACL/backup/recovery boundary is not yet complete. See the
+Windows ACL and native recovery boundary is not yet complete. Linux has an
+access-only offline recovery/snapshot ceremony, but no inventory backup or
+production disaster-recovery guarantee; see the
+[Linux recovery guide](docs/RECOVERY-AZ.md) and the
 [loopback gate threat model](docs/LOOPBACK-GATE-THREAT-MODEL.md).
 Serving `web/workbench` directly with a separate static server remains an
 unauthenticated developer preview; it is not protected by `rootwelld`.

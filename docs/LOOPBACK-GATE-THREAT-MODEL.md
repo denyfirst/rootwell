@@ -2,7 +2,8 @@
 
 **Scope:** single-operator, self-hosted development gateway for the existing
 public-only Workbench. It binds only to 127.0.0.1. No vault, inventory,
-private-key upload, remote listener, TLS termination, or recovery is provided.
+private-key upload, remote listener, TLS termination, or browser recovery is
+provided. A separate offline Linux terminal recovery ceremony exists.
 
 The local operator runs `rootwelld init` interactively on the host. Only that
 command displays a per-installation initial password on a terminal. The server
@@ -36,12 +37,18 @@ request boundaries, not a cross-process lock or a monotonic anti-rollback
 record: a same-byte rollback between requests or a change during one request
 is not proven impossible. The reader still does not validate Windows ACLs.
 
+On Linux, `serve` holds a private advisory operation lock for its full
+lifetime. Offline recovery and access-only snapshot writers refuse to run
+while that lock is held. This is separate from the short access writer lock
+used for password changes. Older/non-cooperating processes and network mounts
+are not covered. Windows serve remains development-only without this lock.
+
 **Residual boundaries:** HTTP over host loopback is not a remote transport
 security claim. Remote access requires an SSH tunnel to the host loopback or
 future reviewed TLS deployment. Some browsers do not support Secure cookies
 on plain HTTP localhost; those browsers must not silently fall back to an
 insecure cookie. The access file's Windows ACL and directory ownership,
-concurrent process instances, durable backups/recovery, and lost-password
-flow require further review before production secret custody. A compromised
+non-cooperating process instances, full inventory backup and restore, and
+production recovery drills require further review before secret custody. A compromised
 host, browser extension, or same-origin script can act as the user. The
 Workbench remains public-certificate-only and stores no user history.

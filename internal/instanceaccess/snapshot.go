@@ -21,6 +21,7 @@ var (
 	ErrSnapshotExists      = errors.New("access snapshot destination already exists")
 	ErrSnapshotNotEmpty    = errors.New("restore destination is not empty")
 	ErrSnapshotUnsupported = errors.New("access snapshots are unsupported on this platform")
+	ErrSnapshotUncertain   = errors.New("snapshot or restored access may have been written; inspect before retrying")
 )
 
 type SnapshotUnlock uint8

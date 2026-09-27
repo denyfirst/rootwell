@@ -26,8 +26,13 @@ func changeRecovery(path, credential, nextPassword string, action recoveryAction
 	if len(credential) == 0 || len(credential) > maxPass {
 		return "", ErrInvalidRecoveryInput
 	}
+	releaseOperation, err := AcquireOperationLock(path)
+	if err != nil {
+		return "", err
+	}
+	defer releaseOperation()
 	var code string
-	err := withAccessWriteLock(path, func() error {
+	err = withAccessWriteLock(path, func() error {
 		var err error
 		code, err = changeRecoveryLocked(path, credential, nextPassword, action, replace, syncAccessDirectory)
 		return err

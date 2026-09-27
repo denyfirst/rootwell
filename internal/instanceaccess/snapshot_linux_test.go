@@ -142,7 +142,7 @@ func TestLinuxAccessSnapshotPostWriteSyncFailureIsUncertain(t *testing.T) {
 	err = exportAccessSnapshotWithSync(accessPath, snapshotPath, password, code, func(string) error {
 		return errors.New("simulated backup directory sync fault")
 	})
-	if !errors.Is(err, ErrWriteUncertain) {
+	if !errors.Is(err, ErrSnapshotUncertain) {
 		t.Fatalf("post-write backup fault was not uncertain: %v", err)
 	}
 	if _, err := VerifyAccessSnapshot(snapshotPath, password, SnapshotPassword); err != nil {
@@ -152,7 +152,7 @@ func TestLinuxAccessSnapshotPostWriteSyncFailureIsUncertain(t *testing.T) {
 	err = restoreAccessSnapshotWithSync(snapshotPath, destination, password, SnapshotPassword, func(string) error {
 		return errors.New("simulated restore directory sync fault")
 	})
-	if !errors.Is(err, ErrWriteUncertain) {
+	if !errors.Is(err, ErrSnapshotUncertain) {
 		t.Fatalf("post-write restore fault was not uncertain: %v", err)
 	}
 	if _, _, err := OpenWithIdentity(destination, password); err != nil {

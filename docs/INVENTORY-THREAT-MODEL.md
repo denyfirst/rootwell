@@ -1,10 +1,10 @@
 # Public certificate inventory: first boundary
 
-**Status:** in-memory data model, standalone encrypted-record codec, and
-in-memory recovery-wrap codec only. No persistent inventory, HTTP import
-endpoint, browser save button, backup, enrolled recovery key, or vault is shipped.
-Do not place real
-operational records here expecting them to survive a restart.
+**Status:** in-memory data model and standalone encrypted-record codec only.
+Linux access-envelope recovery and access-only snapshots are separate; no
+persistent inventory, HTTP import endpoint, browser save button, inventory
+backup, or vault is shipped. Do not place real operational records here
+expecting them to survive a restart.
 
 ## Data and trust boundaries
 
@@ -56,10 +56,10 @@ retention promise because it is not exposed as a user-facing inventory yet.
    `access.json` must never be treated as recovery.
    The Linux-only internal v3 access writer now embeds a recovery wrap with
    the access envelope and can reset a password with a code. It is not yet an
-   operator-facing ceremony: trusted one-time display, full inventory backup,
-   fresh restore drill, and stopped-daemon coordination remain required before
-   any inventory write. A Linux-only internal access-envelope snapshot now
-   exists, with a tested fresh access restore. It contains no inventory
+   full inventory backup, fresh restore drill with records, and stopped-daemon
+   coordination remain required before any inventory write. A Linux terminal
+   ceremony now supports recovery enrollment/reset and an access-envelope-only
+   snapshot with a fresh access restore drill. It contains no inventory
    records and cannot substitute for the future full backup. The standalone
    codec alone is not an enrolled credential.
 4. Only then expose a bounded, authenticated, same-origin API to **ready**

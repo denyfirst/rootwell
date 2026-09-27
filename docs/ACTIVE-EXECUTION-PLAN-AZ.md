@@ -47,8 +47,11 @@ olunmamış nəticəyə “verified” demək qadağandır.
    certificate-lər üçün RAM-da all-or-nothing import və duplicate rəddidir;
    diskə yazmır və istifadəçi UI-si deyil. Sərhəd
    [`INVENTORY-THREAT-MODEL.md`](INVENTORY-THREAT-MODEL.md) sənədindədir.
-   Sonrakı şifrəli saxlanma üçün Linux/container permission, backup/restore,
-   itmiş parolun bərpası və Windows native support ayrıca yoxlanmalıdır.
+   Linux üçün parolun offline bərpası və access-only snapshot/restore nüvəsi
+   və terminal mərasimi mövcuddur; bu, inventory backup-u deyil. Sonrakı
+   şifrəli saxlanma üçün tam record manifesti/generation mənbəyi,
+   Linux/container permission və restore drill, Windows native support və
+   release auditi ayrıca yoxlanmalıdır.
    Public metadata belə daxili adları aça bilər. Gizli, davamlı yaddaş və
    network discovery bu addımlardan avtomatik yaranmır.
 6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
