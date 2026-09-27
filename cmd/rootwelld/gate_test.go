@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,11 @@ const nextTestPassword = "a different long test password"
 func testGate(t *testing.T) (*gate, string) {
 	t.Helper()
 	data := t.TempDir()
+	if runtime.GOOS == "linux" {
+		if err := os.Chmod(data, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	path := filepath.Join(data, "access.json")
 	if err := instanceaccess.Create(path, initialTestPassword); err != nil {
 		t.Fatal(err)

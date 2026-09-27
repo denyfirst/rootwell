@@ -15,7 +15,15 @@ import (
 
 func accessPath(t *testing.T) string {
 	t.Helper()
-	return filepath.Join(t.TempDir(), "access.json")
+	dir := t.TempDir()
+	// testing.TempDir's numbered child may be 0755 under the runner umask.
+	// The access writer correctly requires an explicitly private data dir.
+	if runtime.GOOS == "linux" {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return filepath.Join(dir, "access.json")
 }
 
 func TestPrepareIdentityUpgradePreservesKeyWithoutChangingSource(t *testing.T) {
