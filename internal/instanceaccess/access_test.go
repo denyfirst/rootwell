@@ -3,6 +3,7 @@ package instanceaccess
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"os"
@@ -15,6 +16,116 @@ import (
 func accessPath(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(t.TempDir(), "access.json")
+}
+
+func TestPrepareIdentityUpgradePreservesKeyWithoutChangingSource(t *testing.T) {
+	const password = "a sufficiently long legacy password"
+	path := accessPath(t)
+	key := bytes.Repeat([]byte{0x41}, 32)
+	legacy, err := seal(key, password, ready, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, legacy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := PrepareIdentityUpgrade(path, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidate.ExpectedRevision != sha256.Sum256(legacy) || len(candidate.InstallationID) != 16 ||
+		bytes.Equal(candidate.EncryptedAccess, legacy) || bytes.Contains(candidate.EncryptedAccess, key) ||
+		bytes.Contains(candidate.EncryptedAccess, []byte(password)) {
+		t.Fatal("upgrade candidate is unbound, unencrypted, or missing identity")
+	}
+	current, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(current, legacy) {
+		t.Fatalf("preparation changed the original file: %v", err)
+	}
+	if _, _, err := OpenWithIdentity(path, password); !errors.Is(err, ErrIdentityMissing) {
+		t.Fatalf("preparation silently upgraded original: %v", err)
+	}
+	staged := accessPath(t)
+	if err := os.WriteFile(staged, candidate.EncryptedAccess, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opened, id, err := OpenWithIdentity(staged, password)
+	if err != nil || !bytes.Equal(opened, key) || !bytes.Equal(id, candidate.InstallationID) {
+		t.Fatalf("candidate lost the key or identity: %v", err)
+	}
+	again, err := PrepareIdentityUpgrade(path, password)
+	if err != nil || bytes.Equal(candidate.InstallationID, again.InstallationID) {
+		t.Fatalf("independent preparations reused identity: %v", err)
+	}
+}
+
+func TestPrepareIdentityUpgradeRefusesWrongStateAndUnsafeInput(t *testing.T) {
+	const password = "a sufficiently long legacy password"
+	path := accessPath(t)
+	key := bytes.Repeat([]byte{0x42}, 32)
+	for _, state := range []string{setup, ready} {
+		legacy, err := seal(key, password, state, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, legacy, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidate, err := PrepareIdentityUpgrade(path, "incorrect legacy password")
+		if !errors.Is(err, ErrWrongPassword) || !emptyUpgrade(candidate) {
+			t.Fatalf("wrong password prepared identity: %v", err)
+		}
+		if state == setup {
+			candidate, err = PrepareIdentityUpgrade(path, password)
+			if !errors.Is(err, ErrChangeRequired) || !emptyUpgrade(candidate) {
+				t.Fatalf("setup password prepared identity: %v", err)
+			}
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("refused preparation changed file: %v", err)
+		}
+	}
+	v2path := accessPath(t)
+	if err := Create(v2path, password); err != nil {
+		t.Fatal(err)
+	}
+	if err := ChangeInitialPassword(v2path, password, "a sufficiently long activated password"); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := PrepareIdentityUpgrade(v2path, "a sufficiently long activated password")
+	if !errors.Is(err, ErrIdentityExists) || !emptyUpgrade(candidate) {
+		t.Fatalf("v2 installation prepared another identity: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err = PrepareIdentityUpgrade(path, password)
+	if !errors.Is(err, ErrInvalidAccess) || !emptyUpgrade(candidate) {
+		t.Fatalf("malformed file prepared identity: %v", err)
+	}
+	if err := os.WriteFile(path, bytes.Repeat([]byte("x"), maxFile+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	candidate, err = PrepareIdentityUpgrade(path, password)
+	if !errors.Is(err, ErrInvalidAccess) || !emptyUpgrade(candidate) {
+		t.Fatalf("oversized file prepared identity: %v", err)
+	}
+	link := filepath.Join(t.TempDir(), "access-link")
+	if err := os.Symlink(v2path, link); err == nil {
+		candidate, err = PrepareIdentityUpgrade(link, "a sufficiently long activated password")
+		if !errors.Is(err, ErrInvalidAccess) || !emptyUpgrade(candidate) {
+			t.Fatalf("symlink prepared identity: %v", err)
+		}
+	}
+}
+
+func emptyUpgrade(candidate IdentityUpgradeCandidate) bool {
+	return candidate.ExpectedRevision == [32]byte{} && len(candidate.EncryptedAccess) == 0 && len(candidate.InstallationID) == 0
 }
 
 func TestV2IdentityIsUniqueAuthenticatedAndSurvivesPasswordChanges(t *testing.T) {

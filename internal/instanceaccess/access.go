@@ -38,6 +38,7 @@ var (
 	ErrPasswordUnchanged = errors.New("new password must differ from current password")
 	ErrInvalidAccess     = errors.New("installation access file is invalid")
 	ErrIdentityMissing   = errors.New("installation identity is not enrolled")
+	ErrIdentityExists    = errors.New("installation identity is already enrolled")
 )
 
 type envelope struct {
@@ -49,6 +50,16 @@ type envelope struct {
 	Nonce          []byte `json:"nonce"`
 	Key            []byte `json:"key"`
 	InstallationID []byte `json:"installation_id,omitempty"`
+}
+
+// IdentityUpgradeCandidate is an encrypted v2 replacement prepared from an
+// authenticated v1 snapshot. It is not installed by this package. A future
+// writer must check ExpectedRevision under exclusive single-writer control
+// before any replacement, then verify the result and backup pairing.
+type IdentityUpgradeCandidate struct {
+	ExpectedRevision [32]byte
+	EncryptedAccess  []byte
+	InstallationID   []byte
 }
 
 // GenerateInitialPassword creates a per-installation, 160-bit random secret.
@@ -169,6 +180,44 @@ func ChangePassword(path, currentPassword, nextPassword string) error {
 	return change(path, currentPassword, nextPassword, ready)
 }
 
+// PrepareIdentityUpgrade authenticates a ready legacy v1 access file and
+// prepares a v2 envelope with the same data key and password. It never writes
+// a file, enables recovery, or changes a running installation. The candidate
+// must not be installed until a separately reviewed locked writer exists.
+func PrepareIdentityUpgrade(path, password string) (IdentityUpgradeCandidate, error) {
+	if len(password) == 0 || len(password) > maxPass {
+		return IdentityUpgradeCandidate{}, ErrWrongPassword
+	}
+	body, err := readAccess(path)
+	if err != nil {
+		return IdentityUpgradeCandidate{}, err
+	}
+	key, state, id, err := unsealBody(body, password)
+	if err != nil {
+		return IdentityUpgradeCandidate{}, err
+	}
+	defer clear(key)
+	if state != ready {
+		return IdentityUpgradeCandidate{}, ErrChangeRequired
+	}
+	if len(id) != 0 {
+		return IdentityUpgradeCandidate{}, ErrIdentityExists
+	}
+	newID := make([]byte, 16)
+	if _, err := rand.Read(newID); err != nil {
+		return IdentityUpgradeCandidate{}, errors.New("installation identity could not be generated")
+	}
+	upgraded, err := seal(key, password, ready, newID)
+	if err != nil {
+		return IdentityUpgradeCandidate{}, err
+	}
+	return IdentityUpgradeCandidate{
+		ExpectedRevision: sha256.Sum256(body),
+		EncryptedAccess:  upgraded,
+		InstallationID:   newID,
+	}, nil
+}
+
 func change(path, current, next, requiredState string) error {
 	if err := checkPassword(next); err != nil {
 		return err
@@ -249,6 +298,16 @@ func unseal(path, password string) ([]byte, string, []byte, error) {
 	body, err := readAccess(path)
 	if err != nil {
 		return nil, "", nil, err
+	}
+	return unsealBody(body, password)
+}
+
+func unsealBody(body []byte, password string) ([]byte, string, []byte, error) {
+	if len(password) == 0 || len(password) > maxPass {
+		return nil, "", nil, ErrWrongPassword
+	}
+	if len(body) > maxFile {
+		return nil, "", nil, ErrInvalidAccess
 	}
 	var e envelope
 	decoder := json.NewDecoder(bytes.NewReader(body))

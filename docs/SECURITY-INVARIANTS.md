@@ -558,3 +558,15 @@ lost-password recovery ceremony.
 Guarded by `TestRecoveryWrapRoundTripIsRandomAndBoundToInstallation`,
 `TestRecoveryWrapRejectsTamperingAndMalformedInputs`, and
 `FuzzOpenRecoveryWrap`.
+
+## C39 — Legacy identity preparation does not mutate access
+
+Only a password-authenticated, ready v1 access snapshot can prepare an
+encrypted v2 candidate. It preserves the exact data key and password, creates
+a fresh random ID, and binds the candidate to the source revision. Wrong
+password, setup state, already-v2 state, malformed/oversized input, and symlink
+are refused without a candidate. The source file is never changed. A revision
+alone is not a lock or authorization to install the candidate.
+
+Guarded by `TestPrepareIdentityUpgradePreservesKeyWithoutChangingSource` and
+`TestPrepareIdentityUpgradeRefusesWrongStateAndUnsafeInput`.

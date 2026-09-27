@@ -36,7 +36,9 @@ retention promise because it is not exposed as a user-facing inventory yet.
    plaintext/ciphertext. It does not validate record payloads or supply a
    persisted monotonic generation source. The access envelope now provides an
    authenticated stable ID for new v2 installations only; existing v1
-   installations need explicit enrollment. A persisted manifest and generation
+   installations need explicit enrollment. A read-only v1-to-v2 candidate
+   preparer exists, but no safe installer or automatic migration does. A
+   persisted manifest and generation
    source must be built before any storage write. The installation data key
    must never appear in logs, URLs, browser storage, or configuration. The random-nonce
    AEAD has a per-key message-count limit; the future storage layer must count
