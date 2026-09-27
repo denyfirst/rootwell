@@ -621,4 +621,5 @@ Guarded by `TestRecoveryEnrollmentRotationAndPasswordResetPreserveIdentity`,
 `TestRecoveryWriteFaultsDoNotReturnCode`,
 `TestLinuxRecoveryCeremonySerializesAndPreservesDataKey`,
 `TestLinuxRecoveryRefusesUnsafeStore`, and
-`TestNonLinuxRecoveryCeremonyFailsClosed`.
+`TestNonLinuxRecoveryCeremonyFailsClosed`, plus
+`FuzzRecoveryEnvelopeParsing`.
