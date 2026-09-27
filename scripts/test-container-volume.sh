@@ -30,7 +30,7 @@ if [[ "$(docker image inspect --format '{{.Config.User}}' rootwell:local)" != "6
   echo "production image must default to a non-root user" >&2
   exit 1
 fi
-docker compose -f compose.yaml -p rootwell-volume-ci config --format json \
+docker compose -f compose.yaml -p rootwell-volume-ci --profile maintenance config --format json \
   | node scripts/check-container-config.mjs
 
 volume_test() {
