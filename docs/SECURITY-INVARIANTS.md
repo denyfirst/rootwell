@@ -601,3 +601,25 @@ Guarded by `TestLinuxIdentityUpgradeCommitsOnlyMatchingReadyV1`,
 `TestIdentityUpgradeCorePreservesPrewriteFailureAndReportsPostwriteUncertainty`,
 `TestIdentityUpgradeCoreUsesOneCandidateSnapshot`,
 and `TestNonLinuxIdentityUpgradeFailsClosed`.
+
+## C42 — Linux offline recovery keeps the same data key and rotates authority
+
+Only a password-authenticated ready v2 installation may enroll recovery;
+ready v3 requires the password to rotate it. The recovery wrap and a keyed
+confirmation are embedded in one v3 access envelope and password-authenticated.
+A valid code can reset the password while preserving the data key and ID, but
+the current envelope receives a fresh code so replay of the old code fails.
+Wrong credentials, tampering, unsafe directory, busy lock, and unsupported OS
+do not write. Pre-replacement faults preserve the source; post-replacement
+sync/readback faults are uncertain and return no code. This is internal core,
+not a backup or operator-facing recovery promise; old offline backups remain
+usable with their old codes.
+
+Guarded by `TestRecoveryEnrollmentRotationAndPasswordResetPreserveIdentity`,
+`TestRecoveryWrapSurvivesPasswordRotation`,
+`TestRecoveryRefusesWrongCredentialAndTamperedEnvelopeWithoutWriting`,
+`TestRecoveryWriteFaultsDoNotReturnCode`,
+`TestLinuxRecoveryCeremonySerializesAndPreservesDataKey`,
+`TestLinuxRecoveryRefusesUnsafeStore`, and
+`TestNonLinuxRecoveryCeremonyFailsClosed`, plus
+`FuzzRecoveryEnvelopeParsing`.

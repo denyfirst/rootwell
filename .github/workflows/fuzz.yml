@@ -56,6 +56,8 @@ jobs:
             package: ./internal/inventoryseal
           - target: FuzzOpenRecoveryWrap
             package: ./internal/instanceaccess
+          - target: FuzzRecoveryEnvelopeParsing
+            package: ./internal/instanceaccess
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzMatch

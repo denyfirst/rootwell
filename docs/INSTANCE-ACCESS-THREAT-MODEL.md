@@ -99,3 +99,21 @@ Post-rename sync/readback failure is an uncertain outcome requiring inspection.
 This is not wired to a CLI or browser, does not migrate the user's instance,
 and does not provide backup or lost-password recovery. See
 [ADR 0016](adr/0016-legacy-identity-installation-linux.md).
+
+An internal Linux-only recovery enrollment now upgrades a ready v2 envelope
+to v3 under the same private writer lock. V3 embeds the recovery wrap and a
+data-key-derived confirmation in the same access file; the password AEAD binds
+both. Enrollment and code rotation require the current password. Offline
+password reset requires the 256-bit recovery code, preserves the data key and
+installation ID, and atomically replaces the access envelope with a new
+password and fresh recovery code. A code is returned only after directory sync
+and exact readback. If replacement might have happened but sync/readback fails,
+the result is uncertain and no code is returned. The operator can still use
+the old or new password only after inspecting the actual access state; blindly
+retrying is unsafe. Recovery code storage must be separate from access and
+backup storage. Password rotation does not rotate the recovery code; explicit
+rotation does. Rotation cannot revoke a code for an older offline backup.
+This internal core is not a user-facing enrollment/reset workflow and creates
+no backup or inventory durability. The daemon must be stopped before any
+future offline reset ceremony; browser sessions are not a recovery authority.
+See [ADR 0017](adr/0017-embedded-recovery-linux.md).
