@@ -32,10 +32,12 @@ retention promise because it is not exposed as a user-facing inventory yet.
    identity, certificate identity, and expected generation as AES-256-GCM
    authenticated context. Go's standard-library random-nonce AEAD supplies a
    fresh 96-bit nonce on each seal. It accepts only 32-byte keys and bounded
-   plaintext/ciphertext. It does not validate record payloads, allocate stable
-   installation IDs, or supply a persisted monotonic generation source. Those
-   must be built before any storage write. The installation data key must never
-   appear in logs, URLs, browser storage, or configuration. The random-nonce
+   plaintext/ciphertext. It does not validate record payloads or supply a
+   persisted monotonic generation source. The access envelope now provides an
+   authenticated stable ID for new v2 installations only; existing v1
+   installations need explicit enrollment. A persisted manifest and generation
+   source must be built before any storage write. The installation data key
+   must never appear in logs, URLs, browser storage, or configuration. The random-nonce
    AEAD has a per-key message-count limit; the future storage layer must count
    writes and rotate keys well before that limit. Ciphertext length remains
    visible even when its contents are encrypted.

@@ -534,3 +534,15 @@ Guarded by `TestSealRoundTripUsesFreshNonceAndHidesPlaintext`,
 `TestSealRejectsWrongKeyContextSwapAndTampering`,
 `TestSealBoundsAndMissingContextFailClosed`, `TestSealWorksWithRandomDataKey`,
 and `FuzzOpenSealedRecord`.
+
+## C37 — New installation identity is authenticated and stable
+
+Each new access envelope has a random 128-bit ID authenticated by the wrapped
+data-key AEAD. Setup cannot release the key; password changes preserve key
+and ID; malformed or altered identity is refused. Legacy v1 files remain
+readable and rotatable but cannot claim an ID or silently migrate. No durable
+inventory, recovery credential, or backup is enabled by this invariant.
+
+Guarded by `TestV2IdentityIsUniqueAuthenticatedAndSurvivesPasswordChanges`,
+`TestLegacyV1CanStillOpenButCannotClaimAnIdentity`, and
+`TestV2RejectsMalformedIdentityAndVersion`.

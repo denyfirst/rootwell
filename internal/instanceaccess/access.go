@@ -24,7 +24,8 @@ const (
 	iterations = 600_000
 	maxFile    = 4096
 	maxPass    = 1024
-	label      = "rootwell.instance-access.v1"
+	labelV1    = "rootwell.instance-access.v1"
+	labelV2    = "rootwell.instance-access.v2"
 	setup      = "change-required"
 	ready      = "ready"
 )
@@ -36,16 +37,18 @@ var (
 	ErrPasswordTooLong   = errors.New("password must not exceed 1024 bytes")
 	ErrPasswordUnchanged = errors.New("new password must differ from current password")
 	ErrInvalidAccess     = errors.New("installation access file is invalid")
+	ErrIdentityMissing   = errors.New("installation identity is not enrolled")
 )
 
 type envelope struct {
-	Version int    `json:"version"`
-	State   string `json:"state"`
-	KDF     string `json:"kdf"`
-	Rounds  int    `json:"rounds"`
-	Salt    []byte `json:"salt"`
-	Nonce   []byte `json:"nonce"`
-	Key     []byte `json:"key"`
+	Version        int    `json:"version"`
+	State          string `json:"state"`
+	KDF            string `json:"kdf"`
+	Rounds         int    `json:"rounds"`
+	Salt           []byte `json:"salt"`
+	Nonce          []byte `json:"nonce"`
+	Key            []byte `json:"key"`
+	InstallationID []byte `json:"installation_id,omitempty"`
 }
 
 // GenerateInitialPassword creates a per-installation, 160-bit random secret.
@@ -76,7 +79,11 @@ func Create(path, initialPassword string) error {
 		return errors.New("installation key could not be generated")
 	}
 	defer clear(key)
-	body, err := seal(key, initialPassword, setup)
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		return errors.New("installation identity could not be generated")
+	}
+	body, err := seal(key, initialPassword, setup, id)
 	if err != nil {
 		return err
 	}
@@ -110,7 +117,7 @@ func Create(path, initialPassword string) error {
 // Open returns the data key only after the initial password has been changed.
 // The caller owns the returned key and must never log or serialize it.
 func Open(path, password string) ([]byte, error) {
-	key, state, err := unseal(path, password)
+	key, state, _, err := unseal(path, password)
 	if err != nil {
 		return nil, err
 	}
@@ -121,10 +128,29 @@ func Open(path, password string) ([]byte, error) {
 	return key, nil
 }
 
+// OpenWithIdentity releases the data key and authenticated installation ID
+// only for ready v2 installations. Older v1 installations require an explicit
+// future enrollment ceremony before durable inventory can use them.
+func OpenWithIdentity(path, password string) ([]byte, []byte, error) {
+	key, state, id, err := unseal(path, password)
+	if err != nil {
+		return nil, nil, err
+	}
+	if state != ready {
+		clear(key)
+		return nil, nil, ErrChangeRequired
+	}
+	if len(id) != 16 {
+		clear(key)
+		return nil, nil, ErrIdentityMissing
+	}
+	return key, id, nil
+}
+
 // Authenticate checks a password without releasing the data key. The boolean
 // is true only when the installation still requires its first password change.
 func Authenticate(path, password string) (bool, error) {
-	key, state, err := unseal(path, password)
+	key, state, _, err := unseal(path, password)
 	if err != nil {
 		return false, err
 	}
@@ -150,7 +176,7 @@ func change(path, current, next, requiredState string) error {
 	if current == next {
 		return ErrPasswordUnchanged
 	}
-	key, state, err := unseal(path, current)
+	key, state, id, err := unseal(path, current)
 	if err != nil {
 		return err
 	}
@@ -158,7 +184,7 @@ func change(path, current, next, requiredState string) error {
 	if state != requiredState {
 		return errors.New("installation password state does not allow this change")
 	}
-	body, err := seal(key, next, ready)
+	body, err := seal(key, next, ready, id)
 	if err != nil {
 		return err
 	}
@@ -175,7 +201,10 @@ func checkPassword(password string) error {
 	return nil
 }
 
-func seal(key []byte, password, state string) ([]byte, error) {
+func seal(key []byte, password, state string, id []byte) ([]byte, error) {
+	if len(key) != 32 || (len(id) != 0 && len(id) != 16) || (state != setup && state != ready) {
+		return nil, ErrInvalidAccess
+	}
 	salt, nonce := make([]byte, 16), make([]byte, 12)
 	if _, err := rand.Read(salt); err != nil {
 		return nil, errors.New("access salt could not be generated")
@@ -197,44 +226,57 @@ func seal(key []byte, password, state string) ([]byte, error) {
 		return nil, errors.New("access cipher could not be created")
 	}
 	e := envelope{Version: 1, State: state, KDF: "pbkdf2-sha256", Rounds: iterations, Salt: salt, Nonce: nonce}
-	e.Key = gcm.Seal(nil, nonce, key, []byte(label+":"+state))
+	if len(id) == 16 {
+		e.Version = 2
+		e.InstallationID = append([]byte(nil), id...)
+	}
+	e.Key = gcm.Seal(nil, nonce, key, accessAAD(e))
 	return json.Marshal(e)
 }
 
-func unseal(path, password string) ([]byte, string, error) {
+func accessAAD(e envelope) []byte {
+	if e.Version == 1 {
+		return []byte(labelV1 + ":" + e.State)
+	}
+	aad := []byte(labelV2 + ":" + e.State + ":")
+	return append(aad, e.InstallationID...)
+}
+
+func unseal(path, password string) ([]byte, string, []byte, error) {
 	if len(password) == 0 || len(password) > maxPass {
-		return nil, "", ErrWrongPassword
+		return nil, "", nil, ErrWrongPassword
 	}
 	body, err := readAccess(path)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	var e envelope
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
-	if decoder.Decode(&e) != nil || decoder.Decode(new(any)) != io.EOF || e.Version != 1 ||
+	if decoder.Decode(&e) != nil || decoder.Decode(new(any)) != io.EOF ||
+		!((e.Version == 1 && len(e.InstallationID) == 0) || (e.Version == 2 && len(e.InstallationID) == 16)) ||
 		(e.State != setup && e.State != ready) || e.KDF != "pbkdf2-sha256" ||
 		e.Rounds != iterations || len(e.Salt) != 16 || len(e.Nonce) != 12 || len(e.Key) != 48 {
-		return nil, "", ErrInvalidAccess
+		return nil, "", nil, ErrInvalidAccess
 	}
 	derived, err := pbkdf2.Key(sha256.New, password, e.Salt, e.Rounds, 32)
 	if err != nil {
-		return nil, "", ErrInvalidAccess
+		return nil, "", nil, ErrInvalidAccess
 	}
 	defer clear(derived)
 	block, err := aes.NewCipher(derived)
 	if err != nil {
-		return nil, "", ErrInvalidAccess
+		return nil, "", nil, ErrInvalidAccess
 	}
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, "", ErrInvalidAccess
+		return nil, "", nil, ErrInvalidAccess
 	}
-	key, err := gcm.Open(nil, e.Nonce, e.Key, []byte(label+":"+e.State))
+	key, err := gcm.Open(nil, e.Nonce, e.Key, accessAAD(e))
 	if err != nil || len(key) != 32 {
-		return nil, "", ErrWrongPassword
+		return nil, "", nil, ErrWrongPassword
 	}
-	return key, e.State, nil
+	return key, e.State, append([]byte(nil), e.InstallationID...), nil
 }
 
 // Revision identifies the exact encrypted access-file contents observed by a
