@@ -58,6 +58,8 @@ jobs:
             package: ./internal/instanceaccess
           - target: FuzzRecoveryEnvelopeParsing
             package: ./internal/instanceaccess
+          - target: FuzzOpenAccessSnapshot
+            package: ./internal/instanceaccess
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzMatch
