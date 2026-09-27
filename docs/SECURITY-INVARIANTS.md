@@ -599,4 +599,5 @@ Guarded by `TestLinuxIdentityUpgradeCommitsOnlyMatchingReadyV1`,
 `TestLinuxIdentityUpgradeFaultsPreserveOrReportUncertain`, and
 `TestIdentityUpgradeCoreRejectsWrongKeyAndStaleRevision`,
 `TestIdentityUpgradeCorePreservesPrewriteFailureAndReportsPostwriteUncertainty`,
+`TestIdentityUpgradeCoreUsesOneCandidateSnapshot`,
 and `TestNonLinuxIdentityUpgradeFailsClosed`.

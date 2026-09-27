@@ -70,3 +70,25 @@ func TestIdentityUpgradeCorePreservesPrewriteFailureAndReportsPostwriteUncertain
 		t.Fatalf("uncertain result lost key or ID: %v", err)
 	}
 }
+
+func TestIdentityUpgradeCoreUsesOneCandidateSnapshot(t *testing.T) {
+	path, password, key, _, candidate := legacyUpgradeFixture(t)
+	written := []byte(nil)
+	err := commitIdentityUpgradeLocked(path, password, candidate, func(path string, body []byte) error {
+		written = bytes.Clone(body)
+		candidate.EncryptedAccess[0] ^= 1
+		candidate.InstallationID[0] ^= 1
+		return replace(path, body)
+	}, func(string) error { return nil })
+	if err != nil {
+		t.Fatalf("caller mutation changed validated write: %v", err)
+	}
+	current, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(current, written) {
+		t.Fatalf("installed file differs from validated snapshot: %v", err)
+	}
+	opened, _, err := OpenWithIdentity(path, password)
+	if err != nil || !bytes.Equal(opened, key) {
+		t.Fatalf("candidate mutation corrupted installed key: %v", err)
+	}
+}
