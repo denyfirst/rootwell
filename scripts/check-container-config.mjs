@@ -10,19 +10,22 @@ function sameTargets(service, expected) {
 export function checkContainerConfig(config) {
   const server = config?.services?.rootwell;
   const maintenance = config?.services?.maintenance;
-  const restricted = (service) => service?.read_only === true &&
-    Array.isArray(service.cap_drop) && service.cap_drop.includes('ALL') &&
-    Array.isArray(service.security_opt) &&
-    service.security_opt.includes('no-new-privileges:true') &&
-    (!service.ports || service.ports.length === 0) &&
-    (!service.environment || Object.keys(service.environment).length === 0);
-  if (!restricted(server) || !restricted(maintenance) ||
-      server.network_mode !== 'host' || maintenance.network_mode !== 'none' ||
-      !sameTargets(server, ['/data']) ||
-      !sameTargets(maintenance, ['/data', '/backup']) ||
-      maintenance.stdin_open !== true || maintenance.tty !== true) {
-    throw new Error('Compose network, mount, or capability boundary changed');
+  const requireBoundary = (condition, label) => {
+    if (!condition) throw new Error(`Compose boundary changed: ${label}`);
+  };
+  for (const [name, service] of [['server', server], ['maintenance', maintenance]]) {
+    requireBoundary(service?.read_only === true, `${name}.read_only`);
+    requireBoundary(Array.isArray(service.cap_drop) && service.cap_drop.includes('ALL'), `${name}.cap_drop`);
+    requireBoundary(Array.isArray(service.security_opt) &&
+      service.security_opt.includes('no-new-privileges:true'), `${name}.security_opt`);
+    requireBoundary(!service.ports || service.ports.length === 0, `${name}.ports`);
+    requireBoundary(!service.environment || Object.keys(service.environment).length === 0, `${name}.environment`);
   }
+  requireBoundary(server.network_mode === 'host', 'server.network_mode');
+  requireBoundary(maintenance.network_mode === 'none', 'maintenance.network_mode');
+  requireBoundary(sameTargets(server, ['/data']), 'server.volumes');
+  requireBoundary(sameTargets(maintenance, ['/data', '/backup']), 'maintenance.volumes');
+  requireBoundary(maintenance.stdin_open === true && maintenance.tty === true, 'maintenance.terminal');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
