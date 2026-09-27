@@ -36,8 +36,9 @@ retention promise because it is not exposed as a user-facing inventory yet.
    plaintext/ciphertext. It does not validate record payloads or supply a
    persisted monotonic generation source. The access envelope now provides an
    authenticated stable ID for new v2 installations only; existing v1
-   installations need explicit enrollment. A read-only v1-to-v2 candidate
-   preparer exists, but no safe installer or automatic migration does. A
+   installations need explicit enrollment. A v1-to-v2 candidate preparer and
+   Linux-only locked internal installer exist, but no operator-facing
+   migration, backup enrollment, or automatic migration does. A
    persisted manifest and generation
    source must be built before any storage write. The installation data key
    must never appear in logs, URLs, browser storage, or configuration. The random-nonce

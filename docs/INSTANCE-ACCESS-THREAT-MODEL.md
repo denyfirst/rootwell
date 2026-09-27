@@ -89,3 +89,13 @@ against a process that ignores advisory locking, a compromised same-user host,
 or unreviewed network filesystems. Native Windows and other non-Linux access
 changes retain development behavior; they are not an approved durable-storage
 writer. See [ADR 0015](adr/0015-linux-access-writer-lock.md).
+
+The internal Linux-only identity installer now revalidates a prepared
+candidate under that lock. It checks the exact source revision, current ready
+v1 state, same password/data key, and authenticated v2 ID before replacement;
+then it syncs the directory and reads back the installed bytes. Wrong,
+tampered, stale, busy, and unsupported-platform attempts do not install.
+Post-rename sync/readback failure is an uncertain outcome requiring inspection.
+This is not wired to a CLI or browser, does not migrate the user's instance,
+and does not provide backup or lost-password recovery. See
+[ADR 0016](adr/0016-legacy-identity-installation-linux.md).
