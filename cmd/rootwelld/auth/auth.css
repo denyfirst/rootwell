@@ -129,7 +129,7 @@ button:disabled { opacity: 0.6; cursor: wait; }
   border-radius: 6px;
 }
 
-.links { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; }
+.links { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
 a { color: var(--accent); }
 #status { min-height: 1.25rem; margin: 0.8rem 0 0; color: var(--accent); font-size: 0.8rem; }
 code { color: var(--ink); }

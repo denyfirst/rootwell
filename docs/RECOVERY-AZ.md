@@ -65,6 +65,12 @@ rootwelld inventory-init /private/rootwell-data /private/backup/initial.rwfull
 rootwelld inventory-verify /private/backup/initial.rwfull code
 ```
 
+Bundan sonra daemonu başlatmaq və giriş etmək olar. Ayrı `/inventory`
+səhifəsində Save istifadəçinin seçdiyi yalnız public sertifikatı özünün
+loopback Rootwell serverinə göndərir; offline Workbench bunu etmir. Bu səhifə
+Linux-da işləyir. Duplicate import rədd olunur, expiry brauzer saatına görə
+göstərilir və trust hökmü deyil.
+
 Export cari parolu və ayrıca recovery kodunu terminalda soruşur. Sertifikat
 importundan və parol/kod dəyişməsindən sonra yeni, fərqli adla tam snapshot
 yaradın; köhnə faylın üzərinə yazılmır:

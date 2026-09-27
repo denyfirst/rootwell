@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,9 +26,12 @@ var authAssets embed.FS
 const cookieName = "__Host-rootwell_session"
 
 type session struct {
-	setup    bool
-	expires  time.Time
-	revision [32]byte
+	setup          bool
+	expires        time.Time
+	revision       [32]byte
+	inventoryReady bool
+	dataKey        [32]byte
+	installationID [16]byte
 }
 
 type gate struct {
@@ -57,7 +61,14 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 		derive: make(chan struct{}, 1), sessions: make(map[[32]byte]session)}, nil
 }
 
-func (g *gate) Close() error { return g.assets.Close() }
+func (g *gate) Close() error {
+	g.mu.Lock()
+	for id := range g.sessions {
+		g.forgetSessionLocked(id)
+	}
+	g.mu.Unlock()
+	return g.assets.Close()
+}
 
 func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
@@ -104,6 +115,31 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/api/password":
 		g.passwordEndpoint(w, r, s, signedIn)
+		return
+	case "/api/inventory":
+		g.inventoryEndpoint(w, r, s, signedIn)
+		return
+	case "/inventory", "/inventory.js", "/inventory.css":
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			methodNotAllowed(w)
+			return
+		}
+		if !signedIn {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if s.setup {
+			http.Redirect(w, r, "/setup", http.StatusSeeOther)
+			return
+		}
+		switch r.URL.Path {
+		case "/inventory":
+			g.authAsset(w, r, "auth/inventory.html", "text/html; charset=utf-8")
+		case "/inventory.js":
+			g.authAsset(w, r, "auth/inventory.js", "text/javascript; charset=utf-8")
+		case "/inventory.css":
+			g.authAsset(w, r, "auth/inventory.css", "text/css; charset=utf-8")
+		}
 		return
 	case "/setup":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -162,7 +198,7 @@ func (g *gate) currentSession(r *http.Request) (session, bool) {
 	defer g.mu.Unlock()
 	s, ok := g.sessions[id]
 	if !ok || revisionErr != nil || s.revision != revision || !g.now().Before(s.expires) {
-		delete(g.sessions, id)
+		g.forgetSessionLocked(id)
 		return session{}, false
 	}
 	return s, true
@@ -200,7 +236,7 @@ func (g *gate) startDerivation() bool {
 	}
 }
 
-func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte) error {
+func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte, key, installID []byte) error {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return errors.New("session could not be created")
@@ -220,9 +256,15 @@ func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte
 				oldest, earliest = key, value.expires
 			}
 		}
-		delete(g.sessions, oldest)
+		g.forgetSessionLocked(oldest)
 	}
-	g.sessions[id] = session{setup: setup, expires: g.now().Add(lifetime), revision: revision}
+	s := session{setup: setup, expires: g.now().Add(lifetime), revision: revision}
+	if !setup && len(key) == 32 && len(installID) == 16 {
+		s.inventoryReady = true
+		copy(s.dataKey[:], key)
+		copy(s.installationID[:], installID)
+	}
+	g.sessions[id] = s
 	g.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", MaxAge: int(lifetime / time.Second),
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
@@ -231,6 +273,9 @@ func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte
 
 func (g *gate) revokeAll(w http.ResponseWriter) {
 	g.mu.Lock()
+	for id := range g.sessions {
+		g.forgetSessionLocked(id)
+	}
 	g.sessions = make(map[[32]byte]session)
 	g.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/", MaxAge: -1,
@@ -241,11 +286,22 @@ func (g *gate) revokeSession(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		id := sha256.Sum256([]byte(c.Value))
 		g.mu.Lock()
-		delete(g.sessions, id)
+		g.forgetSessionLocked(id)
 		g.mu.Unlock()
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
+}
+
+// Best-effort erasure of the map-held key. Go may retain copies until GC;
+// this is not a guarantee against a compromised process memory image.
+func (g *gate) forgetSessionLocked(id [32]byte) {
+	if s, ok := g.sessions[id]; ok {
+		s.dataKey = [32]byte{}
+		s.installationID = [16]byte{}
+		g.sessions[id] = s
+		delete(g.sessions, id)
+	}
 }
 
 type passwordInput struct {
@@ -324,7 +380,25 @@ func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request, signedIn 
 		http.Error(w, "installation changed during sign-in", http.StatusServiceUnavailable)
 		return
 	}
-	if err := g.issueSession(w, setup, revisionAfter); err != nil {
+	var key, installationID []byte
+	if !setup && runtime.GOOS == "linux" {
+		key, installationID, err = instanceaccess.OpenWithIdentity(g.accessPath, body.Password)
+		if err != nil && !errors.Is(err, instanceaccess.ErrIdentityMissing) {
+			http.Error(w, "installation unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		defer func() {
+			for i := range key {
+				key[i] = 0
+			}
+		}()
+	}
+	revisionAfter, err = instanceaccess.Revision(g.accessPath)
+	if err != nil || revisionBefore != revisionAfter {
+		http.Error(w, "installation changed during sign-in", http.StatusServiceUnavailable)
+		return
+	}
+	if err := g.issueSession(w, setup, revisionAfter, key, installationID); err != nil {
 		http.Error(w, "session unavailable", http.StatusServiceUnavailable)
 		return
 	}

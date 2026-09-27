@@ -704,3 +704,26 @@ Guarded by `TestFullSnapshotPasswordAndCodeRoundTrip`,
 `TestLinuxFullSnapshotRefusesUnsafePathsAndTampering`,
 `TestLinuxInventoryCeremoniesRequireRecoveryAndRestoreFresh`,
 `TestNonLinuxDurableInventoryFailsClosed`, and `FuzzOpenFullSnapshot`.
+
+## C47 — Public inventory upload is explicit, authenticated, and non-verifying
+
+The offline Workbench retains its no-upload boundary. A separate self-hosted
+Inventory page discloses that Save sends public certificate bytes to the
+loopback daemon. The API requires a ready revision-bound session; POST also
+requires exact same-origin and a custom header, rejects duplicate JSON fields
+and oversized bodies, and reuses the strict public parser before any atomic
+write. GET requires the custom header and refuses cross-site fetch metadata.
+Legacy/setup sessions and unsupported platforms cannot write. Responses omit
+DER/private bytes, label every list as unverified, and show import generation,
+server-clock save time, and browser-clock expiry without audit claims. No automatic backup, trust, deployment,
+revocation, notification, or private-key support is implied. A ready Linux
+session holds the data key in process memory until revoked/expired; map erasure
+is best effort and a compromised process is outside this boundary.
+
+Guarded by `TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
+`TestInventoryInputRejectsDuplicateUnknownAndOversizedJSON`,
+`TestInventoryOutputNeverSerializesCertificateBytes`,
+`TestCreateAppendOpenAndRejectDuplicate`,
+`TestOlderImageWithoutImportTimeStillOpens`,
+`TestWorkbenchPreviewIsSelfContained`, and
+`scripts/test-rootwelld-inventory.mjs`.

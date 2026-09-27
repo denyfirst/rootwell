@@ -43,7 +43,8 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(importPath == "net" || strings.HasPrefix(importPath, "net/"))
 				allowedLoopbackServer := (filepath.ToSlash(relative) == "cmd/rootwelld/main.go" &&
 					(importPath == "net" || importPath == "net/http")) ||
-					(filepath.ToSlash(relative) == "cmd/rootwelld/gate.go" && importPath == "net/http")
+					(filepath.ToSlash(relative) == "cmd/rootwelld/gate.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_api.go" && importPath == "net/http")
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
