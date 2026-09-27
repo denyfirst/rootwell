@@ -57,6 +57,16 @@ available. This change does not migrate or rewrite existing user files.
 An ID alone does not stop record rollback, make backups recoverable, or prove
 host integrity.
 
+A ready v1 file can now be authenticated to prepare an encrypted v2 candidate
+in memory. Preparation records the exact SHA-256 revision of the source and
+preserves its data key and password under a new random ID. It does not replace
+the source file, write a candidate, enroll a recovery code, or change a
+running daemon. Repeating preparation creates a different candidate; only one
+may be committed later. The revision is not a compare-and-swap lock: a future
+installer must hold exclusive single-writer control, compare the source again,
+atomically replace it, and verify the result. Do not manually overwrite the
+operator's access file with a candidate.
+
 The separate in-memory recovery-wrap codec generates a 256-bit random code
 and wraps the existing 256-bit data key with AES-256-GCM, authenticating the
 expected v2 installation ID. It returns a bounded binary wrap and a printable
