@@ -95,5 +95,7 @@ restore-dan sonra kodu və parolu dəyişib yeni snapshot alın. Snapshot da
 inventory kimi daxili host/owner adları haqqında metadata sızdıra bilər.
 Tam köhnə, autentik snapshot geri qaytarıla bilər; ayrıca etibarlı monotonic
 anchor olmadan bu rollback aşkarlanmır. Backup-ı və recovery kodunu ayrı,
-offsite yerlərdə saxlayın. Windows native inventory storage və Docker volume
-icazələri/restore-u hələ release qapısıdır.
+offsite yerlərdə saxlayın. Docker/Linux üçün ayrıca istifadə və disposable
+volume bərpa sınağı [`CONTAINER-RECOVERY-AZ.md`](CONTAINER-RECOVERY-AZ.md)
+sənədindədir. Windows native inventory storage və müstəqil release auditi
+hələ açıqdır.

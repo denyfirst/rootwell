@@ -14,10 +14,12 @@ outside this release boundary.
 
 The Linux-only public-certificate inventory has an explicit self-hosted Save
 page, authenticated encrypted storage, and complete access+inventory backup
-and fresh restore commands. It does not store private keys, make trust or
-deployment claims, or automatically back itself up. Native Windows storage,
-container-volume drills, and independent release audit remain open gates; see
-the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md).
+and fresh restore commands. A Linux-only Docker/Compose development profile
+and disposable bind-volume restore drill are documented in the
+[container recovery guide](docs/CONTAINER-RECOVERY-AZ.md). It does not store
+private keys, make trust or deployment claims, or automatically back itself
+up. Native Windows storage and independent release audit remain open gates;
+see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md).
 
 ## Project doctrine
 

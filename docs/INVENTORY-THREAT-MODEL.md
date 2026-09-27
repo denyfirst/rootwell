@@ -83,8 +83,14 @@ retention promise because it is not exposed as a user-facing inventory yet.
    is not trusted time, notification, or renewal. Import generation records
    order; the optional save timestamp comes from the server clock. Neither is
    a tamper-evident audit log.
-5. Before a production or public-release claim, test Linux/container volume
-   permissions and restore, and independently audit this storage boundary.
+5. Linux container bind-volume permissions and fresh restore now have a
+   disposable CI drill. The local Compose profile keeps the server's backup
+   mount absent and runs maintenance without a network; its Linux host network
+   mode is necessary for the existing loopback bind but reduces container
+   network isolation. This is not a production remote-access recipe. Before a
+   production or public-release claim, independently audit this storage
+   boundary, test offsite recovery on actual target infrastructure, and resolve
+   the remaining platform and operational risks.
 
 An operator-controlled filesystem or browser process can still inspect
 plaintext in memory while Rootwell is unlocked. Encryption at rest does not
