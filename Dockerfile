@@ -1,5 +1,5 @@
 # Development-only Linux image. A public release still requires independent audit.
-FROM golang:1.26.7-bookworm AS build
+FROM golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
