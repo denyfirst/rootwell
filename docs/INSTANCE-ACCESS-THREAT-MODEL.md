@@ -56,3 +56,15 @@ refuse them until an explicit, separately reviewed enrollment operation is
 available. This change does not migrate or rewrite existing user files.
 An ID alone does not stop record rollback, make backups recoverable, or prove
 host integrity.
+
+The separate in-memory recovery-wrap codec generates a 256-bit random code
+and wraps the existing 256-bit data key with AES-256-GCM, authenticating the
+expected v2 installation ID. It returns a bounded binary wrap and a printable
+code only to its caller. It does **not** persist the wrap, display a code in
+the UI, enroll an existing installation, reset a password, or restore records.
+Anyone who obtains both wrap and code can recover the data key offline; the
+code must be stored separately from the wrap and access file. There is no
+online guessing endpoint, but stolen wraps allow unthrottled offline attacks;
+the code's random entropy, not a memorized password, is the protection.
+The printable Go string cannot be reliably erased from process memory.
+Loss of both the login password and recovery code remains irrecoverable.

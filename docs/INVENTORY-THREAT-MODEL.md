@@ -1,8 +1,9 @@
 # Public certificate inventory: first boundary
 
-**Status:** in-memory data model and standalone encrypted-record codec only.
-No persistent inventory, HTTP import endpoint, browser save button, backup,
-recovery key, or vault is shipped by these increments. Do not place real
+**Status:** in-memory data model, standalone encrypted-record codec, and
+in-memory recovery-wrap codec only. No persistent inventory, HTTP import
+endpoint, browser save button, backup, enrolled recovery key, or vault is shipped.
+Do not place real
 operational records here expecting them to survive a restart.
 
 ## Data and trust boundaries
@@ -50,6 +51,10 @@ retention promise because it is not exposed as a user-facing inventory yet.
    recovery ceremony. Existing installations have no recovery credential and
    must not silently acquire one or start storing durable records. Deleting
    `access.json` must never be treated as recovery.
+   The standalone recovery-wrap codec is only a cryptographic component, not
+   an enrolled credential. Enrollment must pair the wrap with the exact access
+   identity, persist it safely, verify a recovery drill, and protect code
+   display/storage before any inventory write.
 4. Only then expose a bounded, authenticated, same-origin API to **ready**
    sessions. The current standalone Workbench remains an offline, public-file
    processor. Any browser-to-server import is an explicit new capability and
