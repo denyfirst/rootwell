@@ -665,3 +665,18 @@ Guarded by `TestOfflineCommandClassificationAndNoSecretArgv`,
 `TestLinuxOperationLockExcludesAnotherDaemonOrCeremony`,
 `TestLinuxOperationLockRefusesUnsafeDirectoryAndLock`, and
 `TestNonLinuxOfflineCeremonyFailsClosed`.
+
+## C45 — Complete inventory images authenticate context before releasing records
+
+The standalone image codec MACs a canonical bounded manifest with the
+installation data key and verifies every encrypted record against the exact
+installation, certificate digest, and image-local generation before returning
+any records. It rejects duplicate, malformed, secret-bearing, corrupt, and
+cross-installation input without partial results. The generation is counted
+per import, far below the random-nonce AEAD per-key usage limit. This codec
+does not write files, enable HTTP import, establish an external trusted
+generation anchor, or prevent replay of an older complete authenticated image.
+
+Guarded by `TestCreateAppendOpenAndRejectDuplicate`,
+`TestCorruptionContextAndMalformedImportFailClosed`,
+`TestManifestRejectsAuthorizedButInconsistentRecord`, and `FuzzOpenImage`.

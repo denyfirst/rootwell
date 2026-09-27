@@ -54,6 +54,8 @@ jobs:
             package: ./internal/publicbundle
           - target: FuzzOpenSealedRecord
             package: ./internal/inventoryseal
+          - target: FuzzOpenImage
+            package: ./internal/inventorystore
           - target: FuzzOpenRecoveryWrap
             package: ./internal/instanceaccess
           - target: FuzzRecoveryEnvelopeParsing

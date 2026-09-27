@@ -1,6 +1,7 @@
 # Public certificate inventory: first boundary
 
-**Status:** in-memory data model and standalone encrypted-record codec only.
+**Status:** in-memory data model, encrypted-record codec, and a standalone
+authenticated complete-image codec only.
 Linux access-envelope recovery and access-only snapshots are separate; no
 persistent inventory, HTTP import endpoint, browser save button, inventory
 backup, or vault is shipped. Do not place real operational records here
@@ -38,10 +39,14 @@ retention promise because it is not exposed as a user-facing inventory yet.
    authenticated stable ID for new v2 installations only; existing v1
    installations need explicit enrollment. A v1-to-v2 candidate preparer and
    Linux-only locked internal installer exist, but no operator-facing
-   migration, backup enrollment, or automatic migration does. A
-   persisted manifest and generation
-   source must be built before any storage write. The installation data key
-   must never appear in logs, URLs, browser storage, or configuration. The random-nonce
+   migration, backup enrollment, or automatic migration does. An
+   authenticated complete-image manifest codec now supplies an image-local
+   generation source and validates every encrypted record before returning any
+   result. It has no filesystem transaction or external anti-rollback anchor;
+   an older complete authenticated image can still be replayed. A safe
+   persisted writer and full restore drill remain required before any storage
+   write. The installation data key must never appear in logs, URLs, browser
+   storage, or configuration. The random-nonce
    AEAD has a per-key message-count limit; the future storage layer must count
    writes and rotate keys well before that limit. Ciphertext length remains
    visible even when its contents are encrypted.
