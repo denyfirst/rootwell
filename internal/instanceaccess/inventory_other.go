@@ -1,0 +1,19 @@
+//go:build !linux
+
+package instanceaccess
+
+import "github.com/denyfirst/rootwell/internal/publicinventory"
+
+// Native non-Linux private-store semantics have not yet been reviewed.
+func InitializeInventory(_, _, _, _ string) error { return ErrRecoveryUnsupported }
+func ReadInventory(_ string, _, _ []byte, _ [32]byte) ([]publicinventory.Record, uint64, error) {
+	return nil, 0, ErrRecoveryUnsupported
+}
+func AppendInventory(_ string, _, _ []byte, _ [32]byte, _ []byte, _, _ string) ([]publicinventory.Record, uint64, error) {
+	return nil, 0, ErrRecoveryUnsupported
+}
+func ExportFullSnapshot(_, _, _, _ string) error { return ErrRecoveryUnsupported }
+func VerifyFullSnapshot(_, _ string, _ SnapshotUnlock) ([]byte, uint64, error) {
+	return nil, 0, ErrRecoveryUnsupported
+}
+func RestoreFullSnapshot(_, _, _ string, _ SnapshotUnlock) error { return ErrRecoveryUnsupported }

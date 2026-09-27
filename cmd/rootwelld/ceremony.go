@@ -16,7 +16,7 @@ func isOfflineCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "recovery-enroll", "recovery-rotate", "recovery-reset", "access-snapshot", "access-verify", "access-restore":
+	case "recovery-enroll", "recovery-rotate", "recovery-reset", "access-snapshot", "access-verify", "access-restore", "inventory-init", "inventory-snapshot", "inventory-verify", "inventory-restore":
 		return true
 	default:
 		return false

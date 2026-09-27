@@ -69,19 +69,27 @@ func createAccessSnapshot(body []byte, password, code string) ([]byte, error) {
 // the password or the separately stored offline recovery code. No plaintext
 // data key is returned to the caller.
 func openAccessSnapshot(snapshot []byte, credential string, method SnapshotUnlock) ([]byte, []byte, error) {
+	body, id, key, err := openAccessSnapshotWithKey(snapshot, credential, method)
+	clear(key)
+	return body, id, err
+}
+
+// openAccessSnapshotWithKey is restricted to the complete-backup codec. The
+// caller owns the key and must clear it on every path.
+func openAccessSnapshotWithKey(snapshot []byte, credential string, method SnapshotUnlock) ([]byte, []byte, []byte, error) {
 	if (method != SnapshotPassword && method != SnapshotRecoveryCode) || len(credential) == 0 || len(credential) > maxPass ||
 		len(snapshot) < snapshotOverhead+1 || len(snapshot) > maxSnapshotFile ||
 		!bytes.Equal(snapshot[:len(snapshotMagic)], []byte(snapshotMagic)) {
-		return nil, nil, ErrInvalidSnapshot
+		return nil, nil, nil, ErrInvalidSnapshot
 	}
 	declared := binary.BigEndian.Uint32(snapshot[len(snapshotMagic)+16:])
 	if declared == 0 || declared > maxFile || len(snapshot) != snapshotOverhead+int(declared) {
-		return nil, nil, ErrInvalidSnapshot
+		return nil, nil, nil, ErrInvalidSnapshot
 	}
 	body := snapshot[len(snapshotMagic)+20 : len(snapshot)-sha256.Size]
 	e, err := parseEnvelope(body)
 	if err != nil || e.Version != 3 || e.State != ready {
-		return nil, nil, ErrInvalidSnapshot
+		return nil, nil, nil, ErrInvalidSnapshot
 	}
 	var key []byte
 	if method == SnapshotPassword {
@@ -94,13 +102,13 @@ func openAccessSnapshot(snapshot []byte, credential string, method SnapshotUnloc
 	}
 	if err != nil {
 		clear(key)
-		return nil, nil, ErrInvalidSnapshot
+		return nil, nil, nil, ErrInvalidSnapshot
 	}
-	defer clear(key)
 	if !hmac.Equal(snapshotMAC(key, snapshot[:len(snapshot)-sha256.Size]), snapshot[len(snapshot)-sha256.Size:]) {
-		return nil, nil, ErrInvalidSnapshot
+		clear(key)
+		return nil, nil, nil, ErrInvalidSnapshot
 	}
-	return bytes.Clone(body), bytes.Clone(e.InstallationID), nil
+	return bytes.Clone(body), bytes.Clone(e.InstallationID), key, nil
 }
 
 func snapshotMAC(key, contents []byte) []byte {

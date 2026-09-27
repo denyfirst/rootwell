@@ -49,11 +49,10 @@ olunmamış nəticəyə “verified” demək qadağandır.
    [`INVENTORY-THREAT-MODEL.md`](INVENTORY-THREAT-MODEL.md) sənədindədir.
    Linux üçün parolun offline bərpası və access-only snapshot/restore nüvəsi
    və terminal mərasimi mövcuddur; bu, inventory backup-u deyil. Sonrakı
-   şifrəli saxlanma üçün tam record manifest codec-i artıq hazırlanıb;
-   image-local generation var, amma disk transaction-u və xarici rollback
-   anchor-u yoxdur. Sonrakı qapılar Linux/container permission və restore
-   drill, Windows native support və
-   release auditi ayrıca yoxlanmalıdır.
+   Şifrəli tam-image manifest, Linux private-file transaction-u və access +
+   inventory tam snapshot/restore nüvəsi hazırlanıb. Hələ UI importu yoxdur;
+   container volume restore drill, Windows native support və release auditi
+   ayrıca yoxlanmalıdır. Image-local generation xarici rollback anchor-u deyil.
    Public metadata belə daxili adları aça bilər. Gizli, davamlı yaddaş və
    network discovery bu addımlardan avtomatik yaranmır.
 6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
