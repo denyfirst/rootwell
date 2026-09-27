@@ -1,0 +1,36 @@
+# Linux-only local development. Host networking is required because rootwelld
+# deliberately binds 127.0.0.1; this is not a remote-access configuration.
+services:
+  rootwell:
+    build: .
+    image: rootwell:local
+    network_mode: host
+    user: "${ROOTWELL_UID:?set the owner UID}:${ROOTWELL_GID:?set the owner GID}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    volumes:
+      - type: bind
+        source: ${ROOTWELL_DATA_DIR:?set an absolute private data path}
+        target: /data
+    restart: "no"
+
+  maintenance:
+    profiles: [maintenance]
+    image: rootwell:local
+    network_mode: none
+    user: "${ROOTWELL_UID:?set the owner UID}:${ROOTWELL_GID:?set the owner GID}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    stdin_open: true
+    tty: true
+    volumes:
+      - type: bind
+        source: ${ROOTWELL_DATA_DIR:?set an absolute private data path}
+        target: /data
+      - type: bind
+        source: ${ROOTWELL_BACKUP_DIR:?set a separate absolute private backup path}
+        target: /backup

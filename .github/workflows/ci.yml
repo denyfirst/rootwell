@@ -18,6 +18,25 @@ concurrency:
 # module checksum database without entering Rootwell's runtime module.
 
 jobs:
+  container-volume:
+    name: Linux container volume recovery
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        run: |
+          set -eu
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+
+      - name: Exercise isolated persistent volumes and fresh restore
+        run: |
+          node scripts/test-container-config.mjs
+          bash scripts/test-container-volume.sh
+
   build:
     name: Build and test
     runs-on: ubuntu-24.04

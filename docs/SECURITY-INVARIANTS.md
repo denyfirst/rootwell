@@ -727,3 +727,20 @@ Guarded by `TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
 `TestOlderImageWithoutImportTimeStillOpens`,
 `TestWorkbenchPreviewIsSelfContained`, and
 `scripts/test-rootwelld-inventory.mjs`.
+
+## C48 — Linux container volumes keep recovery separate and reject unsafe reuse
+
+The development Compose service binds the existing daemon to Linux host
+loopback and mounts only its private data directory. Offline maintenance has
+no network and mounts the backup directory only for an interactive ceremony;
+neither password nor recovery code is configured through argv or environment.
+A disposable CI drill crosses actual container process restarts and separate
+bind mounts, verifies a complete fresh-volume restore, refuses wrong code,
+tampered snapshot, permissive data directory, duplicate import, overwrite,
+and live-daemon backup. It does not establish offsite durability, automatic
+backup, external anti-rollback, Windows support, or production readiness.
+
+Guarded by `TestContainerVolumeDrill`,
+`scripts/test-container-config.mjs` (overprivileged and ephemeral-volume
+sabotage), and `scripts/test-container-volume.sh` in the required Linux
+container CI job.

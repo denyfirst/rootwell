@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-09-27. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-09-28. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -49,8 +49,11 @@ olunmamış nəticəyə “verified” demək qadağandır.
    vaxtı və browser saatına əsaslanan expiry göstərilir; bu audit log,
    bildiriş, trust və renewal deyil. Sərhəd
    [`INVENTORY-THREAT-MODEL.md`](INVENTORY-THREAT-MODEL.md) sənədindədir.
-   Container volume restore drill, Windows native support və release auditi
-   ayrıca qalır. Image-local generation xarici rollback anchor-u deyil.
+   Linux Docker üçün ayrı data/backup mount-ları, şəbəkəsiz interaktiv
+   maintenance və disposable volume-dan təmiz volume-a CI bərpa məşqi əlavə
+   edilib; bu avtomatik backup və production deployment deyil. Windows native
+   support və müstəqil release auditi ayrıca qalır. Image-local generation
+   xarici rollback anchor-u deyil.
    Public metadata belə daxili adları aça bilər; network discovery yoxdur.
 6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
    təhlükə modeli, dependency review, memory/output/file permission testləri
