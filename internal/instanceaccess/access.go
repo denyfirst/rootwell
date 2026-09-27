@@ -51,6 +51,7 @@ var (
 	ErrRecoveryExists      = errors.New("installation recovery is already enrolled")
 	ErrRecoveryMissing     = errors.New("installation recovery is not enrolled")
 	ErrRecoveryUnsupported = errors.New("offline recovery is unsupported on this platform")
+	ErrOperationBusy       = errors.New("installation is in use by another Rootwell operation")
 )
 
 type envelope struct {

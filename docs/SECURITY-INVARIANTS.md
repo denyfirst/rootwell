@@ -645,3 +645,23 @@ Guarded by `TestAccessSnapshotVerifiesWithPasswordOrRecoveryCode`,
 `TestLinuxAccessSnapshotPostWriteSyncFailureIsUncertain`,
 `TestNonLinuxAccessSnapshotFilesystemOperationsFailClosed`, and
 `FuzzOpenAccessSnapshot`.
+
+## C44 — Offline Linux ceremonies never take secrets from argv or a live daemon
+
+The operator commands require interactive stdin/stdout terminals and read
+passwords and recovery codes without local echo. Their argv contains only
+paths and the non-secret unlock method. A private operation lock excludes a
+running Linux daemon and another offline ceremony. Recovery output is printed
+only to the trusted terminal after persistence; display failure does not
+return the code in an error. Linux-only filesystem operations refuse on other
+platforms. This is not protection against compromised terminals, shell
+history containing user-supplied secret arguments, an older non-cooperating
+daemon, or a malicious same-user process.
+
+Guarded by `TestOfflineCommandClassificationAndNoSecretArgv`,
+`TestRecoveryCodeDisplayFailureDoesNotReturnTheCode`,
+`TestLinuxOfflineCeremonyEnrolsSnapshotsRestoresAndResets`,
+`TestLinuxOfflineCeremonyRefusesRunningDaemonAndBadArguments`,
+`TestLinuxOperationLockExcludesAnotherDaemonOrCeremony`,
+`TestLinuxOperationLockRefusesUnsafeDirectoryAndLock`, and
+`TestNonLinuxOfflineCeremonyFailsClosed`.

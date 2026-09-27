@@ -23,6 +23,11 @@ func exportAccessSnapshotWithSync(accessPath, snapshotPath, password, code strin
 	if sameDirectory(accessPath, snapshotPath) {
 		return ErrUnsafeAccessStore
 	}
+	releaseOperation, err := AcquireOperationLock(accessPath)
+	if err != nil {
+		return err
+	}
+	defer releaseOperation()
 	var snapshot []byte
 	if err := withAccessWriteLock(accessPath, func() error {
 		body, err := readAccess(accessPath)
@@ -48,14 +53,14 @@ func exportAccessSnapshotWithSync(accessPath, snapshotPath, password, code strin
 		return ErrUnsafeAccessStore
 	}
 	if err := writeAndSyncFile(f, snapshot); err != nil {
-		return ErrWriteUncertain
+		return ErrSnapshotUncertain
 	}
 	if err := syncDir(snapshotPath); err != nil {
-		return ErrWriteUncertain
+		return ErrSnapshotUncertain
 	}
 	installed, err := readSnapshot(snapshotPath)
 	if err != nil || !bytes.Equal(installed, snapshot) {
-		return ErrWriteUncertain
+		return ErrSnapshotUncertain
 	}
 	return nil
 }
@@ -90,13 +95,18 @@ func restoreAccessSnapshotWithSync(snapshotPath, destinationAccessPath, credenti
 	if err != nil {
 		return err
 	}
+	releaseOperation, err := AcquireOperationLock(destinationAccessPath)
+	if err != nil {
+		return err
+	}
+	defer releaseOperation()
 	return withAccessWriteLock(destinationAccessPath, func() error {
 		entries, err := os.ReadDir(filepath.Dir(destinationAccessPath))
 		if err != nil {
 			return ErrUnsafeAccessStore
 		}
 		for _, entry := range entries {
-			if entry.Name() != accessLockName {
+			if entry.Name() != accessLockName && entry.Name() != operationLockName {
 				return ErrSnapshotNotEmpty
 			}
 		}
@@ -113,14 +123,14 @@ func restoreAccessSnapshotWithSync(snapshotPath, destinationAccessPath, credenti
 			return ErrUnsafeAccessStore
 		}
 		if err := writeAndSyncFile(f, body); err != nil {
-			return ErrWriteUncertain
+			return ErrSnapshotUncertain
 		}
 		if err := syncDir(destinationAccessPath); err != nil {
-			return ErrWriteUncertain
+			return ErrSnapshotUncertain
 		}
 		installed, err := readAccess(destinationAccessPath)
 		if err != nil || !bytes.Equal(installed, body) {
-			return ErrWriteUncertain
+			return ErrSnapshotUncertain
 		}
 		return nil
 	})

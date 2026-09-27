@@ -30,8 +30,9 @@ The package never prints a password. The local interactive init command
 shows the generated password exactly once on its terminal, not daemon
 stderr, application logs, CLI arguments, URLs, or browser storage. Initial
 password loss before change cannot be recovered from the access file. After
-activation, lost password means encrypted data is inaccessible without a
-separately designed offline recovery method; deleting the access file is not
+activation, an installation with no enrolled offline code cannot recover a
+lost password. Linux ready-v3 installations with a separately stored code
+have an explicit offline reset ceremony. Deleting the access file is not
 recovery. Rootwell will not silently reset it.
 
 The data key exists in process memory after a valid open. Go strings and
@@ -43,8 +44,8 @@ on reads. No rate limiting is provided by this package; the future HTTP gate
 must supply it before exposing any password check.
 
 Required next review for production: TLS/reverse-proxy policy, rate limiting
-across restarts, concurrent process instances, OS ACL/locking,
-backup/restore, and recovery. The loopback gateway separately tests its
+across restarts, supported-platform ACL/locking, full inventory backup/restore,
+and recovery drills. The loopback gateway separately tests its
 origin, session fixation, CSRF, and first-login restrictions.
 
 New installations use access envelope v2: a random 128-bit installation ID
@@ -133,3 +134,18 @@ vault keys, or deployment data. It cannot protect against rollback to an old
 but valid snapshot, storage loss of both snapshot and code, or a compromised
 host. There is no CLI/browser operation yet. See
 [ADR 0018](adr/0018-access-only-snapshot-linux.md).
+
+The Linux `rootwelld` operator CLI now exposes explicit offline enrollment,
+rotation, password reset, access-only snapshot export/verification, and fresh
+restore. It requires interactive stdin/stdout terminals; secrets are read
+without echo and never accepted as argv, environment variables, URL values,
+or piped input. The recovery code is printed once to the local terminal after
+verified persistence. The temporary input byte buffer is cleared, but Go
+string copies and terminal scrollback cannot be reliably erased. A separate
+persistent private operation lock is held for the lifetime of `rootwelld serve`
+and for each offline write ceremony, so cooperating daemon and CLI operations
+cannot overlap. This does not constrain another process ignoring advisory
+locks or a daemon from an older build. The CLI does not back up inventory
+records and is not a production recovery claim. See
+[ADR 0019](adr/0019-offline-linux-operator-ceremony.md) and
+[`RECOVERY-AZ.md`](RECOVERY-AZ.md).

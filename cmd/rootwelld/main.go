@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"golang.org/x/term"
 )
 
 const localHost = "localhost:4180"
@@ -22,6 +23,17 @@ const localHost = "localhost:4180"
 func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
+	if isOfflineCommand(args) {
+		if !terminal(os.Stdin) || !terminal(os.Stdout) {
+			fmt.Fprintln(os.Stderr, "offline recovery commands require an interactive local terminal; no secret was read")
+			return 2
+		}
+		if err := runOfflineCommand(args, readTerminalSecret, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
+	}
 	if len(args) == 2 && args[0] == "init" {
 		if !terminal(os.Stdin) || !terminal(os.Stdout) {
 			fmt.Fprintln(os.Stderr, "init requires an interactive local terminal; no password was printed")
@@ -40,13 +52,12 @@ func run(args []string) int {
 		}
 		return 0
 	}
-	fmt.Fprintln(os.Stderr, "usage: rootwelld init <private-data-dir> | rootwelld serve <private-data-dir> <workbench-assets-dir>")
+	fmt.Fprintln(os.Stderr, "usage: rootwelld init <private-data-dir> | rootwelld serve <private-data-dir> <workbench-assets-dir> | rootwelld recovery-enroll|recovery-rotate|recovery-reset <private-data-dir> | rootwelld access-snapshot <private-data-dir> <new-snapshot-file> | rootwelld access-verify <snapshot-file> password|code | rootwelld access-restore <snapshot-file> <fresh-private-data-dir> password|code")
 	return 2
 }
 
 func terminal(f *os.File) bool {
-	info, err := f.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 func initialize(dir string, input io.Reader, output io.Writer) error {
@@ -104,6 +115,11 @@ func serve(dir, assetsDir string) error {
 	if !accessInfo.Mode().IsRegular() || (runtime.GOOS != "windows" && accessInfo.Mode().Perm()&0o077 != 0) {
 		return errors.New("installation access file must be private and regular")
 	}
+	releaseOperation, err := instanceaccess.AcquireOperationLock(accessPath)
+	if err != nil {
+		return err
+	}
+	defer releaseOperation()
 	gate, err := newGate(accessPath, assetsDir, localHost)
 	if err != nil {
 		return err
