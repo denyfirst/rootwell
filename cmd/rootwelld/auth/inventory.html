@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Public certificate inventory · Rootwell</title>
+  <link rel="stylesheet" href="/inventory.css">
+  <script src="/inventory.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span>root</span>well</a>
+    <nav aria-label="Rootwell navigation"><a href="/">Workbench</a><a aria-current="page" href="/inventory">Inventory</a><a href="/account">Access</a></nav>
+    <span class="local">Self-hosted · this host</span>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">PUBLIC CERTIFICATE INVENTORY</p>
+      <h1>Know what is saved.<br><span>Know what is not proven.</span></h1>
+      <p>Save public certificates with an owner and location so you can find them before expiry. Nothing here proves trust, deployment, revocation, or private-key possession.</p>
+    </section>
+    <aside class="boundary" aria-label="Storage boundary">
+      <strong>Different from offline Workbench</strong>
+      <p>Pressing Save sends the selected public certificate file to your own loopback Rootwell server. It is stored encrypted in this installation. Never select a PFX or private-key file. Rootwell does not contact a third-party service.</p>
+    </aside>
+    <div class="layout">
+      <section class="card" aria-labelledby="save-heading">
+        <p class="eyebrow">01 / EXPLICIT SAVE</p>
+        <h2 id="save-heading">Add public certificates</h2>
+        <p>One DER certificate or one PEM certificate/bundle, up to 16 MiB. A bundle is saved all-or-nothing. Repeated certificates are refused.</p>
+        <form id="inventory-form">
+          <label for="certificate-file">Public certificate file</label>
+          <input id="certificate-file" type="file" accept=".pem,.crt,.cer,.der,application/x-x509-ca-cert" required>
+          <label for="owner">Owner <span>(optional)</span></label>
+          <input id="owner" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Platform team">
+          <label for="location">Location <span>(optional)</span></label>
+          <input id="location" type="text" maxlength="128" autocomplete="off" placeholder="e.g. production/nginx">
+          <button id="save-button" type="submit">Save to this Rootwell</button>
+          <p id="save-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <section class="card overview" aria-labelledby="overview-heading">
+        <p class="eyebrow">02 / STORED RECORDS</p>
+        <h2 id="overview-heading">Expiry overview</h2>
+        <p>Expiry uses this browser’s clock; save time uses the server’s clock. Neither is a tamper-proof audit log or a trust verdict.</p>
+        <div id="counts" class="counts" aria-live="polite"></div>
+        <button id="refresh-button" class="secondary" type="button">Refresh saved inventory</button>
+        <p id="list-status" role="status" aria-live="polite">Loading saved public certificates…</p>
+        <ol id="records" aria-label="Saved public certificates ordered by expiry"></ol>
+      </section>
+    </div>
+    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After saving certificates, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An old snapshot cannot restore later imports.</p></aside>
+  </main>
+</body>
+</html>

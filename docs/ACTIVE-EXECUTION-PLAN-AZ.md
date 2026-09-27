@@ -41,20 +41,17 @@ olunmamış nəticəyə “verified” demək qadağandır.
    Bu hələ production remote access və vault deyil. Access faylı kənardan
    dəyişəndə köhnə sessiyanın rəddi ayrıca sərtləşdirilib (PR #33).
    Daemon/Docker loguna parol yazılmır.
-5. **Inventory mərhələsinin ilk modeli.** Şirkət üçün owner,
-   host/location, expiry, dəyişiklik tarixçəsi və bildiriş axınını threat model və
-   data-retention qərarı ilə layihələndir. İlk kod increment-i yalnız public
-   certificate-lər üçün RAM-da all-or-nothing import və duplicate rəddidir;
-   diskə yazmır və istifadəçi UI-si deyil. Sərhəd
+5. **Linux public inventory mərhələsi.** Public certificate üçün RAM modeli,
+   şifrəli tam-image manifest, private-file transaction, access + inventory
+   tam snapshot/restore və ayrıca self-hosted UI/API hazırlanıb. Import yalnız
+   istifadəçi Save klikiylə öz lokal daemonuna gedir; offline Workbench
+   sərhədi dəyişmir. Owner/location, import sırası, server saatına görə save
+   vaxtı və browser saatına əsaslanan expiry göstərilir; bu audit log,
+   bildiriş, trust və renewal deyil. Sərhəd
    [`INVENTORY-THREAT-MODEL.md`](INVENTORY-THREAT-MODEL.md) sənədindədir.
-   Linux üçün parolun offline bərpası və access-only snapshot/restore nüvəsi
-   və terminal mərasimi mövcuddur; bu, inventory backup-u deyil. Sonrakı
-   Şifrəli tam-image manifest, Linux private-file transaction-u və access +
-   inventory tam snapshot/restore nüvəsi hazırlanıb. Hələ UI importu yoxdur;
-   container volume restore drill, Windows native support və release auditi
-   ayrıca yoxlanmalıdır. Image-local generation xarici rollback anchor-u deyil.
-   Public metadata belə daxili adları aça bilər. Gizli, davamlı yaddaş və
-   network discovery bu addımlardan avtomatik yaranmır.
+   Container volume restore drill, Windows native support və release auditi
+   ayrıca qalır. Image-local generation xarici rollback anchor-u deyil.
+   Public metadata belə daxili adları aça bilər; network discovery yoxdur.
 6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.

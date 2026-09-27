@@ -1,9 +1,9 @@
 # Public certificate inventory: first boundary
 
-**Status:** Linux-only private-file persistence and complete access+public
-inventory snapshots are implemented, but browser import and native Windows
-storage are not enabled. The storage boundary is still development-only and
-not externally audited. No vault or private-key storage is shipped.
+**Status:** Linux-only private-file persistence, complete access+public
+inventory snapshots, and an explicit loopback Inventory UI/API are implemented.
+Native Windows storage is disabled. This boundary is development-only and not
+externally audited. No vault or private-key storage is shipped.
 
 ## Data and trust boundaries
 
@@ -58,9 +58,9 @@ retention promise because it is not exposed as a user-facing inventory yet.
    recovery ceremony. Existing installations have no recovery credential and
    must not silently acquire one or start storing durable records. Deleting
    `access.json` must never be treated as recovery.
-   The Linux-only internal v3 access writer now embeds a recovery wrap with
-   the access envelope and can reset a password with a code. It is not yet an
-   Linux complete backup now pairs an authenticated access snapshot with the
+   The Linux-only v3 access writer embeds a recovery wrap with the access
+   envelope and can reset a password with a code. A Linux complete backup
+   now pairs an authenticated access snapshot with the
    exact encrypted inventory image, requiring password and separately stored
    recovery code at export. It is verified with either credential and restored
    only to a fresh private directory, inventory first and access last.
@@ -69,10 +69,20 @@ retention promise because it is not exposed as a user-facing inventory yet.
    operation lock. Access-only snapshots remain insufficient for inventory.
    Operators must make new full snapshots after imports; backups are not
    automatic. The standalone codec alone is not an enrolled credential.
-4. Only then expose a bounded, authenticated, same-origin API to **ready**
-   sessions. The current standalone Workbench remains an offline, public-file
-   processor. Any browser-to-server import is an explicit new capability and
-   must be visible to the operator. No private key or PFX is accepted.
+4. The loopback API is bounded and requires a **ready** authenticated session.
+   Its POST requires exact same origin and a custom request header; GET
+   requires the header and refuses cross-site fetch metadata. A ready Linux
+   session holds a copy of the installation data key in server process memory
+   for its existing 12-hour lifetime. Revocation makes a best-effort erasure,
+   not a reliable Go heap wipe. Import is an explicit Save action on a separate
+   Inventory page. The standalone Workbench remains an offline public-file
+   processor and does not silently upload files. The server parses the public
+   file again and refuses PFX, private keys, malformed bundles, labels, and
+   duplicates. A rejected batch leaves storage unchanged. API output omits
+   DER bytes and reports `verification: not-performed`. Browser-clock expiry
+   is not trusted time, notification, or renewal. Import generation records
+   order; the optional save timestamp comes from the server clock. Neither is
+   a tamper-evident audit log.
 5. Before a production or public-release claim, test Linux/container volume
    permissions and restore, and independently audit this storage boundary.
 

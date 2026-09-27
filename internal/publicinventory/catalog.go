@@ -32,14 +32,20 @@ var (
 // hostname suitability, revocation status, or private-key possession.
 type Record struct {
 	Fingerprint string
-	DER         []byte
-	Subject     string
-	Issuer      string
-	DNSNames    []string
-	NotBefore   string
-	NotAfter    string
-	Owner       string
-	Location    string
+	// ImportGeneration is set only by authenticated durable storage. Zero
+	// means this record is an unsaved in-memory draft.
+	ImportGeneration uint64
+	// ImportedAt is the server-clock observation for a durable import. Empty
+	// for an unsaved draft or an older image without that field.
+	ImportedAt string
+	DER        []byte
+	Subject    string
+	Issuer     string
+	DNSNames   []string
+	NotBefore  string
+	NotAfter   string
+	Owner      string
+	Location   string
 }
 
 // Catalog is an in-memory, single-process draft. Its contents disappear when

@@ -3,11 +3,15 @@ package inventorystore
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/denyfirst/rootwell/internal/inventoryseal"
+	"github.com/denyfirst/rootwell/internal/publicbundle"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -44,7 +48,7 @@ func TestCreateAppendOpenAndRejectDuplicate(t *testing.T) {
 	}
 	leaf := demo(t, "rootwell-demo-certificate.pem")
 	next, added, err := Append(key, id, image, leaf, "Platform", "production/nginx")
-	if err != nil || len(added) != 1 {
+	if err != nil || len(added) != 1 || added[0].ImportGeneration != 2 || added[0].ImportedAt == "" {
 		t.Fatalf("append: %v", err)
 	}
 	if bytes.Contains(next, []byte("production/nginx")) || bytes.Contains(next, []byte("Platform")) {
@@ -54,13 +58,52 @@ func TestCreateAppendOpenAndRejectDuplicate(t *testing.T) {
 		t.Fatalf("duplicate: %v", err)
 	}
 	stored, gen, err := Open(key, id, next)
-	if err != nil || gen != 2 || len(stored) != 1 || stored[0].Owner != "Platform" || stored[0].Location != "production/nginx" {
+	if err != nil || gen != 2 || len(stored) != 1 || stored[0].Owner != "Platform" || stored[0].Location != "production/nginx" || stored[0].ImportGeneration != 2 || stored[0].ImportedAt != added[0].ImportedAt {
 		t.Fatalf("open: %v %d %#v", err, gen, stored)
+	}
+	if _, err := time.Parse(time.RFC3339, stored[0].ImportedAt); err != nil {
+		t.Fatalf("invalid save time: %v", err)
+	}
+	nextBatch, addedRoot, err := Append(key, id, next, demo(t, "rootwell-verify-demo-root.pem"), "CA team", "")
+	if err != nil || len(addedRoot) != 1 || addedRoot[0].ImportGeneration != 3 {
+		t.Fatalf("second import: %v", err)
+	}
+	ordered, third, err := Open(key, id, nextBatch)
+	if err != nil || third != 3 || len(ordered) != 2 || ordered[0].ImportGeneration != 2 || ordered[1].ImportGeneration != 3 {
+		t.Fatalf("import order lost: %v", err)
 	}
 	stored[0].DER[0] ^= 0xff
 	again, _, err := Open(key, id, next)
 	if err != nil || bytes.Equal(again[0].DER, stored[0].DER) {
 		t.Fatal("open returned mutable backing storage")
+	}
+}
+
+func TestOlderImageWithoutImportTimeStillOpens(t *testing.T) {
+	key, id := testIdentity(t)
+	parsed, err := publicbundle.Parse(demo(t, "rootwell-demo-certificate.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	der := parsed[0].DER
+	plain, err := json.Marshal(payload{DER: der, Owner: "legacy", Location: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var install [16]byte
+	copy(install[:], id)
+	digest := sha256.Sum256(der)
+	sealed, err := inventoryseal.Seal(key, inventoryseal.Context{InstallationID: install, RecordID: digest, Generation: 2}, plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, err := encode(key, manifest{Version: 1, InstallationID: id, Generation: 2, Records: []sealedRecord{{ID: digest[:], Generation: 2, Ciphertext: sealed}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, gen, err := Open(key, id, image)
+	if err != nil || gen != 2 || len(records) != 1 || records[0].ImportedAt != "" || records[0].ImportGeneration != 2 {
+		t.Fatalf("older image rejected: %v", err)
 	}
 }
 

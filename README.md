@@ -1,6 +1,6 @@
 # DenyFirst Rootwell
 
-**Status:** early Workbench and loopback-only access-gate implementation
+**Status:** early Workbench, loopback access gate, and Linux-only public inventory
 
 Rootwell is a privacy-first, self-hosted workspace for certificates,
 cryptographic keys, and machine identities.
@@ -12,11 +12,12 @@ safe public-certificate inspection and verification. An experimental local
 access gate protects the browser; vault, automation, and remote access remain
 outside this release boundary.
 
-The public-certificate inventory foundation is an in-memory model and a
-standalone encrypted-record codec: there is no save/import UI or persistent
-encrypted inventory yet. The
-[inventory threat model](docs/INVENTORY-THREAT-MODEL.md) defines the gates before
-durable records are accepted.
+The Linux-only public-certificate inventory has an explicit self-hosted Save
+page, authenticated encrypted storage, and complete access+inventory backup
+and fresh restore commands. It does not store private keys, make trust or
+deployment claims, or automatically back itself up. Native Windows storage,
+container-volume drills, and independent release audit remain open gates; see
+the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md).
 
 ## Project doctrine
 
@@ -63,9 +64,10 @@ accepted as command-line arguments or written to daemon logs. An existing
 installation's setup password cannot be redisplayed. The gateway listens on
 127.0.0.1 only; it is not a remote TLS endpoint or production vault. Secure
 cookies over HTTP localhost are not supported by every browser, and the
-Windows ACL and native recovery boundary is not yet complete. Linux has an
-access-only offline recovery/snapshot ceremony, but no inventory backup or
-production disaster-recovery guarantee; see the
+Windows ACL and native recovery boundary is not yet complete. The Windows
+Workbench remains usable, but durable inventory Save is disabled there. On
+Linux, recovery and complete public-inventory snapshots are offline terminal
+ceremonies, not a production disaster-recovery guarantee; see the
 [Linux recovery guide](docs/RECOVERY-AZ.md) and the
 [loopback gate threat model](docs/LOOPBACK-GATE-THREAT-MODEL.md).
 Serving `web/workbench` directly with a separate static server remains an
@@ -85,6 +87,14 @@ An optional full SHA-256 root fingerprint pin must come from an independent
 trusted source; without it, the root's identity is not independently confirmed.
 Build and hosting requirements are
 documented in the [browser boundary](web/workbench/README.md).
+
+On an initialized Linux installation, `/inventory` is a **separate**
+authenticated page. Its explicit Save action sends a public certificate or
+PEM bundle to that installation's loopback daemon, which parses it again and
+stores it encrypted. Save is not part of the offline Workbench boundary.
+Before first use, stop the daemon and run `inventory-init` with a separate
+private backup location; after imports, make and verify a new full snapshot.
+The [Linux recovery guide](docs/RECOVERY-AZ.md) gives the exact commands.
 
 ## Implemented commands
 

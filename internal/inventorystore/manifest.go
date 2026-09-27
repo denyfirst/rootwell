@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/inventoryseal"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
@@ -48,9 +49,10 @@ type envelope struct {
 }
 
 type payload struct {
-	DER      []byte `json:"der"`
-	Owner    string `json:"owner"`
-	Location string `json:"location"`
+	DER        []byte `json:"der"`
+	Owner      string `json:"owner"`
+	Location   string `json:"location"`
+	ImportedAt string `json:"imported_at,omitempty"`
 }
 
 // Create returns an authenticated empty image. Generation 1 is reserved for
@@ -98,9 +100,10 @@ func Append(key, installationID, image, input []byte, owner, location string) ([
 		return nil, nil, ErrLimit
 	}
 	m.Generation++
-	for _, r := range added {
+	importedAt := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	for i, r := range added {
 		id := sha256.Sum256(r.DER)
-		plain, err := json.Marshal(payload{DER: r.DER, Owner: r.Owner, Location: r.Location})
+		plain, err := json.Marshal(payload{DER: r.DER, Owner: r.Owner, Location: r.Location, ImportedAt: importedAt})
 		if err != nil {
 			return nil, nil, ErrInvalid
 		}
@@ -111,6 +114,8 @@ func Append(key, installationID, image, input []byte, owner, location string) ([
 			return nil, nil, err
 		}
 		m.Records = append(m.Records, sealedRecord{ID: id[:], Generation: m.Generation, Ciphertext: ciphertext})
+		added[i].ImportGeneration = m.Generation
+		added[i].ImportedAt = importedAt
 	}
 	result, err := encode(key, m)
 	if err != nil {
@@ -160,6 +165,7 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	var catalog publicinventory.Catalog
+	importTimes := make([]string, 0, len(m.Records))
 	for _, item := range m.Records {
 		if len(item.ID) != sha256.Size || item.Generation < 2 || item.Generation > m.Generation || len(item.Ciphertext) == 0 {
 			return manifest{}, nil, ErrInvalid
@@ -176,6 +182,12 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		if !strictJSON(plain, &p) || len(p.DER) == 0 {
 			return manifest{}, nil, ErrInvalid
 		}
+		if p.ImportedAt != "" {
+			parsed, err := time.Parse(time.RFC3339, p.ImportedAt)
+			if err != nil || parsed.UTC().Format("2006-01-02T15:04:05Z") != p.ImportedAt {
+				return manifest{}, nil, ErrInvalid
+			}
+		}
 		actualID := sha256.Sum256(p.DER)
 		if !hmac.Equal(actualID[:], item.ID) {
 			return manifest{}, nil, ErrInvalid
@@ -184,11 +196,17 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		if err != nil || len(added) != 1 {
 			return manifest{}, nil, ErrInvalid
 		}
+		importTimes = append(importTimes, p.ImportedAt)
 	}
 	if m.Generation == math.MaxUint64 {
 		return manifest{}, nil, ErrInvalid
 	}
-	return m, catalog.List(), nil
+	records := catalog.List()
+	for i := range records {
+		records[i].ImportGeneration = m.Records[i].Generation
+		records[i].ImportedAt = importTimes[i]
+	}
+	return m, records, nil
 }
 
 func strictJSON(data []byte, target any) bool {
