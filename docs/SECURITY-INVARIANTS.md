@@ -583,3 +583,21 @@ Guarded by `TestLinuxAccessWriterLockRejectsConcurrentPasswordChange` and
 `TestLinuxAccessWriterRefusesUnsafeDirectoryAndLock`, and
 `TestPostReplaceSyncFailureReportsUncertainOutcome`, and
 `TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess`.
+
+## C41 — Linux identity installation validates before replacing
+
+Under the private Linux writer lock, installation requires the exact source
+revision, authenticated ready v1 source, authenticated ready v2 candidate,
+same password and data key, and matching candidate ID. Stale, replayed,
+tampered, wrong-key, busy, and unsupported-platform attempts fail closed.
+Pre-rename errors preserve the original; post-rename sync/readback errors
+report uncertainty. No CLI/browser migration or backup is enabled.
+
+Guarded by `TestLinuxIdentityUpgradeCommitsOnlyMatchingReadyV1`,
+`TestLinuxIdentityUpgradeRejectsStaleCandidate`,
+`TestLinuxIdentityUpgradeRejectsTamperingWrongKeyAndBusyLock`,
+`TestLinuxIdentityUpgradeFaultsPreserveOrReportUncertain`, and
+`TestIdentityUpgradeCoreRejectsWrongKeyAndStaleRevision`,
+`TestIdentityUpgradeCorePreservesPrewriteFailureAndReportsPostwriteUncertainty`,
+`TestIdentityUpgradeCoreUsesOneCandidateSnapshot`,
+and `TestNonLinuxIdentityUpgradeFailsClosed`.
