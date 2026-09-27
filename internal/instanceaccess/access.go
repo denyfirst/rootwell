@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
@@ -26,25 +27,30 @@ const (
 	maxPass    = 1024
 	labelV1    = "rootwell.instance-access.v1"
 	labelV2    = "rootwell.instance-access.v2"
+	labelV3    = "rootwell.instance-access.v3"
+	checkV3    = "rootwell.recovery-key-check.v1:"
 	setup      = "change-required"
 	ready      = "ready"
 )
 
 var (
-	ErrWrongPassword      = errors.New("installation password is incorrect")
-	ErrChangeRequired     = errors.New("initial password must be changed")
-	ErrWeakPassword       = errors.New("password must contain at least 15 characters")
-	ErrPasswordTooLong    = errors.New("password must not exceed 1024 bytes")
-	ErrPasswordUnchanged  = errors.New("new password must differ from current password")
-	ErrInvalidAccess      = errors.New("installation access file is invalid")
-	ErrIdentityMissing    = errors.New("installation identity is not enrolled")
-	ErrIdentityExists     = errors.New("installation identity is already enrolled")
-	ErrAccessBusy         = errors.New("installation access is being changed by another writer")
-	ErrUnsafeAccessStore  = errors.New("installation access directory or lock is unsafe")
-	ErrWriteUncertain     = errors.New("installation access may have changed; inspect it before retrying")
-	ErrStaleUpgrade       = errors.New("installation access changed since identity upgrade preparation")
-	ErrInvalidUpgrade     = errors.New("installation identity upgrade candidate is invalid")
-	ErrUpgradeUnsupported = errors.New("identity upgrade installation is unsupported on this platform")
+	ErrWrongPassword       = errors.New("installation password is incorrect")
+	ErrChangeRequired      = errors.New("initial password must be changed")
+	ErrWeakPassword        = errors.New("password must contain at least 15 characters")
+	ErrPasswordTooLong     = errors.New("password must not exceed 1024 bytes")
+	ErrPasswordUnchanged   = errors.New("new password must differ from current password")
+	ErrInvalidAccess       = errors.New("installation access file is invalid")
+	ErrIdentityMissing     = errors.New("installation identity is not enrolled")
+	ErrIdentityExists      = errors.New("installation identity is already enrolled")
+	ErrAccessBusy          = errors.New("installation access is being changed by another writer")
+	ErrUnsafeAccessStore   = errors.New("installation access directory or lock is unsafe")
+	ErrWriteUncertain      = errors.New("installation access may have changed; inspect it before retrying")
+	ErrStaleUpgrade        = errors.New("installation access changed since identity upgrade preparation")
+	ErrInvalidUpgrade      = errors.New("installation identity upgrade candidate is invalid")
+	ErrUpgradeUnsupported  = errors.New("identity upgrade installation is unsupported on this platform")
+	ErrRecoveryExists      = errors.New("installation recovery is already enrolled")
+	ErrRecoveryMissing     = errors.New("installation recovery is not enrolled")
+	ErrRecoveryUnsupported = errors.New("offline recovery is unsupported on this platform")
 )
 
 type envelope struct {
@@ -56,6 +62,8 @@ type envelope struct {
 	Nonce          []byte `json:"nonce"`
 	Key            []byte `json:"key"`
 	InstallationID []byte `json:"installation_id,omitempty"`
+	RecoveryWrap   []byte `json:"recovery_wrap,omitempty"`
+	RecoveryCheck  []byte `json:"recovery_check,omitempty"`
 }
 
 // IdentityUpgradeCandidate is an encrypted v2 replacement prepared from an
@@ -241,7 +249,11 @@ func changeLocked(path, current, next, requiredState string) error {
 }
 
 func changeLockedWithSync(path, current, next, requiredState string, syncDir func(string) error) error {
-	key, state, id, err := unseal(path, current)
+	currentBody, err := readAccess(path)
+	if err != nil {
+		return err
+	}
+	key, state, id, err := unsealBody(currentBody, current)
 	if err != nil {
 		return err
 	}
@@ -249,7 +261,11 @@ func changeLockedWithSync(path, current, next, requiredState string, syncDir fun
 	if state != requiredState {
 		return errors.New("installation password state does not allow this change")
 	}
-	body, err := seal(key, next, ready, id)
+	e, err := parseEnvelope(currentBody)
+	if err != nil {
+		return err
+	}
+	body, err := sealWithRecovery(key, next, ready, id, e.RecoveryWrap)
 	if err != nil {
 		return err
 	}
@@ -273,7 +289,16 @@ func checkPassword(password string) error {
 }
 
 func seal(key []byte, password, state string, id []byte) ([]byte, error) {
+	return sealWithRecovery(key, password, state, id, nil)
+}
+
+func sealWithRecovery(key []byte, password, state string, id, wrap []byte) ([]byte, error) {
 	if len(key) != 32 || (len(id) != 0 && len(id) != 16) || (state != setup && state != ready) {
+		return nil, ErrInvalidAccess
+	}
+	if len(wrap) != 0 && (state != ready || len(id) != 16 || len(wrap) != recoverySize ||
+		!bytes.Equal(wrap[:len(recoveryMagic)], []byte(recoveryMagic)) ||
+		!bytes.Equal(wrap[len(recoveryMagic):len(recoveryMagic)+16], id)) {
 		return nil, ErrInvalidAccess
 	}
 	salt, nonce := make([]byte, 16), make([]byte, 12)
@@ -301,6 +326,11 @@ func seal(key []byte, password, state string, id []byte) ([]byte, error) {
 		e.Version = 2
 		e.InstallationID = append([]byte(nil), id...)
 	}
+	if len(wrap) != 0 {
+		e.Version = 3
+		e.RecoveryWrap = append([]byte(nil), wrap...)
+		e.RecoveryCheck = recoveryCheck(key, id, wrap)
+	}
 	e.Key = gcm.Seal(nil, nonce, key, accessAAD(e))
 	return json.Marshal(e)
 }
@@ -309,8 +339,22 @@ func accessAAD(e envelope) []byte {
 	if e.Version == 1 {
 		return []byte(labelV1 + ":" + e.State)
 	}
-	aad := []byte(labelV2 + ":" + e.State + ":")
-	return append(aad, e.InstallationID...)
+	if e.Version == 2 {
+		aad := []byte(labelV2 + ":" + e.State + ":")
+		return append(aad, e.InstallationID...)
+	}
+	aad := []byte(labelV3 + ":" + e.State + ":")
+	aad = append(aad, e.InstallationID...)
+	aad = append(aad, e.RecoveryWrap...)
+	return append(aad, e.RecoveryCheck...)
+}
+
+func recoveryCheck(key, id, wrap []byte) []byte {
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write([]byte(checkV3))
+	_, _ = mac.Write(id)
+	_, _ = mac.Write(wrap)
+	return mac.Sum(nil)
 }
 
 func unseal(path, password string) ([]byte, string, []byte, error) {
@@ -328,16 +372,8 @@ func unsealBody(body []byte, password string) ([]byte, string, []byte, error) {
 	if len(password) == 0 || len(password) > maxPass {
 		return nil, "", nil, ErrWrongPassword
 	}
-	if len(body) > maxFile {
-		return nil, "", nil, ErrInvalidAccess
-	}
-	var e envelope
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&e) != nil || decoder.Decode(new(any)) != io.EOF ||
-		!((e.Version == 1 && len(e.InstallationID) == 0) || (e.Version == 2 && len(e.InstallationID) == 16)) ||
-		(e.State != setup && e.State != ready) || e.KDF != "pbkdf2-sha256" ||
-		e.Rounds != iterations || len(e.Salt) != 16 || len(e.Nonce) != 12 || len(e.Key) != 48 {
+	e, err := parseEnvelope(body)
+	if err != nil {
 		return nil, "", nil, ErrInvalidAccess
 	}
 	derived, err := pbkdf2.Key(sha256.New, password, e.Salt, e.Rounds, 32)
@@ -357,7 +393,31 @@ func unsealBody(body []byte, password string) ([]byte, string, []byte, error) {
 	if err != nil || len(key) != 32 {
 		return nil, "", nil, ErrWrongPassword
 	}
+	if e.Version == 3 && !hmac.Equal(recoveryCheck(key, e.InstallationID, e.RecoveryWrap), e.RecoveryCheck) {
+		clear(key)
+		return nil, "", nil, ErrInvalidAccess
+	}
 	return key, e.State, append([]byte(nil), e.InstallationID...), nil
+}
+
+func parseEnvelope(body []byte) (envelope, error) {
+	if len(body) == 0 || len(body) > maxFile {
+		return envelope{}, ErrInvalidAccess
+	}
+	var e envelope
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&e) != nil || decoder.Decode(new(any)) != io.EOF ||
+		!((e.Version == 1 && len(e.InstallationID) == 0 && len(e.RecoveryWrap) == 0 && len(e.RecoveryCheck) == 0) ||
+			(e.Version == 2 && len(e.InstallationID) == 16 && len(e.RecoveryWrap) == 0 && len(e.RecoveryCheck) == 0) ||
+			(e.Version == 3 && e.State == ready && len(e.InstallationID) == 16 && len(e.RecoveryWrap) == recoverySize && len(e.RecoveryCheck) == 32 &&
+				bytes.Equal(e.RecoveryWrap[:len(recoveryMagic)], []byte(recoveryMagic)) &&
+				bytes.Equal(e.RecoveryWrap[len(recoveryMagic):len(recoveryMagic)+16], e.InstallationID))) ||
+		(e.State != setup && e.State != ready) || e.KDF != "pbkdf2-sha256" ||
+		e.Rounds != iterations || len(e.Salt) != 16 || len(e.Nonce) != 12 || len(e.Key) != 48 {
+		return envelope{}, ErrInvalidAccess
+	}
+	return e, nil
 }
 
 // Revision identifies the exact encrypted access-file contents observed by a

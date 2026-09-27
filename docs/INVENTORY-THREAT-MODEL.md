@@ -54,10 +54,11 @@ retention promise because it is not exposed as a user-facing inventory yet.
    recovery ceremony. Existing installations have no recovery credential and
    must not silently acquire one or start storing durable records. Deleting
    `access.json` must never be treated as recovery.
-   The standalone recovery-wrap codec is only a cryptographic component, not
-   an enrolled credential. Enrollment must pair the wrap with the exact access
-   identity, persist it safely, verify a recovery drill, and protect code
-   display/storage before any inventory write.
+   The Linux-only internal v3 access writer now embeds a recovery wrap with
+   the access envelope and can reset a password with a code. It is not yet an
+   operator-facing ceremony: trusted one-time display, backup export, fresh
+   restore drill, and stopped-daemon coordination remain required before any
+   inventory write. The standalone codec alone is not an enrolled credential.
 4. Only then expose a bounded, authenticated, same-origin API to **ready**
    sessions. The current standalone Workbench remains an offline, public-file
    processor. Any browser-to-server import is an explicit new capability and
