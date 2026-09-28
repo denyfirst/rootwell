@@ -109,6 +109,15 @@ storage and an explicit user-facing loopback API are separate boundaries below.
    expired. Filtering does not send terms, read selected files, persist search
    terms, notify, renew, or change stored records. An incorrect device time
    can mislead the operator. See [ADR 0026](adr/0026-local-expiry-triage.md).
+   A separate browser-only export requires exact record selection, shows the
+   complete whitelisted public-metadata JSON, then requires another click
+   for a browser-managed download. It never exports DER/private material or
+   posts a selection. Hidden selections are cleared when filters change and
+   previews are invalidated by refresh or selection change. Downloaded owner,
+   SAN, and location metadata is not encrypted by Rootwell; the operator
+   controls the destination. The fake-data development demo binds loopback
+   only and rejects all writes; it is not authenticated storage. See
+   [ADR 0027](adr/0027-explicit-public-inventory-export.md).
 5. Linux container bind-volume permissions and fresh restore now have a
    disposable CI drill. The local Compose profile keeps the server's backup
    mount absent and runs maintenance without a network; its Linux host network

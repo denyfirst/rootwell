@@ -14,6 +14,10 @@
   const clockAsOf = document.getElementById("clock-as-of");
   const expiryFilter = document.getElementById("expiry-filter");
   const inventorySearch = document.getElementById("inventory-search");
+  const previewExportButton = document.getElementById("preview-export-button");
+  const downloadExportButton = document.getElementById("download-export-button");
+  const exportStatus = document.getElementById("export-status");
+  const exportPreview = document.getElementById("export-preview");
   const locationPanel = document.getElementById("location-panel");
   const locationForm = document.getElementById("location-form");
   const locationTarget = document.getElementById("location-target");
@@ -51,6 +55,16 @@
   let originalOwner = null;
   let displayedGeneration = 0;
   let loadedRecords = [];
+  const selectedForExport = new Set();
+  let previewBytes = null;
+
+  function clearExport(message) {
+    previewBytes = null;
+    exportPreview.textContent = "";
+    exportPreview.hidden = true;
+    downloadExportButton.disabled = true;
+    exportStatus.textContent = message || (selectedForExport.size + " record(s) selected. Preview before download.");
+  }
 
   function validLabel(value) {
     return encoder.encode(value).length <= 128 && value.trim() === value &&
@@ -100,10 +114,12 @@
     for (const record of records) {
       if (!record || typeof record.fingerprint !== "string" || record.fingerprint.length > 128 ||
           typeof record.subject !== "string" || typeof record.issuer !== "string" ||
+          typeof record.not_before !== "string" || typeof record.not_after !== "string" ||
           typeof record.owner !== "string" || typeof record.location !== "string" ||
           !Array.isArray(record.locations) || record.locations.length > 32 ||
           (record.imported_at !== undefined && (typeof record.imported_at !== "string" || safeDate(record.imported_at) === null)) ||
           !Array.isArray(record.dns_names) || record.dns_names.length > 128 ||
+          record.dns_names.some(value => typeof value !== "string") ||
           !Number.isSafeInteger(record.import_generation) || record.import_generation < 2 || record.import_generation > data.generation) {
         throw new Error("Inventory record was not recognized");
       }
@@ -115,6 +131,8 @@
       fingerprints.add(record.fingerprint);
     }
     loadedRecords = records;
+    selectedForExport.clear();
+    clearExport("No records selected.");
     displayedGeneration = data.generation;
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
@@ -172,6 +190,19 @@
         (record.locations.length ? record.locations.join(" · ") : "Unknown"));
       addText(item, "small", "Deployment at these locations has not been checked.");
       addText(item, "small", "SHA-256: " + record.fingerprint);
+      const selectLabel = document.createElement("label");
+      selectLabel.className = "record-select";
+      const selectBox = document.createElement("input");
+      selectBox.type = "checkbox";
+      selectBox.checked = selectedForExport.has(record.fingerprint);
+      selectBox.addEventListener("change", function () {
+        if (selectBox.checked) selectedForExport.add(record.fingerprint);
+        else selectedForExport.delete(record.fingerprint);
+        clearExport();
+      });
+      selectLabel.appendChild(selectBox);
+      addText(selectLabel, "span", "Select this public metadata record for export");
+      item.appendChild(selectLabel);
       const addButton = document.createElement("button");
       addButton.type = "button";
       addButton.className = "secondary";
@@ -255,6 +286,8 @@
     refreshButton.disabled = true;
     displayedGeneration = 0;
     loadedRecords = [];
+    selectedForExport.clear();
+    clearExport("No records selected.");
     clockAsOf.textContent = "";
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
@@ -515,6 +548,8 @@
     selectedManageFingerprint = null;
     selectedManageLocations = [];
     originalOwner = null;
+    selectedForExport.clear();
+    clearExport("Selection cleared when the view changed.");
     locationPanel.hidden = true;
     ownerPanel.hidden = true;
     locationManagePanel.hidden = true;
@@ -522,5 +557,61 @@
   }
   expiryFilter.addEventListener("change", changeView);
   inventorySearch.addEventListener("input", changeView);
+  previewExportButton.addEventListener("click", function () {
+    clearExport();
+    if (!displayedGeneration || !selectedForExport.size) {
+      exportStatus.textContent = "Select at least one saved record first.";
+      return;
+    }
+    const selected = loadedRecords.filter(record => selectedForExport.has(record.fingerprint));
+    if (selected.length !== selectedForExport.size) {
+      selectedForExport.clear();
+      clearExport("Selection changed; refresh and select records again.");
+      return;
+    }
+    const report = {
+      schema_version: "rootwell.public-inventory-export.v1",
+      inventory_generation: displayedGeneration,
+      verification: "not-performed",
+      note: "Manual owner and location notes; no trust, deployment, revocation, or private-key proof.",
+      records: selected.map(record => ({
+        fingerprint: record.fingerprint, subject: record.subject, issuer: record.issuer,
+        dns_names: record.dns_names.slice(), not_before: record.not_before, not_after: record.not_after,
+        owner: record.owner, locations: record.locations.slice(), import_generation: record.import_generation,
+        ...(record.imported_at ? { imported_at: record.imported_at } : {})
+      }))
+    };
+    const json = JSON.stringify(report, null, 2) + "\n";
+    const bytes = encoder.encode(json);
+    if (bytes.length > (4 << 20)) {
+      exportStatus.textContent = "Selection exceeds 4 MiB. Select fewer records and preview again.";
+      return;
+    }
+    previewBytes = bytes;
+    exportPreview.textContent = json;
+    exportPreview.hidden = false;
+    downloadExportButton.disabled = false;
+    exportStatus.textContent = selected.length + " public metadata record(s) previewed. This file can reveal internal names.";
+  });
+  downloadExportButton.addEventListener("click", function () {
+    if (!previewBytes || !displayedGeneration || !selectedForExport.size || downloadExportButton.disabled) return;
+    let url;
+    try {
+      url = URL.createObjectURL(new Blob([previewBytes], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "rootwell-public-inventory-g" + displayedGeneration + ".json";
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      try { anchor.click(); } finally { anchor.remove(); }
+      exportStatus.textContent = "Download requested from your browser. Check where it saved this sensitive metadata file.";
+    } catch (_) {
+      exportStatus.textContent = "Browser download could not be requested. Preview remains visible; preview again to retry.";
+    } finally {
+      downloadExportButton.disabled = true;
+      previewBytes = null;
+      if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+    }
+  });
   refresh();
 }());

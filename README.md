@@ -101,6 +101,14 @@ stores it encrypted. Save is not part of the offline Workbench boundary.
 Before first use, stop the daemon and run `inventory-init` with a separate
 private backup location; after imports, make and verify a new full snapshot.
 The [Linux recovery guide](docs/RECOVERY-AZ.md) gives the exact commands.
+Expiry filters and search are local browser views using the browser clock,
+not a monitoring or renewal service. Selected public metadata can be
+previewed and downloaded as JSON with a separate click; owner and location
+names in that file may be sensitive. On Windows, durable inventory remains
+disabled. For a **fake-data, read-only visual preview only**, run
+`node scripts/inventory-demo.mjs --fixture-only` and open
+`http://127.0.0.1:4181/inventory`. This fixture has no authentication or
+encrypted storage and is not a substitute for a Linux inventory test.
 
 ## Implemented commands
 
