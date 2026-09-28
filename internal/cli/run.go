@@ -26,6 +26,8 @@ commands:
   inspect --json <file>
                    emit versioned JSON metadata
   explore <file>   list public certificates in a PEM bundle or one DER file
+  convert --input <file> --to pem|der --output <new-file>
+                   convert one public X.509 certificate without overwrite
   match --cert <file> --key <file> [--json]
                    compare a certificate with an unencrypted private key
   verify <file> --trust-bundle <roots.pem> [--intermediates <chain.pem>]
@@ -69,6 +71,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
 		return runExplore(args[1], stdout, stderr)
+	case "convert":
+		arguments, ok := parseConvertArguments(args[1:])
+		if !ok {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runConvert(arguments, stderr)
 	case "verify":
 		arguments, ok := parseVerifyArguments(args[1:])
 		if !ok {

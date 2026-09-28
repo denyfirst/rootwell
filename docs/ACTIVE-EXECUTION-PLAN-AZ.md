@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-09-28. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-09-29. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -63,8 +63,9 @@ olunmamış nəticəyə “verified” demək qadağandır.
 6. **Secret-bearing conversion / vault.** İlk qərar və təhlükə modeli
    [`ADR 0029`](adr/0029-secret-bearing-conversion-sequence.md) və
    [`SECRET-CONVERSION-THREAT-MODEL.md`](SECRET-CONVERSION-THREAT-MODEL.md)
-   sənədlərindədir. Növbəti implementasiya public-only CLI çıxış sərhədi,
-   sonra ayrıca offline PFX yaratma və oxuma increment-ləridir. Browser/server
+   sənədlərindədir. Public-only CLI PEM/DER çevirməsi ayrıca sərhədlə
+   tamamlanıb; növbəti implementasiya dependency review və offline PFX
+   yaratma/oxuma increment-ləridir. Browser/server
    PFX və private key-ləri yalnız ayrıca dependency review,
    memory/output/file-permission testləri və müstəqil audit qapısından sonra
    qəbul edə bilər. Bu qərar özü heç bir secret capability-ni açmır.

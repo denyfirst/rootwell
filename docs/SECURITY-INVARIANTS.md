@@ -854,3 +854,18 @@ Guarded by `TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage`,
 `TestInventoryDeleteInputRequiresTypedFingerprintConfirmationAndGeneration`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`, and
 `scripts/test-rootwelld-inventory.mjs`.
+
+## C55 — Public CLI conversion cannot become key export or overwrite
+
+The CLI accepts one strict public X.509 certificate and emits equivalent PEM
+or DER bytes only to a new file. PFX, private keys, mixed/trailing input,
+unsupported encodings, duplicate flags, and existing or symlink destinations
+fail without publishing an output or disclosing input in diagnostics. The
+input is unchanged. Staged public bytes are read back before publication.
+The operation is offline and is not a reviewed secret-output primitive or a
+trust verdict. Crash durability and staging cleanup after abrupt termination
+are not guaranteed.
+
+Guarded by `TestConvertPublicCertificateBothDirections`,
+`TestConvertRefusesExistingOutputAndSymlink`, and
+`TestConvertRejectsMalformedSecretAndUsage`.
