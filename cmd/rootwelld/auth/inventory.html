@@ -44,10 +44,17 @@
         <p class="eyebrow">02 / STORED RECORDS</p>
         <h2 id="overview-heading">Expiry overview</h2>
         <p>Expiry uses this browser’s clock; save time uses the server’s clock. Neither is a tamper-proof audit log or a trust verdict.</p>
+        <p id="clock-as-of" class="clock-note"></p>
         <div id="counts" class="counts" aria-live="polite"></div>
+        <div class="filters">
+          <label for="expiry-filter">Show certificates</label>
+          <select id="expiry-filter"><option value="all">All priorities</option><option value="expired">Expired</option><option value="soon">Within 30 days</option><option value="medium">After 30, within 90 days</option><option value="later">More than 90 days</option><option value="future">Not yet valid</option><option value="invalid">Invalid date range</option><option value="missing-owner">Owner unknown</option><option value="missing-location">Location unknown</option></select>
+          <label for="inventory-search">Find in saved notes</label>
+          <input id="inventory-search" type="search" autocomplete="off" placeholder="Subject, SHA-256, owner or location">
+        </div>
         <button id="refresh-button" class="secondary" type="button">Refresh saved inventory</button>
         <p id="list-status" role="status" aria-live="polite">Loading saved public certificates…</p>
-        <ol id="records" aria-label="Saved public certificates ordered by expiry"></ol>
+        <ol id="records" aria-label="Saved public certificates ordered by action priority"></ol>
       </section>
       <section id="location-panel" class="card location-panel" aria-labelledby="location-heading" hidden>
         <p class="eyebrow">03 / MANUAL ASSOCIATION</p>

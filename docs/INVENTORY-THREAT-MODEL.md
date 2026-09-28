@@ -41,10 +41,10 @@ must explicitly confirm note removal in the UI; this does not contact or
 change a named server. Old snapshots can retain old labels. See
 [ADR 0025](adr/0025-explicit-location-note-correction.md).
 
-The draft holds up to 500 records in one process. Each DER certificate is at
+The catalog holds up to 500 records in one process. Each DER certificate is at
 most 64 KiB, labels at most 128 UTF-8 bytes and free of controls/formatting
-characters. It creates no file and makes no network request. It has no data
-retention promise because it is not exposed as a user-facing inventory yet.
+characters. The catalog itself creates no file or network request. Durable
+storage and an explicit user-facing loopback API are separate boundaries below.
 
 ## Gate before durable storage or an import API
 
@@ -103,7 +103,12 @@ retention promise because it is not exposed as a user-facing inventory yet.
    is not trusted time, notification, or renewal. Import generation records
    original import order even after a manual metadata correction; the
    optional save timestamp comes from the server clock. Neither is a
-   tamper-evident audit log.
+   tamper-evident audit log. The browser can locally sort and filter the
+   authenticated inventory response by expiry, unknown owner/location, and
+   text. Its clock is untrusted; expiry at the exact NotAfter instant is
+   expired. Filtering does not send terms, read selected files, persist search
+   terms, notify, renew, or change stored records. An incorrect device time
+   can mislead the operator. See [ADR 0026](adr/0026-local-expiry-triage.md).
 5. Linux container bind-volume permissions and fresh restore now have a
    disposable CI drill. The local Compose profile keeps the server's backup
    mount absent and runs maintenance without a network; its Linux host network
