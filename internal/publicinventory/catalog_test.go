@@ -104,6 +104,36 @@ func TestAssociateLocationIsBoundedExplicitAndDetached(t *testing.T) {
 	}
 }
 
+func TestUpdateOwnerChangesOnlyDetachedManualNote(t *testing.T) {
+	var c Catalog
+	added, err := c.Add(demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := UpdateOwner(added[0], "Security")
+	if err != nil || updated.Owner != "Security" || updated.Fingerprint != added[0].Fingerprint ||
+		!bytes.Equal(updated.DER, added[0].DER) || !slices.Equal(updated.Locations, added[0].Locations) {
+		t.Fatalf("owner correction changed certificate: %v", err)
+	}
+	updated.DER[0] = 0
+	updated.Locations[0] = "mutated"
+	if added[0].Owner != "Platform" || c.List()[0].Owner != "Platform" || added[0].Locations[0] != "production/nginx" {
+		t.Fatal("owner correction mutated source record")
+	}
+	cleared, err := UpdateOwner(added[0], "")
+	if err != nil || cleared.Owner != "" || cleared.Fingerprint != added[0].Fingerprint {
+		t.Fatalf("explicit owner clearing failed: %v", err)
+	}
+	for _, owner := range []string{" bad", "bad\nowner", strings.Repeat("x", maxLabel+1)} {
+		if result, err := UpdateOwner(added[0], owner); !errors.Is(err, ErrLabel) || result.Fingerprint != "" {
+			t.Fatalf("invalid owner accepted: %q %v", owner, err)
+		}
+	}
+	if result, err := UpdateOwner(added[0], "Platform"); !errors.Is(err, ErrOwnerUnchanged) || result.Fingerprint != "" {
+		t.Fatalf("unchanged owner rewrote record: %v", err)
+	}
+}
+
 func TestDuplicateAndMalformedImportsAreAtomic(t *testing.T) {
 	leaf := demo(t, "rootwell-demo-certificate.pem")
 	root := demo(t, "rootwell-verify-demo-root.pem")

@@ -78,3 +78,36 @@ func TestLocationInputRejectsMalformedAndDuplicateFields(t *testing.T) {
 		}
 	}
 }
+
+func TestOwnerInputRequiresExplicitBoundedStringAndGeneration(t *testing.T) {
+	for _, tc := range []struct {
+		body, contentType string
+		want              int
+		owner             string
+	}{
+		{`{"fingerprint":"abc","owner":"Security","expected_generation":2}`, "application/json", 0, "Security"},
+		{`{"fingerprint":"abc","owner":  "Security","expected_generation":2}`, "application/json", 0, "Security"},
+		{`{"fingerprint":"abc","owner":"","expected_generation":2}`, "application/json", 0, ""},
+		{`{"fingerprint":"abc","owner":null,"expected_generation":2}`, "application/json", http.StatusBadRequest, ""},
+		{`{"fingerprint":"abc","owner":"A","owner":"B","expected_generation":2}`, "application/json", http.StatusBadRequest, ""},
+		{`{"fingerprint":"abc","owner":"A","expected_generation":2,"secret":"x"}`, "application/json", http.StatusBadRequest, ""},
+		{`{"fingerprint":"abc","owner":"A","expected_generation":2} trailing`, "application/json", http.StatusBadRequest, ""},
+		{`{"fingerprint":"abc","owner":"A","expected_generation":0}`, "application/json", http.StatusBadRequest, ""},
+		{`{"fingerprint":"abc","owner":"bad\nowner","expected_generation":2}`, "application/json", http.StatusBadRequest, ""},
+		{`{"fingerprint":"abc","owner":"A","expected_generation":2}`, "text/plain", http.StatusUnsupportedMediaType, ""},
+		{string([]byte{'{', '"', 'x', '"', ':', '"', 0xff, '"', '}'}), "application/json", http.StatusBadRequest, ""},
+		{strings.Repeat("x", 1025), "application/json", http.StatusBadRequest, ""},
+	} {
+		r := httptest.NewRequest("POST", "http://localhost/api/inventory/owner", strings.NewReader(tc.body))
+		r.Header.Set("Content-Type", tc.contentType)
+		w := httptest.NewRecorder()
+		input, ok := readInventoryOwnerInput(w, r)
+		if tc.want == 0 {
+			if !ok || input.Fingerprint != "abc" || input.Owner != tc.owner || input.ExpectedGeneration != 2 {
+				t.Fatalf("valid owner input refused: %d", w.Code)
+			}
+		} else if ok || w.Code != tc.want {
+			t.Fatalf("invalid owner input accepted: %d want %d", w.Code, tc.want)
+		}
+	}
+}

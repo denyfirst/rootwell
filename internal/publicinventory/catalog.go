@@ -27,6 +27,7 @@ var (
 	ErrCertSize          = errors.New("certificate exceeds inventory draft size limit")
 	ErrLocationDuplicate = errors.New("location is already associated with this certificate")
 	ErrLocationCapacity  = errors.New("certificate location capacity reached")
+	ErrOwnerUnchanged    = errors.New("certificate owner is unchanged")
 )
 
 // Record contains public certificate bytes and unverified metadata. Owner and
@@ -148,6 +149,25 @@ func ValidateLocation(location string) error {
 		return ErrLabel
 	}
 	return nil
+}
+
+// ValidOwner permits an empty label to represent an unknown owner.
+func ValidOwner(owner string) bool {
+	return validLabel(owner)
+}
+
+// UpdateOwner changes only an operator-declared label. An empty owner clears
+// the note; it does not delete or otherwise change the certificate.
+func UpdateOwner(record Record, owner string) (Record, error) {
+	if !ValidOwner(owner) {
+		return Record{}, ErrLabel
+	}
+	if owner == record.Owner {
+		return Record{}, ErrOwnerUnchanged
+	}
+	out := cloneRecords([]Record{record})[0]
+	out.Owner = owner
+	return out, nil
 }
 
 // List returns detached copies so callers cannot mutate the catalog.

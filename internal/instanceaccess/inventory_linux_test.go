@@ -174,6 +174,63 @@ func TestLinuxInventoryAssociationsSurviveRestartAndFullRestore(t *testing.T) {
 	}
 }
 
+func TestLinuxInventoryOwnerCorrectionIsDurableAndRestorable(t *testing.T) {
+	path, password, code, key, id, _ := inventoryFixture(t)
+	revision, err := Revision(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
+	if err != nil || generation != 2 {
+		t.Fatalf("initial import: %v", err)
+	}
+	updated, generation, err := UpdateInventoryOwner(path, key, id, revision, 2, added[0].Fingerprint, "Security")
+	if err != nil || generation != 3 || updated.Owner != "Security" || updated.ImportGeneration != 2 {
+		t.Fatalf("owner correction: %v", err)
+	}
+	before, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		generation uint64
+		owner      string
+		want       error
+	}{
+		{2, "stale", inventorystore.ErrStaleGeneration},
+		{3, "Security", publicinventory.ErrOwnerUnchanged},
+		{3, "bad\nowner", publicinventory.ErrLabel},
+	} {
+		if _, _, err := UpdateInventoryOwner(path, key, id, revision, tc.generation, added[0].Fingerprint, tc.owner); !errors.Is(err, tc.want) {
+			t.Fatalf("unsafe owner correction accepted: %v", err)
+		}
+		after, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatal("rejected owner correction changed image")
+		}
+	}
+	backup := filepath.Join(privateSnapshotDir(t), "with-corrected-owner.rwfull")
+	if err := ExportFullSnapshot(path, backup, password, code); err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(privateSnapshotDir(t), "access.json")
+	if err := RestoreFullSnapshot(backup, fresh, code, SnapshotRecoveryCode); err != nil {
+		t.Fatal(err)
+	}
+	newRevision, err := Revision(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, generation, err := ReadInventory(fresh, key, id, newRevision)
+	if err != nil || generation != 3 || len(restored) != 1 || restored[0].Owner != "Security" || restored[0].ImportGeneration != 2 {
+		t.Fatalf("restore lost corrected owner: %v", err)
+	}
+}
+
 func TestLinuxInventoryRefusesUnsafeAndBusyOperations(t *testing.T) {
 	path, password, code, key, id, _ := inventoryFixture(t)
 	other := filepath.Join(privateSnapshotDir(t), "second.rwfull")
