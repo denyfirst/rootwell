@@ -18,11 +18,21 @@
   const locationButton = document.getElementById("location-button");
   const locationCancel = document.getElementById("location-cancel");
   const locationStatus = document.getElementById("location-status");
+  const ownerPanel = document.getElementById("owner-panel");
+  const ownerForm = document.getElementById("owner-form");
+  const ownerTarget = document.getElementById("owner-target");
+  const newOwner = document.getElementById("new-owner");
+  const ownerButton = document.getElementById("owner-button");
+  const ownerCancel = document.getElementById("owner-cancel");
+  const ownerStatus = document.getElementById("owner-status");
   const encoder = new TextEncoder();
   let loadSerial = 0;
   let saving = false;
   let associating = false;
+  let editingOwner = false;
   let selectedFingerprint = null;
+  let selectedOwnerFingerprint = null;
+  let originalOwner = null;
   let displayedGeneration = 0;
 
   function validLabel(value) {
@@ -91,8 +101,12 @@
     }
     displayedGeneration = data.generation;
     selectedFingerprint = null;
+    selectedOwnerFingerprint = null;
+    originalOwner = null;
     locationPanel.hidden = true;
+    ownerPanel.hidden = true;
     locationStatus.textContent = "";
+    ownerStatus.textContent = "";
     records.sort((a, b) => (safeDate(a.not_after) ?? Number.NEGATIVE_INFINITY) - (safeDate(b.not_after) ?? Number.NEGATIVE_INFINITY));
     list.replaceChildren();
     counts.replaceChildren();
@@ -114,14 +128,33 @@
       addButton.textContent = "Add another location";
       addButton.disabled = record.locations.length >= 32;
       addButton.addEventListener("click", function () {
-        if (saving || associating || !displayedGeneration) return;
+        if (saving || associating || editingOwner || !displayedGeneration) return;
         selectedFingerprint = record.fingerprint;
+        selectedOwnerFingerprint = null;
+        ownerPanel.hidden = true;
         locationTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint;
         newLocation.value = "";
         locationStatus.textContent = "";
         locationPanel.hidden = false;
       });
       item.appendChild(addButton);
+      const editOwnerButton = document.createElement("button");
+      editOwnerButton.type = "button";
+      editOwnerButton.className = "secondary";
+      editOwnerButton.textContent = "Correct owner note";
+      editOwnerButton.addEventListener("click", function () {
+        if (saving || associating || editingOwner || !displayedGeneration) return;
+        selectedOwnerFingerprint = record.fingerprint;
+        originalOwner = record.owner;
+        selectedFingerprint = null;
+        locationPanel.hidden = true;
+        ownerTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint +
+          " · Current owner: " + (record.owner || "Unknown");
+        newOwner.value = record.owner;
+        ownerStatus.textContent = "";
+        ownerPanel.hidden = false;
+      });
+      item.appendChild(editOwnerButton);
       list.appendChild(item);
     }
     for (const [name, value] of Object.entries(totals)) {
@@ -136,7 +169,10 @@
     refreshButton.disabled = true;
     displayedGeneration = 0;
     selectedFingerprint = null;
+    selectedOwnerFingerprint = null;
+    originalOwner = null;
     locationPanel.hidden = true;
+    ownerPanel.hidden = true;
     listStatus.textContent = "Reading encrypted inventory…";
     try {
       const response = await fetch("/api/inventory", { method: "GET", credentials: "same-origin", cache: "no-store",
@@ -161,7 +197,7 @@
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (saving || associating) return;
+    if (saving || associating || editingOwner) return;
     const file = fileInput.files && fileInput.files[0];
     const owner = ownerInput.value;
     const location = locationInput.value;
@@ -205,7 +241,7 @@
 
   locationForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (associating || saving || !selectedFingerprint || !displayedGeneration) return;
+    if (associating || saving || editingOwner || !selectedFingerprint || !displayedGeneration) return;
     const location = newLocation.value;
     if (!location || !validLabel(location)) {
       locationStatus.textContent = "Enter one short, plain-text location (up to 128 bytes).";
@@ -250,6 +286,59 @@
     if (associating) return;
     selectedFingerprint = null;
     locationPanel.hidden = true;
+  });
+
+  ownerForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    if (editingOwner || saving || associating || !selectedOwnerFingerprint || !displayedGeneration) return;
+    const owner = newOwner.value;
+    if (!validLabel(owner)) {
+      ownerStatus.textContent = "Enter a plain-text owner note of up to 128 bytes, or leave it blank.";
+      return;
+    }
+    if (owner === originalOwner) {
+      ownerStatus.textContent = "Owner is unchanged.";
+      return;
+    }
+    const fingerprint = selectedOwnerFingerprint;
+    const expectedGeneration = displayedGeneration;
+    editingOwner = true;
+    ownerButton.disabled = true;
+    saveButton.disabled = true;
+    refreshButton.disabled = true;
+    ownerStatus.textContent = "Saving your manual owner note…";
+    try {
+      const response = await fetch("/api/inventory/owner", { method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" },
+        body: JSON.stringify({ fingerprint, owner, expected_generation: expectedGeneration }) });
+      if (!response.ok) {
+        const message = (await response.text()).trim().slice(0, 240);
+        throw new Error(message || "Owner was not saved; refresh before retrying.");
+      }
+      const result = await response.json();
+      if (!result || result.verification !== "not-performed" || result.generation !== expectedGeneration + 1 ||
+          !Array.isArray(result.records) || result.records.length !== 1 ||
+          result.records[0].fingerprint !== fingerprint || result.records[0].owner !== owner) {
+        throw new Error("Save outcome could not be confirmed; refresh before retrying.");
+      }
+      const loaded = await refresh();
+      listStatus.textContent = loaded ? "Manual owner note saved. Make a new full snapshot; backup is not automatic." :
+        "Owner may have been saved, but inventory could not be reloaded. Refresh before another change.";
+    } catch (error) {
+      ownerStatus.textContent = error instanceof Error ? error.message : "Owner was not saved; refresh before retrying.";
+    } finally {
+      editingOwner = false;
+      ownerButton.disabled = false;
+      saveButton.disabled = false;
+      refreshButton.disabled = false;
+    }
+  });
+
+  ownerCancel.addEventListener("click", function () {
+    if (editingOwner) return;
+    selectedOwnerFingerprint = null;
+    originalOwner = null;
+    ownerPanel.hidden = true;
   });
 
   refreshButton.addEventListener("click", refresh);

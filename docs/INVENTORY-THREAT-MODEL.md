@@ -28,6 +28,12 @@ duplicate/invalid/excess location, or unsafe image is refused without a write.
 The record is resealed under a new image generation while original import
 generation/time remain unchanged. The full backup after that change is still
 manual; see [ADR 0023](adr/0023-operator-declared-certificate-locations.md).
+An owner is also an unverified manual note. A separate generation-bound,
+same-origin authenticated POST can replace it or explicitly clear it to
+unknown without altering DER, locations, or original import provenance.
+Malformed, stale, unchanged, and unauthorized corrections do not write.
+This is not an edit history; old snapshots can retain the previous owner.
+See [ADR 0024](adr/0024-explicit-owner-note-correction.md).
 
 The draft holds up to 500 records in one process. Each DER certificate is at
 most 64 KiB, labels at most 128 UTF-8 bytes and free of controls/formatting
@@ -89,7 +95,7 @@ retention promise because it is not exposed as a user-facing inventory yet.
    duplicates. A rejected batch leaves storage unchanged. API output omits
    DER bytes and reports `verification: not-performed`. Browser-clock expiry
    is not trusted time, notification, or renewal. Import generation records
-   original import order even after a manual location association; the
+   original import order even after a manual metadata correction; the
    optional save timestamp comes from the server clock. Neither is a
    tamper-evident audit log.
 5. Linux container bind-volume permissions and fresh restore now have a

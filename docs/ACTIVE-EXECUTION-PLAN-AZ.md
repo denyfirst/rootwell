@@ -71,6 +71,34 @@ backup/recovery, disk limitində yeni yazının təhlükəsiz rəddi və audit i
 ayrıca dizayn və test tələb edir. Bu seçim persistent database, notification
 və ya network discovery-ni avtomatik icazəli etmir.
 
+## Inventory üçün yaxın icra planı
+
+Bu, məhsulun **Mərhələ 3 — Inventory və monitoring** hissəsidir. Hər sıra
+ayrıca imzalı PR və CI qapısından keçəcək; növbəti sıraya yalnız əvvəlki
+sərhəd sübut edildikdən sonra keçirik.
+
+1. **Owner qeydini düzəltmək — birinci increment.** Mövcud fingerprint üçün
+   owner-i dəyişmək və ya açıq şəkildə boşaltmaq; köhnə import vaxtı/sırası,
+   DER və yerlər sabit qalır. Stale tab, eyni owner, malformed input və
+   icazəsiz sorğu yazmır. Dəyişiklikdən sonra yeni tam backup operatora
+   xatırladılır; köhnə snapshot köhnə qeydi saxlaya bilər.
+2. **Yer qeydlərini düzəltmək və silmək.** Bir manual etiketi dəqiq seçərək
+   rename/remove; sertifikat və digər yerlər qorunur. Sonuncu yer silinəndə
+   “unknown” açıq göstərilir. Bu serverdən certificate-i silmir və deploy
+   əməliyyatı deyil. Yanlış seçimi və köhnə tabı rədd edən testlər lazımdır.
+3. **Expiry prioritet görünüşü.** Browser saatının etibarsızlığını göstərərək
+   expired/30/90 gün filtrləri, unknown owner/location göstəricisi və aydın
+   “indi nə etməli” yönləndirməsi. Bu notification, renewal və trust hökmü
+   deyil; avtomatik səssiz qərar vermir.
+4. **Seçilmiş public məlumatın lokal export-u və explicit silmə siyasəti.**
+   Secret-siz export üçün məzmun önizləməsi; certificate record-un silinməsi
+   üçün ayrıca retention/backup/restore qərarı və testləri. Köhnə backup-dan
+   silinmiş data qayıda bildiyinə görə “tam silindi” vədi verilməyəcək.
+
+Canlı endpoint discovery, Porch nəticələrinin importu və alert-lər ayrıca
+network/evidence/operational threat model-dən sonra gəlir. ACME, PFX/private
+key vault, SSH/PGP və agent deployment bu mərhələyə qarışdırılmır.
+
 ## Hər increment üçün dəyişməz qapılar
 
 - Dəqiq trust boundary və “nəyi sübut etmir” qeydi.

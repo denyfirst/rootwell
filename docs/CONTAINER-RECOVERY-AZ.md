@@ -62,7 +62,8 @@ snapshot əməliyyat kilidi ilə rədd olunur. Backup və onu açan recovery kod
 eyni yerdə qalmamalıdır. Fayl host storage-u da sıradan çıxara bilər: snapshot-u
 ayrıca/offsite daşıyın və dövri bərpa məşqi edin. Rootwell avtomatik backup
 etmir; serverə parol və recovery kodunu daimi vermirik. Köhnə autentik backup
-sonrakı importları qaytarmır və rollback-i aşkarlamır.
+sonrakı importları və owner/location qeydlərindəki düzəlişləri qaytarmır;
+köhnə backup əvvəlki qeydləri ehtiva edə bilər və rollback-i aşkarlamır.
 
 ## Təmiz volume-a bərpa məşqi
 

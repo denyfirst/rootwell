@@ -182,6 +182,74 @@ func TestAssociateLocationPreservesOneCertificateAndImportProvenance(t *testing.
 	}
 }
 
+func TestUpdateOwnerPreservesCertificateLocationsAndProvenance(t *testing.T) {
+	key, id := testIdentity(t)
+	image, err := Create(key, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fingerprint := added[0].Fingerprint
+	image, _, generation, err := AssociateLocation(key, id, image, fingerprint, "production/haproxy", 2)
+	if err != nil || generation != 3 {
+		t.Fatalf("add location: %v", err)
+	}
+	before, _, err := Open(key, id, image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedImage, updated, generation, err := UpdateOwner(key, id, image, fingerprint, "Security", 3)
+	if err != nil || generation != 4 || updated.Owner != "Security" || updated.ImportGeneration != 2 ||
+		updated.ImportedAt != before[0].ImportedAt || !slices.Equal(updated.Locations, before[0].Locations) || !bytes.Equal(updated.DER, before[0].DER) {
+		t.Fatalf("owner correction damaged certificate: %v", err)
+	}
+	if bytes.Contains(updatedImage, []byte("Security")) {
+		t.Fatal("owner note leaked from encrypted image")
+	}
+	for _, tc := range []struct {
+		fingerprint, owner string
+		generation         uint64
+		want               error
+	}{
+		{fingerprint, "stale", 3, ErrStaleGeneration},
+		{fingerprint, "Security", 4, publicinventory.ErrOwnerUnchanged},
+		{fingerprint, "bad\nowner", 4, publicinventory.ErrLabel},
+		{"absent", "New", 4, ErrNotFound},
+		{"absent", "bad\nowner", 4, publicinventory.ErrLabel},
+	} {
+		if result, record, _, err := UpdateOwner(key, id, updatedImage, tc.fingerprint, tc.owner, tc.generation); !errors.Is(err, tc.want) || result != nil || record.Fingerprint != "" {
+			t.Fatalf("unsafe owner correction accepted: %v", err)
+		}
+	}
+	clearedImage, cleared, generation, err := UpdateOwner(key, id, updatedImage, fingerprint, "", 4)
+	if err != nil || generation != 5 || cleared.Owner != "" || cleared.ImportGeneration != 2 || len(cleared.Locations) != 2 {
+		t.Fatalf("owner clear: %v", err)
+	}
+	reopened, current, err := Open(key, id, clearedImage)
+	if err != nil || current != 5 || len(reopened) != 1 || reopened[0].Owner != "" || reopened[0].ImportGeneration != 2 ||
+		!slices.Equal(reopened[0].Locations, []string{"production/nginx", "production/haproxy"}) {
+		t.Fatalf("clear damaged encrypted image: %v", err)
+	}
+	withoutLocation, err := Create(key, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withoutLocation, unknown, err := Append(key, id, withoutLocation, demo(t, "rootwell-demo-certificate.pem"), "Platform", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	withoutLocation, noLocation, generation, err := UpdateOwner(key, id, withoutLocation, unknown[0].Fingerprint, "Security", 2)
+	if err != nil || generation != 3 || noLocation.Location != "" || len(noLocation.Locations) != 0 {
+		t.Fatalf("owner update invented a location: %v", err)
+	}
+	if records, _, err := Open(key, id, withoutLocation); err != nil || len(records) != 1 || len(records[0].Locations) != 0 {
+		t.Fatalf("owner-only record did not reopen: %v", err)
+	}
+}
+
 func TestAssociatedImageRejectsAuthorizedMalformedLocationPayload(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)

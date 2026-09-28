@@ -53,6 +53,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if w := inventoryCall(g, "POST", "/api/inventory/locations", `{"fingerprint":"x","location":"server","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
 		t.Fatal("setup session associated a location")
 	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"x","owner":"team","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
+		t.Fatal("setup session corrected an owner")
+	}
 	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +69,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	}
 	if w := inventoryCall(g, "POST", "/api/inventory/locations", `{"fingerprint":"x","location":"server","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
 		t.Fatal("uninitialized inventory associated a location")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"x","owner":"team","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("uninitialized inventory corrected an owner")
 	}
 	code, err := instanceaccess.EnrollRecovery(path, nextTestPassword)
 	if err != nil {
@@ -152,6 +158,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	}
 	if w := inventoryCall(g, "GET", "/api/inventory", "", readyCookie, "", true); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "Platform") {
 		t.Fatal("corrupt inventory returned records")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"x","owner":"Security","expected_generation":2}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "Platform") {
+		t.Fatal("owner correction wrote or exposed corrupt inventory")
 	}
 }
 
@@ -243,5 +252,44 @@ func TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound(t *testing.T) {
 	listed := inventoryCall(g, "GET", "/api/inventory", "", cookie, "", true)
 	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"generation":3`) || !strings.Contains(listed.Body.String(), `"locations":["production/nginx","production/haproxy"]`) {
 		t.Fatalf("location list not durable: %d", listed.Code)
+	}
+	ownerRequest := `{"fingerprint":"` + saved.Records[0].Fingerprint + `","owner":"Security","expected_generation":3}`
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", ownerRequest, nil, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+		t.Fatal("anonymous owner correction accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", ownerRequest, cookie, "http://evil.invalid", true); w.Code != http.StatusForbidden {
+		t.Fatal("cross-origin owner correction accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", ownerRequest, cookie, "http://"+localHost, false); w.Code != http.StatusForbidden {
+		t.Fatal("owner correction without CSRF header accepted")
+	}
+	if w := inventoryCall(g, "GET", "/api/inventory/owner", "", cookie, "", true); w.Code != http.StatusMethodNotAllowed {
+		t.Fatal("owner correction accepted GET")
+	}
+	for _, malformed := range []string{
+		`{"fingerprint":"x","owner":null,"expected_generation":3}`,
+		`{"fingerprint":"x","owner":"a","owner":"b","expected_generation":3}`,
+		`{"fingerprint":"x","owner":"bad\nowner","expected_generation":3}`,
+		`{"fingerprint":"x","owner":"a","expected_generation":3,"unknown":1}`,
+	} {
+		if w := inventoryCall(g, "POST", "/api/inventory/owner", malformed, cookie, "http://"+localHost, true); w.Code != http.StatusBadRequest {
+			t.Fatalf("malformed owner correction accepted: %d", w.Code)
+		}
+	}
+	corrected := inventoryCall(g, "POST", "/api/inventory/owner", ownerRequest, cookie, "http://"+localHost, true)
+	if corrected.Code != http.StatusOK || bytes.Contains(corrected.Body.Bytes(), cert) ||
+		!strings.Contains(corrected.Body.String(), `"owner":"Security"`) || !strings.Contains(corrected.Body.String(), `"generation":4`) ||
+		!strings.Contains(corrected.Body.String(), `"import_generation":2`) || !strings.Contains(corrected.Body.String(), `"verification":"not-performed"`) {
+		t.Fatalf("owner correction failed or leaked DER: %d %s", corrected.Code, corrected.Body.String())
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", ownerRequest, cookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("stale owner correction accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"`+saved.Records[0].Fingerprint+`","owner":"Security","expected_generation":4}`, cookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("unchanged owner correction accepted")
+	}
+	cleared := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"`+saved.Records[0].Fingerprint+`","owner":"","expected_generation":4}`, cookie, "http://"+localHost, true)
+	if cleared.Code != http.StatusOK || !strings.Contains(cleared.Body.String(), `"owner":""`) || !strings.Contains(cleared.Body.String(), `"generation":5`) {
+		t.Fatalf("explicit owner clearing failed: %d", cleared.Code)
 	}
 }

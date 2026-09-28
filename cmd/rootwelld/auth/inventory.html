@@ -62,6 +62,19 @@
           <p id="location-status" role="status" aria-live="polite"></p>
         </form>
       </section>
+      <section id="owner-panel" class="card metadata-panel" aria-labelledby="owner-heading" hidden>
+        <p class="eyebrow">04 / MANUAL OWNER NOTE</p>
+        <h2 id="owner-heading">Correct owner</h2>
+        <p id="owner-target"></p>
+        <p>Owner is your manual note, not verified ownership. Leave the new owner blank to clear the note. This does not remove the certificate.</p>
+        <form id="owner-form">
+          <label for="new-owner">New owner <span>(blank means unknown)</span></label>
+          <input id="new-owner" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Platform team">
+          <button id="owner-button" type="submit">Save owner note</button>
+          <button id="owner-cancel" class="secondary" type="button">Cancel</button>
+          <p id="owner-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
     </div>
     <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After saving certificates or locations, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An old snapshot cannot restore later changes.</p></aside>
   </main>

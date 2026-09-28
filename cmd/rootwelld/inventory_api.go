@@ -29,6 +29,12 @@ type inventoryLocationInput struct {
 	ExpectedGeneration uint64
 }
 
+type inventoryOwnerInput struct {
+	Fingerprint        string
+	Owner              string
+	ExpectedGeneration uint64
+}
+
 type inventoryItem struct {
 	Fingerprint      string   `json:"fingerprint"`
 	Subject          string   `json:"subject"`
@@ -141,6 +147,112 @@ func readInventoryLocationInput(w http.ResponseWriter, r *http.Request) (invento
 	if publicinventory.ValidateLocation(input.Location) != nil {
 		http.Error(w, "invalid location", http.StatusBadRequest)
 		return inventoryLocationInput{}, false
+	}
+	return input, true
+}
+
+func (g *gate) inventoryOwnerEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if !signedIn {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	if s.setup {
+		http.Error(w, "change the setup password first", http.StatusForbidden)
+		return
+	}
+	if runtime.GOOS != "linux" {
+		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
+		return
+	}
+	if !s.inventoryReady {
+		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+		return
+	}
+	if !g.sameOrigin(r) {
+		http.Error(w, "request origin refused", http.StatusForbidden)
+		return
+	}
+	input, ok := readInventoryOwnerInput(w, r)
+	if !ok {
+		return
+	}
+	updated, generation, err := instanceaccess.UpdateInventoryOwner(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
+		input.ExpectedGeneration, input.Fingerprint, input.Owner)
+	if err != nil {
+		inventoryError(w, err)
+		return
+	}
+	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
+}
+
+func readInventoryOwnerInput(w http.ResponseWriter, r *http.Request) (inventoryOwnerInput, bool) {
+	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || media != "application/json" {
+		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
+		return inventoryOwnerInput{}, false
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if err != nil || len(body) == 0 || !utf8.Valid(body) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryOwnerInput{}, false
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	start, err := d.Token()
+	if err != nil || start != json.Delim('{') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryOwnerInput{}, false
+	}
+	var input inventoryOwnerInput
+	seen := make(map[string]bool, 3)
+	for d.More() {
+		token, err := d.Token()
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryOwnerInput{}, false
+		}
+		name, ok := token.(string)
+		if !ok || seen[name] {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryOwnerInput{}, false
+		}
+		seen[name] = true
+		switch name {
+		case "fingerprint":
+			err = d.Decode(&input.Fingerprint)
+		case "owner":
+			var raw json.RawMessage
+			err = d.Decode(&raw)
+			if err == nil {
+				if len(raw) == 0 || raw[0] != '"' {
+					http.Error(w, "invalid request body", http.StatusBadRequest)
+					return inventoryOwnerInput{}, false
+				}
+				err = json.Unmarshal(raw, &input.Owner)
+			}
+		case "expected_generation":
+			err = d.Decode(&input.ExpectedGeneration)
+		default:
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryOwnerInput{}, false
+		}
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryOwnerInput{}, false
+		}
+	}
+	end, err := d.Token()
+	if err != nil || end != json.Delim('}') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryOwnerInput{}, false
+	}
+	if _, err := d.Token(); err != io.EOF || !seen["fingerprint"] || !seen["owner"] || !seen["expected_generation"] ||
+		len(input.Fingerprint) == 0 || len(input.Fingerprint) > 128 || input.ExpectedGeneration == 0 || !publicinventory.ValidOwner(input.Owner) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryOwnerInput{}, false
 	}
 	return input, true
 }
@@ -267,10 +379,12 @@ func inventoryError(w http.ResponseWriter, err error) {
 		http.Error(w, "location is already listed for this certificate", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrLocationCapacity):
 		http.Error(w, "certificate location limit reached", http.StatusConflict)
+	case errors.Is(err, publicinventory.ErrOwnerUnchanged):
+		http.Error(w, "owner is unchanged", http.StatusConflict)
 	case errors.Is(err, inventorystore.ErrNotFound):
 		http.Error(w, "certificate is no longer in the inventory; refresh first", http.StatusNotFound)
 	case errors.Is(err, inventorystore.ErrStaleGeneration):
-		http.Error(w, "inventory changed; refresh before adding a location", http.StatusConflict)
+		http.Error(w, "inventory changed; refresh before changing metadata", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrCapacity):
 		http.Error(w, "inventory capacity reached", http.StatusConflict)
 	case errors.Is(err, inventorystore.ErrLimit):

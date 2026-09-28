@@ -769,3 +769,22 @@ Guarded by `TestAssociateLocationIsBoundedExplicitAndDetached`,
 `TestLocationInputRejectsMalformedAndDuplicateFields`,
 `TestInventoryOutputNeverSerializesCertificateBytes`,
 `TestContainerVolumeDrill`, and `scripts/test-rootwelld-inventory.mjs`.
+
+## C50 — Owner correction is explicit, generation-bound, and non-verifying
+
+An authenticated same-origin POST can replace one public certificate's manual
+owner note or explicitly clear it to unknown. The complete encrypted image
+and displayed generation are checked before mutation. Malformed or non-string
+owner, no-op, missing fingerprint, stale tab, unauthorized session, and
+cross-origin requests cannot write. A successful correction changes only the
+encrypted owner note and image generation; DER, locations, original import
+generation/time remain unchanged. API output omits DER and makes no verified
+ownership claim. A new full snapshot is manual; older backups may retain the
+previous note. There is no tamper-evident edit history or deletion claim.
+
+Guarded by `TestUpdateOwnerChangesOnlyDetachedManualNote`,
+`TestUpdateOwnerPreservesCertificateLocationsAndProvenance`,
+`TestLinuxInventoryOwnerCorrectionIsDurableAndRestorable`,
+`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
+`TestOwnerInputRequiresExplicitBoundedStringAndGeneration`, and
+`scripts/test-rootwelld-inventory.mjs`.

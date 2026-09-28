@@ -160,10 +160,54 @@ func AssociateLocation(key, installationID, image []byte, fingerprint, location 
 	if err != nil {
 		return nil, publicinventory.Record{}, 0, err
 	}
-	plain, err := json.Marshal(payload{DER: updated.DER, Owner: updated.Owner, Location: updated.Location,
-		AdditionalLocations: updated.Locations[1:], ImportedAt: updated.ImportedAt, ImportGeneration: updated.ImportGeneration})
+	result, generation, err := resealRecord(key, installationID, m, index, updated)
 	if err != nil {
-		return nil, publicinventory.Record{}, 0, ErrInvalid
+		return nil, publicinventory.Record{}, 0, err
+	}
+	return result, updated, generation, err
+}
+
+// UpdateOwner replaces one unverified owner note. Clearing it is explicit;
+// the certificate, its locations, and original import provenance remain.
+func UpdateOwner(key, installationID, image []byte, fingerprint, owner string, expectedGeneration uint64) ([]byte, publicinventory.Record, uint64, error) {
+	m, existing, err := decode(key, installationID, image)
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	if expectedGeneration == 0 || m.Generation != expectedGeneration {
+		return nil, publicinventory.Record{}, 0, ErrStaleGeneration
+	}
+	if m.Generation >= maxGeneration {
+		return nil, publicinventory.Record{}, 0, ErrLimit
+	}
+	if !publicinventory.ValidOwner(owner) {
+		return nil, publicinventory.Record{}, 0, publicinventory.ErrLabel
+	}
+	for i, record := range existing {
+		if record.Fingerprint == fingerprint {
+			updated, err := publicinventory.UpdateOwner(record, owner)
+			if err != nil {
+				return nil, publicinventory.Record{}, 0, err
+			}
+			result, generation, err := resealRecord(key, installationID, m, i, updated)
+			if err != nil {
+				return nil, publicinventory.Record{}, 0, err
+			}
+			return result, updated, generation, err
+		}
+	}
+	return nil, publicinventory.Record{}, 0, ErrNotFound
+}
+
+func resealRecord(key, installationID []byte, m manifest, index int, updated publicinventory.Record) ([]byte, uint64, error) {
+	var additional []string
+	if len(updated.Locations) > 1 {
+		additional = updated.Locations[1:]
+	}
+	plain, err := json.Marshal(payload{DER: updated.DER, Owner: updated.Owner, Location: updated.Location,
+		AdditionalLocations: additional, ImportedAt: updated.ImportedAt, ImportGeneration: updated.ImportGeneration})
+	if err != nil {
+		return nil, 0, ErrInvalid
 	}
 	m.Generation++
 	id := sha256.Sum256(updated.DER)
@@ -171,14 +215,14 @@ func AssociateLocation(key, installationID, image []byte, fingerprint, location 
 	copy(install[:], installationID)
 	ciphertext, err := inventoryseal.Seal(key, inventoryseal.Context{InstallationID: install, RecordID: id, Generation: m.Generation}, plain)
 	if err != nil {
-		return nil, publicinventory.Record{}, 0, err
+		return nil, 0, err
 	}
 	m.Records[index] = sealedRecord{ID: id[:], Generation: m.Generation, Ciphertext: ciphertext}
 	result, err := encode(key, m)
 	if err != nil {
-		return nil, publicinventory.Record{}, 0, err
+		return nil, 0, err
 	}
-	return result, updated, m.Generation, nil
+	return result, m.Generation, nil
 }
 
 func validIdentity(key, id []byte) bool {
