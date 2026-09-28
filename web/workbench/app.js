@@ -4,17 +4,14 @@
   const tabs = Array.from(document.querySelectorAll("[data-tool]"));
   const panels = {
     inspect: document.getElementById("inspect-panel"),
-    explore: document.getElementById("explore-panel"),
+    convert: document.getElementById("convert-panel"),
     verify: document.getElementById("verify-panel")
   };
   const pagePath = document.getElementById("page-path");
   const engineState = document.getElementById("engine-state");
-  const inspectInput = document.getElementById("inspect-file");
-  const inspectSelection = document.getElementById("inspect-file-state");
-  const inspectStatus = document.getElementById("inspect-status");
-  const inspectButton = document.getElementById("inspect-button");
-  const inspectError = document.getElementById("inspect-error");
   const inspectResult = document.getElementById("inspect-result");
+  const inspectDetailError = document.getElementById("inspect-detail-error");
+  document.getElementById("inspect-detail-host").append(inspectResult);
   const exploreInput = document.getElementById("explore-file");
   const exploreSelection = document.getElementById("explore-file-state");
   const exploreStatus = document.getElementById("explore-status");
@@ -36,6 +33,14 @@
   const exportStatus = document.getElementById("export-status");
   const exportError = document.getElementById("export-error");
   const exportBundleButton = document.getElementById("export-bundle-button");
+  const convertCertificates = document.getElementById("convert-certificates");
+  const convertResult = document.getElementById("convert-result");
+  const convertEmpty = document.getElementById("convert-empty");
+  const convertOpenInspect = document.getElementById("convert-open-inspect");
+  const convertInput = document.getElementById("convert-file");
+  const convertSelection = document.getElementById("convert-file-state");
+  const convertOpenButton = document.getElementById("convert-open-button");
+  const convertError = document.getElementById("convert-error");
   const verifyHostname = document.getElementById("verify-hostname");
   const verifyTrustFile = document.getElementById("verify-trust-file");
   const verifyRootPin = document.getElementById("verify-root-pin");
@@ -60,9 +65,7 @@
   const verifyExportError = document.getElementById("verify-export-error");
 
   let engine = null;
-  let selectedInspectFile = null;
   let selectedExploreFiles = null;
-  let inspecting = false;
   let exploring = false;
   let exporting = false;
   let verifying = false;
@@ -72,6 +75,7 @@
   let currentExploreEntries = null;
   let currentExploreAnalysis = null;
   let currentExploreTime = null;
+  let detailGeneration = 0;
   let guidedVerifyFiles = null;
   let guidedVerifyFingerprints = null;
   const selectedBundleFingerprints = new Set();
@@ -97,8 +101,10 @@
     Object.keys(panels).forEach(function (panelName) {
       panels[panelName].hidden = panelName !== name;
     });
-    pagePath.textContent = name === "verify" ? "Verify" : name === "explore" ? "Open & convert" : "Inspect";
+    pagePath.textContent = name === "verify" ? "Verify" : name === "convert" ? "Convert" : "Inspect";
   }
+
+  convertOpenInspect.addEventListener("click", function () { selectTool("inspect"); });
 
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
@@ -126,16 +132,17 @@
     return "File " + (index + 1) + " (" + displayFileName(file) + ")";
   }
 
-  function updateInspectControls() {
-    inspectButton.disabled = inspecting || engine === null || selectedInspectFile === null;
-  }
-
   function updateExploreControls() {
     exploreButton.disabled = exploring || exporting || engine === null || selectedExploreFiles === null;
+    convertOpenButton.disabled = exploreButton.disabled;
+    convertSelection.textContent = exploreSelection.textContent;
     exploreVerifyButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null;
     exploreReportButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || currentExploreAnalysis === null;
     exportBundleButton.disabled = exploring || exporting || engine === null || currentExploreEntries === null || selectedBundleFingerprints.size === 0;
     exploreCertificates.querySelectorAll("button, select, input").forEach(function (control) {
+      control.disabled = exploring || exporting;
+    });
+    convertCertificates.querySelectorAll("button, select, input").forEach(function (control) {
       control.disabled = exploring || exporting;
     });
   }
@@ -192,23 +199,8 @@
     });
   }
 
-  function setInspectFile(file) {
-    selectedInspectFile = file;
-    inspectResult.hidden = true;
-    inspectError.hidden = true;
-    inspectSelection.textContent = file ? file.name + " · " + formatSize(file.size) : "No file selected";
-    if (file && engine) {
-      inspectStatus.textContent = "Ready for local inspection";
-    }
-    updateInspectControls();
-  }
-
-  inspectInput.addEventListener("change", function () {
-    const file = inspectInput.files && inspectInput.files.length === 1 ? inspectInput.files[0] : null;
-    setInspectFile(file);
-  });
-
   function setExploreFiles(files) {
+    detailGeneration++;
     clearGuidedVerifyFiles();
     selectedExploreFiles = null;
     currentExploreEntries = null;
@@ -217,6 +209,13 @@
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    convertCertificates.replaceChildren();
+    convertResult.hidden = true;
+    convertEmpty.hidden = false;
+    convertOpenInspect.textContent = "Go to Inspect";
+    inspectResult.hidden = true;
+    inspectDetailError.hidden = true;
+    convertError.hidden = true;
     clearHealthGuide();
     clearPossibleLinks();
     clearExpiryOverview();
@@ -229,13 +228,13 @@
       exploreStatus.textContent = "Too many files selected";
     } else if (files.length === 0) {
       exploreSelection.textContent = "No files selected";
-      exploreStatus.textContent = "Choose public certificate files to explore";
+      exploreStatus.textContent = "Choose public certificate files to inspect";
     } else {
       let totalBytes = 0;
       for (const file of files) {
         if (!Number.isSafeInteger(file.size) || file.size < 0) {
           exploreSelection.textContent = "The selected file size is invalid";
-          exploreStatus.textContent = "Choose public certificate files to explore";
+          exploreStatus.textContent = "Choose public certificate files to inspect";
           updateExploreControls();
           return;
         }
@@ -248,14 +247,19 @@
         selectedExploreFiles = Object.freeze(files.slice());
         exploreSelection.textContent = files.length === 1 ? displayFileName(files[0]) + " · " + formatSize(totalBytes) :
           files.length + " files · " + formatSize(totalBytes) + " total";
-        if (engine) exploreStatus.textContent = "Ready for local exploration";
+        if (engine) exploreStatus.textContent = "Ready for local inspection";
       }
     }
     updateExploreControls();
   }
 
   exploreInput.addEventListener("change", function () {
+    convertInput.value = "";
     setExploreFiles(exploreInput.files ? Array.from(exploreInput.files) : []);
+  });
+  convertInput.addEventListener("change", function () {
+    exploreInput.value = "";
+    setExploreFiles(convertInput.files ? Array.from(convertInput.files) : []);
   });
 
   document.querySelectorAll("[data-drop-target]").forEach(function (zone) {
@@ -272,17 +276,7 @@
       });
     });
     zone.addEventListener("drop", function (event) {
-      const isExplore = zone.dataset.dropTarget === "explore-file";
-      if (isExplore) {
-        setExploreFiles(event.dataTransfer ? Array.from(event.dataTransfer.files) : []);
-        return;
-      }
-      if (!event.dataTransfer || event.dataTransfer.files.length !== 1) {
-        setInspectFile(null);
-        inspectSelection.textContent = "Choose exactly one file";
-        return;
-      }
-      setInspectFile(event.dataTransfer.files[0]);
+      setExploreFiles(event.dataTransfer ? Array.from(event.dataTransfer.files) : []);
     });
   });
 
@@ -298,11 +292,9 @@
 
   function engineUnavailable() {
     engineState.textContent = "Unavailable · build assets required";
-    inspectStatus.textContent = "Local inspection engine is unavailable";
-    exploreStatus.textContent = "Local exploration engine is unavailable";
+    exploreStatus.textContent = "Local inspection engine is unavailable";
     verifyStatus.textContent = "Local verification engine is unavailable";
     engine = null;
-    updateInspectControls();
     updateExploreControls();
     updateVerifyControls();
   }
@@ -322,9 +314,7 @@
       }
       engine = readyEngine;
       engineState.textContent = "Ready · Go WebAssembly";
-      inspectStatus.textContent = selectedInspectFile ? "Ready for local inspection" : "Choose one certificate to inspect";
-      exploreStatus.textContent = selectedExploreFiles ? "Ready for local exploration" : "Choose public certificate files to explore";
-      updateInspectControls();
+      exploreStatus.textContent = selectedExploreFiles ? "Ready for local inspection" : "Choose public certificate files to inspect";
       updateExploreControls();
       updateVerifyControls();
     }, engineUnavailable);
@@ -425,10 +415,10 @@
     return value;
   }
 
-  function renderInspection(result) {
+  function renderInspection(result, sourceEncoding) {
     text("inspect-result-subject", result.subject || "Subject not present");
     text("inspect-result-fingerprint", "SHA256 " + result.fingerprints.sha256);
-    text("inspect-result-encoding", result.encoding.toUpperCase());
+    text("inspect-result-encoding", sourceEncoding.toUpperCase());
     text("inspect-result-public-key", publicKeyLabel(result.public_key));
     text("inspect-result-signature", "Signature: " + result.signature_algorithm);
     text("inspect-result-relative-time", timeWindowLabel(result.time_window));
@@ -457,79 +447,6 @@
     inspectResult.scrollIntoView({ block: "nearest" });
   }
 
-  function showFailure(message) {
-    inspectResult.hidden = true;
-    inspectError.textContent = message;
-    inspectError.hidden = false;
-  }
-
-  const failureMessages = Object.freeze({
-    "empty-input": "Choose one non-empty certificate.",
-    "input-too-large": "The certificate exceeds the 16 MiB limit.",
-    "unsupported-encoding": "Only one PEM or DER X.509 certificate is supported.",
-    "trailing-data": "Choose exactly one complete certificate with no trailing data.",
-    "metadata-limit": "The certificate metadata exceeds the inspection limit.",
-    "invalid-certificate": "The file is not a valid X.509 certificate.",
-    "invalid-browser-request": "The browser bridge rejected the request.",
-    "internal-failure": "Inspection could not be completed safely."
-  });
-
-  inspectButton.addEventListener("click", async function () {
-    if (!engine || !selectedInspectFile || inspecting) return;
-    if (selectedInspectFile.size > engine.maxBytes) {
-      showFailure("The certificate exceeds the 16 MiB limit.");
-      return;
-    }
-
-    inspecting = true;
-    inspectError.hidden = true;
-    inspectResult.hidden = true;
-    inspectStatus.textContent = "Inspecting locally · no certificate upload";
-    updateInspectControls();
-
-    let bytes = null;
-    try {
-      const buffer = await selectedInspectFile.arrayBuffer();
-      bytes = new Uint8Array(buffer);
-      if (bytes.byteLength !== selectedInspectFile.size || bytes.byteLength > engine.maxBytes) {
-        showFailure("The selected file changed or exceeds the inspection limit.");
-        return;
-      }
-      const rawResponse = engine.inspect(bytes);
-      if (typeof rawResponse !== "string" || rawResponse.length > 4 * 1024 * 1024) {
-        showFailure("The local inspection engine returned an invalid response.");
-        return;
-      }
-      const response = JSON.parse(rawResponse);
-      if (!response || response.schema_version !== "rootwell.browser.inspect.v1" || typeof response.ok !== "boolean") {
-        showFailure("The local inspection engine returned an invalid response.");
-        return;
-      }
-      if (!response.ok) {
-        const failure = response.error;
-        const fixedMessage = failure && typeof failure.code === "string" && Object.hasOwn(failureMessages, failure.code) ? failureMessages[failure.code] : null;
-        if (response.result !== null || !fixedMessage || failure.message !== fixedMessage) {
-          showFailure("Inspection failed safely.");
-          return;
-        }
-        showFailure(fixedMessage);
-        return;
-      }
-      if (response.error !== null || !validInspection(response.result)) {
-        showFailure("The local inspection engine returned an invalid response.");
-        return;
-      }
-      renderInspection(response.result);
-    } catch {
-      showFailure("Inspection failed safely. The selected file was not uploaded.");
-    } finally {
-      if (bytes) bytes.fill(0);
-      inspecting = false;
-      inspectStatus.textContent = "Local inspection finished · no certificate upload";
-      updateInspectControls();
-    }
-  });
-
   const exploreFailureMessages = Object.freeze({
     "empty-input": "Choose one non-empty public certificate file.",
     "input-too-large": "The file exceeds the 16 MiB limit.",
@@ -557,7 +474,7 @@
 
   function clearExpiryOverview() {
     exploreExpirySummary.textContent = "";
-    exploreExpiryNote.textContent = "Based on this browser's clock at the time of Explore. A date window is not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.";
+    exploreExpiryNote.textContent = "Based on this browser's clock at the time of Inspect. A date window is not a trust, revocation, deployment, or renewal verdict. Inspect again to refresh.";
     exploreExpiryList.replaceChildren();
   }
 
@@ -591,7 +508,7 @@
       return row;
     });
     exploreExpirySummary.textContent = windows.map(function (window) { return window + ": " + counts.get(window); }).join(" · ");
-    exploreExpiryNote.textContent = "As of " + new Date(now).toISOString() + " (browser clock). Public certificate dates only; not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.";
+    exploreExpiryNote.textContent = "As of " + new Date(now).toISOString() + " (browser clock). Public certificate dates only; not a trust, revocation, deployment, or renewal verdict. Inspect again to refresh.";
     exploreExpiryList.replaceChildren(...items);
   }
 
@@ -619,7 +536,7 @@
     exploreHealthNext.textContent = possibleSiteCertificates === 1 ?
       "One certificate could be the website certificate. Continue to Verify with these same files; enter the website name and choose a separate trusted root. Rootwell will check the actual role and chain there." :
       possibleSiteCertificates === 0 ?
-        "No possible website certificate was found. Ask for the website's own public .crt/.cer file, then explore again. A root or bundle alone is not enough for Simple Verify." :
+        "No possible website certificate was found. Ask for the website's own public .crt/.cer file, then inspect again. A root or bundle alone is not enough for Simple Verify." :
         "More than one possible website certificate was found. Rootwell will not guess which one you mean. Separate the intended certificate or choose it explicitly in Advanced Verify.";
     exploreVerifyButton.textContent = possibleSiteCertificates === 1 ? "Continue to Verify with these files" : "Review Verify options";
   }
@@ -738,6 +655,37 @@
         relation.parents.map(function (parent) { return "certificate #" + (parent + 1); }).join(", ") +
           " · issuer signature matches, not a trust verdict";
       bundleDetail(details, "Possible issuer", issuerHint);
+      const detailsButton = document.createElement("button");
+      detailsButton.type = "button";
+      detailsButton.className = "button";
+      detailsButton.textContent = "View full details";
+      detailsButton.setAttribute("aria-label", "View full details for certificate " + (index + 1));
+      detailsButton.addEventListener("click", function () { void inspectCertificate(entry, entries); });
+      const convertButton = document.createElement("button");
+      convertButton.type = "button";
+      convertButton.className = "button";
+      convertButton.textContent = "Convert this certificate";
+      convertButton.addEventListener("click", function () {
+        if (currentExploreEntries !== entries) return;
+        selectTool("convert");
+        const target = convertCertificates.children[index];
+        if (target) target.scrollIntoView({ block: "nearest" });
+      });
+      item.append(heading, details, detailsButton, convertButton);
+      return item;
+    });
+    const conversionCards = entries.map(function (entry, index) {
+      const certificate = entry.certificate;
+      const item = document.createElement("li");
+      const heading = document.createElement("div");
+      heading.className = "bundle-card-head";
+      const number = document.createElement("span");
+      number.textContent = String(index + 1).padStart(2, "0");
+      const title = document.createElement("strong");
+      title.textContent = certificate.subject || "Subject not present";
+      heading.append(number, title);
+      const source = document.createElement("p");
+      source.textContent = "Source: " + displayFileName(entry.file) + " · SHA-256 " + certificate.sha256;
       const selection = document.createElement("label");
       selection.className = "bundle-select";
       const checkbox = document.createElement("input");
@@ -752,10 +700,11 @@
       const selectionText = document.createElement("span");
       selectionText.textContent = "Include in public PEM bundle";
       selection.append(checkbox, selectionText);
-      item.append(heading, details, selection, exportAction(entry.file, certificate.sha256, index));
+      item.append(heading, source, selection, exportAction(entry.file, certificate.sha256, index));
       return item;
     });
     exploreCertificates.replaceChildren(...cards);
+    convertCertificates.replaceChildren(...conversionCards);
     renderHealthGuide(entries, chain);
     renderPossibleLinks(entries, chain);
     renderExpiryOverview(entries, now);
@@ -768,10 +717,15 @@
     exportStatus.textContent = "Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.";
     text("explore-result-count", entries.length + (entries.length === 1 ? " certificate found" : " certificates found"));
     exploreResult.hidden = false;
-    exploreResult.scrollIntoView({ block: "nearest" });
+    convertResult.hidden = false;
+    convertEmpty.hidden = true;
+    convertOpenInspect.textContent = "View details in Inspect";
+    if (panels.inspect.hidden) convertResult.scrollIntoView({ block: "nearest" });
+    else exploreResult.scrollIntoView({ block: "nearest" });
   }
 
   function showExploreFailure(message) {
+    detailGeneration++;
     clearGuidedVerifyFiles();
     currentExploreEntries = null;
     currentExploreAnalysis = null;
@@ -779,6 +733,12 @@
     selectedBundleFingerprints.clear();
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    convertCertificates.replaceChildren();
+    convertResult.hidden = true;
+    convertEmpty.hidden = false;
+    convertOpenInspect.textContent = "Go to Inspect";
+    inspectResult.hidden = true;
+    inspectDetailError.hidden = true;
     clearHealthGuide();
     clearPossibleLinks();
     clearExpiryOverview();
@@ -786,6 +746,8 @@
     exploreReportError.hidden = true;
     exploreError.textContent = message;
     exploreError.hidden = false;
+    convertError.textContent = message;
+    convertError.hidden = false;
     updateExploreControls();
   }
 
@@ -806,7 +768,7 @@
     invalidateVerify();
     verifyGuidedSource.hidden = false;
     verifyGuidedSource.textContent = guidedVerifyFiles ?
-      "Using " + counted(guidedVerifyFiles.length, "public file", "public files") + " from Explore. Rootwell will re-read them only when you press Verify locally. Enter the website name and choose a separate trusted root; no root from these files is trusted automatically. Choosing new files below replaces this selection." :
+      "Using " + counted(guidedVerifyFiles.length, "public file", "public files") + " from Inspect. Rootwell will re-read them only when you press Verify locally. Enter the website name and choose a separate trusted root; no root from these files is trusted automatically. Choosing new files below replaces this selection." :
       "These files do not contain exactly one certificate without the CA flag. Nothing was transferred to Simple Verify. Add the site's public certificate or select a specific leaf in Advanced; never trust a root just because it appeared in the bundle.";
     verifyStatus.textContent = guidedVerifyFiles ?
       "Add a website hostname and separate trust file to verify locally" :
@@ -817,8 +779,8 @@
   const exportFailureMessages = Object.freeze({
     "invalid-browser-request": "The local export request was rejected.",
     "input-too-large": "The file exceeds the 16 MiB limit.",
-    "invalid-public-source": "The selected file is no longer a valid public certificate bundle. Explore it again.",
-    "certificate-not-found": "The selected certificate was not found in this file. Explore it again.",
+    "invalid-public-source": "The selected file is no longer a valid public certificate bundle. Inspect it again.",
+    "certificate-not-found": "The selected certificate was not found in this file. Inspect it again.",
     "internal-failure": "The local certificate export could not be completed safely."
   });
 
@@ -843,10 +805,63 @@
     return result;
   }
 
+  async function inspectCertificate(entry, entries) {
+    if (!engine || exploring || exporting || currentExploreEntries !== entries ||
+        !selectedExploreFiles || !selectedExploreFiles.includes(entry.file)) return;
+    const files = selectedExploreFiles;
+    const generation = ++detailGeneration;
+    inspectResult.hidden = true;
+    inspectDetailError.hidden = true;
+    let input = null;
+    let output = null;
+    try {
+      const file = entry.file;
+      if (file.size > engine.maxBytes) throw new Error("input-limit");
+      input = new Uint8Array(await file.arrayBuffer());
+      if (generation !== detailGeneration || selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+      if (input.byteLength !== file.size || input.byteLength > engine.maxBytes) throw new Error("changed-source");
+      const rawSource = engine.explore(input);
+      if (typeof rawSource !== "string" || rawSource.length > 4 * 1024 * 1024) throw new Error("source-response");
+      const source = JSON.parse(rawSource);
+      const expected = entries.filter(function (candidate) { return candidate.file === file; });
+      if (!source || source.schema_version !== "rootwell.browser.explore.v1" || source.ok !== true ||
+          source.error !== null || !validExploreResult(source.result) || source.result.count !== expected.length ||
+          !source.result.certificates.every(function (certificate, index) {
+            return certificate.sha256 === expected[index].certificate.sha256;
+          })) throw new Error("changed-source");
+      const exported = validateExportResponse(engine.exportPublic(input, entry.certificate.sha256, "der"),
+        entry.certificate.sha256, "der");
+      if (!exported || typeof exported === "string") throw new Error("export-response");
+      output = exported.bytes;
+      const rawInspection = engine.inspect(output);
+      if (typeof rawInspection !== "string" || rawInspection.length > 4 * 1024 * 1024) throw new Error("inspect-response");
+      const inspection = JSON.parse(rawInspection);
+      const detail = inspection && inspection.result;
+      if (!inspection || inspection.schema_version !== "rootwell.browser.inspect.v1" || inspection.ok !== true ||
+          inspection.error !== null || !validInspection(detail) || detail.encoding !== "der" ||
+          detail.fingerprints.sha256 !== entry.certificate.sha256 ||
+          detail.basic_constraints.is_ca !== entry.certificate.is_ca ||
+          detail.subject !== entry.certificate.subject || detail.issuer !== entry.certificate.issuer ||
+          detail.validity.not_before !== entry.certificate.not_before ||
+          detail.validity.not_after !== entry.certificate.not_after) throw new Error("inspect-mismatch");
+      if (generation !== detailGeneration || selectedExploreFiles !== files || currentExploreEntries !== entries) return;
+      renderInspection(detail, entry.certificate.encoding);
+    } catch {
+      if (generation === detailGeneration && selectedExploreFiles === files && currentExploreEntries === entries) {
+        inspectResult.hidden = true;
+        inspectDetailError.textContent = "Full details could not be confirmed from the current public file. Inspect the files again; no partial detail or download was shown.";
+        inspectDetailError.hidden = false;
+      }
+    } finally {
+      if (input) input.fill(0);
+      if (output) output.fill(0);
+    }
+  }
+
   const bundleExportFailureMessages = Object.freeze({
-    "invalid-browser-request": "Choose public certificates from the current Explore result.",
-    "invalid-public-source": "A selected source is no longer a valid public certificate collection. Explore again.",
-    "changed-public-source": "The selected files changed since Explore. Explore again before downloading.",
+    "invalid-browser-request": "Choose public certificates from the current Inspect result.",
+    "invalid-public-source": "A selected source is no longer a valid public certificate collection. Inspect again.",
+    "changed-public-source": "The selected files changed since Inspect. Inspect again before downloading.",
     "input-too-large": "The public bundle would exceed the 16 MiB limit.",
     "internal-failure": "The local bundle export could not be completed safely."
   });
@@ -917,20 +932,20 @@
       for (const file of files) {
         if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
         if (file.size > remainingBytes) {
-          showReportFailure("The selected files changed or exceed the combined limit. Explore again.");
+          showReportFailure("The selected files changed or exceed the combined limit. Inspect again.");
           return;
         }
         const bytes = new Uint8Array(await file.arrayBuffer());
         try {
           if (selectedExploreFiles !== files || currentExploreEntries !== entries) return;
           if (bytes.byteLength !== file.size || bytes.byteLength > remainingBytes) {
-            showReportFailure("The selected files changed or exceed the combined limit. Explore again.");
+            showReportFailure("The selected files changed or exceed the combined limit. Inspect again.");
             return;
           }
           remainingBytes -= bytes.byteLength;
           const raw = engine.explore(bytes);
           if (typeof raw !== "string" || raw.length > 4 * 1024 * 1024) {
-            showReportFailure("The selected public files could not be rechecked. Explore again.");
+            showReportFailure("The selected public files could not be rechecked. Inspect again.");
             return;
           }
           const response = JSON.parse(raw);
@@ -940,7 +955,7 @@
           if (!response || response.schema_version !== "rootwell.browser.explore.v1" || response.ok !== true ||
               response.error !== null || !validExploreResult(response.result) || response.result.count !== expected.length ||
               !response.result.certificates.every(function (certificate, index) { return certificate.sha256 === expected[index]; })) {
-            showReportFailure("The selected public files changed since Explore. Explore again before reporting.");
+            showReportFailure("The selected public files changed since Inspect. Inspect again before reporting.");
             return;
           }
         } finally {
@@ -1291,7 +1306,7 @@
         if (guidedFingerprints && index < actualFiles.length) {
           const rawExplore = engine.explore(bytes);
           if (typeof rawExplore !== "string" || rawExplore.length > 4 * 1024 * 1024) {
-            showVerifyFailure("Files changed since Explore. Explore them again before verifying.");
+            showVerifyFailure("Files changed since Inspect. Inspect them again before verifying.");
             return;
           }
           const rechecked = JSON.parse(rawExplore);
@@ -1301,7 +1316,7 @@
               !rechecked.result.certificates.every(function (certificate, position) {
                 return certificate.sha256 === expected[position];
               })) {
-            showVerifyFailure("Files changed since Explore. Explore them again before verifying.");
+            showVerifyFailure("Files changed since Inspect. Inspect them again before verifying.");
             return;
           }
         }
@@ -1408,7 +1423,7 @@
     }
   }
 
-  exploreButton.addEventListener("click", async function () {
+  async function inspectPublicFiles() {
     if (!engine || !selectedExploreFiles || exploring || exporting) return;
     const files = selectedExploreFiles;
     if (files.length < 1 || files.length > maxExploreFiles ||
@@ -1418,10 +1433,18 @@
     }
 
     exploring = true;
+    detailGeneration++;
     clearGuidedVerifyFiles();
     exploreError.hidden = true;
+    convertError.hidden = true;
     exploreResult.hidden = true;
     exploreCertificates.replaceChildren();
+    convertCertificates.replaceChildren();
+    convertResult.hidden = true;
+    convertEmpty.hidden = false;
+    convertOpenInspect.textContent = "Go to Inspect";
+    inspectResult.hidden = true;
+    inspectDetailError.hidden = true;
     clearHealthGuide();
     clearPossibleLinks();
     currentExploreEntries = null;
@@ -1538,5 +1561,7 @@
       if (selectedExploreFiles === files) exploreStatus.textContent = "Local exploration finished · no certificate upload";
       updateExploreControls();
     }
-  });
+  }
+  exploreButton.addEventListener("click", inspectPublicFiles);
+  convertOpenButton.addEventListener("click", inspectPublicFiles);
 })();

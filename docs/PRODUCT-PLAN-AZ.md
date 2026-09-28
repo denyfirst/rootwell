@@ -264,6 +264,14 @@ hər iki encoding ilə açıq seçilə bilir. Private key/PFX qəbul etmir.
 Bu sərhəd browser Verify-dan
 ayrıdır.
 
+Workbench UI-də ayrıca bundle səhifəsi yoxdur: **Inspect** tək certificate
+və bundle/çoxfayllı public kolleksiyanın ümumi girişidir. Kartdan geniş
+inspection sahələri seçildikdə mənbə və fingerprint yenidən yoxlanır;
+**Convert** eyni sessiyanın public certificate-lərini ayrıca, aydın çıxış
+ekranında təqdim edir və birbaşa public fayl seçildikdə eyni bounded import
+yolunu işlədir. Bu görünüş bölgüsü private key/PFX browser importuna
+icazə vermir və heç bir automatic trust/chain qərarı yaratmır.
+
 Sadə certificate import/Verify və public bundle explorer üçün konkret
 istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarları
 [`WORKBENCH-IMPORT-UX-AZ.md`](WORKBENCH-IMPORT-UX-AZ.md) sənədindədir.

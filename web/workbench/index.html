@@ -72,7 +72,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect, open and convert, or verify public certificates locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
+          <p class="lede">Inspect, convert, or verify public certificates locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -90,11 +90,11 @@
         <nav class="tool-tabs" aria-label="Workbench tools">
           <button class="tool-tab" type="button" id="inspect-tab" data-tool="inspect" aria-controls="inspect-panel" aria-selected="true">
             <span class="tool-number">01</span>
-            <span><strong>Inspect</strong><small>Read certificate metadata</small></span>
+            <span><strong>Inspect</strong><small>Open certificates and bundles</small></span>
           </button>
-          <button class="tool-tab" type="button" id="explore-tab" data-tool="explore" aria-controls="explore-panel" aria-selected="false">
+          <button class="tool-tab" type="button" id="convert-tab" data-tool="convert" aria-controls="convert-panel" aria-selected="false">
             <span class="tool-number">02</span>
-            <span><strong>Open &amp; convert</strong><small>Public PEM/DER certificates</small></span>
+            <span><strong>Convert</strong><small>Download public PEM/DER</small></span>
           </button>
           <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
             <span class="tool-number">03</span>
@@ -102,34 +102,7 @@
           </button>
         </nav>
 
-        <section class="tool-panel" id="inspect-panel" aria-labelledby="inspect-tab">
-          <div class="panel-head">
-            <div>
-              <p class="section-index">Tool 01 / Inspect</p>
-              <h2>Inspect one certificate</h2>
-              <p>Inspect one public X.509 certificate. Its content must be PEM or DER; bundles and PFX are not supported here. Bytes are read only after you press Inspect and are processed locally.</p>
-            </div>
-            <span class="capability">Read-only</span>
-          </div>
-
-          <div class="file-zone" data-drop-target="inspect-file">
-            <input class="file-input" type="file" id="inspect-file" accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
-            <label for="inspect-file">
-              <span class="file-symbol" aria-hidden="true">＋</span>
-              <strong>Choose a certificate file (.pem, .crt, .cer, .der)</strong>
-              <span>or drop it here · one certificate · maximum 16 MiB</span>
-            </label>
-            <p class="file-selection" id="inspect-file-state" aria-live="polite">No file selected</p>
-            <p class="demo-certificate">Need a safe input? <a href="rootwell-demo-certificate.pem" download>Download the public demo certificate</a> — no private key included.</p>
-          </div>
-
-          <div class="panel-actions">
-            <p id="inspect-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local inspection engine</p>
-            <button class="button button-primary" id="inspect-button" type="button" disabled>Inspect certificate</button>
-          </div>
-
-          <aside class="inspection-error" id="inspect-error" role="alert" hidden></aside>
-
+        <div id="inspect-detail-staging" hidden>
           <section class="result" id="inspect-result" aria-live="polite" hidden>
             <div class="result-head">
               <div>
@@ -168,16 +141,16 @@
               <p>Parsing and time-window status do not prove chain trust, hostname suitability, revocation status, or private-key possession. Use Verify for an explicit TLS trust decision.</p>
             </aside>
           </section>
-        </section>
+        </div>
 
-        <section class="tool-panel" id="explore-panel" aria-labelledby="explore-tab" hidden>
+        <section class="tool-panel" id="inspect-panel" aria-labelledby="inspect-tab">
           <div class="panel-head">
             <div>
-              <p class="section-index">Tool 02 / Open &amp; convert</p>
-              <h2>Open a public certificate or bundle</h2>
-              <p>Choose public .pem, .crt, .cer or .der files. Rootwell opens them locally; you can download one certificate as PEM or DER, or select parts for a PEM bundle. Private keys and PFX are not supported.</p>
+              <p class="section-index">Tool 01 / Inspect</p>
+              <h2>See what is inside your certificate files</h2>
+              <p>Choose one public certificate, a PEM bundle, or several public files. Rootwell shows each certificate and its detailed fields locally. This is not a trust check; private keys and PFX are not accepted.</p>
             </div>
-            <span class="capability">Public only</span>
+            <span class="capability">Read-only · public</span>
           </div>
 
           <div class="file-zone" data-drop-target="explore-file">
@@ -188,17 +161,17 @@
               <span>or drop them here · 1–8 files · 1–64 certificates · 16 MiB combined</span>
             </label>
             <p class="file-selection" id="explore-file-state" aria-live="polite">No files selected</p>
-            <p class="demo-certificate">Need a safe bundle? <a href="rootwell-demo-bundle.pem" download>Download a two-certificate public demo bundle</a> — no private key included.</p>
+            <p class="demo-certificate">Need safe inputs? <a href="rootwell-demo-certificate.pem" download>One public certificate</a> or <a href="rootwell-demo-bundle.pem" download>a two-certificate public bundle</a> — no private keys included.</p>
           </div>
 
           <details class="demo-guide">
             <summary>Try a safe verification demo (optional)</summary>
-            <p>Download <a href="rootwell-verify-demo-ca-files.pem" download>demo CA files</a> and <a href="rootwell-verify-demo-root.pem" download>the separate demo root</a>. Explore only the CA files, then continue to Verify with hostname <code>verify.rootwell.invalid</code> and choose the root there. Never install this root in your OS or browser.</p>
+            <p>Download <a href="rootwell-verify-demo-ca-files.pem" download>demo CA files</a> and <a href="rootwell-verify-demo-root.pem" download>the separate demo root</a>. Inspect only the CA files, then continue to Verify with hostname <code>verify.rootwell.invalid</code> and choose the root there. Never install this root in your OS or browser.</p>
           </details>
 
           <div class="panel-actions">
-            <p id="explore-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local exploration engine</p>
-            <button class="button button-primary" id="explore-button" type="button" disabled>Open public files</button>
+            <p id="explore-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local inspection engine</p>
+            <button class="button button-primary" id="explore-button" type="button" disabled>Inspect public files</button>
           </div>
 
           <aside class="inspection-error" id="explore-error" role="alert" hidden></aside>
@@ -206,9 +179,9 @@
           <section class="result" id="explore-result" aria-live="polite" hidden>
             <div class="result-head">
               <div>
-                <p class="result-kicker">Local public-file conversion · not a trust verdict</p>
+                <p class="result-kicker">Local public-file inspection · not a trust verdict</p>
                 <h3 id="explore-result-count"></h3>
-                <p>Choose a certificate card below to download public PEM or DER bytes. No chain verification performed · no trust anchor selected · duplicate certificates across files are rejected.</p>
+                <p>Choose a card to see full certificate details. No chain verification performed · no trust anchor selected · duplicate certificates across files are rejected.</p>
               </div>
               <span class="stamp stamp-warn">Unverified</span>
             </div>
@@ -220,14 +193,10 @@
               <p>“Possible website certificate” only means its CA flag is off. Verify still checks whether it really fits your website. Nothing here is trusted yet; an offline TLS check needs a website name and a separately chosen trusted root.</p>
             </section>
             <h4 class="conversion-heading">Certificates in your files</h4>
-            <p>Each card can download one public certificate. Choose the actual content encoding first; .crt and .cer are filename extensions, not encodings.</p>
+            <p>Select a certificate to read its detailed fields. The order shown is the file order, not a verified chain.</p>
             <ol class="bundle-list" id="explore-certificates" aria-label="Certificates found in the selected files"></ol>
-            <div class="bundle-collection-actions">
-              <p>Select public certificates above to create a PEM bundle in the displayed order. This does not build or verify a chain; no private key is included.</p>
-              <button class="button" id="export-bundle-button" type="button" disabled>Download selected PEM bundle</button>
-            </div>
-            <p class="export-status" id="export-status" aria-live="polite">Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.</p>
-            <aside class="inspection-error" id="export-error" role="alert" hidden></aside>
+            <aside class="inspection-error" id="inspect-detail-error" role="alert" hidden></aside>
+            <div id="inspect-detail-host"></div>
             <details class="advanced-analysis">
               <summary>More technical analysis and public report</summary>
               <section class="possible-links" aria-labelledby="explore-links-heading">
@@ -239,7 +208,7 @@
               <section class="expiry-overview" aria-labelledby="explore-expiry-heading">
                 <h4 id="explore-expiry-heading">Expiry overview</h4>
                 <p id="explore-expiry-summary"></p>
-                <p id="explore-expiry-note">Based on this browser's clock at the time of Explore. A date window is not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.</p>
+                <p id="explore-expiry-note">Based on this browser's clock at the time of Inspect. A date window is not a trust, revocation, deployment, or renewal verdict. Inspect again to refresh.</p>
                 <ol id="explore-expiry-list" aria-label="Public certificates ordered by expiry"></ol>
               </section>
               <section class="report-guide" aria-labelledby="explore-report-heading">
@@ -254,6 +223,43 @@
               <strong>What these labels mean</strong>
               <p>The CA flag and possible issuer links are public-certificate evidence, not proof that a root is trusted. This view does not select a leaf, verify a complete chain or hostname, check revocation, or contact a server.</p>
             </aside>
+          </section>
+        </section>
+
+        <section class="tool-panel" id="convert-panel" aria-labelledby="convert-tab" hidden>
+          <div class="panel-head">
+            <div>
+              <p class="section-index">Tool 02 / Convert</p>
+              <h2>Download public certificates in the format you need</h2>
+              <p>Choose public certificate files here or use the ones already inspected. PEM and DER are encodings; .crt and .cer are filename extensions. PFX and private keys are not supported yet.</p>
+            </div>
+            <span class="capability">Public only</span>
+          </div>
+          <div class="file-zone">
+            <input class="file-input" type="file" id="convert-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
+            <label for="convert-file">
+              <span class="file-symbol" aria-hidden="true">＋</span>
+              <strong>Choose public certificates or PEM bundles</strong>
+              <span>1–8 files · 1–64 certificates · 16 MiB combined</span>
+            </label>
+            <p class="file-selection" id="convert-file-state" aria-live="polite">No files selected</p>
+          </div>
+          <div class="panel-actions">
+            <p id="convert-empty" class="verify-note">No public files opened in this browser session.</p>
+            <button class="button button-primary" id="convert-open-button" type="button" disabled>Open public files for conversion</button>
+            <button class="button" id="convert-open-inspect" type="button">Go to Inspect</button>
+          </div>
+          <aside class="inspection-error" id="convert-error" role="alert" hidden></aside>
+          <section class="result" id="convert-result" hidden>
+            <h3>Choose what to download</h3>
+            <p>Each card downloads one public certificate. Select content encoding and extension explicitly; the certificate itself is not changed.</p>
+            <ol class="bundle-list" id="convert-certificates" aria-label="Public certificates available for conversion"></ol>
+            <div class="bundle-collection-actions">
+              <p>Select public certificates above to create a PEM bundle in the displayed order. This does not build or verify a chain; no private key is included.</p>
+              <button class="button" id="export-bundle-button" type="button" disabled>Download selected PEM bundle</button>
+            </div>
+            <p class="export-status" id="export-status" aria-live="polite">Choose the certificate encoding and filename extension, then download. Rootwell does not write directly to disk.</p>
+            <aside class="inspection-error" id="export-error" role="alert" hidden></aside>
           </section>
         </section>
 
@@ -339,7 +345,7 @@
 
     <footer class="colophon">
       <p><span class="footer-brand"><span>root</span>well</span> · Your private root of trust.</p>
-      <p>Local WebAssembly inspection, exploration, and verification · no certificate uploads</p>
+      <p>Local WebAssembly inspection, public conversion, and verification · no certificate uploads</p>
     </footer>
   </div>
 </body>

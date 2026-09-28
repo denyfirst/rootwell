@@ -1,6 +1,6 @@
 # Certificate import, bundle explorer və Verify UX planı
 
-**Status:** 1–8 public faylı birlikdə göstərən browser explorer və seçilmiş
+**Status:** Inspect-də 1–8 public faylı birlikdə göstərən browser explorer və ayrıca Convert-də seçilmiş
 bir public certificate-in PEM/DER download-u işləkdir; mümkün issuer
 əlaqələri göstərilir və seçilmiş public PEM bundle export-u işləkdir;
 Explore daxilində avtomatik fullchain sırası və qəti rol/chain təyini hələ
@@ -44,8 +44,11 @@ Nəticə dörd vəziyyəti qarışdırmır: **oxundu** (metadata), **yoxlandı**
 (seçilmiş etibar mənbəyi və hostname ilə), **yoxlamadan keçmədi**
 (səbəbi göstərilir), **tamamlanmayıb** (məlumat/etibar mənbəyi çatmır).
 Offline nəticə revocation, canlı endpoint və private-key possession
-iddiası etmir. Inspect mövcud tək-certificate funksiyasıdır; aşağıdakı
-import axını onun artıq hazır olduğu mənasına gəlmir.
+iddiası etmir. Inspect artıq tək public sertifikatı və bundle/çoxfayllı
+kolleksiyanı eyni girişdə göstərir; kartdan geniş sahələr yenidən mənbə
+yoxlaması ilə açılır. Convert ayrıca görünüşdür: Inspect-dən gələn public
+nəticəni göstərir və ya öz fayl seçicisindən eyni bounded public import-u
+işlədir. Bu secret conversion deyil.
 
 ## Sadə və Advanced eyni qərarı verir
 

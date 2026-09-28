@@ -64,10 +64,14 @@ olunmamış nəticəyə “verified” demək qadağandır.
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.
 
-Workbench-in mövcud public-only PEM/DER conversion-u indi **Open & convert**
-girişində aydın göstərilir; seçilmiş sertifikatın endirilməsi və PEM bundle
-yaradılması əsas axındadır, texniki imza əlaqələri və JSON report isə istəyə
-bağlı detallardadır. Bu yeni PFX/private-key capability-si deyil.
+Workbench-də **Inspect** tək public sertifikatı və ya PEM bundle/çoxfayllı
+kolleksiyanı eyni yerdə açır. Hər kartdan seçilmiş sertifikatın geniş
+inspection sahələri mənbə yenidən yoxlanaraq göstərilir. **Convert** ayrıca
+görünüşdə həmin sessiyada açılmış public sertifikatın PEM/DER endirilməsini
+və seçilmiş public PEM bundle yaratmağı təklif edir; faylı birbaşa Convert-də
+seçmək də eyni bounded public inspection yolundan keçir. Yeni fayl seçimi köhnə
+convert seçimlərini silir. Texniki imza əlaqələri və JSON report Inspect-də
+istəyə bağlı detallardadır. Bu yeni PFX/private-key capability-si deyil.
 
 İstifadəçi inventory üçün self-hosted, lokal şifrəli saxlanma seçib: məlumat
 onun öz qurulumunda, özü silənədək qalacaq; avtomatik köhnə qeydləri silmək

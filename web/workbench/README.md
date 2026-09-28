@@ -1,12 +1,18 @@
 # Rootwell local Workbench
 
 This directory contains Rootwell's dependency-free, self-hosted browser UI.
-Inspect processes one public PEM or DER X.509 certificate. The **Open & convert**
-tab uses the existing Explore core to process
+**Inspect** uses the existing public Explore core to process
 1–8 selected public files containing strict PEM certificate bundles or single
 DER certificates, with at most 64 certificates and 16 MiB combined. Each file
 uses the same bounded Go core as the
-CLI. Verify uses the same explicit-trust TLS server verifier as the CLI.
+CLI. Each Inspect card can show the full single-certificate inspection fields:
+the chosen public source is re-read, its ordered fingerprints are checked,
+the certificate is extracted as DER by fingerprint, and the existing Go
+inspection response must agree with the card before details appear. **Convert**
+is a separate screen for those public certificates and can also start from
+its own public-file selector, using the same bounded inspection path. A new
+selection or failure clears its choices. Verify uses the same explicit-trust
+TLS server verifier as the CLI.
 
 ## Security boundary
 
@@ -14,7 +20,7 @@ CLI. Verify uses the same explicit-trust TLS server verifier as the CLI.
 - only `wasm-loader.js` may fetch, and it loads the same-origin
   `rootwell.wasm` application asset;
 - the loader has no DOM, selected-file, or file-byte access;
-- `app.js` reads a file only after **Inspect certificate**, **Explore bundle**,
+- `app.js` reads a file only after **Inspect public files**, **Open public files for conversion**, **View full details**,
   **Verify certificate**, or a public download action is pressed and has no network,
   service-worker, dynamic-code, or
   workbench-input storage capability;
@@ -74,8 +80,9 @@ by fingerprint; the output is re-parsed and byte-checked before download.
 The user explicitly chooses both the encoding and filename extension:
 `.crt`/`.cer` may contain PEM or DER, whereas `.pem` and `.der` are paired
 only with their named encodings. The extension does not alter the certificate.
-Conversion cards now appear before the optional technical signing-link,
-expiry, and JSON-report details. This is a presentation change, not new
+Conversion cards live in a separate Convert tab. Inspect contains bundle
+summaries, full details on request, and optional technical signing-link,
+expiry, and JSON-report details. This is a UI composition change, not new
 format, secret, or trust support.
 The filename uses a fixed prefix, fingerprint fragment, and random suffix,
 never certificate subject text. Rootwell does not write to disk or silently
@@ -143,12 +150,12 @@ Serve `web/workbench` from a static server. Direct `file://` opening remains a
 visual fallback because browsers do not consistently load local WebAssembly.
 The server must send `Content-Type: application/wasm` for `rootwell.wasm`.
 
-For a safe first test, download `rootwell-demo-certificate.pem` from the Inspect
-panel and select it in Inspect or Explore. It contains one non-production public
-certificate for `.invalid` names and deliberately contains no private key. To
-see two cards in Explore, use the public `rootwell-demo-bundle.pem` link there.
-Each card lets the user choose PEM or DER content and a compatible extension
-before downloading its own public certificate.
+For a safe first test, download `rootwell-demo-certificate.pem` from Inspect
+and select it there. It contains one non-production public certificate for
+`.invalid` names and deliberately contains no private key. To see two Inspect
+cards, use the public `rootwell-demo-bundle.pem` link there. Open a card's full
+details in Inspect, then go to Convert to choose PEM or DER content and a
+compatible extension before downloading a public certificate.
 
 To test Verify without production material, download the public
 `rootwell-verify-demo-ca-files.pem` and `rootwell-verify-demo-root.pem` links

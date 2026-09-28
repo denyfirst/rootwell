@@ -179,6 +179,16 @@ for (const format of ["pem", "der"]) {
   assert.equal(reparsed.ok, true);
   assert.equal(reparsed.result.count, 1);
   assert.equal(reparsed.result.certificates[0].sha256, secondFingerprint);
+  if (format === "der") {
+    const detail = JSON.parse(globalThis.rootwellInspect(exported.result.bytes));
+    assert.equal(detail.ok, true);
+    assert.equal(detail.result.encoding, "der");
+    assert.equal(detail.result.fingerprints.sha256, secondFingerprint);
+    assert.equal(detail.result.subject, bundleResponse.result.certificates[1].subject);
+    assert.equal(detail.result.issuer, bundleResponse.result.certificates[1].issuer);
+    assert.equal(detail.result.validity.not_before, bundleResponse.result.certificates[1].not_before);
+    assert.equal(detail.result.validity.not_after, bundleResponse.result.certificates[1].not_after);
+  }
   exported.result.bytes.fill(0);
 }
 const missingExport = globalThis.rootwellExport(bundle, "00:".repeat(31) + "00", "pem");
