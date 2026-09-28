@@ -33,6 +33,8 @@ commands:
   pfx-create --cert <file> --key <file> [--chain <ordered-issuers.pem>]
                    --output <new-file>
                    create a password-protected PFX on Linux only
+  pfx-inspect --input <file>
+                   show public certificates from a supported modern PFX
   match --cert <file> --key <file> [--json]
                    compare a certificate with an unencrypted private key
   verify <file> --trust-bundle <roots.pem> [--intermediates <chain.pem>]
@@ -114,6 +116,11 @@ func runWithSecretReader(args []string, stdout, stderr io.Writer, readSecret fun
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
 		return runPFXCreate(arguments, readSecret, stderr)
+	case "pfx-inspect":
+		if len(args) != 3 || args[1] != "--input" || args[2] == "" {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runPFXInspect(args[2], readSecret, stdout, stderr)
 	case "verify":
 		arguments, ok := parseVerifyArguments(args[1:])
 		if !ok {

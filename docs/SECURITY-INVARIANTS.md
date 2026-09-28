@@ -895,3 +895,28 @@ Guarded by `TestCreatePFXMatchesKeyAndOrderedIssuer`,
 `TestWriteNewPrivateAndNoOverwrite`,
 `TestWriteNewRejectsUnsafeDirectoryAndSymlink`, and
 `TestNonLinuxSecretOutputFailsClosed`.
+
+## C57 — PFX inspection is bounded, authenticated, public-only, and non-trusting
+
+The offline CLI accepts at most 1 MiB of a narrow modern PFX profile, checks
+all three KDF work factors before password-based decoding, and requires a
+local interactive password. It enumerates supported bags rather than silently
+assuming the first certificate is the leaf, requires exactly one key and one
+matching non-CA certificate, rejects duplicate or ambiguous material, and
+returns only public metadata. Additional certificates remain untrusted and
+unordered. Wrong password, tampering, malformed/trailing input, unsupported
+profile, excessive KDF cost, and non-TTY input produce no partial public
+result or secret echo. It never exports or persists a key, and does not prove
+hostname, trust, revocation, or a live deployment. Runtime memory erasure is
+best effort, not guaranteed.
+
+Guarded by `TestInspectModernPFXPublicOnly`,
+`TestInspectRejectsWrongPasswordTamperAndUnsupported`,
+`TestPreflightRejectsExcessiveKDFBeforeDecode`,
+`TestInspectRejectsMismatchedKeyAndDuplicateCertificate`,
+`TestInspectShowsAdditionalCertificateWithoutTrustClaim`,
+`TestInspectRejectsLegacyProfileWithoutFallback`,
+`TestInspectModernOpenSSLGeneratedPFX`,
+`FuzzPFXPreflight`, `TestPFXInspectShowsOnlyPublicSummary`, and
+`TestPFXInspectRefusesNonTTYAndWrongPasswordWithoutPartialOutput`, and
+`TestPFXInspectRejectsUnsupportedBeforePasswordPrompt`.

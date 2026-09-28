@@ -177,9 +177,20 @@ rootwell pfx-create --cert server.crt --key server-key.pem \
 high-entropy PFX password on a local terminal; never put it in the command
 line or reuse the instance login password. The output contains the private
 key and must be handled as a secret. Existing files are never overwritten.
-PFX import/extraction, Windows secret output, and browser PFX conversion are
-not available yet. This development feature has not had its release audit;
-see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md).
+To see the public certificates in a supported modern PFX, run:
+
+```text
+rootwell pfx-inspect --input ./private-output/server.p12
+```
+
+It prompts for the password locally, identifies the certificate matching the
+contained key, and lists any additional certificates without claiming trust.
+It never exports or saves the key. The first reader accepts a narrow, bounded
+modern profile; unsupported or older vendor PFX files fail explicitly.
+Public certificate extraction, key extraction, Windows secret output, and
+browser PFX conversion are not available yet. These development features
+have not had their release audit; see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md)
+and [ADR 0031](docs/adr/0031-bounded-pfx-public-inspection.md).
 
 Inspection reports public-key details, key usages, Basic Constraints, key
 identifiers, SANs, critical-extension OIDs, and the SHA-256 fingerprint. JSON

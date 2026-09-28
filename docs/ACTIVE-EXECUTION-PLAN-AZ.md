@@ -66,8 +66,9 @@ olunmamış nəticəyə “verified” demək qadağandır.
    sənədlərindədir. Public-only CLI PEM/DER çevirməsi ayrıca sərhədlə
    tamamlanıb. [`ADR 0030`](adr/0030-pkcs12-dependency-and-profile.md)
    PKCS#12 dependency/profil qərarını və Linux offline PFX yaratma sərhədini
-   qeyd edir; PFX oxuma, public hissələri çıxarma və sonra key extraction
-   ayrıca increment-lərdir. Browser/server PFX və private key-ləri yalnız
+   qeyd edir. [`ADR 0031`](adr/0031-bounded-pfx-public-inspection.md) dar modern
+   profil üçün yalnız public PFX xülasəsini əlavə edir; public hissələri
+   çıxarma və sonra key extraction ayrıca increment-lərdir. Browser/server PFX və private key-ləri yalnız
    ayrıca dependency review, memory/output/file-permission testləri və daxili
    təhlükəsizlik qapılarından sonra qəbul edə bilər. Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
