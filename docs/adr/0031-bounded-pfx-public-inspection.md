@@ -16,9 +16,10 @@ certificates are called *included*, not trusted or a verified chain.
 The first reader deliberately accepts only a DER, MAC-authenticated
 Modern2023-shaped envelope: exactly one encrypted certificate safe and one
 shrouded-key safe, SHA-256 MAC, PBES2/PBKDF2-HMAC-SHA-256/AES-256-CBC for
-certificate and key encryption. All three KDF iteration counts must be in
-1..250,000, salts and IVs are bounded, and the limit is checked before any
-password-based decode. This includes Rootwell-created PFX and may include
+certificate and key encryption. The three visible envelope KDF iteration
+counts must be in 1..250,000, salts and IVs are bounded, and those limits are
+checked before any password-based decode. The one-shot CLI also has a 10-second
+inspection deadline. This includes Rootwell-created PFX and may include
 compatible third-party files; it does **not** promise broad vendor PFX import.
 Legacy, passwordless, different safe layouts, and unsupported profiles fail
 with a short explanation rather than an unsafe fallback.
@@ -43,8 +44,11 @@ diagnostics that never echo paths, passwords, or input bytes.
 
 The preflight mirrors only a small envelope grammar using Go's standard
 `encoding/asn1`; SSLMate performs the actual MAC and decryption. It is not a
-second PKCS#12 implementation. A 1 MiB authenticated input can still cost up
-to three 250,000-iteration KDFs and contain metadata that is sensitive to an
+second PKCS#12 implementation. A malicious authenticated encrypted safe may
+hide an extra shrouded key with an unbounded inner KDF that cannot be seen by
+this preflight. The CLI timeout returns failure and its one-shot process exits,
+but the decoder has no cancellation API; this is not a safe parser for a
+long-lived server. A 1 MiB input can also contain metadata sensitive to an
 organization. Go/runtime copies of decrypted key material cannot be
 guaranteed erased. A compromised local user, host, terminal, or process can
 still observe secrets. An independent audit remains mandatory before first

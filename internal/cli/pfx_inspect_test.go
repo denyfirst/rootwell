@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/pfxcreate"
+	"github.com/denyfirst/rootwell/internal/pfxinspect"
 )
 
 func pfxInspectionFile(t *testing.T) string {
@@ -75,5 +77,27 @@ func TestPFXInspectRejectsUnsupportedBeforePasswordPrompt(t *testing.T) {
 	code := runWithSecretReader([]string{"pfx-inspect", "--input", path}, &stdout, &stderr, reader)
 	if code != ExitFailure || stdout.Len() != 0 || stderr.String() != "PFX profile is unsupported or outside safety limits\n" {
 		t.Fatalf("unsupported profile: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestPFXInspectDeadlineReturnsWithoutPartialResult(t *testing.T) {
+	release := make(chan struct{})
+	decode := func([]byte, string) (pfxinspect.Result, error) {
+		<-release
+		return pfxinspect.Result{}, nil
+	}
+	result, err := inspectPFXWithDeadline([]byte("bounded input"), "fixture", time.Millisecond, decode)
+	close(release)
+	if err != errPFXInspectionTimeout || result.MatchingCertificate.Subject != "" || len(result.Additional) != 0 {
+		t.Fatalf("slow decode reported success: %+v, %v", result, err)
+	}
+}
+
+func TestPFXInspectDecoderPanicIsNotPrinted(t *testing.T) {
+	result, err := inspectPFXWithDeadline([]byte("fixture"), "secret", time.Second, func([]byte, string) (pfxinspect.Result, error) {
+		panic("secret should not be printed")
+	})
+	if err != pfxinspect.ErrInvalid || result.MatchingCertificate.Subject != "" {
+		t.Fatalf("decoder panic was not contained: %+v, %v", result, err)
 	}
 }

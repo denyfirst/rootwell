@@ -12,6 +12,10 @@ import (
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 )
 
+var errPFXInspectionTimeout = errors.New("PFX inspection exceeded time budget")
+
+const pfxInspectionTimeout = 10 * time.Second
+
 func runPFXInspect(path string, readSecret func(string) (string, error), stdout, stderr io.Writer) int {
 	if readSecret == nil {
 		return writeDiagnostic(stderr, "interactive terminal required for PFX inspection\n", ExitFailure)
@@ -23,24 +27,59 @@ func runPFXInspect(path string, readSecret func(string) (string, error), stdout,
 		}
 		return writeDiagnostic(stderr, "PFX could not be read\n", ExitFailure)
 	}
-	defer clear(input)
 	if err := pfxinspect.Preflight(input); err != nil {
+		clear(input)
 		return writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
 	}
 	password, err := readSecret("PFX password (local terminal only): ")
 	if err != nil {
+		clear(input)
 		return writeDiagnostic(stderr, "PFX password could not be read\n", ExitFailure)
 	}
 	passwordBytes := []byte(password)
 	defer clear(passwordBytes)
-	result, err := pfxinspect.Inspect(input, password)
+	// The worker owns and clears input. On timeout, a one-shot CLI process
+	// returns to main and exits; the decoder itself has no cancellation API.
+	result, err := inspectPFXWithDeadline(input, password, pfxInspectionTimeout, pfxinspect.Inspect)
 	if err != nil {
+		if errors.Is(err, errPFXInspectionTimeout) {
+			return writeDiagnostic(stderr, "PFX inspection exceeded safety time limit\n", ExitFailure)
+		}
 		if errors.Is(err, pfxinspect.ErrUnsupported) {
 			return writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
 		}
 		return writeDiagnostic(stderr, "PFX password or contents could not be authenticated\n", ExitFailure)
 	}
 	return writeRequested(stdout, stderr, renderPFXInspection(result, time.Now()))
+}
+
+func inspectPFXWithDeadline(input []byte, password string, budget time.Duration, decode func([]byte, string) (pfxinspect.Result, error)) (pfxinspect.Result, error) {
+	type outcome struct {
+		result pfxinspect.Result
+		err    error
+	}
+	completed := make(chan outcome, 1)
+	go func() {
+		var result pfxinspect.Result
+		var err error
+		defer func() {
+			if recover() != nil {
+				result = pfxinspect.Result{}
+				err = pfxinspect.ErrInvalid
+			}
+			clear(input)
+			completed <- outcome{result: result, err: err}
+		}()
+		result, err = decode(input, password)
+	}()
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	select {
+	case output := <-completed:
+		return output.result, output.err
+	case <-timer.C:
+		return pfxinspect.Result{}, errPFXInspectionTimeout
+	}
 }
 
 func renderPFXInspection(result pfxinspect.Result, now time.Time) string {
