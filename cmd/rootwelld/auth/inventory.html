@@ -4,74 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>Public certificate inventory · Rootwell</title>
+  <title>Saved certificates · Rootwell</title>
   <link rel="stylesheet" href="/inventory.css">
   <script src="/inventory.js" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/"><span>root</span>well</a>
-    <nav aria-label="Rootwell navigation"><a href="/">Workbench</a><a aria-current="page" href="/inventory">Inventory</a><a href="/account">Access</a></nav>
+    <nav aria-label="Rootwell navigation"><a href="/">Workbench</a><a aria-current="page" href="/inventory">Saved certificates</a><a href="/account">Access</a></nav>
     <span class="local">Self-hosted · this host</span>
   </header>
   <main>
     <section class="hero">
-      <p class="eyebrow">PUBLIC CERTIFICATE INVENTORY</p>
-      <h1>Know what is saved.<br><span>Know what is not proven.</span></h1>
-      <p>Save public certificates with an owner and list where you believe each is used. These are manual notes, not proof of trust, deployment, revocation, or private-key possession.</p>
+      <p class="eyebrow">SAVED CERTIFICATES</p>
+      <h1>Your certificates.<br><span>Expiry at a glance.</span></h1>
+      <p>Keep track of public certificates and when they expire. Rootwell does not renew or check a live server here.</p>
     </section>
     <aside class="boundary" aria-label="Storage boundary">
-      <strong>Different from offline Workbench</strong>
-      <p>Pressing Save sends the selected public certificate file to your own loopback Rootwell server. It is stored encrypted in this installation. Never select a PFX or private-key file. Rootwell does not contact a third-party service.</p>
+      <strong>Saved on your Rootwell installation</strong>
+      <p>Only when you press Save, the public certificate goes to your own Rootwell server and is stored encrypted. Do not add PFX or private-key files. No third-party service is contacted.</p>
     </aside>
     <div class="layout">
       <section class="card" aria-labelledby="save-heading">
-        <p class="eyebrow">01 / EXPLICIT SAVE</p>
-        <h2 id="save-heading">Add public certificates</h2>
-        <p>One DER certificate or one PEM certificate/bundle, up to 16 MiB. A bundle is saved all-or-nothing. Repeated certificates are refused; add another location to an existing card instead.</p>
+        <h2 id="save-heading">Add a certificate</h2>
+        <p>Choose a public .pem, .crt, .cer or .der file. A PEM bundle can contain several certificates. PFX and private keys are not accepted.</p>
         <form id="inventory-form">
           <label for="certificate-file">Public certificate file</label>
           <input id="certificate-file" type="file" accept=".pem,.crt,.cer,.der,application/x-x509-ca-cert" required>
-          <label for="owner">Owner <span>(optional)</span></label>
-          <input id="owner" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Platform team">
-          <label for="location">First location <span>(optional; manual note)</span></label>
-          <input id="location" type="text" maxlength="128" autocomplete="off" placeholder="e.g. production/nginx">
+          <details class="optional-fields"><summary>Add owner or server note (optional)</summary>
+            <label for="owner">Who looks after it?</label>
+            <input id="owner" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Platform team">
+            <label for="location">Where do you use it? <span>(your note; not checked)</span></label>
+            <input id="location" type="text" maxlength="128" autocomplete="off" placeholder="e.g. production/nginx">
+          </details>
           <button id="save-button" type="submit">Save to this Rootwell</button>
           <p id="save-status" role="status" aria-live="polite"></p>
         </form>
       </section>
       <section class="card overview" aria-labelledby="overview-heading">
-        <p class="eyebrow">02 / STORED RECORDS</p>
-        <h2 id="overview-heading">Expiry overview</h2>
-        <p>Expiry uses this browser’s clock; save time uses the server’s clock. Neither is a tamper-proof audit log or a trust verdict.</p>
+        <h2 id="overview-heading">Saved certificates</h2>
+        <p>Expiry is estimated from this browser’s clock. This is not a live server or trust check.</p>
         <p id="clock-as-of" class="clock-note"></p>
         <div id="counts" class="counts" aria-live="polite"></div>
         <div class="filters">
           <label for="expiry-filter">Show certificates</label>
-          <select id="expiry-filter"><option value="all">All priorities</option><option value="expired">Expired</option><option value="soon">Within 30 days</option><option value="medium">After 30, within 90 days</option><option value="later">More than 90 days</option><option value="future">Not yet valid</option><option value="invalid">Invalid date range</option><option value="missing-owner">Owner unknown</option><option value="missing-location">Location unknown</option></select>
-          <label for="inventory-search">Find in saved notes</label>
-          <input id="inventory-search" type="search" autocomplete="off" placeholder="Subject, SHA-256, owner or location">
+          <select id="expiry-filter"><option value="all">All certificates</option><option value="attention">Needs attention</option><option value="later">Valid for over 90 days</option><option value="missing-owner">No owner note</option><option value="missing-location">No server note</option></select>
+          <label for="inventory-search">Search</label>
+          <input id="inventory-search" type="search" autocomplete="off" placeholder="Certificate name, owner or server">
         </div>
-        <button id="refresh-button" class="secondary" type="button">Refresh saved inventory</button>
+        <button id="refresh-button" class="secondary" type="button">Refresh list</button>
         <p id="list-status" role="status" aria-live="polite">Loading saved public certificates…</p>
         <ol id="records" aria-label="Saved public certificates ordered by action priority"></ol>
       </section>
-      <section class="card export-panel" aria-labelledby="export-heading">
-        <p class="eyebrow">03 / EXPLICIT PUBLIC EXPORT</p>
-        <h2 id="export-heading">Export selected records</h2>
-        <p>Select certificates above, preview the exact public-metadata JSON, then explicitly download it. Subject, owner, and location names may reveal internal systems. No DER, PFX, or private key is exported. Your browser chooses where the file is saved.</p>
-        <button id="preview-export-button" class="secondary" type="button">Preview selected records</button>
-        <button id="download-export-button" type="button" disabled>Download previewed JSON</button>
-        <p id="export-status" role="status" aria-live="polite">No records selected.</p>
-        <pre id="export-preview" class="export-preview" hidden></pre>
-      </section>
       <section id="location-panel" class="card location-panel" aria-labelledby="location-heading" hidden>
         <p class="eyebrow">04 / MANUAL ASSOCIATION</p>
-        <h2 id="location-heading">Add another location</h2>
+        <h2 id="location-heading">Add a server note</h2>
         <p id="location-target"></p>
         <p>This is your note about where the certificate may be used. Rootwell has not contacted or verified that server.</p>
         <form id="location-form">
-          <label for="new-location">Server or location</label>
+          <label for="new-location">Server or place</label>
           <input id="new-location" type="text" maxlength="128" autocomplete="off" required placeholder="e.g. production/haproxy">
           <button id="location-button" type="submit">Save location to this Rootwell</button>
           <button id="location-cancel" class="secondary" type="button">Cancel</button>
@@ -80,7 +71,7 @@
       </section>
       <section id="owner-panel" class="card metadata-panel" aria-labelledby="owner-heading" hidden>
         <p class="eyebrow">05 / MANUAL OWNER NOTE</p>
-        <h2 id="owner-heading">Correct owner</h2>
+        <h2 id="owner-heading">Change owner</h2>
         <p id="owner-target"></p>
         <p>Owner is your manual note, not verified ownership. Leave the new owner blank to clear the note. This does not remove the certificate.</p>
         <form id="owner-form">
@@ -93,7 +84,7 @@
       </section>
       <section id="location-manage-panel" class="card metadata-panel" aria-labelledby="location-manage-heading" hidden>
         <p class="eyebrow">06 / MANUAL LOCATION NOTES</p>
-        <h2 id="location-manage-heading">Correct or remove a location</h2>
+        <h2 id="location-manage-heading">Change server notes</h2>
         <p id="location-manage-target"></p>
         <p>These are your notes, not verified deployments. Changing or removing a note does not change the certificate on a server. Older backups can retain the previous note.</p>
         <form id="location-manage-form">
@@ -110,7 +101,7 @@
       </section>
       <section id="delete-panel" class="card metadata-panel" aria-labelledby="delete-heading" hidden>
         <p class="eyebrow">07 / EXPLICIT RECORD DELETION</p>
-        <h2 id="delete-heading">Delete this saved certificate record</h2>
+        <h2 id="delete-heading">Remove from saved list</h2>
         <p id="delete-target"></p>
         <p>This removes the public certificate and its owner/location notes from the current encrypted inventory only. It does not revoke the certificate or remove it from a server. Older snapshots may restore it; this is not secure erasure. Re-import is possible if you still have the public certificate file.</p>
         <form id="delete-form">
@@ -123,7 +114,7 @@
         </form>
       </section>
     </div>
-    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After any inventory change, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An older snapshot may restore records or notes you later deleted.</p></aside>
+    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>Changes are not automatically backed up.</p><details><summary>How to make a backup</summary><p>After any change, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An older snapshot may restore records or notes you later deleted.</p></details></aside>
   </main>
 </body>
 </html>

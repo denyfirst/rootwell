@@ -5,6 +5,9 @@ import { TextEncoder } from "node:util";
 
 const source = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.js", import.meta.url), "utf8");
 assert.doesNotMatch(source, /innerHTML|localStorage|sessionStorage|console\./);
+assert.doesNotMatch(source, /createObjectURL|selectedForExport|public-inventory-export/, "Inventory must not offer metadata download");
+const html = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.html", import.meta.url), "utf8");
+assert.doesNotMatch(html, /Export selected records|preview-export-button|download-export-button/);
 
 class Element {
   constructor() { this.value = ""; this.textContent = ""; this.children = []; this.listeners = {}; this.disabled = false; this.checked = false; this.files = []; }
@@ -14,6 +17,11 @@ class Element {
   click() { this.clicked = true; }
   remove() { this.removed = true; }
 }
+function action(item, label) {
+  const details = item.children.find(node => node.className === "record-details");
+  assert.ok(details, "manage controls must be inside collapsed details");
+  return details.children.find(node => node.textContent === label);
+}
 
 const ids = ["inventory-form", "certificate-file", "owner", "location", "save-button", "save-status", "refresh-button", "list-status", "counts", "records",
   "location-panel", "location-form", "location-target", "new-location", "location-button", "location-cancel", "location-status",
@@ -21,16 +29,11 @@ const ids = ["inventory-form", "certificate-file", "owner", "location", "save-bu
 ids.push("location-manage-panel", "location-manage-form", "location-manage-target", "old-location", "replacement-location",
   "rename-location-button", "remove-location-button", "confirm-remove", "location-manage-cancel", "location-manage-status");
 ids.push("clock-as-of", "expiry-filter", "inventory-search");
-ids.push("preview-export-button", "download-export-button", "export-status", "export-preview");
 ids.push("delete-panel", "delete-form", "delete-target", "delete-fingerprint", "confirm-delete", "delete-button", "delete-cancel", "delete-status");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 elements["expiry-filter"].value = "all";
 const requests = [];
 let fileReads = 0;
-const downloadAnchors = [];
-const downloadObjects = [];
-const revokedURLs = [];
-let rejectDownload = false;
 const publicFile = new Uint8Array(Buffer.from("-----BEGIN CERTIFICATE-----\nAQ==\n-----END CERTIFICATE-----\n"));
 elements["certificate-file"].files = [{ size: publicFile.length, async arrayBuffer() { fileReads++; return publicFile.slice().buffer; } }];
 elements.owner.value = "Platform";
@@ -83,12 +86,8 @@ const fetchImpl = async (url, options) => {
 };
 class FixedDate extends Date { static now() { return Date.parse("2026-09-28T00:00:00Z"); } }
 vm.runInNewContext(source, {
-  document: { getElementById(id) { return elements[id]; }, createElement() { return new Element(); },
-    body: { appendChild(anchor) { downloadAnchors.push(anchor); } } },
+  document: { getElementById(id) { return elements[id]; }, createElement() { return new Element(); } },
   fetch: fetchImpl, TextEncoder, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
-  Blob, URL: { createObjectURL(blob) { if (rejectDownload) throw new Error("browser download blocked");
-      downloadObjects.push(blob); return "blob:mock-" + downloadObjects.length; },
-    revokeObjectURL(url) { revokedURLs.push(url); } }, setTimeout(callback) { callback(); },
 }, { filename: "inventory.js" });
 
 await new Promise(resolve => setImmediate(resolve));
@@ -98,11 +97,14 @@ assert.equal(requests[0].options.method, "GET");
 assert.equal(requests[0].options.headers["X-Rootwell-Request"], "1");
 assert.equal(elements.records.children.length, 1);
 assert.equal(elements.records.children[0].children[0].textContent, "<untrusted subject>");
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Saved at (server clock)")));
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Deployment at these locations has not been checked")));
+assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Platform")));
+const firstDetails = elements.records.children[0].children.find(node => node.className === "record-details");
+assert.ok(firstDetails.children.some(node => node.textContent.includes("Saved at (server clock)")));
+assert.ok(firstDetails.children.some(node => node.textContent.includes("SHA-256: ab:cd")));
+assert.ok(!elements.records.children[0].children.some(node => node.textContent.includes("SHA-256:")), "fingerprint must not crowd the card");
 assert.match(elements["clock-as-of"].textContent, /2026-09-28T00:00:00.000Z.*does not alert or renew/);
 
-const addLocation = elements.records.children[0].children.find(node => node.textContent === "Add another location");
+const addLocation = action(elements.records.children[0], "Add server note");
 assert.ok(addLocation);
 addLocation.listeners.click();
 assert.equal(elements["location-panel"].hidden, false);
@@ -122,13 +124,13 @@ assert.match(elements["list-status"].textContent, /backup is not automatic/i);
 assert.equal(fileReads, 0);
 
 const beforeBadLocation = requests.length;
-elements.records.children[0].children.find(node => node.textContent === "Add another location").listeners.click();
+action(elements.records.children[0], "Add server note").listeners.click();
 elements["new-location"].value = "bad\nlocation";
 await elements["location-form"].listeners.submit({ preventDefault() {} });
 assert.equal(requests.length, beforeBadLocation, "invalid location was transmitted");
 elements["location-cancel"].listeners.click();
 
-elements.records.children[0].children.find(node => node.textContent === "Add another location").listeners.click();
+action(elements.records.children[0], "Add server note").listeners.click();
 elements["new-location"].value = "staging/nginx";
 rejectAssociation = true;
 await elements["location-form"].listeners.submit({ preventDefault() {} });
@@ -137,7 +139,7 @@ assert.equal(elements["location-panel"].hidden, false);
 rejectAssociation = false;
 elements["location-cancel"].listeners.click();
 
-const correctOwner = elements.records.children[0].children.find(node => node.textContent === "Correct owner note");
+const correctOwner = action(elements.records.children[0], "Change owner");
 assert.ok(correctOwner);
 correctOwner.listeners.click();
 assert.equal(elements["owner-panel"].hidden, false);
@@ -155,7 +157,7 @@ assert.equal(elements["owner-panel"].hidden, true);
 assert.match(elements["list-status"].textContent, /backup is not automatic/i);
 assert.equal(fileReads, 0);
 
-elements.records.children[0].children.find(node => node.textContent === "Correct owner note").listeners.click();
+action(elements.records.children[0], "Change owner").listeners.click();
 const beforeBadOwner = requests.length;
 elements["new-owner"].value = "bad\nowner";
 await elements["owner-form"].listeners.submit({ preventDefault() {} });
@@ -171,15 +173,15 @@ assert.equal(elements["owner-panel"].hidden, false);
 rejectOwner = false;
 elements["owner-cancel"].listeners.click();
 
-elements.records.children[0].children.find(node => node.textContent === "Correct owner note").listeners.click();
+action(elements.records.children[0], "Change owner").listeners.click();
 elements["new-owner"].value = "";
 await elements["owner-form"].listeners.submit({ preventDefault() {} });
 const clearOwner = requests.filter(request => request.url === "/api/inventory/owner").at(-1);
 assert.deepEqual(JSON.parse(clearOwner.options.body), { fingerprint: "ab:cd", owner: "", expected_generation: 4 });
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Unknown")));
+assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Not noted")));
 assert.equal(fileReads, 0, "clearing an owner must not reread the certificate");
 
-elements.records.children[0].children.find(node => node.textContent === "Correct location notes").listeners.click();
+action(elements.records.children[0], "Change server notes").listeners.click();
 assert.equal(elements["location-manage-panel"].hidden, false);
 assert.equal(elements["old-location"].value, "production/nginx");
 elements["replacement-location"].value = "prod/nginx";
@@ -193,7 +195,7 @@ assert.equal(renamedLocation.options.headers["X-Rootwell-Request"], "1");
 assert.equal(elements["location-manage-panel"].hidden, true);
 assert.equal(fileReads, 0);
 
-elements.records.children[0].children.find(node => node.textContent === "Correct location notes").listeners.click();
+action(elements.records.children[0], "Change server notes").listeners.click();
 const beforeUnconfirmedRemove = requests.length;
 await elements["remove-location-button"].listeners.click();
 assert.equal(requests.length, beforeUnconfirmedRemove, "unconfirmed note removal was transmitted");
@@ -204,11 +206,11 @@ assert.deepEqual(JSON.parse(removedLocation.options.body), {
   fingerprint: "ab:cd", old_location: "prod/nginx", action: "remove", expected_generation: 6,
 });
 assert.equal(fileReads, 0);
-elements.records.children[0].children.find(node => node.textContent === "Correct location notes").listeners.click();
+action(elements.records.children[0], "Change server notes").listeners.click();
 elements["confirm-remove"].checked = true;
 await elements["remove-location-button"].listeners.click();
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Manually listed locations: Unknown")));
-assert.equal(elements.records.children[0].children.find(node => node.textContent === "Correct location notes").disabled, true);
+assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Server: Not noted")));
+assert.equal(action(elements.records.children[0], "Change server notes").disabled, true);
 
 currentResponse = { ...response, records: [{ ...response.records[0], locations: ["production/nginx", "production/nginx"] }] };
 await elements["refresh-button"].listeners.click();
@@ -252,14 +254,15 @@ currentResponse = { generation: 8, verification: "not-performed", records: [
 await elements["refresh-button"].listeners.click();
 assert.deepEqual(elements.records.children.map(node => node.children[0].textContent),
   ["invalid", "expired", "soon", "medium", "future", "later"], "priority and exact expiry boundary");
-assert.ok(elements.counts.children.some(node => node.textContent === "Owner unknown: 1"));
-assert.ok(elements.counts.children.some(node => node.textContent === "Location unknown: 1"));
+assert.ok(elements.counts.children.some(node => node.textContent === "No owner note: 1"));
+assert.ok(elements.counts.children.some(node => node.textContent === "No server note: 1"));
+assert.ok(elements.counts.children.some(node => node.textContent === "Needs attention: 4"));
 assert.ok(elements.records.children.find(node => node.children[0].textContent === "expired").children
-  .some(node => /not renewed automatically/.test(node.textContent)));
+  .find(node => node.className === "record-details").children.some(node => /not renewed automatically/.test(node.textContent)));
 const beforeView = requests.length;
-elements["expiry-filter"].value = "soon";
+elements["expiry-filter"].value = "attention";
 elements["expiry-filter"].listeners.change();
-assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["soon"]);
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["invalid", "expired", "soon", "future"]);
 elements["expiry-filter"].value = "missing-owner";
 elements["expiry-filter"].listeners.change();
 assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["expired"]);
@@ -275,57 +278,7 @@ assert.equal(fileReads, 1, "filter and search must not reread selected files");
 elements["inventory-search"].value = "";
 elements["inventory-search"].listeners.input();
 assert.equal(elements.records.children.length, 6);
-elements["preview-export-button"].listeners.click();
-assert.match(elements["export-status"].textContent, /Select at least one/);
-assert.equal(downloadObjects.length, 0);
-const selectRecord = fingerprint => {
-  const item = elements.records.children.find(node => node.children[0].textContent === fingerprint);
-  const box = item.children.find(node => node.className === "record-select").children[0];
-  box.checked = true;
-  box.listeners.change();
-};
-selectRecord("expired");
-selectRecord("soon");
-const beforeExport = requests.length;
-elements["preview-export-button"].listeners.click();
-assert.equal(elements["download-export-button"].disabled, false);
-const preview = elements["export-preview"].textContent;
-const exported = JSON.parse(preview);
-assert.equal(exported.schema_version, "rootwell.public-inventory-export.v1");
-assert.equal(exported.inventory_generation, 8);
-assert.equal(exported.verification, "not-performed");
-assert.deepEqual(Array.from(exported.records, record => record.fingerprint), ["soon", "expired"]);
-assert.ok(exported.records.every(record => !Object.hasOwn(record, "certificate") && !Object.hasOwn(record, "der")));
-assert.doesNotMatch(preview, /PRIVATE KEY|BEGIN CERTIFICATE|AQ==/);
-assert.equal(requests.length, beforeExport, "preview must not transmit inventory data");
-elements["download-export-button"].listeners.click();
-assert.equal(downloadAnchors.length, 1);
-assert.equal(downloadAnchors[0].download, "rootwell-public-inventory-g8.json");
-assert.equal(downloadAnchors[0].clicked, true);
-assert.equal(downloadAnchors[0].removed, true);
-assert.equal(await downloadObjects[0].text(), preview, "download must match explicit preview exactly");
-assert.deepEqual(revokedURLs, ["blob:mock-1"]);
-assert.equal(elements["download-export-button"].disabled, true);
-assert.equal(requests.length, beforeExport, "download must not contact the server");
-selectRecord("medium");
-elements["preview-export-button"].listeners.click();
-assert.equal(elements["download-export-button"].disabled, false);
-rejectDownload = true;
-elements["download-export-button"].listeners.click();
-assert.match(elements["export-status"].textContent, /could not be requested/);
-assert.equal(elements["download-export-button"].disabled, true);
-assert.equal(downloadObjects.length, 1);
-rejectDownload = false;
-elements["preview-export-button"].listeners.click();
-assert.equal(elements["download-export-button"].disabled, false);
-elements["expiry-filter"].value = "soon";
-elements["expiry-filter"].listeners.change();
-assert.equal(elements["download-export-button"].disabled, true, "filter must invalidate preview");
-assert.equal(elements["export-preview"].textContent, "");
-assert.equal(elements["export-preview"].hidden, true);
-assert.equal(requests.length, beforeExport);
-elements["expiry-filter"].value = "all";
-elements["expiry-filter"].listeners.change();
+assert.equal(requests.length, beforeView, "view changes must remain local");
 currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: "not a date" }] };
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 1);
@@ -333,11 +286,10 @@ assert.match(elements.records.children[0].children[1].textContent, /Invalid date
 currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: null }] };
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 0, "malformed date type was rendered");
-assert.equal(elements["download-export-button"].disabled, true);
 
 currentResponse = response;
 await elements["refresh-button"].listeners.click();
-elements.records.children[0].children.find(node => node.textContent === "Delete saved record").listeners.click();
+action(elements.records.children[0], "Remove from saved list").listeners.click();
 assert.equal(elements["delete-panel"].hidden, false);
 assert.match(elements["delete-target"].textContent, /ab:cd/);
 const beforeDelete = requests.length;
@@ -354,7 +306,7 @@ assert.match(elements["delete-status"].textContent, /refresh before deletion/);
 assert.equal(elements["delete-panel"].hidden, false);
 rejectDelete = false;
 await elements["refresh-button"].listeners.click();
-elements.records.children[0].children.find(node => node.textContent === "Delete saved record").listeners.click();
+action(elements.records.children[0], "Remove from saved list").listeners.click();
 elements["delete-fingerprint"].value = "ab:cd";
 elements["confirm-delete"].checked = true;
 malformedDeleteResult = true;
@@ -363,7 +315,7 @@ assert.match(elements["delete-status"].textContent, /could not be confirmed/);
 assert.equal(elements.records.children.length, 1);
 malformedDeleteResult = false;
 await elements["refresh-button"].listeners.click();
-elements.records.children[0].children.find(node => node.textContent === "Delete saved record").listeners.click();
+action(elements.records.children[0], "Remove from saved list").listeners.click();
 elements["delete-fingerprint"].value = "ab:cd";
 elements["confirm-delete"].checked = true;
 await elements["delete-form"].listeners.submit({ preventDefault() {} });
@@ -377,4 +329,4 @@ assert.equal(elements.records.children.length, 0, "deleted record stayed visible
 assert.match(elements["list-status"].textContent, /Older snapshots may still contain it/);
 assert.equal(fileReads, 1, "deletion must not reread selected files");
 
-console.log("Rootwell public inventory UI, local export, and explicit record deletion passed.");
+console.log("Rootwell simplified public inventory UI and explicit record deletion passed.");

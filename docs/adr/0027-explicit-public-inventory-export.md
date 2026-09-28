@@ -1,6 +1,6 @@
 # ADR 0027 — Explicit public inventory metadata export
 
-**Status:** accepted, 2026-09-28.
+**Status:** superseded for the Inventory UI, 2026-09-28. The metadata export was removed from that page after user testing found it confusing with certificate export. Certificate download belongs in the Workbench Explore/Verify flows; encrypted inventory backup remains a separate offline operation.
 
 ## Decision
 
