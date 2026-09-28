@@ -14,21 +14,24 @@ import (
 )
 
 const (
-	maxRecords  = 500
-	maxDERBytes = 64 << 10
-	maxLabel    = 128
+	maxRecords   = 500
+	maxDERBytes  = 64 << 10
+	maxLabel     = 128
+	maxLocations = 32
 )
 
 var (
-	ErrDuplicate = errors.New("certificate is already in the inventory draft")
-	ErrCapacity  = errors.New("inventory draft capacity reached")
-	ErrLabel     = errors.New("inventory label is invalid")
-	ErrCertSize  = errors.New("certificate exceeds inventory draft size limit")
+	ErrDuplicate         = errors.New("certificate is already in the inventory draft")
+	ErrCapacity          = errors.New("inventory draft capacity reached")
+	ErrLabel             = errors.New("inventory label is invalid")
+	ErrCertSize          = errors.New("certificate exceeds inventory draft size limit")
+	ErrLocationDuplicate = errors.New("location is already associated with this certificate")
+	ErrLocationCapacity  = errors.New("certificate location capacity reached")
 )
 
 // Record contains public certificate bytes and unverified metadata. Owner and
-// Location may be empty, meaning unknown. A later deployment model may attach
-// multiple locations to one fingerprint. No field implies chain trust,
+// Location may be empty, meaning unknown; Location is the first of the
+// operator-declared Locations. No field implies deployment, chain trust,
 // hostname suitability, revocation status, or private-key possession.
 type Record struct {
 	Fingerprint string
@@ -46,6 +49,9 @@ type Record struct {
 	NotAfter   string
 	Owner      string
 	Location   string
+	// Locations are operator-declared, unverified uses of this certificate.
+	// Location remains the first label for existing inventory consumers.
+	Locations []string
 }
 
 // Catalog is an in-memory, single-process draft. Its contents disappear when
@@ -73,7 +79,7 @@ func (c *Catalog) Add(input []byte, owner, location string) ([]Record, error) {
 			return nil, ErrCertSize
 		}
 		info := entry.Inspection
-		batch = append(batch, Record{
+		record := Record{
 			Fingerprint: info.SHA256Fingerprint,
 			DER:         bytes.Clone(entry.DER),
 			Subject:     info.Subject,
@@ -83,7 +89,11 @@ func (c *Catalog) Add(input []byte, owner, location string) ([]Record, error) {
 			NotAfter:    info.NotAfter.UTC().Format("2006-01-02T15:04:05Z"),
 			Owner:       owner,
 			Location:    location,
-		})
+		}
+		if location != "" {
+			record.Locations = []string{location}
+		}
+		batch = append(batch, record)
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -105,6 +115,41 @@ func (c *Catalog) Add(input []byte, owner, location string) ([]Record, error) {
 	return cloneRecords(batch), nil
 }
 
+// AssociateLocation returns a detached record with one more explicit,
+// unverified location. Exact duplicate labels never create a second use.
+func AssociateLocation(record Record, location string) (Record, error) {
+	if err := ValidateLocation(location); err != nil {
+		return Record{}, err
+	}
+	if (len(record.Locations) == 0 && record.Location != "") ||
+		(len(record.Locations) > 0 && record.Locations[0] != record.Location) {
+		return Record{}, ErrLabel
+	}
+	for _, existing := range record.Locations {
+		if existing == location {
+			return Record{}, ErrLocationDuplicate
+		}
+	}
+	if len(record.Locations) >= maxLocations {
+		return Record{}, ErrLocationCapacity
+	}
+	out := cloneRecords([]Record{record})[0]
+	out.Locations = append(out.Locations, location)
+	if out.Location == "" {
+		out.Location = location
+	}
+	return out, nil
+}
+
+// ValidateLocation checks a manual location label without consulting any
+// certificate or revealing whether a fingerprint exists in the inventory.
+func ValidateLocation(location string) error {
+	if location == "" || !validLabel(location) {
+		return ErrLabel
+	}
+	return nil
+}
+
 // List returns detached copies so callers cannot mutate the catalog.
 func (c *Catalog) List() []Record {
 	c.mu.RLock()
@@ -118,6 +163,7 @@ func cloneRecords(records []Record) []Record {
 		out[i] = record
 		out[i].DER = bytes.Clone(record.DER)
 		out[i].DNSNames = append([]string(nil), record.DNSNames...)
+		out[i].Locations = append([]string(nil), record.Locations...)
 	}
 	return out
 }

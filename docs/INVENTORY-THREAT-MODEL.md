@@ -17,9 +17,17 @@ rejected. A multi-certificate import is all-or-nothing. Unknown owner and
 location remain explicitly empty rather than guessed. Inputs and returned
 records are detached copies. There is no trust, hostname, revocation, live
 endpoint, renewal, or private-key-possession verdict.
-One certificate object is identified by its fingerprint; the same certificate
-can later be associated with multiple deployment/location objects. Rejecting
-a repeated import must not be mistaken for proof it runs on only one server.
+One certificate object is identified by its fingerprint; it can now hold up
+to 32 exact, operator-declared location labels without a duplicate DER copy.
+The first remains the legacy `location` field; older encrypted images open
+unchanged. A label is a manual note, **not** proof the certificate runs on
+that host. Duplicate certificate import is still refused. Association is a
+separate authenticated POST with a displayed-generation precondition, bounded
+JSON, and no certificate upload. A changed generation, missing fingerprint,
+duplicate/invalid/excess location, or unsafe image is refused without a write.
+The record is resealed under a new image generation while original import
+generation/time remain unchanged. The full backup after that change is still
+manual; see [ADR 0023](adr/0023-operator-declared-certificate-locations.md).
 
 The draft holds up to 500 records in one process. Each DER certificate is at
 most 64 KiB, labels at most 128 UTF-8 bytes and free of controls/formatting
@@ -81,8 +89,9 @@ retention promise because it is not exposed as a user-facing inventory yet.
    duplicates. A rejected batch leaves storage unchanged. API output omits
    DER bytes and reports `verification: not-performed`. Browser-clock expiry
    is not trusted time, notification, or renewal. Import generation records
-   order; the optional save timestamp comes from the server clock. Neither is
-   a tamper-evident audit log.
+   original import order even after a manual location association; the
+   optional save timestamp comes from the server clock. Neither is a
+   tamper-evident audit log.
 5. Linux container bind-volume permissions and fresh restore now have a
    disposable CI drill. The local Compose profile keeps the server's backup
    mount absent and runs maintenance without a network; its Linux host network

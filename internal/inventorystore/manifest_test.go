@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -105,6 +106,134 @@ func TestOlderImageWithoutImportTimeStillOpens(t *testing.T) {
 	if err != nil || gen != 2 || len(records) != 1 || records[0].ImportedAt != "" || records[0].ImportGeneration != 2 {
 		t.Fatalf("older image rejected: %v", err)
 	}
+	updated, record, generation, err := AssociateLocation(key, id, image, records[0].Fingerprint, "legacy/server", 2)
+	if err != nil || generation != 3 || record.Location != "legacy/server" || record.ImportGeneration != 2 || record.ImportedAt != "" {
+		t.Fatalf("older image association: %v", err)
+	}
+	reopened, _, err := Open(key, id, updated)
+	if err != nil || len(reopened) != 1 || !slices.Equal(reopened[0].Locations, []string{"legacy/server"}) {
+		t.Fatalf("older image did not migrate safely: %v", err)
+	}
+}
+
+func TestAssociateLocationPreservesOneCertificateAndImportProvenance(t *testing.T) {
+	key, id := testIdentity(t)
+	image, err := Create(key, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fingerprint := added[0].Fingerprint
+	importedAt := added[0].ImportedAt
+	updatedImage, updated, generation, err := AssociateLocation(key, id, image, fingerprint, "production/haproxy", 2)
+	if err != nil || generation != 3 || updated.ImportGeneration != 2 || updated.ImportedAt != importedAt ||
+		!slices.Equal(updated.Locations, []string{"production/nginx", "production/haproxy"}) {
+		t.Fatalf("first association: %v %#v", err, updated)
+	}
+	if bytes.Contains(updatedImage, []byte("production/haproxy")) || bytes.Contains(updatedImage, []byte("Platform")) {
+		t.Fatal("associated metadata leaked from encrypted image")
+	}
+	if result, _, _, err := AssociateLocation(key, id, image, fingerprint, "stale/tab", 3); !errors.Is(err, ErrStaleGeneration) || result != nil {
+		t.Fatalf("stale image generation accepted: %v", err)
+	}
+	for _, tc := range []struct {
+		fingerprint, location string
+		generation            uint64
+		want                  error
+	}{
+		{fingerprint, "production/haproxy", 3, publicinventory.ErrLocationDuplicate},
+		{"absent", "new/location", 3, ErrNotFound},
+		{"absent", "bad\nlocation", 3, publicinventory.ErrLabel},
+		{fingerprint, "bad\nlocation", 3, publicinventory.ErrLabel},
+		{fingerprint, "valid/location", 2, ErrStaleGeneration},
+	} {
+		if result, _, _, err := AssociateLocation(key, id, updatedImage, tc.fingerprint, tc.location, tc.generation); !errors.Is(err, tc.want) || result != nil {
+			t.Fatalf("unsafe association accepted: %v", err)
+		}
+	}
+	opened, current, err := Open(key, id, updatedImage)
+	if err != nil || current != 3 || len(opened) != 1 || opened[0].ImportGeneration != 2 ||
+		!bytes.Equal(opened[0].DER, added[0].DER) || !slices.Equal(opened[0].Locations, updated.Locations) {
+		t.Fatalf("updated image lost certificate or provenance: %v", err)
+	}
+	thirdImage, third, current, err := AssociateLocation(key, id, updatedImage, fingerprint, "staging/nginx", 3)
+	if err != nil || current != 4 || third.ImportGeneration != 2 || len(third.Locations) != 3 {
+		t.Fatalf("third location: %v", err)
+	}
+	opened, current, err = Open(key, id, thirdImage)
+	if err != nil || current != 4 || len(opened) != 1 || opened[0].ImportGeneration != 2 || len(opened[0].Locations) != 3 {
+		t.Fatalf("reopened locations: %v", err)
+	}
+	opened[0].Locations[0] = "mutated"
+	again, _, err := Open(key, id, thirdImage)
+	if err != nil || again[0].Locations[0] != "production/nginx" {
+		t.Fatal("open returned mutable location storage")
+	}
+	withAnotherCert, addedOther, err := Append(key, id, thirdImage, demo(t, "rootwell-verify-demo-root.pem"), "CA team", "ca/vault")
+	if err != nil || len(addedOther) != 1 || addedOther[0].ImportGeneration != 5 {
+		t.Fatalf("later certificate import: %v", err)
+	}
+	afterImport, generation, err := Open(key, id, withAnotherCert)
+	if err != nil || generation != 5 || len(afterImport) != 2 || len(afterImport[0].Locations) != 3 || afterImport[0].ImportGeneration != 2 {
+		t.Fatalf("later import lost existing associations: %v", err)
+	}
+}
+
+func TestAssociatedImageRejectsAuthorizedMalformedLocationPayload(t *testing.T) {
+	key, id := testIdentity(t)
+	image, _ := Create(key, id)
+	image, added, _ := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "first")
+	image, _, _, _ = AssociateLocation(key, id, image, added[0].Fingerprint, "second", 2)
+	var outer envelope
+	if err := json.Unmarshal(image, &outer); err != nil {
+		t.Fatal(err)
+	}
+	var m manifest
+	if err := json.Unmarshal(outer.Body, &m); err != nil {
+		t.Fatal(err)
+	}
+	var install [16]byte
+	var recordID [32]byte
+	copy(install[:], id)
+	copy(recordID[:], m.Records[0].ID)
+	plain, err := inventoryseal.Open(key, inventoryseal.Context{InstallationID: install, RecordID: recordID, Generation: m.Records[0].Generation}, m.Records[0].Ciphertext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original payload
+	if err := json.Unmarshal(plain, &original); err != nil {
+		t.Fatal(err)
+	}
+	for _, mutate := range []func(*payload){
+		func(p *payload) { p.AdditionalLocations = []string{"first"} },
+		func(p *payload) { p.AdditionalLocations = []string{"bad\nlocation"} },
+		func(p *payload) { p.Location = "" },
+		func(p *payload) { p.ImportGeneration = 1 },
+		func(p *payload) { p.ImportGeneration = 4 },
+	} {
+		copyP := original
+		mutate(&copyP)
+		malformed, err := json.Marshal(copyP)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ciphertext, err := inventoryseal.Seal(key, inventoryseal.Context{InstallationID: install, RecordID: recordID, Generation: m.Records[0].Generation}, malformed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bad := m
+		bad.Records = []sealedRecord{{ID: m.Records[0].ID, Generation: m.Records[0].Generation, Ciphertext: ciphertext}}
+		badImage, err := encode(key, bad)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if records, _, err := Open(key, id, badImage); err == nil || records != nil {
+			t.Fatal("authorized but inconsistent location payload opened")
+		}
+	}
 }
 
 func TestCorruptionContextAndMalformedImportFailClosed(t *testing.T) {
@@ -198,6 +327,16 @@ func FuzzOpenImage(f *testing.F) {
 	id := bytes.Repeat([]byte{2}, 16)
 	image, _ := Create(key, id)
 	f.Add(image)
+	fixture, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	if err == nil {
+		withCert, added, err := Append(key, id, image, fixture, "", "first")
+		if err == nil {
+			withLocation, _, _, err := AssociateLocation(key, id, withCert, added[0].Fingerprint, "second", 2)
+			if err == nil {
+				f.Add(withLocation)
+			}
+		}
+	}
 	f.Add([]byte("bad"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) > maxImage {

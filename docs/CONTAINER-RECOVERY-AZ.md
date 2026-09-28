@@ -46,7 +46,7 @@ boş inventory-ni aktivləşdirməzdən **əvvəl** tam snapshot yaradır. `init
 
 ## Hər dəyişiklikdən sonra backup
 
-Import, parol və ya recovery kodu dəyişəndən sonra daemonu dayandırın.
+Import, manual istifadə yeri, parol və ya recovery kodu dəyişəndən sonra daemonu dayandırın.
 Yeni, bənzərsiz ad seçin; mövcud backup overwrite edilmir.
 
 ```sh

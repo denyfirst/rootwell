@@ -111,6 +111,34 @@ func AppendInventory(accessPath string, key, id []byte, expectedRevision [32]byt
 	return added, generation, err
 }
 
+// AssociateInventoryLocation records one operator-declared use of an existing
+// public certificate. It never imports another certificate or proves that a
+// host presents it. The displayed image generation prevents stale-tab writes.
+func AssociateInventoryLocation(accessPath string, key, id []byte, expectedRevision [32]byte, expectedGeneration uint64, fingerprint, location string) (publicinventory.Record, uint64, error) {
+	var updated publicinventory.Record
+	var generation uint64
+	err := withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, expectedRevision); err != nil {
+			return err
+		}
+		path := filepath.Join(filepath.Dir(accessPath), inventoryName)
+		image, err := readInventory(path)
+		if err != nil {
+			return err
+		}
+		next, record, nextGeneration, err := inventorystore.AssociateLocation(key, id, image, fingerprint, location, expectedGeneration)
+		if err != nil {
+			return err
+		}
+		if err := replaceInventory(path, next); err != nil {
+			return err
+		}
+		updated, generation = record, nextGeneration
+		return nil
+	})
+	return updated, generation, err
+}
+
 func checkInventoryRevision(accessPath string, expected [32]byte) error {
 	body, err := readAccess(accessPath)
 	if err != nil || sha256.Sum256(body) != expected {

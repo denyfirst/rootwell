@@ -26,8 +26,10 @@ const (
 )
 
 var (
-	ErrInvalid = errors.New("inventory image is invalid")
-	ErrLimit   = errors.New("inventory image limit reached")
+	ErrInvalid         = errors.New("inventory image is invalid")
+	ErrLimit           = errors.New("inventory image limit reached")
+	ErrNotFound        = errors.New("certificate is not in the inventory")
+	ErrStaleGeneration = errors.New("inventory changed since it was displayed")
 )
 
 type sealedRecord struct {
@@ -49,10 +51,12 @@ type envelope struct {
 }
 
 type payload struct {
-	DER        []byte `json:"der"`
-	Owner      string `json:"owner"`
-	Location   string `json:"location"`
-	ImportedAt string `json:"imported_at,omitempty"`
+	DER                 []byte   `json:"der"`
+	Owner               string   `json:"owner"`
+	Location            string   `json:"location"`
+	AdditionalLocations []string `json:"additional_locations,omitempty"`
+	ImportedAt          string   `json:"imported_at,omitempty"`
+	ImportGeneration    uint64   `json:"import_generation,omitempty"`
 }
 
 // Create returns an authenticated empty image. Generation 1 is reserved for
@@ -124,6 +128,59 @@ func Append(key, installationID, image, input []byte, owner, location string) ([
 	return result, added, nil
 }
 
+// AssociateLocation updates one existing certificate without duplicating its
+// DER or changing its original import provenance. The caller supplies the
+// generation last displayed to the operator and atomically installs the
+// returned complete image under the writer lock.
+func AssociateLocation(key, installationID, image []byte, fingerprint, location string, expectedGeneration uint64) ([]byte, publicinventory.Record, uint64, error) {
+	m, existing, err := decode(key, installationID, image)
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	if expectedGeneration == 0 || m.Generation != expectedGeneration {
+		return nil, publicinventory.Record{}, 0, ErrStaleGeneration
+	}
+	if m.Generation >= maxGeneration {
+		return nil, publicinventory.Record{}, 0, ErrLimit
+	}
+	if err := publicinventory.ValidateLocation(location); err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	index := -1
+	for i, record := range existing {
+		if record.Fingerprint == fingerprint {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return nil, publicinventory.Record{}, 0, ErrNotFound
+	}
+	updated, err := publicinventory.AssociateLocation(existing[index], location)
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	plain, err := json.Marshal(payload{DER: updated.DER, Owner: updated.Owner, Location: updated.Location,
+		AdditionalLocations: updated.Locations[1:], ImportedAt: updated.ImportedAt, ImportGeneration: updated.ImportGeneration})
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, ErrInvalid
+	}
+	m.Generation++
+	id := sha256.Sum256(updated.DER)
+	var install [16]byte
+	copy(install[:], installationID)
+	ciphertext, err := inventoryseal.Seal(key, inventoryseal.Context{InstallationID: install, RecordID: id, Generation: m.Generation}, plain)
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	m.Records[index] = sealedRecord{ID: id[:], Generation: m.Generation, Ciphertext: ciphertext}
+	result, err := encode(key, m)
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	return result, updated, m.Generation, nil
+}
+
 func validIdentity(key, id []byte) bool {
 	if len(key) != 32 || len(id) != 16 {
 		return false
@@ -165,7 +222,7 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	var catalog publicinventory.Catalog
-	importTimes := make([]string, 0, len(m.Records))
+	records := make([]publicinventory.Record, 0, len(m.Records))
 	for _, item := range m.Records {
 		if len(item.ID) != sha256.Size || item.Generation < 2 || item.Generation > m.Generation || len(item.Ciphertext) == 0 {
 			return manifest{}, nil, ErrInvalid
@@ -196,15 +253,29 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		if err != nil || len(added) != 1 {
 			return manifest{}, nil, ErrInvalid
 		}
-		importTimes = append(importTimes, p.ImportedAt)
+		if p.Location == "" && len(p.AdditionalLocations) != 0 {
+			return manifest{}, nil, ErrInvalid
+		}
+		record := added[0]
+		for _, location := range p.AdditionalLocations {
+			record, err = publicinventory.AssociateLocation(record, location)
+			if err != nil {
+				return manifest{}, nil, ErrInvalid
+			}
+		}
+		if p.ImportGeneration != 0 {
+			if p.ImportGeneration < 2 || p.ImportGeneration > item.Generation {
+				return manifest{}, nil, ErrInvalid
+			}
+			record.ImportGeneration = p.ImportGeneration
+		} else {
+			record.ImportGeneration = item.Generation
+		}
+		record.ImportedAt = p.ImportedAt
+		records = append(records, record)
 	}
 	if m.Generation == math.MaxUint64 {
 		return manifest{}, nil, ErrInvalid
-	}
-	records := catalog.List()
-	for i := range records {
-		records[i].ImportGeneration = m.Records[i].Generation
-		records[i].ImportedAt = importTimes[i]
 	}
 	return m, records, nil
 }

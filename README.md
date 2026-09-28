@@ -13,12 +13,14 @@ access gate protects the browser; vault, automation, and remote access remain
 outside this release boundary.
 
 The Linux-only public-certificate inventory has an explicit self-hosted Save
-page, authenticated encrypted storage, and complete access+inventory backup
+page, bounded manual locations for one fingerprint without duplicate DER,
+authenticated encrypted storage, and complete access+inventory backup
 and fresh restore commands. A Linux-only Docker/Compose development profile
 and disposable bind-volume restore drill are documented in the
 [container recovery guide](docs/CONTAINER-RECOVERY-AZ.md). It does not store
 private keys, make trust or deployment claims, or automatically back itself
-up. Native Windows storage and independent release audit remain open gates;
+up. A listed location is not proof of live deployment. Native Windows storage
+and independent release audit remain open gates;
 see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md).
 
 ## Project doctrine
