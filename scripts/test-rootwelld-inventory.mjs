@@ -131,6 +131,14 @@ assert.equal(elements["owner-panel"].hidden, false);
 rejectOwner = false;
 elements["owner-cancel"].listeners.click();
 
+elements.records.children[0].children.find(node => node.textContent === "Correct owner note").listeners.click();
+elements["new-owner"].value = "";
+await elements["owner-form"].listeners.submit({ preventDefault() {} });
+const clearOwner = requests.filter(request => request.url === "/api/inventory/owner").at(-1);
+assert.deepEqual(JSON.parse(clearOwner.options.body), { fingerprint: "ab:cd", owner: "", expected_generation: 4 });
+assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Unknown")));
+assert.equal(fileReads, 0, "clearing an owner must not reread the certificate");
+
 currentResponse = { ...response, records: [{ ...response.records[0], locations: ["production/nginx", "production/nginx"] }] };
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 0, "inconsistent duplicate locations were rendered");
