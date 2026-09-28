@@ -56,6 +56,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"x","owner":"team","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
 		t.Fatal("setup session corrected an owner")
 	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
+		t.Fatal("setup session changed a location")
+	}
 	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +75,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	}
 	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"x","owner":"team","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
 		t.Fatal("uninitialized inventory corrected an owner")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("uninitialized inventory changed a location")
 	}
 	code, err := instanceaccess.EnrollRecovery(path, nextTestPassword)
 	if err != nil {
@@ -161,6 +167,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	}
 	if w := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"x","owner":"Security","expected_generation":2}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "Platform") {
 		t.Fatal("owner correction wrote or exposed corrupt inventory")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":2}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "Platform") {
+		t.Fatal("location change wrote or exposed corrupt inventory")
 	}
 }
 
@@ -291,5 +300,44 @@ func TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound(t *testing.T) {
 	cleared := inventoryCall(g, "POST", "/api/inventory/owner", `{"fingerprint":"`+saved.Records[0].Fingerprint+`","owner":"","expected_generation":4}`, cookie, "http://"+localHost, true)
 	if cleared.Code != http.StatusOK || !strings.Contains(cleared.Body.String(), `"owner":""`) || !strings.Contains(cleared.Body.String(), `"generation":5`) {
 		t.Fatalf("explicit owner clearing failed: %d", cleared.Code)
+	}
+	renameBody := `{"fingerprint":"` + saved.Records[0].Fingerprint + `","old_location":"production/nginx","new_location":"prod/nginx","action":"rename","expected_generation":5}`
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", renameBody, nil, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+		t.Fatal("anonymous location correction accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", renameBody, cookie, "http://evil.invalid", true); w.Code != http.StatusForbidden {
+		t.Fatal("cross-origin location correction accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", renameBody, cookie, "http://"+localHost, false); w.Code != http.StatusForbidden {
+		t.Fatal("location correction without CSRF header accepted")
+	}
+	if w := inventoryCall(g, "GET", "/api/inventory/locations/change", "", cookie, "", true); w.Code != http.StatusMethodNotAllowed {
+		t.Fatal("location correction accepted GET")
+	}
+	renamed := inventoryCall(g, "POST", "/api/inventory/locations/change", renameBody, cookie, "http://"+localHost, true)
+	if renamed.Code != http.StatusOK || bytes.Contains(renamed.Body.Bytes(), cert) || !strings.Contains(renamed.Body.String(), `"generation":6`) ||
+		!strings.Contains(renamed.Body.String(), `"locations":["prod/nginx","production/haproxy"]`) ||
+		!strings.Contains(renamed.Body.String(), `"import_generation":2`) || !strings.Contains(renamed.Body.String(), `"verification":"not-performed"`) {
+		t.Fatalf("location rename failed or leaked DER: %d %s", renamed.Code, renamed.Body.String())
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", renameBody, cookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("stale location rename accepted")
+	}
+	duplicateRename := `{"fingerprint":"` + saved.Records[0].Fingerprint + `","old_location":"prod/nginx","new_location":"production/haproxy","action":"rename","expected_generation":6}`
+	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", duplicateRename, cookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("duplicate destination accepted")
+	}
+	removeFirst := `{"fingerprint":"` + saved.Records[0].Fingerprint + `","old_location":"prod/nginx","action":"remove","expected_generation":6}`
+	removed := inventoryCall(g, "POST", "/api/inventory/locations/change", removeFirst, cookie, "http://"+localHost, true)
+	if removed.Code != http.StatusOK || !strings.Contains(removed.Body.String(), `"generation":7`) ||
+		!strings.Contains(removed.Body.String(), `"locations":["production/haproxy"]`) || !strings.Contains(removed.Body.String(), `"location":"production/haproxy"`) {
+		t.Fatalf("removal did not promote next label: %d %s", removed.Code, removed.Body.String())
+	}
+	removeLast := `{"fingerprint":"` + saved.Records[0].Fingerprint + `","old_location":"production/haproxy","action":"remove","expected_generation":7}`
+	unknown := inventoryCall(g, "POST", "/api/inventory/locations/change", removeLast, cookie, "http://"+localHost, true)
+	if unknown.Code != http.StatusOK || !strings.Contains(unknown.Body.String(), `"generation":8`) ||
+		!strings.Contains(unknown.Body.String(), `"locations":[]`) || !strings.Contains(unknown.Body.String(), `"location":""`) ||
+		!strings.Contains(unknown.Body.String(), `"fingerprint":"`+saved.Records[0].Fingerprint+`"`) {
+		t.Fatalf("last label removal deleted certificate or invented deployment: %d %s", unknown.Code, unknown.Body.String())
 	}
 }

@@ -34,6 +34,12 @@ unknown without altering DER, locations, or original import provenance.
 Malformed, stale, unchanged, and unauthorized corrections do not write.
 This is not an edit history; old snapshots can retain the previous owner.
 See [ADR 0024](adr/0024-explicit-owner-note-correction.md).
+Exact manual locations can also be renamed or removed under the same
+authentication, generation, and writer-lock boundary. Removing the last
+location makes it unknown while the certificate remains saved. The operator
+must explicitly confirm note removal in the UI; this does not contact or
+change a named server. Old snapshots can retain old labels. See
+[ADR 0025](adr/0025-explicit-location-note-correction.md).
 
 The draft holds up to 500 records in one process. Each DER certificate is at
 most 64 KiB, labels at most 128 UTF-8 bytes and free of controls/formatting

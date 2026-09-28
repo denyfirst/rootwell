@@ -788,3 +788,22 @@ Guarded by `TestUpdateOwnerChangesOnlyDetachedManualNote`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
 `TestOwnerInputRequiresExplicitBoundedStringAndGeneration`, and
 `scripts/test-rootwelld-inventory.mjs`.
+
+## C51 — Manual location correction cannot become deployment or certificate deletion
+
+An authenticated same-origin POST can rename one exact location label to a
+valid, unused label or remove one exact label. It requires the displayed
+generation and authenticates the whole image before lookup; stale, malformed,
+unknown, duplicate, no-op, cross-origin, and unauthorized requests cannot
+write. Only the selected record is resealed. DER, fingerprint, owner, original
+import provenance, and other records remain unchanged. Removing the first
+label promotes the next; removing the last leaves an unknown location and
+does not delete the certificate or touch a server. UI removal requires an
+explicit confirmation checkbox. Older snapshots can restore old notes.
+
+Guarded by `TestRenameAndRemoveLocationPreserveCertificateAndUnknownState`,
+`TestChangeLocationPreservesCertificateAndImportProvenance`,
+`TestLinuxLocationCorrectionsSurviveFullRestoreAndRejectStaleWrites`,
+`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
+`TestLocationChangeInputRequiresExactActionAndFields`, `TestContainerVolumeDrill`,
+and `scripts/test-rootwelld-inventory.mjs`.

@@ -134,6 +134,54 @@ func TestUpdateOwnerChangesOnlyDetachedManualNote(t *testing.T) {
 	}
 }
 
+func TestRenameAndRemoveLocationPreserveCertificateAndUnknownState(t *testing.T) {
+	var c Catalog
+	added, err := c.Add(demo(t, "rootwell-demo-certificate.pem"), "Platform", "first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := AssociateLocation(added[0], "second")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamed, err := RenameLocation(second, "first", "primary")
+	if err != nil || renamed.Location != "primary" || !slices.Equal(renamed.Locations, []string{"primary", "second"}) ||
+		!bytes.Equal(renamed.DER, second.DER) || renamed.Owner != second.Owner || second.Location != "first" {
+		t.Fatalf("rename changed the source or certificate: %v", err)
+	}
+	for _, tc := range []struct {
+		old, next string
+		want      error
+	}{
+		{"missing", "new", ErrLocationMissing},
+		{"primary", "primary", ErrLocationUnchanged},
+		{"primary", "second", ErrLocationDuplicate},
+		{"primary", "bad\nlabel", ErrLabel},
+	} {
+		if result, err := RenameLocation(renamed, tc.old, tc.next); !errors.Is(err, tc.want) || result.Fingerprint != "" {
+			t.Fatalf("unsafe rename accepted: %v", err)
+		}
+	}
+	one, err := RemoveLocation(renamed, "primary")
+	if err != nil || one.Location != "second" || !slices.Equal(one.Locations, []string{"second"}) || renamed.Location != "primary" {
+		t.Fatalf("first removal damaged source or order: %v", err)
+	}
+	unknown, err := RemoveLocation(one, "second")
+	if err != nil || unknown.Location != "" || len(unknown.Locations) != 0 || unknown.Fingerprint != added[0].Fingerprint ||
+		!bytes.Equal(unknown.DER, added[0].DER) || unknown.Owner != "Platform" {
+		t.Fatalf("last removal did not mean unknown: %v", err)
+	}
+	if result, err := RemoveLocation(unknown, "second"); !errors.Is(err, ErrLocationMissing) || result.Fingerprint != "" {
+		t.Fatalf("missing label removed twice: %v", err)
+	}
+	if result, err := RemoveLocation(one, "bad\nlabel"); !errors.Is(err, ErrLabel) || result.Fingerprint != "" {
+		t.Fatalf("malformed label removed: %v", err)
+	}
+	if c.List()[0].Location != "first" {
+		t.Fatal("management mutated stored draft")
+	}
+}
+
 func TestDuplicateAndMalformedImportsAreAtomic(t *testing.T) {
 	leaf := demo(t, "rootwell-demo-certificate.pem")
 	root := demo(t, "rootwell-verify-demo-root.pem")

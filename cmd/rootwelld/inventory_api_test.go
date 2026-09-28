@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -108,6 +109,39 @@ func TestOwnerInputRequiresExplicitBoundedStringAndGeneration(t *testing.T) {
 			}
 		} else if ok || w.Code != tc.want {
 			t.Fatalf("invalid owner input accepted: %d want %d", w.Code, tc.want)
+		}
+	}
+}
+
+func TestLocationChangeInputRequiresExactActionAndFields(t *testing.T) {
+	for _, tc := range []struct {
+		body, media string
+		want        int
+		action      inventorystore.LocationChange
+	}{
+		{`{"fingerprint":"abc","old_location":"first","new_location":"primary","action":"rename","expected_generation":3}`, "application/json", 0, inventorystore.LocationRename},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":3}`, "application/json", 0, inventorystore.LocationRemove},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","new_location":"","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"rename","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","new_location":"bad\nlabel","action":"rename","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"unknown","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","action":"rename","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":3,"unknown":1}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":0}`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":3} trailing`, "application/json", http.StatusBadRequest, 0},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":3}`, "text/plain", http.StatusUnsupportedMediaType, 0},
+		{strings.Repeat("x", 1025), "application/json", http.StatusBadRequest, 0},
+	} {
+		r := httptest.NewRequest("POST", "http://localhost/api/inventory/locations/change", strings.NewReader(tc.body))
+		r.Header.Set("Content-Type", tc.media)
+		w := httptest.NewRecorder()
+		input, ok := readInventoryLocationChangeInput(w, r)
+		if tc.want == 0 {
+			if !ok || input.Fingerprint != "abc" || input.OldLocation != "first" || input.Action != tc.action || input.ExpectedGeneration != 3 {
+				t.Fatalf("valid location change refused: %d", w.Code)
+			}
+		} else if ok || w.Code != tc.want {
+			t.Fatalf("invalid location change accepted: %d want %d", w.Code, tc.want)
 		}
 	}
 }

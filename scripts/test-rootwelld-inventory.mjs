@@ -7,7 +7,7 @@ const source = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.js", imp
 assert.doesNotMatch(source, /innerHTML|localStorage|sessionStorage|console\./);
 
 class Element {
-  constructor() { this.value = ""; this.textContent = ""; this.children = []; this.listeners = {}; this.disabled = false; this.files = []; }
+  constructor() { this.value = ""; this.textContent = ""; this.children = []; this.listeners = {}; this.disabled = false; this.checked = false; this.files = []; }
   addEventListener(name, fn) { this.listeners[name] = fn; }
   appendChild(node) { this.children.push(node); }
   replaceChildren() { this.children = []; }
@@ -16,6 +16,8 @@ class Element {
 const ids = ["inventory-form", "certificate-file", "owner", "location", "save-button", "save-status", "refresh-button", "list-status", "counts", "records",
   "location-panel", "location-form", "location-target", "new-location", "location-button", "location-cancel", "location-status",
   "owner-panel", "owner-form", "owner-target", "new-owner", "owner-button", "owner-cancel", "owner-status"];
+ids.push("location-manage-panel", "location-manage-form", "location-manage-target", "old-location", "replacement-location",
+  "rename-location-button", "remove-location-button", "confirm-remove", "location-manage-cancel", "location-manage-status");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 const requests = [];
 let fileReads = 0;
@@ -44,6 +46,16 @@ const fetchImpl = async (url, options) => {
     const owner = JSON.parse(options.body).owner;
     currentResponse = { ...currentResponse, generation: currentResponse.generation + 1,
       records: [{ ...currentResponse.records[0], owner }] };
+  }
+  if (url === "/api/inventory/locations/change") {
+    const body = JSON.parse(options.body);
+    const locations = currentResponse.records[0].locations.slice();
+    const index = locations.indexOf(body.old_location);
+    assert.ok(index >= 0);
+    if (body.action === "rename") locations[index] = body.new_location;
+    else locations.splice(index, 1);
+    currentResponse = { ...currentResponse, generation: currentResponse.generation + 1,
+      records: [{ ...currentResponse.records[0], location: locations[0] || "", locations }] };
   }
   return { ok: true, async json() { return currentResponse; } };
 };
@@ -138,6 +150,37 @@ const clearOwner = requests.filter(request => request.url === "/api/inventory/ow
 assert.deepEqual(JSON.parse(clearOwner.options.body), { fingerprint: "ab:cd", owner: "", expected_generation: 4 });
 assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Unknown")));
 assert.equal(fileReads, 0, "clearing an owner must not reread the certificate");
+
+elements.records.children[0].children.find(node => node.textContent === "Correct location notes").listeners.click();
+assert.equal(elements["location-manage-panel"].hidden, false);
+assert.equal(elements["old-location"].value, "production/nginx");
+elements["replacement-location"].value = "prod/nginx";
+await elements["location-manage-form"].listeners.submit({ preventDefault() {} });
+const renamedLocation = requests.find(request => request.url === "/api/inventory/locations/change");
+assert.deepEqual(JSON.parse(renamedLocation.options.body), {
+  fingerprint: "ab:cd", old_location: "production/nginx", new_location: "prod/nginx", action: "rename", expected_generation: 5,
+});
+assert.doesNotMatch(renamedLocation.options.body, /certificate|PRIVATE KEY/i);
+assert.equal(renamedLocation.options.headers["X-Rootwell-Request"], "1");
+assert.equal(elements["location-manage-panel"].hidden, true);
+assert.equal(fileReads, 0);
+
+elements.records.children[0].children.find(node => node.textContent === "Correct location notes").listeners.click();
+const beforeUnconfirmedRemove = requests.length;
+await elements["remove-location-button"].listeners.click();
+assert.equal(requests.length, beforeUnconfirmedRemove, "unconfirmed note removal was transmitted");
+elements["confirm-remove"].checked = true;
+await elements["remove-location-button"].listeners.click();
+const removedLocation = requests.filter(request => request.url === "/api/inventory/locations/change").at(-1);
+assert.deepEqual(JSON.parse(removedLocation.options.body), {
+  fingerprint: "ab:cd", old_location: "prod/nginx", action: "remove", expected_generation: 6,
+});
+assert.equal(fileReads, 0);
+elements.records.children[0].children.find(node => node.textContent === "Correct location notes").listeners.click();
+elements["confirm-remove"].checked = true;
+await elements["remove-location-button"].listeners.click();
+assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Manually listed locations: Unknown")));
+assert.equal(elements.records.children[0].children.find(node => node.textContent === "Correct location notes").disabled, true);
 
 currentResponse = { ...response, records: [{ ...response.records[0], locations: ["production/nginx", "production/nginx"] }] };
 await elements["refresh-button"].listeners.click();

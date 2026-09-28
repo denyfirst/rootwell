@@ -15,6 +15,7 @@ outside this release boundary.
 The Linux-only public-certificate inventory has an explicit self-hosted Save
 page, bounded manual locations for one fingerprint without duplicate DER,
 explicit correction/clearing of unverified owner notes,
+explicit correction/removal of unverified location notes,
 authenticated encrypted storage, and complete access+inventory backup
 and fresh restore commands. A Linux-only Docker/Compose development profile
 and disposable bind-volume restore drill are documented in the

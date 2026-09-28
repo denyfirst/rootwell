@@ -122,6 +122,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/locations":
 		g.inventoryLocationEndpoint(w, r, s, signedIn)
 		return
+	case "/api/inventory/locations/change":
+		g.inventoryLocationChangeEndpoint(w, r, s, signedIn)
+		return
 	case "/api/inventory/owner":
 		g.inventoryOwnerEndpoint(w, r, s, signedIn)
 		return
