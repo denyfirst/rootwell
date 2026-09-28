@@ -1,8 +1,8 @@
 # Secret-bearing conversion: pre-implementation threat model
 
-**Status:** design gate only; PFX/private-key conversion is not implemented
+**Status:** Linux offline PFX creation implemented; PFX import, extraction, and browser/server secret handling remain planned
 
-**Date:** 2026-09-28
+**Date:** 2026-09-29
 
 ## Assets and boundaries
 
@@ -31,7 +31,7 @@ administrator or compromised host is outside the confidentiality claim.
 | Unsafe file write | Explicit destination, no overwrite, reject symlink/unsafe parent, create with private permissions, validate/sync before reporting success; failure cleanup and uncertain post-commit results are tested per platform. |
 | Stale or substituted input | Keep handles bound to inspected bytes or recheck a content digest before commit; test path replacement and key/certificate mismatch. |
 | Secret remnants | Clear owned byte buffers where possible, use bounded lifetimes, keep secrets out of errors and crash artifacts; document that runtime/OS copies cannot be reliably erased. |
-| Dependency compromise or vulnerable profile | ADR 0001 review, pinned versions, license/transitive inventory, `govulncheck`, advisory regression cases, release-update owner, and independent review before key-bearing browser/server exposure. |
+| Dependency compromise or vulnerable profile | ADR 0001 review, pinned versions, license/transitive inventory, `govulncheck`, advisory regression cases, release-update owner, and independent review before release. |
 
 The library candidate `software.sslmate.com/src/go-pkcs12` supports encoding
 and chain decoding, while `golang.org/x/crypto/pkcs12` is read-only/frozen for
@@ -40,7 +40,7 @@ had a password-authentication bypass affecting 0.6.0, 0.7.0, and 0.7.1;
 upstream lists 0.7.2 as patched. The implementation review must verify the
 then-current advisory state and add a wrong-password regression fixture.
 
-Primary sources (checked 2026-09-28):
+Primary sources (checked 2026-09-29):
 
 - [SSLMate package documentation](https://pkg.go.dev/software.sslmate.com/src/go-pkcs12)
 - [SSLMate upstream repository and license](https://github.com/SSLMate/go-pkcs12)
@@ -58,7 +58,9 @@ unit, fuzz, race, vet, static, vulnerability, and supported-platform checks.
 Record exact versions and residual risks in the PR. Do not claim production
 secret custody or audited safety before external review.
 
-Browser/server PFX work has an additional hard gate: specific origin/CSP,
-extension and download threat analysis, memory-retention tests, no hidden
-upload evidence, and independent audit of the release candidate. Until then,
-the public Convert UI must continue to refuse PFX and private keys.
+Browser/server PFX work has an additional development gate: specific
+origin/CSP, extension and download threat analysis, memory-retention tests,
+and no hidden upload evidence. The release candidate still requires an
+independent audit before real-user deployment. Until the browser boundary is
+implemented and internally tested, the public Convert UI must continue to
+refuse PFX and private keys.

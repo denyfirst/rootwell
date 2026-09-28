@@ -163,6 +163,24 @@ this does not check trust or produce a fullchain. `.cer` and `.crt` are filename
 extensions, not separate encodings. Secret-bearing conversion has a separate
 [security gate](docs/SECRET-CONVERSION-THREAT-MODEL.md).
 
+On Linux, an offline PFX can be created from a matching certificate and
+unencrypted RSA/ECDSA private key. Prepare an existing private output
+directory (`mkdir -m 700 ./private-output`), then run:
+
+```text
+rootwell pfx-create --cert server.crt --key server-key.pem \
+  --chain ordered-intermediates.pem --output ./private-output/server.p12
+```
+
+`--chain` is optional. If used, it contains only ordered intermediates
+(nearest issuer first), not a trusted root. The command asks twice for a new,
+high-entropy PFX password on a local terminal; never put it in the command
+line or reuse the instance login password. The output contains the private
+key and must be handled as a secret. Existing files are never overwritten.
+PFX import/extraction, Windows secret output, and browser PFX conversion are
+not available yet. This development feature has not had its release audit;
+see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md).
+
 Inspection reports public-key details, key usages, Basic Constraints, key
 identifiers, SANs, critical-extension OIDs, and the SHA-256 fingerprint. JSON
 uses the documented `rootwell.inspect.x509.v1` compatibility contract and

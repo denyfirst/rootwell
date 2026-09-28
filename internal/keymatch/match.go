@@ -31,6 +31,7 @@ var (
 	ErrInvalidPrivateKey           = errors.New("private key is invalid")
 	ErrUnsupportedPrivateKey       = errors.New("private key algorithm is unsupported")
 	ErrPrivateKeyResourceLimit     = errors.New("private key exceeds resource limit")
+	ErrKeyMismatch                 = errors.New("certificate and private key do not match")
 )
 
 var rsaEncryptionOID = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
@@ -103,6 +104,47 @@ func Match(certificateInput, privateKeyInput []byte) (result Result, err error) 
 		PublicKeySHA256:         colonHex(digest[:]),
 	}, nil
 }
+
+// WithMatchedKey lends a strictly parsed matching key to an internal callback.
+// The callback must not retain the key. Parsed key memory is cleared on a
+// best-effort basis after it returns; Go runtime copies cannot be guaranteed
+// erased. No trust or suitability policy is inferred from a match.
+func WithMatchedKey(certificateInput, privateKeyInput []byte, use func(*x509.Certificate, any) error) error {
+	if use == nil {
+		return ErrInvalidPrivateKey
+	}
+	certificate, _, err := certinspect.Parse(certificateInput)
+	if err != nil {
+		return ErrInvalidCertificate
+	}
+	key, _, err := parsePrivateKey(privateKeyInput)
+	if err != nil {
+		return err
+	}
+	defer destroyPrivateKey(key)
+	public, ok := publicKey(key)
+	if !ok {
+		return ErrUnsupportedPrivateKey
+	}
+	certificateSPKI, err := x509.MarshalPKIXPublicKey(certificate.PublicKey)
+	if err != nil {
+		return ErrInvalidCertificate
+	}
+	keySPKI, err := x509.MarshalPKIXPublicKey(public)
+	if err != nil {
+		return ErrInvalidPrivateKey
+	}
+	defer clear(keySPKI)
+	if len(certificateSPKI) != len(keySPKI) || subtle.ConstantTimeCompare(certificateSPKI, keySPKI) != 1 {
+		return ErrKeyMismatch
+	}
+	return use(certificate, key)
+}
+
+// ClearParsedKey best-effort clears Go's exported private-key structures.
+// Runtime copies, ECDSA scalar internals, swap, and crash dumps remain outside
+// this guarantee. It is for keys returned by a separately reviewed decoder.
+func ClearParsedKey(key any) { destroyPrivateKey(key) }
 
 func parsePrivateKey(input []byte) (any, Encoding, error) {
 	if len(input) == 0 {
