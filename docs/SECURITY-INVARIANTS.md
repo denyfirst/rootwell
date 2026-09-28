@@ -869,3 +869,29 @@ are not guaranteed.
 Guarded by `TestConvertPublicCertificateBothDirections`,
 `TestConvertRefusesExistingOutputAndSymlink`, and
 `TestConvertRejectsMalformedSecretAndUsage`.
+
+## C56 — Offline PFX creation never becomes implicit key custody
+
+Only a local interactive Linux CLI invocation may create a password-protected
+PFX from one strict non-CA certificate, matching unencrypted RSA/ECDSA key,
+and optional ordered signing issuers. PFX output uses a pinned modern profile,
+is decoded and compared, and is published only to a new file inside an
+owner-private directory with no overwrite. Wrong key, malformed/duplicate/
+unrelated chain, weak algorithm policy, non-TTY, password mismatch, unsafe
+directory, symlink destination, and unsupported OS fail closed. No password,
+private key, or PFX bytes are written to stdout, stderr, logs, argv, or JSON.
+The command does not store a key in the inventory, establish trust, or support
+PFX import. Post-publication filesystem failure is uncertain, not success;
+runtime memory erasure and weak human password detection are not guaranteed.
+
+Guarded by `TestCreatePFXMatchesKeyAndOrderedIssuer`,
+`TestCreateRejectsMismatchAndUnsafeMaterial`,
+`TestCreateRefusesWeakRSACertificate`,
+`TestCreatedPFXOpensInIndependentOpenSSL`,
+`TestPFXCreateRequiresSecretReaderBeforeKeyRead`,
+`TestPFXCreateInteractiveAndNoOverwrite`,
+`TestPFXCreateRefusesPasswordMismatchAndBadUsage`,
+`TestPFXCreateUnsupportedOSRefusesBeforeKeyRead`,
+`TestWriteNewPrivateAndNoOverwrite`,
+`TestWriteNewRejectsUnsafeDirectoryAndSymlink`, and
+`TestNonLinuxSecretOutputFailsClosed`.

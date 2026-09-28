@@ -421,6 +421,26 @@ best effort. This does not promise crash durability, safe secret-file output,
 trust, chain verification, or key custody. PFX, private keys, bundles, and
 encrypted material remain unsupported.
 
+## Implemented Linux offline PFX creation boundary
+
+`rootwell pfx-create` reads one bounded non-CA public X.509 certificate, one
+bounded strict unencrypted RSA/ECDSA key, and optionally an ordered public
+issuer bundle. It requires the existing TLS algorithm policy and exact
+certificate/key public-key match. Each issuer must sign the preceding
+certificate; duplicates, unrelated material, and a self-signed root are
+rejected. The included issuer list is not a trust decision.
+
+Only a local interactive terminal may supply and confirm a new PFX password.
+The password is not taken from argv, an environment variable, or a pipe. The
+`Modern2023` PKCS#12 encoder with 100,000 KDF iterations produces the output,
+which is decoded and compared before writing. On Linux, an existing
+owner-private directory and a new 0600 file are required; staging is read
+back, no existing destination is replaced, and post-link sync failure reports
+uncertainty. Other platforms refuse secret output. No server, inventory,
+browser, or network path is involved. External audit remains before first
+real-user release. Weak human-chosen passwords, runtime copies, same-user
+malware, backups, and crash dumps remain residual risks. See ADR 0030.
+
 ## Supply-chain boundary
 
 - The shipped module starts with no runtime dependencies.

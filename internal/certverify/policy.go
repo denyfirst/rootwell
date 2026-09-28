@@ -23,6 +23,15 @@ func checkCertificatePolicy(certificate *x509.Certificate) error {
 	return nil
 }
 
+// CheckCertificatePolicy applies Rootwell's TLS certificate algorithm policy
+// without making a trust, hostname, or validity verdict.
+func CheckCertificatePolicy(certificate *x509.Certificate) error {
+	if certificate == nil {
+		return ErrDisallowedPublicKey
+	}
+	return checkCertificatePolicy(certificate)
+}
+
 func allowedSignatureAlgorithm(algorithm x509.SignatureAlgorithm) bool {
 	switch algorithm {
 	case x509.SHA256WithRSA,

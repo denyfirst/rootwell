@@ -1,6 +1,6 @@
 # ADR 0029: Stage secret-bearing conversion outside the browser
 
-**Status:** accepted as an implementation boundary; no secret conversion is enabled
+**Status:** accepted as an implementation boundary; Linux offline PFX creation is the first enabled increment
 
 **Date:** 2026-09-28
 
@@ -18,7 +18,9 @@ The first secret-bearing conversion increment, if its gates pass, will be an
 **offline CLI operation** in the separate `rootwell` process. It will not call
 the inventory daemon, browser gateway, Porch, or a network service. No key is
 silently saved to the vault. Browser/server conversion remains disabled until
-a separate boundary review and independent audit of that implementation.
+a separate boundary review and implementation-specific internal tests. The
+independent audit remains a release gate before real users, not a development
+gate that stops later capability work.
 
 The implementation sequence is:
 
@@ -41,8 +43,9 @@ The implementation sequence is:
    encrypted PKCS#8 output by default, and no stdout/raw-JSON key output.
 5. Consider one browser Convert workflow for these operations only after a
    browser-specific threat model, CSP/memory/download/retention tests, a
-   trusted-host requirement, and the independent audit gate. The UI may share
-   navigation with public Convert, not its permissive data path.
+   trusted-host requirement. The independent audit gate remains before the
+   first release. The UI may share navigation with public Convert, not its
+   permissive data path.
 
 Every secret output uses an explicit destination, create-new/no-overwrite
 semantics, platform-specific private permissions, atomic completion and
@@ -67,8 +70,9 @@ PFX password would couple unrelated security boundaries and is prohibited.
 
 ## Non-goals and remaining risks
 
-- This ADR adds no CLI command, dependency, browser file picker, vault record,
-  private-key custody, or production support.
+- This ADR itself added no CLI command or dependency. ADR 0030 implements the
+  first Linux offline creation increment; browser file picker, vault custody,
+  and production support remain outside this decision.
 - A local administrator, compromised executable, malicious browser extension,
   swap, crash dump, or backed-up output file can still disclose a key.
 - Go cannot promise complete memory erasure. Buffer clearing is best effort,

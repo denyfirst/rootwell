@@ -194,9 +194,14 @@ həll edən kiçik, etibarlı alət hazırlamaq.
 rootwell inspect <file>
 rootwell match --cert <file> --key <file>
 rootwell verify <file> --trust-bundle <roots.pem> --hostname <name>
-rootwell convert --input <file> --to pem|der|p12
+rootwell convert --input <file> --to pem|der --output <new-file>
+rootwell pfx-create --cert <file> --key <file> [--chain <ordered-issuers.pem>] --output <new-file>
 rootwell csr --key <file> --dns example.com --dns www.example.com
 ```
+
+Hazırda public PEM/DER convert işləyir; `pfx-create` isə yalnız Linux offline
+CLI-da modern, parolla qorunan PFX yaradır. Mövcud PFX-i açmaq/çıxarmaq,
+encrypted key importu və browser secret conversion ayrıca increment-lərdir.
 
 v0.1 format scope-u:
 

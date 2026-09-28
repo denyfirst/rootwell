@@ -75,4 +75,17 @@ no certificate bytes to stdout. A failure prints a fixed, path-free
 diagnostic. This operation cannot accept PFX, a private key, or a bundle. It
 does not verify trust or promise crash-durable storage. Its public-only output
 path is not a reviewed secret-output primitive (ADR 0029).
+
+## Linux offline PFX creation increment
+
+`rootwell pfx-create --cert <file> --key <file> [--chain <ordered-issuers.pem>]
+--output <new-file>` is a separate secret-bearing command. Flags may be
+reordered but not repeated. It requires a local input/output terminal before
+reading any key, then asks for and confirms a new password with no echo.
+Passwords are not flags or environment variables. Success writes no secret
+bytes or password to stdout; failure uses fixed, path-free diagnostics. A
+post-link sync failure returns an explicitly uncertain result. Linux requires
+an existing owner-private output directory; other platforms refuse. This
+does not convert or extract an existing PFX, establish trust, or save a key
+in the inventory. See ADR 0030.
 - Automation can select a named JSON schema instead of parsing human output.
