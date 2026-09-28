@@ -146,6 +146,7 @@ func TestAssociateLocationPreservesOneCertificateAndImportProvenance(t *testing.
 	}{
 		{fingerprint, "production/haproxy", 3, publicinventory.ErrLocationDuplicate},
 		{"absent", "new/location", 3, ErrNotFound},
+		{"absent", "bad\nlocation", 3, publicinventory.ErrLabel},
 		{fingerprint, "bad\nlocation", 3, publicinventory.ErrLabel},
 		{fingerprint, "valid/location", 2, ErrStaleGeneration},
 	} {

@@ -143,6 +143,9 @@ func AssociateLocation(key, installationID, image []byte, fingerprint, location 
 	if m.Generation >= maxGeneration {
 		return nil, publicinventory.Record{}, 0, ErrLimit
 	}
+	if err := publicinventory.ValidateLocation(location); err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
 	index := -1
 	for i, record := range existing {
 		if record.Fingerprint == fingerprint {

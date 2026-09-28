@@ -118,8 +118,8 @@ func (c *Catalog) Add(input []byte, owner, location string) ([]Record, error) {
 // AssociateLocation returns a detached record with one more explicit,
 // unverified location. Exact duplicate labels never create a second use.
 func AssociateLocation(record Record, location string) (Record, error) {
-	if location == "" || !validLabel(location) {
-		return Record{}, ErrLabel
+	if err := ValidateLocation(location); err != nil {
+		return Record{}, err
 	}
 	if (len(record.Locations) == 0 && record.Location != "") ||
 		(len(record.Locations) > 0 && record.Locations[0] != record.Location) {
@@ -139,6 +139,15 @@ func AssociateLocation(record Record, location string) (Record, error) {
 		out.Location = location
 	}
 	return out, nil
+}
+
+// ValidateLocation checks a manual location label without consulting any
+// certificate or revealing whether a fingerprint exists in the inventory.
+func ValidateLocation(location string) error {
+	if location == "" || !validLabel(location) {
+		return ErrLabel
+	}
+	return nil
 }
 
 // List returns detached copies so callers cannot mutate the catalog.

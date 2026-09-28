@@ -138,6 +138,10 @@ func readInventoryLocationInput(w http.ResponseWriter, r *http.Request) (invento
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return inventoryLocationInput{}, false
 	}
+	if publicinventory.ValidateLocation(input.Location) != nil {
+		http.Error(w, "invalid location", http.StatusBadRequest)
+		return inventoryLocationInput{}, false
+	}
 	return input, true
 }
 
