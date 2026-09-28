@@ -68,6 +68,8 @@ jobs:
             package: ./internal/fileinput
           - target: FuzzMatch
             package: ./internal/keymatch
+          - target: FuzzPFXPreflight
+            package: ./internal/pfxinspect
           - target: FuzzVersionValue
             package: ./internal/version
     steps:
