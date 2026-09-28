@@ -52,6 +52,9 @@ func TestPFXCreateInteractiveAndNoOverwrite(t *testing.T) {
 		t.Skip("secret output is Linux-only")
 	}
 	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	cert, key := cliPFXMaterial(t)
 	certPath, keyPath, outputPath := filepath.Join(dir, "cert.der"), filepath.Join(dir, "key.der"), filepath.Join(dir, "identity.p12")
 	if err := os.WriteFile(certPath, cert, 0o600); err != nil {
@@ -104,6 +107,9 @@ func TestPFXCreateRefusesPasswordMismatchAndBadUsage(t *testing.T) {
 	}
 	cert, key := cliPFXMaterial(t)
 	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	certPath, keyPath, outputPath := filepath.Join(dir, "cert"), filepath.Join(dir, "key"), filepath.Join(dir, "output")
 	if err := os.WriteFile(certPath, cert, 0o600); err != nil {
 		t.Fatal(err)

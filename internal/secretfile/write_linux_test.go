@@ -12,6 +12,9 @@ import (
 
 func TestWriteNewPrivateAndNoOverwrite(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(dir, "identity.p12")
 	data := []byte("generated test secret container")
 	if err := WriteNew(path, data); err != nil {

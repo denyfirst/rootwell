@@ -67,12 +67,11 @@ olunmamış nəticəyə “verified” demək qadağandır.
    tamamlanıb. [`ADR 0030`](adr/0030-pkcs12-dependency-and-profile.md)
    PKCS#12 dependency/profil qərarını və Linux offline PFX yaratma sərhədini
    qeyd edir; PFX oxuma, public hissələri çıxarma və sonra key extraction
-   ayrıca increment-lərdir. Browser/server
-   PFX və private key-ləri yalnız ayrıca dependency review,
-   memory/output/file-permission testləri və müstəqil audit qapısından sonra
-   qəbul edə bilər. Xarici audit development-i saxlayan qapı yox, ilk
-   release/real-user istifadəsi üçün son qapıdır; hər increment-in daxili
-   təhlükəsizlik yoxlamaları qalır.
+   ayrıca increment-lərdir. Browser/server PFX və private key-ləri yalnız
+   ayrıca dependency review, memory/output/file-permission testləri və daxili
+   təhlükəsizlik qapılarından sonra qəbul edə bilər. Müstəqil xarici audit
+   development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
+   son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
 
 Workbench-də **Inspect** tək public sertifikatı və ya PEM bundle/çoxfayllı
 kolleksiyanı eyni yerdə açır. Hər kartdan seçilmiş sertifikatın geniş
