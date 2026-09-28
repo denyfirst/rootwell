@@ -1,7 +1,8 @@
 # Rootwell local Workbench
 
 This directory contains Rootwell's dependency-free, self-hosted browser UI.
-Inspect processes one public PEM or DER X.509 certificate. Explore processes
+Inspect processes one public PEM or DER X.509 certificate. The **Open & convert**
+tab uses the existing Explore core to process
 1–8 selected public files containing strict PEM certificate bundles or single
 DER certificates, with at most 64 certificates and 16 MiB combined. Each file
 uses the same bounded Go core as the
@@ -73,6 +74,9 @@ by fingerprint; the output is re-parsed and byte-checked before download.
 The user explicitly chooses both the encoding and filename extension:
 `.crt`/`.cer` may contain PEM or DER, whereas `.pem` and `.der` are paired
 only with their named encodings. The extension does not alter the certificate.
+Conversion cards now appear before the optional technical signing-link,
+expiry, and JSON-report details. This is a presentation change, not new
+format, secret, or trust support.
 The filename uses a fixed prefix, fingerprint fragment, and random suffix,
 never certificate subject text. Rootwell does not write to disk or silently
 overwrite a file; final save behavior belongs to the browser and operating

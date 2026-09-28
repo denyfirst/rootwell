@@ -257,7 +257,7 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	for _, statement := range []string{
 		"Certificate bytes stay inside this browser process",
 		"Local inspection · not a trust verdict",
-		"Local exploration · not a trust verdict",
+		"Local public-file conversion · not a trust verdict",
 		"No chain verification performed · no trust anchor selected",
 		"do not prove chain trust",
 		"Revocation</strong> Not checked",
@@ -319,6 +319,33 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 	}
 	if strings.Contains(html, "Explore and verify") || strings.Contains(html, "Download selected certificate") {
 		t.Error("Explore advertises verification or export that is not implemented")
+	}
+}
+
+func TestWorkbenchPublicConversionIsFindableWithoutClaimingSecretSupport(t *testing.T) {
+	assets := workbenchAssets(t)
+	html := assets["index.html"]
+	if !strings.Contains(html, `<span><strong>Open &amp; convert</strong><small>Public PEM/DER certificates</small></span>`) ||
+		!strings.Contains(html, `id="explore-tab" data-tool="explore"`) ||
+		!strings.Contains(html, "Private keys and PFX are not supported") ||
+		strings.Contains(html, "Planned after write safety") {
+		t.Fatal("public-only conversion entry is missing or misleading")
+	}
+	cards := strings.Index(html, `id="explore-certificates"`)
+	advanced := strings.Index(html, `<details class="advanced-analysis">`)
+	links := strings.Index(html, `id="explore-links-heading"`)
+	report := strings.Index(html, `id="explore-report-button"`)
+	if cards < 0 || advanced <= cards || links <= advanced || report <= advanced {
+		t.Fatal("certificate conversion must precede collapsed technical analysis and JSON report")
+	}
+	if strings.Contains(html, `<details class="advanced-analysis" open`) {
+		t.Fatal("technical analysis and JSON report must start closed")
+	}
+	if !strings.Contains(html, `<details class="demo-guide">`) {
+		t.Fatal("verification demo must not crowd the default conversion path")
+	}
+	if !strings.Contains(assets["app.js"], `name === "explore" ? "Open & convert"`) {
+		t.Fatal("selected tool path does not match the public conversion entry")
 	}
 }
 

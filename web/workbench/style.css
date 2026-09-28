@@ -494,6 +494,9 @@ main {
 .health-guide h4 { margin: 0; font-size: 0.88rem; }
 .health-guide p { margin: 0.55rem 0; color: var(--ink-soft); font-size: 0.76rem; line-height: 1.5; }
 .health-guide button { margin-top: 0.35rem; }
+.conversion-heading { margin: 1.2rem 0 0.2rem; font-size: 0.96rem; }
+.advanced-analysis { margin-top: 1.2rem; border-top: 1px solid var(--rule); padding-top: 0.8rem; }
+.advanced-analysis > summary { cursor: pointer; color: var(--brand); font-weight: 650; }
 .possible-links { margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--rule); background: var(--paper-sunk); }
 .possible-links h4 { margin: 0; font-size: 0.88rem; }
 .possible-links p { margin: 0.55rem 0; color: var(--ink-soft); font-size: 0.76rem; line-height: 1.5; }
@@ -504,7 +507,7 @@ main {
 .report-guide p { margin: 0.55rem 0; color: var(--ink-soft); font-size: 0.76rem; line-height: 1.5; }
 .report-guide button { margin-top: 0.35rem; }
 .demo-guide { margin-top: 0.85rem; padding: 0.85rem 1rem; border: 1px solid var(--rule); background: var(--paper-sunk); }
-.demo-guide strong { font-size: 0.78rem; }
+.demo-guide summary { cursor: pointer; color: var(--brand); font-size: 0.78rem; font-weight: 650; }
 .demo-guide p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.55; }
 .bundle-list li { min-width: 0; padding: 1rem; background: var(--paper-sunk); border: 1px solid var(--rule); }
 .bundle-card-head { display: flex; align-items: baseline; gap: 0.6rem; }
@@ -595,7 +598,7 @@ main {
   .work-heading { display: block; }
   .preview-mark { margin-top: 1.2rem; }
   .tool-layout { display: block; }
-  .tool-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--rule); }
+  .tool-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--rule); }
   .tool-tab { display: block; min-height: 3.6rem; padding: 0.6rem 0.4rem; text-align: center; }
   .tool-tab + .tool-tab { margin: 0; }
   .tool-tab small, .tool-number { display: none; }
