@@ -90,7 +90,7 @@ sərhəd sübut edildikdən sonra keçirik.
    expired/30/90 gün filtrləri, unknown owner/location göstəricisi və aydın
    “indi nə etməli” yönləndirməsi. Bu notification, renewal və trust hökmü
    deyil; avtomatik səssiz qərar vermir.
-4. **Seçilmiş public məlumatın lokal export-u və explicit silmə siyasəti.**
+4. **Seçilmiş public məlumatın lokal export-u — tamamlanıb; explicit silmə siyasəti növbətidir.**
    Secret-siz export üçün məzmun önizləməsi; certificate record-un silinməsi
    üçün ayrıca retention/backup/restore qərarı və testləri. Köhnə backup-dan
    silinmiş data qayıda bildiyinə görə “tam silindi” vədi verilməyəcək.

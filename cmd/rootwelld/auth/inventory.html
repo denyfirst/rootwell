@@ -56,8 +56,17 @@
         <p id="list-status" role="status" aria-live="polite">Loading saved public certificates…</p>
         <ol id="records" aria-label="Saved public certificates ordered by action priority"></ol>
       </section>
+      <section class="card export-panel" aria-labelledby="export-heading">
+        <p class="eyebrow">03 / EXPLICIT PUBLIC EXPORT</p>
+        <h2 id="export-heading">Export selected records</h2>
+        <p>Select certificates above, preview the exact public-metadata JSON, then explicitly download it. Subject, owner, and location names may reveal internal systems. No DER, PFX, or private key is exported. Your browser chooses where the file is saved.</p>
+        <button id="preview-export-button" class="secondary" type="button">Preview selected records</button>
+        <button id="download-export-button" type="button" disabled>Download previewed JSON</button>
+        <p id="export-status" role="status" aria-live="polite">No records selected.</p>
+        <pre id="export-preview" class="export-preview" hidden></pre>
+      </section>
       <section id="location-panel" class="card location-panel" aria-labelledby="location-heading" hidden>
-        <p class="eyebrow">03 / MANUAL ASSOCIATION</p>
+        <p class="eyebrow">04 / MANUAL ASSOCIATION</p>
         <h2 id="location-heading">Add another location</h2>
         <p id="location-target"></p>
         <p>This is your note about where the certificate may be used. Rootwell has not contacted or verified that server.</p>
@@ -70,7 +79,7 @@
         </form>
       </section>
       <section id="owner-panel" class="card metadata-panel" aria-labelledby="owner-heading" hidden>
-        <p class="eyebrow">04 / MANUAL OWNER NOTE</p>
+        <p class="eyebrow">05 / MANUAL OWNER NOTE</p>
         <h2 id="owner-heading">Correct owner</h2>
         <p id="owner-target"></p>
         <p>Owner is your manual note, not verified ownership. Leave the new owner blank to clear the note. This does not remove the certificate.</p>
@@ -83,7 +92,7 @@
         </form>
       </section>
       <section id="location-manage-panel" class="card metadata-panel" aria-labelledby="location-manage-heading" hidden>
-        <p class="eyebrow">05 / MANUAL LOCATION NOTES</p>
+        <p class="eyebrow">06 / MANUAL LOCATION NOTES</p>
         <h2 id="location-manage-heading">Correct or remove a location</h2>
         <p id="location-manage-target"></p>
         <p>These are your notes, not verified deployments. Changing or removing a note does not change the certificate on a server. Older backups can retain the previous note.</p>

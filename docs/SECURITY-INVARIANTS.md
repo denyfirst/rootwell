@@ -821,3 +821,20 @@ does not claim verified deployment, trust, notification, or renewal. An
 incorrect device clock remains a residual risk.
 
 Guarded by `scripts/test-rootwelld-inventory.mjs`.
+
+## C53 — Public inventory export is whitelisted, previewed, and local-only
+
+Only explicitly selected records from the validated current inventory
+response enter a versioned JSON report. The allowlist includes public
+certificate metadata and manual notes, not DER, PFX, keys, or undeclared
+server fields. Preview is required before browser-managed download; the
+downloaded bytes match the visible preview. Refresh, filter/search changes,
+or selection changes invalidate the preview and hidden selection. There is
+no export API request, automatic download, or browser storage. A 4 MiB
+export cap bounds the derived output. Downloaded metadata may reveal internal
+systems and is outside Rootwell encryption. The development visual demo uses
+generated fake records, binds loopback only, disables user input and rejects
+all writes; it never demonstrates durable storage or authentication.
+
+Guarded by `scripts/test-rootwelld-inventory.mjs` and
+`scripts/test-inventory-demo.mjs`.

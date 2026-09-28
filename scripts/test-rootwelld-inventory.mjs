@@ -11,6 +11,8 @@ class Element {
   addEventListener(name, fn) { this.listeners[name] = fn; }
   appendChild(node) { this.children.push(node); }
   replaceChildren() { this.children = []; }
+  click() { this.clicked = true; }
+  remove() { this.removed = true; }
 }
 
 const ids = ["inventory-form", "certificate-file", "owner", "location", "save-button", "save-status", "refresh-button", "list-status", "counts", "records",
@@ -19,10 +21,15 @@ const ids = ["inventory-form", "certificate-file", "owner", "location", "save-bu
 ids.push("location-manage-panel", "location-manage-form", "location-manage-target", "old-location", "replacement-location",
   "rename-location-button", "remove-location-button", "confirm-remove", "location-manage-cancel", "location-manage-status");
 ids.push("clock-as-of", "expiry-filter", "inventory-search");
+ids.push("preview-export-button", "download-export-button", "export-status", "export-preview");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 elements["expiry-filter"].value = "all";
 const requests = [];
 let fileReads = 0;
+const downloadAnchors = [];
+const downloadObjects = [];
+const revokedURLs = [];
+let rejectDownload = false;
 const publicFile = new Uint8Array(Buffer.from("-----BEGIN CERTIFICATE-----\nAQ==\n-----END CERTIFICATE-----\n"));
 elements["certificate-file"].files = [{ size: publicFile.length, async arrayBuffer() { fileReads++; return publicFile.slice().buffer; } }];
 elements.owner.value = "Platform";
@@ -63,8 +70,12 @@ const fetchImpl = async (url, options) => {
 };
 class FixedDate extends Date { static now() { return Date.parse("2026-09-28T00:00:00Z"); } }
 vm.runInNewContext(source, {
-  document: { getElementById(id) { return elements[id]; }, createElement() { return new Element(); } },
+  document: { getElementById(id) { return elements[id]; }, createElement() { return new Element(); },
+    body: { appendChild(anchor) { downloadAnchors.push(anchor); } } },
   fetch: fetchImpl, TextEncoder, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
+  Blob, URL: { createObjectURL(blob) { if (rejectDownload) throw new Error("browser download blocked");
+      downloadObjects.push(blob); return "blob:mock-" + downloadObjects.length; },
+    revokeObjectURL(url) { revokedURLs.push(url); } }, setTimeout(callback) { callback(); },
 }, { filename: "inventory.js" });
 
 await new Promise(resolve => setImmediate(resolve));
@@ -251,9 +262,64 @@ assert.equal(fileReads, 1, "filter and search must not reread selected files");
 elements["inventory-search"].value = "";
 elements["inventory-search"].listeners.input();
 assert.equal(elements.records.children.length, 6);
+elements["preview-export-button"].listeners.click();
+assert.match(elements["export-status"].textContent, /Select at least one/);
+assert.equal(downloadObjects.length, 0);
+const selectRecord = fingerprint => {
+  const item = elements.records.children.find(node => node.children[0].textContent === fingerprint);
+  const box = item.children.find(node => node.className === "record-select").children[0];
+  box.checked = true;
+  box.listeners.change();
+};
+selectRecord("expired");
+selectRecord("soon");
+const beforeExport = requests.length;
+elements["preview-export-button"].listeners.click();
+assert.equal(elements["download-export-button"].disabled, false);
+const preview = elements["export-preview"].textContent;
+const exported = JSON.parse(preview);
+assert.equal(exported.schema_version, "rootwell.public-inventory-export.v1");
+assert.equal(exported.inventory_generation, 8);
+assert.equal(exported.verification, "not-performed");
+assert.deepEqual(Array.from(exported.records, record => record.fingerprint), ["soon", "expired"]);
+assert.ok(exported.records.every(record => !Object.hasOwn(record, "certificate") && !Object.hasOwn(record, "der")));
+assert.doesNotMatch(preview, /PRIVATE KEY|BEGIN CERTIFICATE|AQ==/);
+assert.equal(requests.length, beforeExport, "preview must not transmit inventory data");
+elements["download-export-button"].listeners.click();
+assert.equal(downloadAnchors.length, 1);
+assert.equal(downloadAnchors[0].download, "rootwell-public-inventory-g8.json");
+assert.equal(downloadAnchors[0].clicked, true);
+assert.equal(downloadAnchors[0].removed, true);
+assert.equal(await downloadObjects[0].text(), preview, "download must match explicit preview exactly");
+assert.deepEqual(revokedURLs, ["blob:mock-1"]);
+assert.equal(elements["download-export-button"].disabled, true);
+assert.equal(requests.length, beforeExport, "download must not contact the server");
+selectRecord("medium");
+elements["preview-export-button"].listeners.click();
+assert.equal(elements["download-export-button"].disabled, false);
+rejectDownload = true;
+elements["download-export-button"].listeners.click();
+assert.match(elements["export-status"].textContent, /could not be requested/);
+assert.equal(elements["download-export-button"].disabled, true);
+assert.equal(downloadObjects.length, 1);
+rejectDownload = false;
+elements["preview-export-button"].listeners.click();
+assert.equal(elements["download-export-button"].disabled, false);
+elements["expiry-filter"].value = "soon";
+elements["expiry-filter"].listeners.change();
+assert.equal(elements["download-export-button"].disabled, true, "filter must invalidate preview");
+assert.equal(elements["export-preview"].textContent, "");
+assert.equal(elements["export-preview"].hidden, true);
+assert.equal(requests.length, beforeExport);
+elements["expiry-filter"].value = "all";
+elements["expiry-filter"].listeners.change();
 currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: "not a date" }] };
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 1);
 assert.match(elements.records.children[0].children[1].textContent, /Invalid date range/);
+currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: null }] };
+await elements["refresh-button"].listeners.click();
+assert.equal(elements.records.children.length, 0, "malformed date type was rendered");
+assert.equal(elements["download-export-button"].disabled, true);
 
-console.log("Rootwell public inventory UI boundary, explicit save, and local-only expiry triage passed.");
+console.log("Rootwell public inventory UI boundary, expiry triage, and explicit local-only metadata export passed.");

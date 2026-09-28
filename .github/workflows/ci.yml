@@ -112,6 +112,8 @@ jobs:
           node --check cmd/rootwelld/auth/inventory.js
           node --check scripts/test-rootwelld-auth.mjs
           node --check scripts/test-rootwelld-inventory.mjs
+          node --check scripts/inventory-demo.mjs
+          node --check scripts/test-inventory-demo.mjs
 
       - name: Test the browser WebAssembly bridge
         run: |
@@ -124,6 +126,7 @@ jobs:
           node scripts/test-workbench-multifile.mjs
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-rootwelld-inventory.mjs
+          node scripts/test-inventory-demo.mjs
 
       - name: Test with race detector
         run: go test -race -shuffle=on -coverprofile=coverage.out ./...
