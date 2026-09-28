@@ -27,6 +27,8 @@ var (
 	ErrCertSize          = errors.New("certificate exceeds inventory draft size limit")
 	ErrLocationDuplicate = errors.New("location is already associated with this certificate")
 	ErrLocationCapacity  = errors.New("certificate location capacity reached")
+	ErrLocationMissing   = errors.New("location is no longer listed for this certificate")
+	ErrLocationUnchanged = errors.New("certificate location is unchanged")
 	ErrOwnerUnchanged    = errors.New("certificate owner is unchanged")
 )
 
@@ -122,8 +124,7 @@ func AssociateLocation(record Record, location string) (Record, error) {
 	if err := ValidateLocation(location); err != nil {
 		return Record{}, err
 	}
-	if (len(record.Locations) == 0 && record.Location != "") ||
-		(len(record.Locations) > 0 && record.Locations[0] != record.Location) {
+	if !validLocationState(record) {
 		return Record{}, ErrLabel
 	}
 	for _, existing := range record.Locations {
@@ -140,6 +141,62 @@ func AssociateLocation(record Record, location string) (Record, error) {
 		out.Location = location
 	}
 	return out, nil
+}
+
+// RenameLocation corrects exactly one operator note; it does not alter DER or
+// prove where the certificate is deployed.
+func RenameLocation(record Record, oldLabel, newLabel string) (Record, error) {
+	if ValidateLocation(oldLabel) != nil || ValidateLocation(newLabel) != nil || !validLocationState(record) {
+		return Record{}, ErrLabel
+	}
+	if oldLabel == newLabel {
+		return Record{}, ErrLocationUnchanged
+	}
+	index := -1
+	for i, label := range record.Locations {
+		if label == oldLabel {
+			index = i
+		} else if label == newLabel {
+			return Record{}, ErrLocationDuplicate
+		}
+	}
+	if index < 0 {
+		return Record{}, ErrLocationMissing
+	}
+	out := cloneRecords([]Record{record})[0]
+	out.Locations[index] = newLabel
+	out.Location = out.Locations[0]
+	return out, nil
+}
+
+// RemoveLocation deletes only the selected manual label. An empty list means
+// unknown, not that the certificate was removed from any server.
+func RemoveLocation(record Record, label string) (Record, error) {
+	if ValidateLocation(label) != nil || !validLocationState(record) {
+		return Record{}, ErrLabel
+	}
+	index := -1
+	for i, existing := range record.Locations {
+		if existing == label {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return Record{}, ErrLocationMissing
+	}
+	out := cloneRecords([]Record{record})[0]
+	out.Locations = append(out.Locations[:index], out.Locations[index+1:]...)
+	out.Location = ""
+	if len(out.Locations) > 0 {
+		out.Location = out.Locations[0]
+	}
+	return out, nil
+}
+
+func validLocationState(record Record) bool {
+	return (len(record.Locations) == 0 && record.Location == "") ||
+		(len(record.Locations) > 0 && record.Locations[0] == record.Location && len(record.Locations) <= maxLocations)
 }
 
 // ValidateLocation checks a manual location label without consulting any

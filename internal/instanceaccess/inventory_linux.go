@@ -166,6 +166,33 @@ func UpdateInventoryOwner(accessPath string, key, id []byte, expectedRevision [3
 	return updated, generation, err
 }
 
+// ChangeInventoryLocation changes only one exact manual label under the
+// inventory writer lock. It does not reach or modify any named host.
+func ChangeInventoryLocation(accessPath string, key, id []byte, expectedRevision [32]byte, expectedGeneration uint64, fingerprint, oldLabel, newLabel string, action inventorystore.LocationChange) (publicinventory.Record, uint64, error) {
+	var updated publicinventory.Record
+	var generation uint64
+	err := withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, expectedRevision); err != nil {
+			return err
+		}
+		path := filepath.Join(filepath.Dir(accessPath), inventoryName)
+		image, err := readInventory(path)
+		if err != nil {
+			return err
+		}
+		next, record, nextGeneration, err := inventorystore.ChangeLocation(key, id, image, fingerprint, oldLabel, newLabel, action, expectedGeneration)
+		if err != nil {
+			return err
+		}
+		if err := replaceInventory(path, next); err != nil {
+			return err
+		}
+		updated, generation = record, nextGeneration
+		return nil
+	})
+	return updated, generation, err
+}
+
 func checkInventoryRevision(accessPath string, expected [32]byte) error {
 	body, err := readAccess(accessPath)
 	if err != nil || sha256.Sum256(body) != expected {

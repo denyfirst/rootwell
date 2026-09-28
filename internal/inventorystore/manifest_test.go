@@ -250,6 +250,63 @@ func TestUpdateOwnerPreservesCertificateLocationsAndProvenance(t *testing.T) {
 	}
 }
 
+func TestChangeLocationPreservesCertificateAndImportProvenance(t *testing.T) {
+	key, id := testIdentity(t)
+	image, err := Create(key, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fingerprint := added[0].Fingerprint
+	image, _, _, err = AssociateLocation(key, id, image, fingerprint, "second", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renamedImage, renamed, generation, err := ChangeLocation(key, id, image, fingerprint, "first", "primary", LocationRename, 3)
+	if err != nil || generation != 4 || renamed.Location != "primary" || !slices.Equal(renamed.Locations, []string{"primary", "second"}) ||
+		renamed.ImportGeneration != 2 || !bytes.Equal(renamed.DER, added[0].DER) || renamed.Owner != "Platform" || renamed.ImportedAt != added[0].ImportedAt {
+		t.Fatalf("rename damaged certificate: %v", err)
+	}
+	if bytes.Contains(renamedImage, []byte("primary")) {
+		t.Fatal("renamed label leaked from encrypted image")
+	}
+	for _, tc := range []struct {
+		fingerprint, old, next string
+		action                 LocationChange
+		generation             uint64
+		want                   error
+	}{
+		{fingerprint, "primary", "new", LocationRename, 3, ErrStaleGeneration},
+		{fingerprint, "primary", "primary", LocationRename, 4, publicinventory.ErrLocationUnchanged},
+		{fingerprint, "primary", "second", LocationRename, 4, publicinventory.ErrLocationDuplicate},
+		{fingerprint, "missing", "new", LocationRename, 4, publicinventory.ErrLocationMissing},
+		{fingerprint, "bad\nlabel", "new", LocationRename, 4, publicinventory.ErrLabel},
+		{fingerprint, "primary", "new", LocationRemove, 4, publicinventory.ErrLabel},
+		{fingerprint, "primary", "", LocationChange(9), 4, publicinventory.ErrLabel},
+		{"missing", "primary", "new", LocationRename, 4, ErrNotFound},
+	} {
+		if result, record, _, err := ChangeLocation(key, id, renamedImage, tc.fingerprint, tc.old, tc.next, tc.action, tc.generation); !errors.Is(err, tc.want) || result != nil || record.Fingerprint != "" {
+			t.Fatalf("unsafe location change accepted: %v", err)
+		}
+	}
+	oneImage, one, generation, err := ChangeLocation(key, id, renamedImage, fingerprint, "primary", "", LocationRemove, 4)
+	if err != nil || generation != 5 || one.Location != "second" || !slices.Equal(one.Locations, []string{"second"}) || one.ImportGeneration != 2 {
+		t.Fatalf("remove first location: %v", err)
+	}
+	unknownImage, unknown, generation, err := ChangeLocation(key, id, oneImage, fingerprint, "second", "", LocationRemove, 5)
+	if err != nil || generation != 6 || unknown.Location != "" || len(unknown.Locations) != 0 || unknown.ImportGeneration != 2 {
+		t.Fatalf("remove last location: %v", err)
+	}
+	opened, current, err := Open(key, id, unknownImage)
+	if err != nil || current != 6 || len(opened) != 1 || opened[0].Fingerprint != fingerprint || opened[0].Location != "" ||
+		opened[0].Owner != "Platform" || opened[0].ImportGeneration != 2 || !bytes.Equal(opened[0].DER, added[0].DER) {
+		t.Fatalf("reopen lost certificate: %v", err)
+	}
+}
+
 func TestAssociatedImageRejectsAuthorizedMalformedLocationPayload(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)

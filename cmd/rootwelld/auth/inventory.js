@@ -25,13 +25,26 @@
   const ownerButton = document.getElementById("owner-button");
   const ownerCancel = document.getElementById("owner-cancel");
   const ownerStatus = document.getElementById("owner-status");
+  const locationManagePanel = document.getElementById("location-manage-panel");
+  const locationManageForm = document.getElementById("location-manage-form");
+  const locationManageTarget = document.getElementById("location-manage-target");
+  const oldLocation = document.getElementById("old-location");
+  const replacementLocation = document.getElementById("replacement-location");
+  const renameLocationButton = document.getElementById("rename-location-button");
+  const removeLocationButton = document.getElementById("remove-location-button");
+  const confirmRemove = document.getElementById("confirm-remove");
+  const locationManageCancel = document.getElementById("location-manage-cancel");
+  const locationManageStatus = document.getElementById("location-manage-status");
   const encoder = new TextEncoder();
   let loadSerial = 0;
   let saving = false;
   let associating = false;
   let editingOwner = false;
+  let changingLocation = false;
   let selectedFingerprint = null;
   let selectedOwnerFingerprint = null;
+  let selectedManageFingerprint = null;
+  let selectedManageLocations = [];
   let originalOwner = null;
   let displayedGeneration = 0;
 
@@ -102,11 +115,15 @@
     displayedGeneration = data.generation;
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
+    selectedManageFingerprint = null;
+    selectedManageLocations = [];
     originalOwner = null;
     locationPanel.hidden = true;
     ownerPanel.hidden = true;
+    locationManagePanel.hidden = true;
     locationStatus.textContent = "";
     ownerStatus.textContent = "";
+    locationManageStatus.textContent = "";
     records.sort((a, b) => (safeDate(a.not_after) ?? Number.NEGATIVE_INFINITY) - (safeDate(b.not_after) ?? Number.NEGATIVE_INFINITY));
     list.replaceChildren();
     counts.replaceChildren();
@@ -128,10 +145,12 @@
       addButton.textContent = "Add another location";
       addButton.disabled = record.locations.length >= 32;
       addButton.addEventListener("click", function () {
-        if (saving || associating || editingOwner || !displayedGeneration) return;
+        if (saving || associating || editingOwner || changingLocation || !displayedGeneration) return;
         selectedFingerprint = record.fingerprint;
         selectedOwnerFingerprint = null;
+        selectedManageFingerprint = null;
         ownerPanel.hidden = true;
+        locationManagePanel.hidden = true;
         locationTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint;
         newLocation.value = "";
         locationStatus.textContent = "";
@@ -143,11 +162,13 @@
       editOwnerButton.className = "secondary";
       editOwnerButton.textContent = "Correct owner note";
       editOwnerButton.addEventListener("click", function () {
-        if (saving || associating || editingOwner || !displayedGeneration) return;
+        if (saving || associating || editingOwner || changingLocation || !displayedGeneration) return;
         selectedOwnerFingerprint = record.fingerprint;
         originalOwner = record.owner;
         selectedFingerprint = null;
+        selectedManageFingerprint = null;
         locationPanel.hidden = true;
+        locationManagePanel.hidden = true;
         ownerTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint +
           " · Current owner: " + (record.owner || "Unknown");
         newOwner.value = record.owner;
@@ -155,6 +176,34 @@
         ownerPanel.hidden = false;
       });
       item.appendChild(editOwnerButton);
+      const manageLocationButton = document.createElement("button");
+      manageLocationButton.type = "button";
+      manageLocationButton.className = "secondary";
+      manageLocationButton.textContent = "Correct location notes";
+      manageLocationButton.disabled = record.locations.length === 0;
+      manageLocationButton.addEventListener("click", function () {
+        if (saving || associating || editingOwner || changingLocation || !displayedGeneration || !record.locations.length) return;
+        selectedManageFingerprint = record.fingerprint;
+        selectedManageLocations = record.locations.slice();
+        selectedFingerprint = null;
+        selectedOwnerFingerprint = null;
+        locationPanel.hidden = true;
+        ownerPanel.hidden = true;
+        locationManageTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint;
+        oldLocation.replaceChildren();
+        for (const label of selectedManageLocations) {
+          const option = document.createElement("option");
+          option.value = label;
+          option.textContent = label;
+          oldLocation.appendChild(option);
+        }
+        oldLocation.value = selectedManageLocations[0];
+        replacementLocation.value = "";
+        confirmRemove.checked = false;
+        locationManageStatus.textContent = "";
+        locationManagePanel.hidden = false;
+      });
+      item.appendChild(manageLocationButton);
       list.appendChild(item);
     }
     for (const [name, value] of Object.entries(totals)) {
@@ -170,9 +219,12 @@
     displayedGeneration = 0;
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
+    selectedManageFingerprint = null;
+    selectedManageLocations = [];
     originalOwner = null;
     locationPanel.hidden = true;
     ownerPanel.hidden = true;
+    locationManagePanel.hidden = true;
     listStatus.textContent = "Reading encrypted inventory…";
     try {
       const response = await fetch("/api/inventory", { method: "GET", credentials: "same-origin", cache: "no-store",
@@ -197,7 +249,7 @@
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (saving || associating || editingOwner) return;
+    if (saving || associating || editingOwner || changingLocation) return;
     const file = fileInput.files && fileInput.files[0];
     const owner = ownerInput.value;
     const location = locationInput.value;
@@ -241,7 +293,7 @@
 
   locationForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (associating || saving || editingOwner || !selectedFingerprint || !displayedGeneration) return;
+    if (associating || saving || editingOwner || changingLocation || !selectedFingerprint || !displayedGeneration) return;
     const location = newLocation.value;
     if (!location || !validLabel(location)) {
       locationStatus.textContent = "Enter one short, plain-text location (up to 128 bytes).";
@@ -290,7 +342,7 @@
 
   ownerForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (editingOwner || saving || associating || !selectedOwnerFingerprint || !displayedGeneration) return;
+    if (editingOwner || saving || associating || changingLocation || !selectedOwnerFingerprint || !displayedGeneration) return;
     const owner = newOwner.value;
     if (!validLabel(owner)) {
       ownerStatus.textContent = "Enter a plain-text owner note of up to 128 bytes, or leave it blank.";
@@ -339,6 +391,80 @@
     selectedOwnerFingerprint = null;
     originalOwner = null;
     ownerPanel.hidden = true;
+  });
+
+  async function changeLocation(action) {
+    if (changingLocation || saving || associating || editingOwner || !selectedManageFingerprint || !displayedGeneration) return;
+    const old = oldLocation.value;
+    const index = selectedManageLocations.indexOf(old);
+    if (index < 0) {
+      locationManageStatus.textContent = "Select a listed location; refresh if it changed.";
+      return;
+    }
+    const replacement = replacementLocation.value;
+    if (action === "rename" && (!replacement || !validLabel(replacement) || replacement === old || selectedManageLocations.includes(replacement))) {
+      locationManageStatus.textContent = "Enter a different, unused plain-text name of up to 128 bytes.";
+      return;
+    }
+    if (action === "remove" && !confirmRemove.checked) {
+      locationManageStatus.textContent = "Confirm that only the inventory note will be removed.";
+      return;
+    }
+    const fingerprint = selectedManageFingerprint;
+    const expectedGeneration = displayedGeneration;
+    const expectedLocations = selectedManageLocations.slice();
+    if (action === "rename") expectedLocations[index] = replacement;
+    else expectedLocations.splice(index, 1);
+    const body = { fingerprint, old_location: old, action, expected_generation: expectedGeneration };
+    if (action === "rename") body.new_location = replacement;
+    changingLocation = true;
+    renameLocationButton.disabled = true;
+    removeLocationButton.disabled = true;
+    saveButton.disabled = true;
+    refreshButton.disabled = true;
+    locationManageStatus.textContent = action === "rename" ? "Renaming your manual note…" : "Removing your manual note…";
+    try {
+      const response = await fetch("/api/inventory/locations/change", { method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" }, body: JSON.stringify(body) });
+      if (!response.ok) {
+        const message = (await response.text()).trim().slice(0, 240);
+        throw new Error(message || "Location change was not confirmed; refresh before retrying.");
+      }
+      const result = await response.json();
+      const record = result?.records?.[0];
+      if (!result || result.verification !== "not-performed" || result.generation !== expectedGeneration + 1 ||
+          !Array.isArray(result.records) || result.records.length !== 1 || !record || record.fingerprint !== fingerprint ||
+          !Array.isArray(record.locations) || record.locations.length !== expectedLocations.length ||
+          record.locations.some((label, position) => label !== expectedLocations[position]) ||
+          record.location !== (expectedLocations[0] || "")) {
+        throw new Error("Location change outcome could not be confirmed; refresh before retrying.");
+      }
+      const loaded = await refresh();
+      listStatus.textContent = loaded ? "Manual location note changed. Make a new full snapshot; backup is not automatic." :
+        "Location may have changed, but inventory could not be reloaded. Refresh before another change.";
+    } catch (error) {
+      locationManageStatus.textContent = error instanceof Error ? error.message : "Location change was not confirmed; refresh before retrying.";
+    } finally {
+      changingLocation = false;
+      renameLocationButton.disabled = false;
+      removeLocationButton.disabled = false;
+      saveButton.disabled = false;
+      refreshButton.disabled = false;
+    }
+  }
+
+  locationManageForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    await changeLocation("rename");
+  });
+  removeLocationButton.addEventListener("click", async function () {
+    await changeLocation("remove");
+  });
+  locationManageCancel.addEventListener("click", function () {
+    if (changingLocation) return;
+    selectedManageFingerprint = null;
+    selectedManageLocations = [];
+    locationManagePanel.hidden = true;
   });
 
   refreshButton.addEventListener("click", refresh);

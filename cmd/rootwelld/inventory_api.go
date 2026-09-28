@@ -35,6 +35,14 @@ type inventoryOwnerInput struct {
 	ExpectedGeneration uint64
 }
 
+type inventoryLocationChangeInput struct {
+	Fingerprint        string
+	OldLocation        string
+	NewLocation        string
+	Action             inventorystore.LocationChange
+	ExpectedGeneration uint64
+}
+
 type inventoryItem struct {
 	Fingerprint      string   `json:"fingerprint"`
 	Subject          string   `json:"subject"`
@@ -147,6 +155,127 @@ func readInventoryLocationInput(w http.ResponseWriter, r *http.Request) (invento
 	if publicinventory.ValidateLocation(input.Location) != nil {
 		http.Error(w, "invalid location", http.StatusBadRequest)
 		return inventoryLocationInput{}, false
+	}
+	return input, true
+}
+
+func (g *gate) inventoryLocationChangeEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if !signedIn {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	if s.setup {
+		http.Error(w, "change the setup password first", http.StatusForbidden)
+		return
+	}
+	if runtime.GOOS != "linux" {
+		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
+		return
+	}
+	if !s.inventoryReady {
+		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+		return
+	}
+	if !g.sameOrigin(r) {
+		http.Error(w, "request origin refused", http.StatusForbidden)
+		return
+	}
+	input, ok := readInventoryLocationChangeInput(w, r)
+	if !ok {
+		return
+	}
+	updated, generation, err := instanceaccess.ChangeInventoryLocation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
+		input.ExpectedGeneration, input.Fingerprint, input.OldLocation, input.NewLocation, input.Action)
+	if err != nil {
+		inventoryError(w, err)
+		return
+	}
+	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
+}
+
+func readInventoryLocationChangeInput(w http.ResponseWriter, r *http.Request) (inventoryLocationChangeInput, bool) {
+	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || media != "application/json" {
+		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
+		return inventoryLocationChangeInput{}, false
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if err != nil || len(body) == 0 || !utf8.Valid(body) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationChangeInput{}, false
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	start, err := d.Token()
+	if err != nil || start != json.Delim('{') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationChangeInput{}, false
+	}
+	var input inventoryLocationChangeInput
+	var action string
+	seen := make(map[string]bool, 5)
+	for d.More() {
+		token, err := d.Token()
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationChangeInput{}, false
+		}
+		name, ok := token.(string)
+		if !ok || seen[name] {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationChangeInput{}, false
+		}
+		seen[name] = true
+		switch name {
+		case "fingerprint":
+			err = d.Decode(&input.Fingerprint)
+		case "old_location":
+			err = d.Decode(&input.OldLocation)
+		case "new_location":
+			err = d.Decode(&input.NewLocation)
+		case "action":
+			err = d.Decode(&action)
+		case "expected_generation":
+			err = d.Decode(&input.ExpectedGeneration)
+		default:
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationChangeInput{}, false
+		}
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationChangeInput{}, false
+		}
+	}
+	end, err := d.Token()
+	if err != nil || end != json.Delim('}') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationChangeInput{}, false
+	}
+	if _, err := d.Token(); err != io.EOF || !seen["fingerprint"] || !seen["old_location"] || !seen["action"] || !seen["expected_generation"] ||
+		len(input.Fingerprint) == 0 || len(input.Fingerprint) > 128 || input.ExpectedGeneration == 0 ||
+		publicinventory.ValidateLocation(input.OldLocation) != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationChangeInput{}, false
+	}
+	switch action {
+	case "rename":
+		if !seen["new_location"] || publicinventory.ValidateLocation(input.NewLocation) != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationChangeInput{}, false
+		}
+		input.Action = inventorystore.LocationRename
+	case "remove":
+		if seen["new_location"] {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationChangeInput{}, false
+		}
+		input.Action = inventorystore.LocationRemove
+	default:
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationChangeInput{}, false
 	}
 	return input, true
 }
@@ -379,6 +508,10 @@ func inventoryError(w http.ResponseWriter, err error) {
 		http.Error(w, "location is already listed for this certificate", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrLocationCapacity):
 		http.Error(w, "certificate location limit reached", http.StatusConflict)
+	case errors.Is(err, publicinventory.ErrLocationMissing):
+		http.Error(w, "location is no longer listed; refresh first", http.StatusConflict)
+	case errors.Is(err, publicinventory.ErrLocationUnchanged):
+		http.Error(w, "location is unchanged", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrOwnerUnchanged):
 		http.Error(w, "owner is unchanged", http.StatusConflict)
 	case errors.Is(err, inventorystore.ErrNotFound):

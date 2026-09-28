@@ -72,7 +72,7 @@ Linux-da işləyir. Duplicate import rədd olunur, expiry brauzer saatına gör�
 göstərilir və trust hökmü deyil.
 
 Export cari parolu və ayrıca recovery kodunu terminalda soruşur. Sertifikat
-importundan, istifadə yeri əlavə edilməsindən, owner qeydinin
+importundan, istifadə yeri əlavə edilməsindən/düzəldilməsindən/silinməsindən, owner qeydinin
 düzəldilməsindən/boşaldılmasından və parol/kod dəyişməsindən sonra
 yeni, fərqli adla tam snapshot
 yaradın; köhnə faylın üzərinə yazılmır:

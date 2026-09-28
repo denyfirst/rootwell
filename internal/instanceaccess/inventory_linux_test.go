@@ -231,6 +231,77 @@ func TestLinuxInventoryOwnerCorrectionIsDurableAndRestorable(t *testing.T) {
 	}
 }
 
+func TestLinuxLocationCorrectionsSurviveFullRestoreAndRejectStaleWrites(t *testing.T) {
+	path, password, code, key, id, _ := inventoryFixture(t)
+	revision, err := Revision(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "first")
+	if err != nil || generation != 2 {
+		t.Fatalf("import: %v", err)
+	}
+	fingerprint := added[0].Fingerprint
+	if _, generation, err := AssociateInventoryLocation(path, key, id, revision, 2, fingerprint, "second"); err != nil || generation != 3 {
+		t.Fatalf("associate: %v", err)
+	}
+	renamed, generation, err := ChangeInventoryLocation(path, key, id, revision, 3, fingerprint, "first", "primary", inventorystore.LocationRename)
+	if err != nil || generation != 4 || renamed.Location != "primary" || renamed.ImportGeneration != 2 {
+		t.Fatalf("rename: %v", err)
+	}
+	before, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		generation uint64
+		old, next  string
+		action     inventorystore.LocationChange
+		want       error
+	}{
+		{3, "primary", "new", inventorystore.LocationRename, inventorystore.ErrStaleGeneration},
+		{4, "missing", "new", inventorystore.LocationRename, publicinventory.ErrLocationMissing},
+		{4, "primary", "second", inventorystore.LocationRename, publicinventory.ErrLocationDuplicate},
+	} {
+		if _, _, err := ChangeInventoryLocation(path, key, id, revision, tc.generation, fingerprint, tc.old, tc.next, tc.action); !errors.Is(err, tc.want) {
+			t.Fatalf("unsafe correction accepted: %v", err)
+		}
+		after, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatal("rejected correction changed image")
+		}
+	}
+	removed, generation, err := ChangeInventoryLocation(path, key, id, revision, 4, fingerprint, "primary", "", inventorystore.LocationRemove)
+	if err != nil || generation != 5 || removed.Location != "second" || len(removed.Locations) != 1 {
+		t.Fatalf("remove first: %v", err)
+	}
+	unknown, generation, err := ChangeInventoryLocation(path, key, id, revision, 5, fingerprint, "second", "", inventorystore.LocationRemove)
+	if err != nil || generation != 6 || unknown.Location != "" || len(unknown.Locations) != 0 || unknown.Fingerprint != fingerprint {
+		t.Fatalf("remove last: %v", err)
+	}
+	backup := filepath.Join(privateSnapshotDir(t), "corrected-locations.rwfull")
+	if err := ExportFullSnapshot(path, backup, password, code); err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(privateSnapshotDir(t), "access.json")
+	if err := RestoreFullSnapshot(backup, fresh, code, SnapshotRecoveryCode); err != nil {
+		t.Fatal(err)
+	}
+	newRevision, err := Revision(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, generation, err := ReadInventory(fresh, key, id, newRevision)
+	if err != nil || generation != 6 || len(restored) != 1 || restored[0].Fingerprint != fingerprint || restored[0].Location != "" ||
+		len(restored[0].Locations) != 0 || restored[0].ImportGeneration != 2 || restored[0].Owner != "Platform" {
+		t.Fatalf("restore lost corrected location state: %v", err)
+	}
+}
+
 func TestLinuxInventoryRefusesUnsafeAndBusyOperations(t *testing.T) {
 	path, password, code, key, id, _ := inventoryFixture(t)
 	other := filepath.Join(privateSnapshotDir(t), "second.rwfull")

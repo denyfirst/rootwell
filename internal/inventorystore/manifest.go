@@ -59,6 +59,13 @@ type payload struct {
 	ImportGeneration    uint64   `json:"import_generation,omitempty"`
 }
 
+type LocationChange uint8
+
+const (
+	LocationRename LocationChange = 1 + iota
+	LocationRemove
+)
+
 // Create returns an authenticated empty image. Generation 1 is reserved for
 // creation; every later successful import advances it exactly once.
 func Create(key, installationID []byte) ([]byte, error) {
@@ -195,6 +202,47 @@ func UpdateOwner(key, installationID, image []byte, fingerprint, owner string, e
 			}
 			return result, updated, generation, err
 		}
+	}
+	return nil, publicinventory.Record{}, 0, ErrNotFound
+}
+
+// ChangeLocation corrects or removes one exact operator note. The caller must
+// atomically install the returned complete image under the writer lock.
+func ChangeLocation(key, installationID, image []byte, fingerprint, oldLabel, newLabel string, action LocationChange, expectedGeneration uint64) ([]byte, publicinventory.Record, uint64, error) {
+	m, existing, err := decode(key, installationID, image)
+	if err != nil {
+		return nil, publicinventory.Record{}, 0, err
+	}
+	if expectedGeneration == 0 || m.Generation != expectedGeneration {
+		return nil, publicinventory.Record{}, 0, ErrStaleGeneration
+	}
+	if m.Generation >= maxGeneration {
+		return nil, publicinventory.Record{}, 0, ErrLimit
+	}
+	if publicinventory.ValidateLocation(oldLabel) != nil ||
+		(action == LocationRename && publicinventory.ValidateLocation(newLabel) != nil) ||
+		(action == LocationRemove && newLabel != "") ||
+		(action != LocationRename && action != LocationRemove) {
+		return nil, publicinventory.Record{}, 0, publicinventory.ErrLabel
+	}
+	for i, record := range existing {
+		if record.Fingerprint != fingerprint {
+			continue
+		}
+		var updated publicinventory.Record
+		if action == LocationRename {
+			updated, err = publicinventory.RenameLocation(record, oldLabel, newLabel)
+		} else {
+			updated, err = publicinventory.RemoveLocation(record, oldLabel)
+		}
+		if err != nil {
+			return nil, publicinventory.Record{}, 0, err
+		}
+		result, generation, err := resealRecord(key, installationID, m, i, updated)
+		if err != nil {
+			return nil, publicinventory.Record{}, 0, err
+		}
+		return result, updated, generation, nil
 	}
 	return nil, publicinventory.Record{}, 0, ErrNotFound
 }

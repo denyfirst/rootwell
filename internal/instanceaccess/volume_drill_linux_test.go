@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -70,6 +71,9 @@ func TestContainerVolumeDrill(t *testing.T) {
 		}
 		if record, generation, err := UpdateInventoryOwner(data, key, id, revision, 3, added[0].Fingerprint, "Security"); err != nil || generation != 4 || record.Owner != "Security" || len(record.Locations) != 2 {
 			t.Fatalf("volume owner correction failed: %v", err)
+		}
+		if record, generation, err := ChangeInventoryLocation(data, key, id, revision, 4, added[0].Fingerprint, "test/nginx", "test/primary", inventorystore.LocationRename); err != nil || generation != 5 || record.Location != "test/primary" {
+			t.Fatalf("volume location correction failed: %v", err)
 		}
 		if err := ExportFullSnapshot(data, backup, password, code); err != nil {
 			t.Fatal(err)
@@ -158,7 +162,7 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 		t.Fatal(err)
 	}
 	records, generation, err := ReadInventory(accessPath, key, id, revision)
-	if err != nil || generation != 4 || len(records) != 1 || records[0].Owner != "Security" || records[0].Location != "test/nginx" ||
+	if err != nil || generation != 5 || len(records) != 1 || records[0].Owner != "Security" || records[0].Location != "test/primary" ||
 		len(records[0].Locations) != 2 || records[0].Locations[1] != "test/haproxy" || records[0].ImportGeneration != 2 {
 		t.Fatalf("volume inventory did not survive: %v", err)
 	}
