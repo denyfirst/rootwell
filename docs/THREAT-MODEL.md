@@ -2,7 +2,7 @@
 
 **Scope:** local Workbench CLI through v0.1
 
-**Last reviewed:** 2026-09-24
+**Last reviewed:** 2026-09-29
 
 This document covers the process that reads local certificate and key material,
 performs an explicitly requested operation, and writes a result to a caller-
@@ -409,6 +409,17 @@ and a privileged host are outside this erasure claim. The operation performs no
 network request and does not accept a passphrase through arguments or the
 environment. Encrypted-key support remains disabled until an interactive or
 descriptor-based secret-input design has its own review and platform tests.
+
+## Implemented public CLI conversion boundary
+
+`rootwell convert --input <file> --to pem|der --output <new-file>` accepts one
+bounded strict public certificate. It reparses the output and compares its
+DER bytes with the input. A temporary public file is fully written, synced,
+read back, and closed before an exclusive hard link makes the output path
+visible; an existing file or symlink is not overwritten. Staging cleanup is
+best effort. This does not promise crash durability, safe secret-file output,
+trust, chain verification, or key custody. PFX, private keys, bundles, and
+encrypted material remain unsupported.
 
 ## Supply-chain boundary
 

@@ -63,4 +63,16 @@ evaluation of encoded dates, not a trust verdict.
   success.
 - Future commands must document whether their inputs are public, sensitive, or
   secret before their flags are accepted.
+
+## Public certificate conversion increment
+
+`rootwell convert --input <file> --to pem|der --output <new-file>` accepts
+exactly one strict public X.509 certificate. Flags may be reordered but each
+must occur exactly once. The input extension has no authority. Output is
+staged and linked into a new path without replacing an existing file or
+symlink; the completed bytes are checked before publication. Success writes
+no certificate bytes to stdout. A failure prints a fixed, path-free
+diagnostic. This operation cannot accept PFX, a private key, or a bundle. It
+does not verify trust or promise crash-durable storage. Its public-only output
+path is not a reviewed secret-output primitive (ADR 0029).
 - Automation can select a named JSON schema instead of parsing human output.

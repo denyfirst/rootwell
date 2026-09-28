@@ -81,13 +81,15 @@ unauthenticated developer preview; it is not protected by `rootwelld`.
 
 The dependency-free browser shell is available at
 [`web/workbench/index.html`](web/workbench/index.html). Inspect handles one
-public certificate; Explore lists certificates across 1–8 selected public
-files (single DER certificates or strict PEM bundles), up to 64 certificates
-and 16 MiB combined. Both use the bounded Go core through
-WebAssembly and never post selected bytes to a server API. A selected public
-certificate can be downloaded separately as PEM or DER from Explore, with a
-clearly labeled `.pem`, `.der`, `.crt`, or `.cer` filename extension;
-the browser manages the final save location. Verify checks a public server
+public certificate or a collection of 1–8 public files (single DER
+certificates or strict PEM bundles), up to 64 certificates and 16 MiB combined.
+Convert is a separate view for exporting a selected public certificate or a
+user-selected public bundle; it can reuse the current Inspect session or open
+public files directly. Both use the bounded Go core through WebAssembly and
+never post selected bytes to a server API. A selected public certificate can
+be downloaded as PEM or DER with a clearly labeled `.pem`, `.der`, `.crt`, or
+`.cer` filename extension; the browser manages the final save location.
+Verify checks a public server
 chain against a separately selected root and hostname without network access.
 An optional full SHA-256 root fingerprint pin must come from an independent
 trusted source; without it, the root's identity is not independently confirmed.
@@ -102,9 +104,8 @@ Before first use, stop the daemon and run `inventory-init` with a separate
 private backup location; after imports, make and verify a new full snapshot.
 The [Linux recovery guide](docs/RECOVERY-AZ.md) gives the exact commands.
 Expiry filters and search are local browser views using the browser clock,
-not a monitoring or renewal service. Selected public metadata can be
-previewed and downloaded as JSON with a separate click; owner and location
-names in that file may be sensitive. On Windows, durable inventory remains
+not a monitoring or renewal service. Owner and location notes are not
+exported through the Inventory UI. On Windows, durable inventory remains
 disabled. For a **fake-data, read-only visual preview only**, run
 `node scripts/inventory-demo.mjs --fixture-only` and open
 `http://127.0.0.1:4181/inventory`. This fixture has no authentication or
@@ -149,6 +150,18 @@ The command reads at most 16 MiB, ignores the file extension, rejects multiple
 or trailing objects, performs no network access, and prints escaped metadata.
 A successful result means only that one certificate parsed successfully; it is
 not a trust, signature, chain, hostname, or expiry-policy verdict.
+
+Convert one public certificate between PEM and DER into a **new** file:
+
+```text
+rootwell convert --input certificate.cer --to pem --output certificate.pem
+rootwell convert --input certificate.pem --to der --output certificate.der
+```
+
+The output path must not exist. PFX, private keys, and bundles are refused;
+this does not check trust or produce a fullchain. `.cer` and `.crt` are filename
+extensions, not separate encodings. Secret-bearing conversion has a separate
+[security gate](docs/SECRET-CONVERSION-THREAT-MODEL.md).
 
 Inspection reports public-key details, key usages, Basic Constraints, key
 identifiers, SANs, critical-extension OIDs, and the SHA-256 fingerprint. JSON
