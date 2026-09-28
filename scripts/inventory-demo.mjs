@@ -21,7 +21,7 @@ html = replaceOnce(html, 'id="certificate-file" type="file"', 'id="certificate-f
 html = replaceOnce(html, '<button id="save-button" type="submit">', '<button id="save-button" type="submit" disabled>');
 let script = asset("inventory.js");
 for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
-  script = replaceOnce(script, `item.appendChild(${button});`, `${button}.disabled = true; item.appendChild(${button});`);
+  script = replaceOnce(script, `details.appendChild(${button});`, `${button}.disabled = true; details.appendChild(${button});`);
 }
 
 const instant = days => new Date(Date.now() + days * 86400000).toISOString().slice(0, 19) + "Z";

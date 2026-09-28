@@ -20,6 +20,8 @@ try {
   assert.equal(page.status, 200);
   const html = await page.text();
   assert.match(html, /DEMO — generated fake records only/);
+  assert.match(html, /<h2 id="overview-heading">Saved certificates<\/h2>/);
+  assert.doesNotMatch(html, /Export selected records|preview-export-button|download-export-button/);
   assert.match(html, /id="certificate-file" type="file" disabled/);
   assert.match(html, /id="save-button" type="submit" disabled/);
   assert.equal(page.headers.get("cache-control"), "no-store");
@@ -38,6 +40,7 @@ try {
   assert.match(script, /editOwnerButton\.disabled = true/);
   assert.match(script, /manageLocationButton\.disabled = true/);
   assert.match(script, /deleteRecordButton\.disabled = true/);
+  assert.doesNotMatch(script, /createObjectURL|public-inventory-export/);
   console.log("Rootwell read-only fake-data Inventory demo boundary passed.");
 } finally {
   child.kill();

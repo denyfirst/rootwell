@@ -90,10 +90,12 @@ sərhəd sübut edildikdən sonra keçirik.
    expired/30/90 gün filtrləri, unknown owner/location göstəricisi və aydın
    “indi nə etməli” yönləndirməsi. Bu notification, renewal və trust hökmü
    deyil; avtomatik səssiz qərar vermir.
-4. **Seçilmiş public məlumatın lokal export-u və explicit silmə — tamamlanıb.**
-   Secret-siz export üçün məzmun önizləməsi; certificate record-un silinməsi
-   üçün ayrıca retention/backup/restore qərarı və testləri. Köhnə backup-dan
-   silinmiş data qayıda bildiyinə görə “tam silindi” vədi verilməyəcək.
+4. **Explicit silmə — tamamlanıb; inventory JSON export-u UI-dan çıxarılıb.**
+   İstifadəçi rəyinə əsasən public metadata JSON export-u certificate export-u
+   ilə qarışdığı və səhifəni ağırlaşdırdığı üçün Inventory-dən götürüldü.
+   Sertifikat endirmə Workbench Explore/Verify, şifrəli tam backup isə offline
+   maintenance axınında qalır. Köhnə backup-dan silinmiş data qayıda bildiyinə
+   görə “tam silindi” vədi verilməyəcək.
 
 Canlı endpoint discovery, Porch nəticələrinin importu və alert-lər ayrıca
 network/evidence/operational threat model-dən sonra gəlir. ACME, PFX/private

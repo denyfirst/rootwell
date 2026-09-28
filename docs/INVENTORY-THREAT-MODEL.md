@@ -109,15 +109,14 @@ storage and an explicit user-facing loopback API are separate boundaries below.
    expired. Filtering does not send terms, read selected files, persist search
    terms, notify, renew, or change stored records. An incorrect device time
    can mislead the operator. See [ADR 0026](adr/0026-local-expiry-triage.md).
-   A separate browser-only export requires exact record selection, shows the
-   complete whitelisted public-metadata JSON, then requires another click
-   for a browser-managed download. It never exports DER/private material or
-   posts a selection. Hidden selections are cleared when filters change and
-   previews are invalidated by refresh or selection change. Downloaded owner,
-   SAN, and location metadata is not encrypted by Rootwell; the operator
-   controls the destination. The fake-data development demo binds loopback
-   only and rejects all writes; it is not authenticated storage. See
-   [ADR 0027](adr/0027-explicit-public-inventory-export.md).
+   The earlier browser-only JSON metadata export was removed from the
+   Inventory UI after user testing: it confused saved-record management with
+   certificate conversion and disclosed internal notes as a plain download.
+   The historical decision is in [ADR 0027](adr/0027-explicit-public-inventory-export.md).
+   Certificate download remains in the Workbench Explore/Verify flows;
+   encrypted full inventory backup is a separate offline operation. The
+   fake-data development demo binds loopback only and rejects all writes;
+   it is not authenticated storage.
    Deleting one public record requires a ready session, exact same-origin
    request, duplicated typed fingerprint, fixed confirmation phrase, and the
    displayed generation. The complete encrypted image authenticates before
