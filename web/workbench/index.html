@@ -72,7 +72,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect, explore, and verify public certificates locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
+          <p class="lede">Inspect, open and convert, or verify public certificates locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -94,15 +94,11 @@
           </button>
           <button class="tool-tab" type="button" id="explore-tab" data-tool="explore" aria-controls="explore-panel" aria-selected="false">
             <span class="tool-number">02</span>
-            <span><strong>Explore</strong><small>Open public certificate files</small></span>
+            <span><strong>Open &amp; convert</strong><small>Public PEM/DER certificates</small></span>
           </button>
           <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
             <span class="tool-number">03</span>
             <span><strong>Verify</strong><small>Check an explicit trust chain</small></span>
-          </button>
-          <button class="tool-tab" type="button" disabled aria-disabled="true">
-            <span class="tool-number">04</span>
-            <span><strong>Convert</strong><small>Planned after write safety</small></span>
           </button>
         </nav>
 
@@ -177,9 +173,9 @@
         <section class="tool-panel" id="explore-panel" aria-labelledby="explore-tab" hidden>
           <div class="panel-head">
             <div>
-              <p class="section-index">Tool 02 / Explore</p>
-              <h2>See what is inside a certificate bundle</h2>
-              <p>Choose one or several public certificate files, including PEM bundles or single DER certificates. Rootwell lists them locally without guessing which one to trust. Private keys and PFX are not supported.</p>
+              <p class="section-index">Tool 02 / Open &amp; convert</p>
+              <h2>Open a public certificate or bundle</h2>
+              <p>Choose public .pem, .crt, .cer or .der files. Rootwell opens them locally; you can download one certificate as PEM or DER, or select parts for a PEM bundle. Private keys and PFX are not supported.</p>
             </div>
             <span class="capability">Public only</span>
           </div>
@@ -195,14 +191,14 @@
             <p class="demo-certificate">Need a safe bundle? <a href="rootwell-demo-bundle.pem" download>Download a two-certificate public demo bundle</a> — no private key included.</p>
           </div>
 
-          <aside class="demo-guide">
-            <strong>Try the guided check with safe demo files</strong>
+          <details class="demo-guide">
+            <summary>Try a safe verification demo (optional)</summary>
             <p>Download <a href="rootwell-verify-demo-ca-files.pem" download>demo CA files</a> and <a href="rootwell-verify-demo-root.pem" download>the separate demo root</a>. Explore only the CA files, then continue to Verify with hostname <code>verify.rootwell.invalid</code> and choose the root there. Never install this root in your OS or browser.</p>
-          </aside>
+          </details>
 
           <div class="panel-actions">
             <p id="explore-status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span>Waiting for the local exploration engine</p>
-            <button class="button button-primary" id="explore-button" type="button" disabled>Explore bundle</button>
+            <button class="button button-primary" id="explore-button" type="button" disabled>Open public files</button>
           </div>
 
           <aside class="inspection-error" id="explore-error" role="alert" hidden></aside>
@@ -210,9 +206,9 @@
           <section class="result" id="explore-result" aria-live="polite" hidden>
             <div class="result-head">
               <div>
-                <p class="result-kicker">Local exploration · not a trust verdict</p>
+                <p class="result-kicker">Local public-file conversion · not a trust verdict</p>
                 <h3 id="explore-result-count"></h3>
-                <p>Possible issuer links use matching names and signatures · No chain verification performed · no trust anchor selected · duplicate certificates across files are rejected</p>
+                <p>Choose a certificate card below to download public PEM or DER bytes. No chain verification performed · no trust anchor selected · duplicate certificates across files are rejected.</p>
               </div>
               <span class="stamp stamp-warn">Unverified</span>
             </div>
@@ -223,25 +219,8 @@
               <button class="button" id="explore-verify-button" type="button" disabled>Continue to Verify</button>
               <p>“Possible website certificate” only means its CA flag is off. Verify still checks whether it really fits your website. Nothing here is trusted yet; an offline TLS check needs a website name and a separately chosen trusted root.</p>
             </section>
-            <section class="possible-links" aria-labelledby="explore-links-heading">
-              <h4 id="explore-links-heading">Who might have signed whom?</h4>
-              <p id="explore-links-summary"></p>
-              <ol id="explore-links-list" aria-label="Possible public certificate signing links"></ol>
-              <p>Numbers match the certificate cards below. A matching signature is a clue, not a complete or trusted chain. Rootwell does not choose between multiple signers or trust a self-signed certificate here.</p>
-            </section>
-            <section class="expiry-overview" aria-labelledby="explore-expiry-heading">
-              <h4 id="explore-expiry-heading">Expiry overview</h4>
-              <p id="explore-expiry-summary"></p>
-              <p id="explore-expiry-note">Based on this browser's clock at the time of Explore. A date window is not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.</p>
-              <ol id="explore-expiry-list" aria-label="Public certificates ordered by expiry"></ol>
-            </section>
-            <section class="report-guide" aria-labelledby="explore-report-heading">
-              <h4 id="explore-report-heading">Keep a local public report</h4>
-              <p>Download a JSON snapshot of the certificate details, fingerprints, possible signing links, and time windows shown here. It contains public certificate names that may reveal internal hostnames. Review where your browser saves it. This is not a trust, revocation, or live-server report.</p>
-              <button class="button" id="explore-report-button" type="button" disabled>Download public report (.json)</button>
-              <p id="explore-report-status" aria-live="polite"></p>
-              <aside class="inspection-error" id="explore-report-error" role="alert" hidden></aside>
-            </section>
+            <h4 class="conversion-heading">Certificates in your files</h4>
+            <p>Each card can download one public certificate. Choose the actual content encoding first; .crt and .cer are filename extensions, not encodings.</p>
             <ol class="bundle-list" id="explore-certificates" aria-label="Certificates found in the selected files"></ol>
             <div class="bundle-collection-actions">
               <p>Select public certificates above to create a PEM bundle in the displayed order. This does not build or verify a chain; no private key is included.</p>
@@ -249,6 +228,28 @@
             </div>
             <p class="export-status" id="export-status" aria-live="polite">Choose the certificate encoding and filename extension, then download. A .crt or .cer name can contain PEM or DER; Rootwell does not write directly to disk.</p>
             <aside class="inspection-error" id="export-error" role="alert" hidden></aside>
+            <details class="advanced-analysis">
+              <summary>More technical analysis and public report</summary>
+              <section class="possible-links" aria-labelledby="explore-links-heading">
+                <h4 id="explore-links-heading">Who might have signed whom?</h4>
+                <p id="explore-links-summary"></p>
+                <ol id="explore-links-list" aria-label="Possible public certificate signing links"></ol>
+                <p>Numbers match the certificate cards above. A matching signature is a clue, not a complete or trusted chain. Rootwell does not choose between multiple signers or trust a self-signed certificate here.</p>
+              </section>
+              <section class="expiry-overview" aria-labelledby="explore-expiry-heading">
+                <h4 id="explore-expiry-heading">Expiry overview</h4>
+                <p id="explore-expiry-summary"></p>
+                <p id="explore-expiry-note">Based on this browser's clock at the time of Explore. A date window is not a trust, revocation, deployment, or renewal verdict. Re-explore to refresh.</p>
+                <ol id="explore-expiry-list" aria-label="Public certificates ordered by expiry"></ol>
+              </section>
+              <section class="report-guide" aria-labelledby="explore-report-heading">
+                <h4 id="explore-report-heading">Keep a local public report</h4>
+                <p>Download a JSON snapshot of the certificate details, fingerprints, possible signing links, and time windows shown here. It contains public certificate names that may reveal internal hostnames. Review where your browser saves it. This is not a trust, revocation, or live-server report.</p>
+                <button class="button" id="explore-report-button" type="button" disabled>Download public report (.json)</button>
+                <p id="explore-report-status" aria-live="polite"></p>
+                <aside class="inspection-error" id="explore-report-error" role="alert" hidden></aside>
+              </section>
+            </details>
             <aside class="nonclaim">
               <strong>What these labels mean</strong>
               <p>The CA flag and possible issuer links are public-certificate evidence, not proof that a root is trusted. This view does not select a leaf, verify a complete chain or hostname, check revocation, or contact a server.</p>

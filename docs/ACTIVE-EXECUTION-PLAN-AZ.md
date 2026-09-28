@@ -64,6 +64,11 @@ olunmamış nəticəyə “verified” demək qadağandır.
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.
 
+Workbench-in mövcud public-only PEM/DER conversion-u indi **Open & convert**
+girişində aydın göstərilir; seçilmiş sertifikatın endirilməsi və PEM bundle
+yaradılması əsas axındadır, texniki imza əlaqələri və JSON report isə istəyə
+bağlı detallardadır. Bu yeni PFX/private-key capability-si deyil.
+
 İstifadəçi inventory üçün self-hosted, lokal şifrəli saxlanma seçib: məlumat
 onun öz qurulumunda, özü silənədək qalacaq; avtomatik köhnə qeydləri silmək
 olmaz. İlk access modeli bir qurulumun tək operatorudur. Çoxistifadəçi rolu,

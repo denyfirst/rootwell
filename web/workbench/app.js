@@ -97,7 +97,7 @@
     Object.keys(panels).forEach(function (panelName) {
       panels[panelName].hidden = panelName !== name;
     });
-    pagePath.textContent = name === "verify" ? "Verify" : name === "explore" ? "Explore" : "Inspect";
+    pagePath.textContent = name === "verify" ? "Verify" : name === "explore" ? "Open & convert" : "Inspect";
   }
 
   tabs.forEach(function (tab) {
