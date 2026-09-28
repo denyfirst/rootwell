@@ -44,8 +44,37 @@ func TestInventoryInputRejectsDuplicateUnknownAndOversizedJSON(t *testing.T) {
 
 func TestInventoryOutputNeverSerializesCertificateBytes(t *testing.T) {
 	w := httptest.NewRecorder()
-	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{{Fingerprint: "fingerprint", DER: []byte("secret-certificate-source-bytes"), Subject: "subject", ImportGeneration: 2}}, 2)
-	if w.Code != http.StatusOK || bytes.Contains(w.Body.Bytes(), []byte("secret-certificate-source-bytes")) || !strings.Contains(w.Body.String(), `"verification":"not-performed"`) {
+	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{{Fingerprint: "fingerprint", DER: []byte("secret-certificate-source-bytes"), Subject: "subject", Locations: []string{"one", "two"}, ImportGeneration: 2}}, 3)
+	if w.Code != http.StatusOK || bytes.Contains(w.Body.Bytes(), []byte("secret-certificate-source-bytes")) ||
+		!strings.Contains(w.Body.String(), `"verification":"not-performed"`) || !strings.Contains(w.Body.String(), `"locations":["one","two"]`) {
 		t.Fatal("inventory response leaked DER or misreported verification")
+	}
+}
+
+func TestLocationInputRejectsMalformedAndDuplicateFields(t *testing.T) {
+	for _, tc := range []struct {
+		body, contentType string
+		want              int
+	}{
+		{`{"fingerprint":"abc","location":"host/a","expected_generation":2}`, "application/json", 0},
+		{`{"fingerprint":"abc","location":"a","location":"b","expected_generation":2}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","location":"a","expected_generation":2,"secret":"x"}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","location":"a","expected_generation":2} trailing`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","location":"a","expected_generation":0}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","location":"a","expected_generation":2}`, "text/plain", http.StatusUnsupportedMediaType},
+		{string([]byte{'{', '"', 'x', '"', ':', '"', 0xff, '"', '}'}), "application/json", http.StatusBadRequest},
+		{strings.Repeat("x", 1025), "application/json", http.StatusBadRequest},
+	} {
+		r := httptest.NewRequest("POST", "http://localhost/api/inventory/locations", strings.NewReader(tc.body))
+		r.Header.Set("Content-Type", tc.contentType)
+		w := httptest.NewRecorder()
+		input, ok := readInventoryLocationInput(w, r)
+		if tc.want == 0 {
+			if !ok || input.Fingerprint != "abc" || input.Location != "host/a" || input.ExpectedGeneration != 2 {
+				t.Fatalf("valid location refused: %d", w.Code)
+			}
+		} else if ok || w.Code != tc.want {
+			t.Fatalf("invalid location body accepted: %d want %d", w.Code, tc.want)
+		}
 	}
 }

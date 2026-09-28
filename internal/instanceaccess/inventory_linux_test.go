@@ -112,6 +112,68 @@ func TestLinuxInventoryDurableImportAndFreshFullRestore(t *testing.T) {
 	}
 }
 
+func TestLinuxInventoryAssociationsSurviveRestartAndFullRestore(t *testing.T) {
+	path, password, code, key, id, _ := inventoryFixture(t)
+	revision, err := Revision(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
+	if err != nil || generation != 2 {
+		t.Fatalf("initial import: %v", err)
+	}
+	fingerprint := added[0].Fingerprint
+	updated, generation, err := AssociateInventoryLocation(path, key, id, revision, 2, fingerprint, "production/haproxy")
+	if err != nil || generation != 3 || updated.ImportGeneration != 2 || len(updated.Locations) != 2 {
+		t.Fatalf("durable association: %v", err)
+	}
+	before, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		generation            uint64
+		fingerprint, location string
+		want                  error
+	}{
+		{2, fingerprint, "stale/location", inventorystore.ErrStaleGeneration},
+		{3, fingerprint, "production/haproxy", publicinventory.ErrLocationDuplicate},
+		{3, "unknown", "new/location", inventorystore.ErrNotFound},
+	} {
+		if _, _, err := AssociateInventoryLocation(path, key, id, revision, tc.generation, tc.fingerprint, tc.location); !errors.Is(err, tc.want) {
+			t.Fatalf("unsafe association accepted: %v", err)
+		}
+		after, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatal("rejected association changed image")
+		}
+	}
+	records, generation, err := ReadInventory(path, key, id, revision)
+	if err != nil || generation != 3 || len(records) != 1 || len(records[0].Locations) != 2 {
+		t.Fatalf("restart read lost locations: %v", err)
+	}
+	backup := filepath.Join(privateSnapshotDir(t), "with-locations.rwfull")
+	if err := ExportFullSnapshot(path, backup, password, code); err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(privateSnapshotDir(t), "access.json")
+	if err := RestoreFullSnapshot(backup, fresh, code, SnapshotRecoveryCode); err != nil {
+		t.Fatal(err)
+	}
+	restoredRevision, err := Revision(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, generation, err := ReadInventory(fresh, key, id, restoredRevision)
+	if err != nil || generation != 3 || len(restored) != 1 || len(restored[0].Locations) != 2 || restored[0].Locations[1] != "production/haproxy" {
+		t.Fatalf("full restore lost locations: %v", err)
+	}
+}
+
 func TestLinuxInventoryRefusesUnsafeAndBusyOperations(t *testing.T) {
 	path, password, code, key, id, _ := inventoryFixture(t)
 	other := filepath.Join(privateSnapshotDir(t), "second.rwfull")

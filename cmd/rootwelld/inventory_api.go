@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"mime"
 	"net/http"
 	"runtime"
+	"unicode/utf8"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
 	"github.com/denyfirst/rootwell/internal/inventorystore"
@@ -21,6 +23,12 @@ type inventoryInput struct {
 	Location    string
 }
 
+type inventoryLocationInput struct {
+	Fingerprint        string
+	Location           string
+	ExpectedGeneration uint64
+}
+
 type inventoryItem struct {
 	Fingerprint      string   `json:"fingerprint"`
 	Subject          string   `json:"subject"`
@@ -30,8 +38,107 @@ type inventoryItem struct {
 	NotAfter         string   `json:"not_after"`
 	Owner            string   `json:"owner"`
 	Location         string   `json:"location"`
+	Locations        []string `json:"locations"`
 	ImportGeneration uint64   `json:"import_generation"`
 	ImportedAt       string   `json:"imported_at,omitempty"`
+}
+
+func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if !signedIn {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	if s.setup {
+		http.Error(w, "change the setup password first", http.StatusForbidden)
+		return
+	}
+	if runtime.GOOS != "linux" {
+		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
+		return
+	}
+	if !s.inventoryReady {
+		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+		return
+	}
+	if !g.sameOrigin(r) {
+		http.Error(w, "request origin refused", http.StatusForbidden)
+		return
+	}
+	input, ok := readInventoryLocationInput(w, r)
+	if !ok {
+		return
+	}
+	updated, generation, err := instanceaccess.AssociateInventoryLocation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
+		input.ExpectedGeneration, input.Fingerprint, input.Location)
+	if err != nil {
+		inventoryError(w, err)
+		return
+	}
+	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
+}
+
+func readInventoryLocationInput(w http.ResponseWriter, r *http.Request) (inventoryLocationInput, bool) {
+	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || media != "application/json" {
+		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
+		return inventoryLocationInput{}, false
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if err != nil || len(body) == 0 || !utf8.Valid(body) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationInput{}, false
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	start, err := d.Token()
+	if err != nil || start != json.Delim('{') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationInput{}, false
+	}
+	var input inventoryLocationInput
+	seen := make(map[string]bool, 3)
+	for d.More() {
+		token, err := d.Token()
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationInput{}, false
+		}
+		name, ok := token.(string)
+		if !ok || seen[name] {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationInput{}, false
+		}
+		seen[name] = true
+		switch name {
+		case "fingerprint":
+			err = d.Decode(&input.Fingerprint)
+		case "location":
+			err = d.Decode(&input.Location)
+		case "expected_generation":
+			err = d.Decode(&input.ExpectedGeneration)
+		default:
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationInput{}, false
+		}
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryLocationInput{}, false
+		}
+	}
+	end, err := d.Token()
+	if err != nil || end != json.Delim('}') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationInput{}, false
+	}
+	if _, err := d.Token(); err != io.EOF || !seen["fingerprint"] || !seen["location"] || !seen["expected_generation"] ||
+		len(input.Fingerprint) == 0 || len(input.Fingerprint) > 128 || input.Location == "" || input.ExpectedGeneration == 0 {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryLocationInput{}, false
+	}
+	return input, true
 }
 
 type inventoryOutput struct {
@@ -152,6 +259,14 @@ func inventoryError(w http.ResponseWriter, err error) {
 		http.Error(w, "inventory not initialized; run the offline inventory-init ceremony", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrDuplicate):
 		http.Error(w, "certificate is already saved", http.StatusConflict)
+	case errors.Is(err, publicinventory.ErrLocationDuplicate):
+		http.Error(w, "location is already listed for this certificate", http.StatusConflict)
+	case errors.Is(err, publicinventory.ErrLocationCapacity):
+		http.Error(w, "certificate location limit reached", http.StatusConflict)
+	case errors.Is(err, inventorystore.ErrNotFound):
+		http.Error(w, "certificate is no longer in the inventory; refresh first", http.StatusNotFound)
+	case errors.Is(err, inventorystore.ErrStaleGeneration):
+		http.Error(w, "inventory changed; refresh before adding a location", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrCapacity):
 		http.Error(w, "inventory capacity reached", http.StatusConflict)
 	case errors.Is(err, inventorystore.ErrLimit):
@@ -175,7 +290,8 @@ func writeInventoryJSON(w http.ResponseWriter, status int, records []publicinven
 	items := make([]inventoryItem, 0, len(records))
 	for _, r := range records {
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
-			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt})
+			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
+			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)

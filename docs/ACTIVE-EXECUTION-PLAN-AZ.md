@@ -54,7 +54,12 @@ olunmamış nəticəyə “verified” demək qadağandır.
    edilib; bu avtomatik backup və production deployment deyil. Windows native
    support və müstəqil release auditi ayrıca qalır. Image-local generation
    xarici rollback anchor-u deyil.
-   Public metadata belə daxili adları aça bilər; network discovery yoxdur.
+   Eyni public certificate-ə duplicate DER yaratmadan 32-dək manual, ayrıca
+   yoxlanılmamış istifadə yeri bağlamaq mümkündür. Stale generation, eyni yer
+   və naməlum fingerprint rədd edilir; əvvəlki import tarixi/sırası qorunur.
+   Bu canlı server yoxlaması və ya deployment sübutu deyil. Public metadata
+   belə daxili adları aça bilər; network discovery yoxdur. Sonrakı UX
+   increment-ləri təhlükəsiz metadata redaktəsi/silmə və expiry prioritetidir.
 6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
    təhlükə modeli, dependency review, memory/output/file permission testləri
    və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.

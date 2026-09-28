@@ -41,21 +41,66 @@ func TestImportPublicCertificateAndDetachResults(t *testing.T) {
 	}
 	originalDER := bytes.Clone(added[0].DER)
 	originalDNS := slices.Clone(added[0].DNSNames)
+	originalLocations := slices.Clone(added[0].Locations)
 	input[0] = 'x'
 	added[0].DER[0] = 0
+	added[0].Locations[0] = "mutated/location"
 	if len(added[0].DNSNames) > 0 {
 		added[0].DNSNames[0] = "mutated.invalid"
 	}
 	listed := c.List()
-	if len(listed) != 1 || !bytes.Equal(listed[0].DER, originalDER) || !slices.Equal(listed[0].DNSNames, originalDNS) {
+	if len(listed) != 1 || !bytes.Equal(listed[0].DER, originalDER) || !slices.Equal(listed[0].DNSNames, originalDNS) || !slices.Equal(listed[0].Locations, originalLocations) {
 		t.Fatal("caller mutated the catalog through input or return value")
 	}
 	listed[0].DER[0] = 0
+	listed[0].Locations[0] = "mutated/again"
 	if len(listed[0].DNSNames) > 0 {
 		listed[0].DNSNames[0] = "mutated.invalid"
 	}
-	if !bytes.Equal(c.List()[0].DER, originalDER) || !slices.Equal(c.List()[0].DNSNames, originalDNS) {
+	if !bytes.Equal(c.List()[0].DER, originalDER) || !slices.Equal(c.List()[0].DNSNames, originalDNS) || !slices.Equal(c.List()[0].Locations, originalLocations) {
 		t.Fatal("caller mutated the catalog through List")
+	}
+}
+
+func TestAssociateLocationIsBoundedExplicitAndDetached(t *testing.T) {
+	var c Catalog
+	added, err := c.Add(demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := AssociateLocation(added[0], "production/haproxy")
+	if err != nil || second.Location != "production/nginx" || !slices.Equal(second.Locations, []string{"production/nginx", "production/haproxy"}) {
+		t.Fatalf("second location: %v %#v", err, second.Locations)
+	}
+	second.Locations[0] = "mutated"
+	if added[0].Locations[0] != "production/nginx" || c.List()[0].Locations[0] != "production/nginx" {
+		t.Fatal("association mutated its source")
+	}
+	second.Locations[0] = "production/nginx"
+	for _, location := range []string{"", " bad", "bad\nlocation", strings.Repeat("x", maxLabel+1)} {
+		if result, err := AssociateLocation(second, location); !errors.Is(err, ErrLabel) || result.Fingerprint != "" {
+			t.Fatalf("invalid location accepted: %q %v", location, err)
+		}
+	}
+	if result, err := AssociateLocation(second, "production/haproxy"); !errors.Is(err, ErrLocationDuplicate) || result.Fingerprint != "" {
+		t.Fatalf("duplicate location accepted: %v", err)
+	}
+	for len(second.Locations) < maxLocations {
+		second, err = AssociateLocation(second, "host/"+strings.Repeat("x", len(second.Locations)))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if result, err := AssociateLocation(second, "one-too-many"); !errors.Is(err, ErrLocationCapacity) || result.Fingerprint != "" {
+		t.Fatalf("location cap bypassed: %v", err)
+	}
+	unknown, err := c.Add(demo(t, "rootwell-verify-demo-root.pem"), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := AssociateLocation(unknown[0], "new/first")
+	if err != nil || first.Location != "new/first" || !slices.Equal(first.Locations, []string{"new/first"}) {
+		t.Fatalf("unknown first location: %v", err)
 	}
 }
 

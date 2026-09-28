@@ -673,7 +673,8 @@ installation data key and verifies every encrypted record against the exact
 installation, certificate digest, and image-local generation before returning
 any records. It rejects duplicate, malformed, secret-bearing, corrupt, and
 cross-installation input without partial results. The generation is counted
-per import, far below the random-nonce AEAD per-key usage limit. This codec
+per import or explicit location change, far below the random-nonce AEAD per-key
+usage limit. This codec
 does not write files, enable HTTP import, establish an external trusted
 generation anchor, or prevent replay of an older complete authenticated image.
 
@@ -744,3 +745,27 @@ Guarded by `TestContainerVolumeDrill`,
 `scripts/test-container-config.mjs` (overprivileged and ephemeral-volume
 sabotage), and `scripts/test-container-volume.sh` in the required Linux
 container CI job.
+
+## C49 — One public certificate can have bounded manual locations, never a deployment verdict
+
+The fingerprint remains unique; duplicate imports still fail. An explicit
+same-origin, session-bound POST can attach one of at most 32 plain-text,
+nonempty, exact location labels to an existing certificate. It requires the
+generation last displayed, authenticates the whole image, and atomically
+reseals only that certificate under a fresh generation. Original import
+generation/time and DER remain unchanged. Old images without additional
+locations remain readable. Stale generation, missing certificate, duplicate,
+malformed or excessive labels, corrupt image, and cross-origin or anonymous
+requests do not write. API and UI say locations are operator notes, not
+verified deployments. Each successful note needs a new full snapshot;
+existing snapshots do not acquire it automatically.
+
+Guarded by `TestAssociateLocationIsBoundedExplicitAndDetached`,
+`TestAssociateLocationPreservesOneCertificateAndImportProvenance`,
+`TestAssociatedImageRejectsAuthorizedMalformedLocationPayload`,
+`TestOlderImageWithoutImportTimeStillOpens`,
+`TestLinuxInventoryAssociationsSurviveRestartAndFullRestore`,
+`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
+`TestLocationInputRejectsMalformedAndDuplicateFields`,
+`TestInventoryOutputNeverSerializesCertificateBytes`,
+`TestContainerVolumeDrill`, and `scripts/test-rootwelld-inventory.mjs`.

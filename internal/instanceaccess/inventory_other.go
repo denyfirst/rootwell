@@ -12,6 +12,9 @@ func ReadInventory(_ string, _, _ []byte, _ [32]byte) ([]publicinventory.Record,
 func AppendInventory(_ string, _, _ []byte, _ [32]byte, _ []byte, _, _ string) ([]publicinventory.Record, uint64, error) {
 	return nil, 0, ErrRecoveryUnsupported
 }
+func AssociateInventoryLocation(_ string, _, _ []byte, _ [32]byte, _ uint64, _, _ string) (publicinventory.Record, uint64, error) {
+	return publicinventory.Record{}, 0, ErrRecoveryUnsupported
+}
 func ExportFullSnapshot(_, _, _, _ string) error { return ErrRecoveryUnsupported }
 func VerifyFullSnapshot(_, _ string, _ SnapshotUnlock) ([]byte, uint64, error) {
 	return nil, 0, ErrRecoveryUnsupported

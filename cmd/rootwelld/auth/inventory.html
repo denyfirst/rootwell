@@ -18,7 +18,7 @@
     <section class="hero">
       <p class="eyebrow">PUBLIC CERTIFICATE INVENTORY</p>
       <h1>Know what is saved.<br><span>Know what is not proven.</span></h1>
-      <p>Save public certificates with an owner and location so you can find them before expiry. Nothing here proves trust, deployment, revocation, or private-key possession.</p>
+      <p>Save public certificates with an owner and list where you believe each is used. These are manual notes, not proof of trust, deployment, revocation, or private-key possession.</p>
     </section>
     <aside class="boundary" aria-label="Storage boundary">
       <strong>Different from offline Workbench</strong>
@@ -28,13 +28,13 @@
       <section class="card" aria-labelledby="save-heading">
         <p class="eyebrow">01 / EXPLICIT SAVE</p>
         <h2 id="save-heading">Add public certificates</h2>
-        <p>One DER certificate or one PEM certificate/bundle, up to 16 MiB. A bundle is saved all-or-nothing. Repeated certificates are refused.</p>
+        <p>One DER certificate or one PEM certificate/bundle, up to 16 MiB. A bundle is saved all-or-nothing. Repeated certificates are refused; add another location to an existing card instead.</p>
         <form id="inventory-form">
           <label for="certificate-file">Public certificate file</label>
           <input id="certificate-file" type="file" accept=".pem,.crt,.cer,.der,application/x-x509-ca-cert" required>
           <label for="owner">Owner <span>(optional)</span></label>
           <input id="owner" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Platform team">
-          <label for="location">Location <span>(optional)</span></label>
+          <label for="location">First location <span>(optional; manual note)</span></label>
           <input id="location" type="text" maxlength="128" autocomplete="off" placeholder="e.g. production/nginx">
           <button id="save-button" type="submit">Save to this Rootwell</button>
           <p id="save-status" role="status" aria-live="polite"></p>
@@ -49,8 +49,21 @@
         <p id="list-status" role="status" aria-live="polite">Loading saved public certificates…</p>
         <ol id="records" aria-label="Saved public certificates ordered by expiry"></ol>
       </section>
+      <section id="location-panel" class="card location-panel" aria-labelledby="location-heading" hidden>
+        <p class="eyebrow">03 / MANUAL ASSOCIATION</p>
+        <h2 id="location-heading">Add another location</h2>
+        <p id="location-target"></p>
+        <p>This is your note about where the certificate may be used. Rootwell has not contacted or verified that server.</p>
+        <form id="location-form">
+          <label for="new-location">Server or location</label>
+          <input id="new-location" type="text" maxlength="128" autocomplete="off" required placeholder="e.g. production/haproxy">
+          <button id="location-button" type="submit">Save location to this Rootwell</button>
+          <button id="location-cancel" class="secondary" type="button">Cancel</button>
+          <p id="location-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
     </div>
-    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After saving certificates, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An old snapshot cannot restore later imports.</p></aside>
+    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After saving certificates or locations, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An old snapshot cannot restore later changes.</p></aside>
   </main>
 </body>
 </html>

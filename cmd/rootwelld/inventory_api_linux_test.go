@@ -50,6 +50,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if w := inventoryCall(g, "GET", "/api/inventory", "", setupCookie, "", true); w.Code != http.StatusForbidden {
 		t.Fatal("setup session opened inventory")
 	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations", `{"fingerprint":"x","location":"server","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
+		t.Fatal("setup session associated a location")
+	}
 	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +63,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	readyCookie := sessionCookie(t, ready)
 	if w := inventoryCall(g, "GET", "/api/inventory", "", readyCookie, "", true); w.Code != http.StatusConflict {
 		t.Fatal("uninitialized inventory opened")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations", `{"fingerprint":"x","location":"server","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("uninitialized inventory associated a location")
 	}
 	code, err := instanceaccess.EnrollRecovery(path, nextTestPassword)
 	if err != nil {
@@ -146,5 +152,96 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	}
 	if w := inventoryCall(g, "GET", "/api/inventory", "", readyCookie, "", true); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "Platform") {
 		t.Fatal("corrupt inventory returned records")
+	}
+}
+
+func TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound(t *testing.T) {
+	g, path := testGate(t)
+	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
+		t.Fatal(err)
+	}
+	code, err := instanceaccess.EnrollRecovery(path, nextTestPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupDir := t.TempDir()
+	if err := os.Chmod(backupDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := instanceaccess.InitializeInventory(path, filepath.Join(backupDir, "initial.rwfull"), nextTestPassword, code); err != nil {
+		t.Fatal(err)
+	}
+	ready := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
+	if ready.Code != http.StatusOK {
+		t.Fatalf("ready sign-in: %d", ready.Code)
+	}
+	cookie := sessionCookie(t, ready)
+	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	importBody, _ := json.Marshal(map[string]any{"certificate": cert, "owner": "Platform", "location": "production/nginx"})
+	imported := inventoryCall(g, "POST", "/api/inventory", string(importBody), cookie, "http://"+localHost, true)
+	if imported.Code != http.StatusCreated {
+		t.Fatalf("import: %d", imported.Code)
+	}
+	var saved inventoryOutput
+	if err := json.Unmarshal(imported.Body.Bytes(), &saved); err != nil || len(saved.Records) != 1 {
+		t.Fatalf("save response: %v", err)
+	}
+	base := map[string]any{"fingerprint": saved.Records[0].Fingerprint, "location": "production/haproxy", "expected_generation": 2}
+	requestBody, _ := json.Marshal(base)
+	if w := inventoryCall(g, "POST", "/api/inventory/locations", string(requestBody), nil, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+		t.Fatal("anonymous association accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations", string(requestBody), cookie, "http://evil.invalid", true); w.Code != http.StatusForbidden {
+		t.Fatal("cross-origin association accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/locations", string(requestBody), cookie, "http://"+localHost, false); w.Code != http.StatusForbidden {
+		t.Fatal("association without CSRF header accepted")
+	}
+	if w := inventoryCall(g, "GET", "/api/inventory/locations", "", cookie, "", true); w.Code != http.StatusMethodNotAllowed {
+		t.Fatal("association read endpoint accepted GET")
+	}
+	for _, malformed := range []string{
+		`{"fingerprint":"x","location":"a","location":"b","expected_generation":2}`,
+		`{"fingerprint":"x","location":"a","expected_generation":2,"unknown":1}`,
+		`{"fingerprint":"x","location":"a"}`,
+		`{"fingerprint":"x","location":"a","expected_generation":0}`,
+		`{"fingerprint":"x","location":"bad\nlabel","expected_generation":2}`,
+		`{"fingerprint":"x","location":"a","expected_generation":2} trailing`,
+		string(bytes.Repeat([]byte{'x'}, 1025)),
+		string([]byte{'{', '"', 'x', '"', ':', '"', 0xff, '"', '}'}),
+	} {
+		if w := inventoryCall(g, "POST", "/api/inventory/locations", malformed, cookie, "http://"+localHost, true); w.Code != http.StatusBadRequest {
+			t.Fatalf("malformed association accepted: %d", w.Code)
+		}
+	}
+	result := inventoryCall(g, "POST", "/api/inventory/locations", string(requestBody), cookie, "http://"+localHost, true)
+	if result.Code != http.StatusOK || bytes.Contains(result.Body.Bytes(), cert) {
+		t.Fatalf("association failed or leaked DER: %d", result.Code)
+	}
+	var associated inventoryOutput
+	if err := json.Unmarshal(result.Body.Bytes(), &associated); err != nil || associated.Generation != 3 ||
+		len(associated.Records) != 1 || associated.Records[0].ImportGeneration != 2 ||
+		len(associated.Records[0].Locations) != 2 || associated.Records[0].Locations[1] != "production/haproxy" ||
+		associated.Verification != "not-performed" {
+		t.Fatalf("association response: %v %#v", err, associated)
+	}
+	for _, tc := range []struct {
+		body string
+		want int
+	}{
+		{string(requestBody), http.StatusConflict}, // stale displayed generation
+		{`{"fingerprint":"missing","location":"new","expected_generation":3}`, http.StatusNotFound},
+		{`{"fingerprint":"` + saved.Records[0].Fingerprint + `","location":"production/haproxy","expected_generation":3}`, http.StatusConflict},
+	} {
+		if w := inventoryCall(g, "POST", "/api/inventory/locations", tc.body, cookie, "http://"+localHost, true); w.Code != tc.want {
+			t.Fatalf("unsafe location mutation accepted: %d want %d", w.Code, tc.want)
+		}
+	}
+	listed := inventoryCall(g, "GET", "/api/inventory", "", cookie, "", true)
+	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"generation":3`) || !strings.Contains(listed.Body.String(), `"locations":["production/nginx","production/haproxy"]`) {
+		t.Fatalf("location list not durable: %d", listed.Code)
 	}
 }

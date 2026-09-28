@@ -17,6 +17,9 @@ func TestNonLinuxDurableInventoryFailsClosed(t *testing.T) {
 	if records, _, err := AppendInventory("unused", nil, nil, [32]byte{}, nil, "", ""); !errors.Is(err, ErrRecoveryUnsupported) || records != nil {
 		t.Fatal("non-Linux inventory wrote")
 	}
+	if record, _, err := AssociateInventoryLocation("unused", nil, nil, [32]byte{}, 1, "fingerprint", "location"); !errors.Is(err, ErrRecoveryUnsupported) || record.Fingerprint != "" {
+		t.Fatal("non-Linux inventory location wrote")
+	}
 	if err := ExportFullSnapshot("", "", "", ""); !errors.Is(err, ErrRecoveryUnsupported) {
 		t.Fatal("non-Linux full backup exported")
 	}

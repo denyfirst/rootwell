@@ -61,8 +61,12 @@ func TestContainerVolumeDrill(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if added, generation, err := AppendInventory(data, key, id, revision, cert, "Operations", "test/nginx"); err != nil || len(added) != 1 || generation != 2 {
+		added, generation, err := AppendInventory(data, key, id, revision, cert, "Operations", "test/nginx")
+		if err != nil || len(added) != 1 || generation != 2 {
 			t.Fatalf("volume import failed: %v", err)
+		}
+		if record, generation, err := AssociateInventoryLocation(data, key, id, revision, 2, added[0].Fingerprint, "test/haproxy"); err != nil || generation != 3 || len(record.Locations) != 2 {
+			t.Fatalf("volume association failed: %v", err)
 		}
 		if err := ExportFullSnapshot(data, backup, password, code); err != nil {
 			t.Fatal(err)
@@ -151,7 +155,8 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 		t.Fatal(err)
 	}
 	records, generation, err := ReadInventory(accessPath, key, id, revision)
-	if err != nil || generation != 2 || len(records) != 1 || records[0].Owner != "Operations" || records[0].Location != "test/nginx" {
+	if err != nil || generation != 3 || len(records) != 1 || records[0].Owner != "Operations" || records[0].Location != "test/nginx" ||
+		len(records[0].Locations) != 2 || records[0].Locations[1] != "test/haproxy" || records[0].ImportGeneration != 2 {
 		t.Fatalf("volume inventory did not survive: %v", err)
 	}
 	if ids, snapshotGeneration, err := VerifyFullSnapshot(backupPath, code, SnapshotRecoveryCode); err != nil || snapshotGeneration != generation || !bytes.Equal(ids, id) {
