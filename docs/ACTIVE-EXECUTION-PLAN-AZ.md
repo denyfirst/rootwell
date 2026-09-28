@@ -60,9 +60,14 @@ olunmamış nəticəyə “verified” demək qadağandır.
    Bu canlı server yoxlaması və ya deployment sübutu deyil. Public metadata
    belə daxili adları aça bilər; network discovery yoxdur. Sonrakı UX
    increment-ləri təhlükəsiz metadata redaktəsi/silmə və expiry prioritetidir.
-6. **Secret-bearing conversion / vault.** PFX və private key-lər yalnız ayrıca
-   təhlükə modeli, dependency review, memory/output/file permission testləri
-   və müstəqil audit qapısından sonra browser və ya server scope-una girə bilər.
+6. **Secret-bearing conversion / vault.** İlk qərar və təhlükə modeli
+   [`ADR 0029`](adr/0029-secret-bearing-conversion-sequence.md) və
+   [`SECRET-CONVERSION-THREAT-MODEL.md`](SECRET-CONVERSION-THREAT-MODEL.md)
+   sənədlərindədir. Növbəti implementasiya public-only CLI çıxış sərhədi,
+   sonra ayrıca offline PFX yaratma və oxuma increment-ləridir. Browser/server
+   PFX və private key-ləri yalnız ayrıca dependency review,
+   memory/output/file-permission testləri və müstəqil audit qapısından sonra
+   qəbul edə bilər. Bu qərar özü heç bir secret capability-ni açmır.
 
 Workbench-də **Inspect** tək public sertifikatı və ya PEM bundle/çoxfayllı
 kolleksiyanı eyni yerdə açır. Hər kartdan seçilmiş sertifikatın geniş
