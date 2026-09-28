@@ -226,7 +226,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	if strings.Contains(application, "localStorage") || strings.Contains(application, "sessionStorage") {
 		t.Fatal("application script persists workbench input")
 	}
-	for _, required := range []string{"selectedInspectFile.arrayBuffer()", "engine.inspect(bytes)", "engine.explore(bytes)", "bytes.fill(0)", ".textContent ="} {
+	for _, required := range []string{"file.arrayBuffer()", "engine.inspect(output)", "engine.explore(bytes)", "bytes.fill(0)", ".textContent ="} {
 		if !strings.Contains(application, required) {
 			t.Errorf("application script is missing local-processing guard %q", required)
 		}
@@ -256,8 +256,8 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, statement := range []string{
 		"Certificate bytes stay inside this browser process",
-		"Local inspection · not a trust verdict",
-		"Local public-file conversion · not a trust verdict",
+		"Local public-file inspection · not a trust verdict",
+		"PFX and private keys are not supported yet",
 		"No chain verification performed · no trust anchor selected",
 		"do not prove chain trust",
 		"Revocation</strong> Not checked",
@@ -273,11 +273,11 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 	assets := workbenchAssets(t)
 	html := assets["index.html"]
 	for _, required := range []string{
-		`id="explore-tab" data-tool="explore"`,
+		`id="inspect-tab" data-tool="inspect"`,
 		`id="explore-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`,
 		"1–8 files · 1–64 certificates · 16 MiB combined",
 		"duplicate certificates across files are rejected",
-		"Private keys and PFX are not supported",
+		"private keys and PFX are not accepted",
 		`href="rootwell-demo-bundle.pem" download`,
 		"The CA flag and possible issuer links are public-certificate evidence, not proof that a root is trusted",
 		`id="explore-result" aria-live="polite" hidden`,
@@ -288,7 +288,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 		`id="explore-report-status" aria-live="polite"`,
 		`id="explore-report-error" role="alert" hidden`,
 		`id="explore-verify-button" type="button" disabled`,
-		"Explore only the CA files, then continue to Verify",
+		"Inspect only the CA files, then continue to Verify",
 		"Nothing here is trusted yet",
 		`id="explore-expiry-list" aria-label="Public certificates ordered by expiry"`,
 		"A date window is not a trust, revocation, deployment, or renewal verdict",
@@ -325,18 +325,26 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 func TestWorkbenchPublicConversionIsFindableWithoutClaimingSecretSupport(t *testing.T) {
 	assets := workbenchAssets(t)
 	html := assets["index.html"]
-	if !strings.Contains(html, `<span><strong>Open &amp; convert</strong><small>Public PEM/DER certificates</small></span>`) ||
-		!strings.Contains(html, `id="explore-tab" data-tool="explore"`) ||
-		!strings.Contains(html, "Private keys and PFX are not supported") ||
+	if !strings.Contains(html, `<span><strong>Convert</strong><small>Download public PEM/DER</small></span>`) ||
+		!strings.Contains(html, `id="convert-tab" data-tool="convert"`) ||
+		!strings.Contains(html, `id="convert-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`) ||
+		!strings.Contains(html, `id="convert-open-button" type="button" disabled`) ||
+		!strings.Contains(html, `id="convert-error" role="alert" hidden`) ||
+		!strings.Contains(html, "PFX and private keys are not supported yet") ||
 		strings.Contains(html, "Planned after write safety") {
 		t.Fatal("public-only conversion entry is missing or misleading")
 	}
-	cards := strings.Index(html, `id="explore-certificates"`)
+	inspectStart := strings.Index(html, `id="inspect-panel"`)
+	convertStart := strings.Index(html, `id="convert-panel"`)
+	inspectCards := strings.Index(html, `id="explore-certificates"`)
+	cards := strings.Index(html, `id="convert-certificates"`)
 	advanced := strings.Index(html, `<details class="advanced-analysis">`)
 	links := strings.Index(html, `id="explore-links-heading"`)
 	report := strings.Index(html, `id="explore-report-button"`)
-	if cards < 0 || advanced <= cards || links <= advanced || report <= advanced {
-		t.Fatal("certificate conversion must precede collapsed technical analysis and JSON report")
+	if inspectStart < 0 || convertStart <= inspectStart || inspectCards <= inspectStart ||
+		advanced <= inspectCards || links <= advanced || report <= advanced ||
+		cards <= convertStart || strings.Index(html, `id="export-bundle-button"`) <= cards {
+		t.Fatal("Inspect and Convert are not separated or technical inspection is misplaced")
 	}
 	if strings.Contains(html, `<details class="advanced-analysis" open`) {
 		t.Fatal("technical analysis and JSON report must start closed")
@@ -344,8 +352,18 @@ func TestWorkbenchPublicConversionIsFindableWithoutClaimingSecretSupport(t *test
 	if !strings.Contains(html, `<details class="demo-guide">`) {
 		t.Fatal("verification demo must not crowd the default conversion path")
 	}
-	if !strings.Contains(assets["app.js"], `name === "explore" ? "Open & convert"`) {
+	if !strings.Contains(assets["app.js"], `name === "convert" ? "Convert"`) {
 		t.Fatal("selected tool path does not match the public conversion entry")
+	}
+	for _, required := range []string{
+		`convertInput.addEventListener("change"`,
+		`convertOpenButton.addEventListener("click", inspectPublicFiles)`,
+		`convertError.textContent = message`,
+		`convertCertificates.replaceChildren()`,
+	} {
+		if !strings.Contains(assets["app.js"], required) {
+			t.Errorf("direct public Convert is missing guard %q", required)
+		}
 	}
 }
 
@@ -356,7 +374,7 @@ func TestWorkbenchPublicExportIsLocalAndExplicit(t *testing.T) {
 		`id="export-status" aria-live="polite"`,
 		`id="export-error" role="alert" hidden`,
 		"Choose the certificate encoding and filename extension",
-		"A .crt or .cer name can contain PEM or DER",
+		".crt and .cer are filename extensions",
 		"Rootwell does not write directly to disk",
 	} {
 		if !strings.Contains(html, required) {
@@ -429,9 +447,9 @@ func TestWorkbenchInspectFileHintMatchesParserBoundary(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, required := range []string{
 		`accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`,
-		"Choose a certificate file (.pem, .crt, .cer, .der)",
-		"one certificate · maximum 16 MiB",
-		"Its content must be PEM or DER; bundles and PFX are not supported here",
+		"Choose public certificate files or PEM bundles",
+		"1–8 files · 1–64 certificates · 16 MiB combined",
+		"private keys and PFX are not accepted",
 	} {
 		if !strings.Contains(html, required) {
 			t.Errorf("Inspect file hint is missing boundary %q", required)

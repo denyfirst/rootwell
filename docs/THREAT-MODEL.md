@@ -154,10 +154,14 @@ format require their own boundary review before implementation.
 
 ## Browser inspection boundary
 
-The static Workbench can inspect one public PEM or DER X.509 certificate with a
-Go WebAssembly build of the same bounded core used by the CLI. The operator
-must explicitly choose a file and press **Inspect certificate** before bytes are
-read. No certificate upload or parsing API exists: the selected bytes move from
+The static Workbench's single-certificate bridge can inspect one public PEM
+or DER X.509 certificate with a Go WebAssembly build of the same bounded core
+used by the CLI. The current UI first opens public files through the bundle
+boundary below, then uses this bridge for a selected certificate's full
+details. The operator must explicitly press **Inspect public files** or
+**Open public files for conversion** before initial bytes are read, and
+**View full details** before that certificate is
+re-read. No certificate upload or parsing API exists: the selected bytes move from
 the browser `File` object into a JavaScript byte array and then into Go linear
 memory in the same browser process.
 
@@ -189,8 +193,9 @@ engine.
 
 ## Browser public bundle exploration boundary
 
-The Explore tab reads 1–8 explicitly selected files only after **Explore
-bundle** is pressed. Each file accepts one complete DER certificate or 1–64
+The Inspect/Convert public path reads 1–8 explicitly selected files only after
+**Inspect public files** or **Open public files for conversion** is pressed.
+Each file accepts one complete DER certificate or 1–64
 public PEM `CERTIFICATE` blocks through the same `publicbundle` parser as the
 CLI. The browser additionally enforces a 16 MiB combined, 64-certificate
 combined, and 1 MiB aggregate metadata-text limit. It tracks full SHA-256
@@ -215,6 +220,20 @@ source; selecting new files invalidates old cards. JS and Go entry buffers
 and parsed public DER copies
 are cleared on a best-effort basis, without a browser-wide erasure claim.
 Selected certificate data can still include sensitive internal identities.
+
+Full per-certificate Inspect details are requested explicitly from a displayed
+card, not trusted from the summary. The selected public source is re-read and
+its ordered fingerprints must still match the displayed snapshot. The
+existing public export bridge extracts that certificate as bounded DER by its
+full fingerprint; the existing single-certificate Inspect bridge then parses
+it. The detailed response must agree on fingerprint, CA flag, subject, issuer,
+and validity dates before it is rendered as text. Changed or inconsistent source,
+response, or selection hides old details and shows no partial detail. The
+temporary JavaScript input/output buffers are cleared best-effort. This does
+not add secret input, storage, network access, trust, or browser-wide erasure.
+The separate Convert tab renders only a current successful public import
+snapshot. Its own file chooser invokes the same bounded public path; changed
+selection or failure clears its choices and shows the refusal in Convert too.
 
 Exploration is not verification. The bridge says `not-performed` and
 `not-selected`; the UI never promotes an included CA certificate to a trusted

@@ -11,6 +11,7 @@ class Element {
     this.disabled = false;
     this.files = [];
     this.textContent = "";
+    this.classList = { add() {}, remove() {} };
   }
   addEventListener(name, listener) { this.listeners[name] = listener; }
   setAttribute() {}
@@ -199,7 +200,7 @@ const beforeChangedReport = document.body.children.length;
 element("explore-report-button").listeners.click();
 await new Promise((resolve) => setImmediate(resolve));
 assert.equal(document.body.children.length, beforeChangedReport, "changed source must not download a report");
-assert.match(element("explore-report-error").textContent, /changed since Explore/);
+assert.match(element("explore-report-error").textContent, /changed since Inspect/);
 assert.match(element("explore-report-status").textContent, /No report was downloaded/);
 
 const malformedReportFile = file("A");
@@ -210,7 +211,7 @@ const beforeMalformedReport = document.body.children.length;
 element("explore-report-button").listeners.click();
 await new Promise((resolve) => setImmediate(resolve));
 assert.equal(document.body.children.length, beforeMalformedReport, "malformed re-read must not download a report");
-assert.match(element("explore-report-error").textContent, /changed since Explore/);
+assert.match(element("explore-report-error").textContent, /changed since Inspect/);
 
 let releaseReportRead;
 const pendingReportFile = file("A");
@@ -287,7 +288,7 @@ clock = Date.parse("2026-09-25T12:00:00Z");
 
 select([file("A"), file("B")]);
 await explore();
-const firstSelection = element("explore-certificates").children[0].children[2].children[0];
+const firstSelection = element("convert-certificates").children[0].children[2].children[0];
 assert.equal(element("export-bundle-button").disabled, true);
 firstSelection.checked = true;
 firstSelection.listeners.change();
@@ -428,7 +429,7 @@ assert.equal(element("explore-verify-button").textContent, "Continue to Verify w
 element("explore-verify-button").listeners.click();
 assert.equal(element("verify-panel").hidden, false);
 assert.equal(element("verify-simple-mode").checked, true);
-assert.match(element("verify-guided-source").textContent, /Using 1 public file from Explore/);
+assert.match(element("verify-guided-source").textContent, /Using 1 public file from Inspect/);
 assert.equal(element("verify-button").disabled, true, "guided source cannot bypass hostname and separate root");
 element("verify-hostname").value = "verify.rootwell.invalid";
 element("verify-hostname").listeners.input();
@@ -476,7 +477,7 @@ assert.equal(element("verify-button").disabled, false);
 changingGuidedFile.arrayBuffer = async () => Uint8Array.of(66).buffer;
 await element("verify-button").listeners.click();
 assert.equal(guidedCalls, 1, "changed guided source must not reach verification");
-assert.match(element("verify-error").textContent, /Files changed since Explore/);
+assert.match(element("verify-error").textContent, /Files changed since Inspect/);
 assert.equal(element("verify-result").hidden, true);
 select([file("B")]);
 assert.equal(element("verify-guided-source").hidden, true, "new Explore selection clears transferred files");
@@ -663,5 +664,84 @@ await element("verify-export-button").listeners.click();
 assert.equal(element("verify-result").hidden, true, "an invalid export response must invalidate Verified state");
 assert.equal(element("verify-export-button").disabled, true);
 assert.match(element("verify-error").textContent, /invalid response/);
+
+const detailDocument = (item) => ({
+  schema_version: "rootwell.inspect.x509.v1", object_type: "x509-certificate", encoding: "der",
+  subject: item.subject, issuer: item.issuer, serial: "01",
+  validity: { not_before: item.not_before, not_after: item.not_after },
+  time_window: { status: "within-validity-window", evaluated_at: "2026-09-25T12:00:00Z",
+    seconds_until_start: null, seconds_until_expiry: 1000000, seconds_since_expiry: null },
+  public_key: { algorithm: "RSA", bits: 2048, curve: "" }, signature_algorithm: "SHA256-RSA",
+  basic_constraints: { present: true, is_ca: false, max_path_length: null },
+  key_usage: ["digital-signature"], extended_key_usage: ["server-auth"], unknown_extended_key_usage: [],
+  subject_key_id: "", authority_key_id: "", critical_extensions: [], unhandled_critical_extensions: [],
+  subject_alternative_names: { dns: ["public.invalid"], email: [], ip: [], uri: [] },
+  fingerprints: { sha256: item.sha256 }
+});
+let detailedInspections = 0;
+engine.exportPublic = (_bytes, fingerprint, format) => {
+  assert.equal(format, "der");
+  assert.equal(fingerprint, certificate(65).sha256);
+  return { schema_version: "rootwell.browser.export.v1", ok: true, error: null,
+    result: { encoding: "der", fingerprint,
+      filename: "rootwell-public-" + fingerprint.replaceAll(":", "").slice(0, 16).toLowerCase() + "-" + "a".repeat(32) + ".der",
+      bytes: Uint8Array.of(80) } };
+};
+engine.inspect = () => {
+  detailedInspections++;
+  return JSON.stringify({ schema_version: "rootwell.browser.inspect.v1", ok: true, error: null,
+    result: detailDocument(certificate(65)) });
+};
+const detailedFile = file("A");
+select([detailedFile]);
+await explore();
+assert.equal(element("convert-result").hidden, false, "Inspect makes the same public files available to Convert");
+assert.equal(element("convert-certificates").children.length, 1);
+element("explore-certificates").children[0].children[2].listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(detailedInspections, 1);
+assert.equal(element("inspect-result").hidden, false, "full single-certificate details are available from a bundle card");
+assert.equal(element("inspect-detail-dns").textContent, "public.invalid");
+assert.equal(element("inspect-result-encoding").textContent, "PEM", "show original source encoding, not intermediate DER");
+engine.inspect = () => JSON.stringify({ schema_version: "rootwell.browser.inspect.v1", ok: true, error: null,
+  result: { ...detailDocument(certificate(65)), fingerprints: { sha256: certificate(66).sha256 } } });
+element("explore-certificates").children[0].children[2].listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(element("inspect-result").hidden, true, "wrong detailed fingerprint must not be displayed");
+assert.match(element("inspect-detail-error").textContent, /could not be confirmed/);
+detailedFile.arrayBuffer = async () => Uint8Array.of(66).buffer;
+element("explore-certificates").children[0].children[2].listeners.click();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(detailedInspections, 1, "changed public source must not reach detailed inspection");
+assert.equal(element("inspect-result").hidden, true);
+assert.match(element("inspect-detail-error").textContent, /could not be confirmed/);
+select([file("B")]);
+assert.equal(element("convert-result").hidden, true, "new selection invalidates previous conversion choices");
+assert.equal(element("inspect-detail-error").hidden, true);
+
+const pendingDetailFile = file("A");
+select([pendingDetailFile]);
+await explore();
+let finishDetailRead;
+pendingDetailFile.arrayBuffer = () => new Promise((resolve) => { finishDetailRead = resolve; });
+element("explore-certificates").children[0].children[2].listeners.click();
+select([file("B")]);
+finishDetailRead(Uint8Array.of(65).buffer);
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(element("inspect-result").hidden, true, "old async details must not reappear after selection change");
+assert.equal(element("inspect-detail-error").hidden, true, "stale async details must not show an error for the new selection");
+
+element("convert-file").files = [file("A"), file("B")];
+element("convert-file").listeners.change();
+assert.equal(element("convert-open-button").disabled, false, "Convert can accept public files directly");
+assert.equal(element("convert-file-state").textContent, "2 files · 2 B total");
+await element("convert-open-button").listeners.click();
+assert.equal(element("convert-result").hidden, false);
+assert.equal(element("convert-certificates").children.length, 2);
+element("convert-file").files = [file("X")];
+element("convert-file").listeners.change();
+await element("convert-open-button").listeners.click();
+assert.equal(element("convert-result").hidden, true, "malformed direct Convert input must show no partial output");
+assert.equal(element("convert-error").hidden, false, "direct Convert refusal must be visible in Convert");
 
 console.log("Rootwell multi-file and Verify Workbench behavior passed.");

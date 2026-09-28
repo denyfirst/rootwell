@@ -510,6 +510,8 @@ main {
 .demo-guide summary { cursor: pointer; color: var(--brand); font-size: 0.78rem; font-weight: 650; }
 .demo-guide p { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.55; }
 .bundle-list li { min-width: 0; padding: 1rem; background: var(--paper-sunk); border: 1px solid var(--rule); }
+.bundle-list li > p { overflow-wrap: anywhere; color: var(--ink-soft); font-size: 0.74rem; }
+.bundle-list li > .button { margin: 0.85rem 0.45rem 0 0; }
 .bundle-card-head { display: flex; align-items: baseline; gap: 0.6rem; }
 .bundle-card-head span { flex: none; color: var(--brand); font-family: var(--mono); font-size: 0.7rem; }
 .bundle-card-head strong { font-size: 0.88rem; overflow-wrap: anywhere; }
