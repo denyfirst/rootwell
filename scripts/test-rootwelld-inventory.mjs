@@ -18,7 +18,9 @@ const ids = ["inventory-form", "certificate-file", "owner", "location", "save-bu
   "owner-panel", "owner-form", "owner-target", "new-owner", "owner-button", "owner-cancel", "owner-status"];
 ids.push("location-manage-panel", "location-manage-form", "location-manage-target", "old-location", "replacement-location",
   "rename-location-button", "remove-location-button", "confirm-remove", "location-manage-cancel", "location-manage-status");
+ids.push("clock-as-of", "expiry-filter", "inventory-search");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
+elements["expiry-filter"].value = "all";
 const requests = [];
 let fileReads = 0;
 const publicFile = new Uint8Array(Buffer.from("-----BEGIN CERTIFICATE-----\nAQ==\n-----END CERTIFICATE-----\n"));
@@ -59,9 +61,10 @@ const fetchImpl = async (url, options) => {
   }
   return { ok: true, async json() { return currentResponse; } };
 };
+class FixedDate extends Date { static now() { return Date.parse("2026-09-28T00:00:00Z"); } }
 vm.runInNewContext(source, {
   document: { getElementById(id) { return elements[id]; }, createElement() { return new Element(); } },
-  fetch: fetchImpl, TextEncoder, Uint8Array, Date, btoa: value => Buffer.from(value, "binary").toString("base64"),
+  fetch: fetchImpl, TextEncoder, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
 }, { filename: "inventory.js" });
 
 await new Promise(resolve => setImmediate(resolve));
@@ -73,6 +76,7 @@ assert.equal(elements.records.children.length, 1);
 assert.equal(elements.records.children[0].children[0].textContent, "<untrusted subject>");
 assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Saved at (server clock)")));
 assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Deployment at these locations has not been checked")));
+assert.match(elements["clock-as-of"].textContent, /2026-09-28T00:00:00.000Z.*does not alert or renew/);
 
 const addLocation = elements.records.children[0].children.find(node => node.textContent === "Add another location");
 assert.ok(addLocation);
@@ -211,4 +215,45 @@ elements["certificate-file"].files = [{ size: 16 * 1024 * 1024 + 1, async arrayB
 await elements["inventory-form"].listeners.submit({ preventDefault() {} });
 assert.equal(requests.length, before, "oversized file was uploaded");
 
-console.log("Rootwell public inventory UI boundary and explicit-save behavior passed.");
+const makeRecord = (fingerprint, notAfter, extra = {}) => ({ ...response.records[0], fingerprint,
+  subject: fingerprint, not_after: notAfter, ...extra });
+currentResponse = { generation: 8, verification: "not-performed", records: [
+  makeRecord("later", "2027-01-01T00:00:00Z"),
+  makeRecord("medium", "2026-10-29T00:00:00Z"),
+  makeRecord("soon", "2026-10-28T00:00:00Z"),
+  makeRecord("expired", "2026-09-28T00:00:00Z", { owner: "", location: "", locations: [] }),
+  makeRecord("future", "2027-01-01T00:00:00Z", { not_before: "2026-10-01T00:00:00Z" }),
+  makeRecord("invalid", "2025-01-01T00:00:00Z"),
+] };
+await elements["refresh-button"].listeners.click();
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent),
+  ["invalid", "expired", "soon", "medium", "future", "later"], "priority and exact expiry boundary");
+assert.ok(elements.counts.children.some(node => node.textContent === "Owner unknown: 1"));
+assert.ok(elements.counts.children.some(node => node.textContent === "Location unknown: 1"));
+assert.ok(elements.records.children.find(node => node.children[0].textContent === "expired").children
+  .some(node => /not renewed automatically/.test(node.textContent)));
+const beforeView = requests.length;
+elements["expiry-filter"].value = "soon";
+elements["expiry-filter"].listeners.change();
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["soon"]);
+elements["expiry-filter"].value = "missing-owner";
+elements["expiry-filter"].listeners.change();
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["expired"]);
+elements["expiry-filter"].value = "missing-location";
+elements["expiry-filter"].listeners.change();
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["expired"]);
+elements["expiry-filter"].value = "all";
+elements["inventory-search"].value = "MeDiUm";
+elements["inventory-search"].listeners.input();
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["medium"]);
+assert.equal(requests.length, beforeView, "filter and search must not transmit inventory notes");
+assert.equal(fileReads, 1, "filter and search must not reread selected files");
+elements["inventory-search"].value = "";
+elements["inventory-search"].listeners.input();
+assert.equal(elements.records.children.length, 6);
+currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: "not a date" }] };
+await elements["refresh-button"].listeners.click();
+assert.equal(elements.records.children.length, 1);
+assert.match(elements.records.children[0].children[1].textContent, /Invalid date range/);
+
+console.log("Rootwell public inventory UI boundary, explicit save, and local-only expiry triage passed.");

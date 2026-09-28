@@ -86,7 +86,7 @@ sərhəd sübut edildikdən sonra keçirik.
    rename/remove; sertifikat və digər yerlər qorunur. Sonuncu yer silinəndə
    “unknown” açıq göstərilir. Bu serverdən certificate-i silmir və deploy
    əməliyyatı deyil. Yanlış seçimi və köhnə tabı rədd edən testlər lazımdır.
-3. **Expiry prioritet görünüşü.** Browser saatının etibarsızlığını göstərərək
+3. **Expiry prioritet görünüşü — tamamlanıb.** Browser saatının etibarsızlığını göstərərək
    expired/30/90 gün filtrləri, unknown owner/location göstəricisi və aydın
    “indi nə etməli” yönləndirməsi. Bu notification, renewal və trust hökmü
    deyil; avtomatik səssiz qərar vermir.

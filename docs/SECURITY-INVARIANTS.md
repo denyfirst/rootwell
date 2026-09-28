@@ -807,3 +807,17 @@ Guarded by `TestRenameAndRemoveLocationPreserveCertificateAndUnknownState`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
 `TestLocationChangeInputRequiresExactActionAndFields`, `TestContainerVolumeDrill`,
 and `scripts/test-rootwelld-inventory.mjs`.
+
+## C52 — Expiry triage is a local, untrusted-clock view, not automation
+
+The saved public inventory response is fully validated before local-only
+priority sorting, text search, and expiry or missing-note filters. At the exact
+NotAfter instant the certificate is expired. Counts include all records even
+when filtered; the shown count states the distinction. Filtering neither
+transmits metadata nor rereads selected files, stores search terms, changes
+the encrypted image, or opens a correction panel for a stale selection. The
+browser clock is displayed with an explicit warning, and next-action text
+does not claim verified deployment, trust, notification, or renewal. An
+incorrect device clock remains a residual risk.
+
+Guarded by `scripts/test-rootwelld-inventory.mjs`.

@@ -11,6 +11,9 @@
   const listStatus = document.getElementById("list-status");
   const counts = document.getElementById("counts");
   const list = document.getElementById("records");
+  const clockAsOf = document.getElementById("clock-as-of");
+  const expiryFilter = document.getElementById("expiry-filter");
+  const inventorySearch = document.getElementById("inventory-search");
   const locationPanel = document.getElementById("location-panel");
   const locationForm = document.getElementById("location-form");
   const locationTarget = document.getElementById("location-target");
@@ -47,6 +50,7 @@
   let selectedManageLocations = [];
   let originalOwner = null;
   let displayedGeneration = 0;
+  let loadedRecords = [];
 
   function validLabel(value) {
     return encoder.encode(value).length <= 128 && value.trim() === value &&
@@ -72,10 +76,10 @@
     const end = safeDate(record.not_after);
     if (start === null || end === null || start > end) return { name: "Invalid date range", group: "invalid" };
     if (now < start) return { name: "Not yet valid", group: "future" };
-    if (now > end) return { name: "Expired", group: "expired" };
+    if (now >= end) return { name: "Expired", group: "expired" };
     const days = (end - now) / 86400000;
     if (days <= 30) return { name: "Expires within 30 days", group: "soon" };
-    if (days <= 90) return { name: "Expires in 31–90 days", group: "medium" };
+    if (days <= 90) return { name: "Expires after 30 days, within 90 days", group: "medium" };
     return { name: "More than 90 days left", group: "later" };
   }
 
@@ -91,7 +95,6 @@
         !Array.isArray(data.records) || data.records.length > 500 || data.verification !== "not-performed") {
       throw new Error("Inventory response was not recognized");
     }
-    const now = Date.now();
     const records = data.records.slice();
     const fingerprints = new Set();
     for (const record of records) {
@@ -110,8 +113,8 @@
         throw new Error("Inventory locations were not recognized");
       }
       fingerprints.add(record.fingerprint);
-      record.expiry = expiryState(record, now);
     }
+    loadedRecords = records;
     displayedGeneration = data.generation;
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
@@ -124,16 +127,46 @@
     locationStatus.textContent = "";
     ownerStatus.textContent = "";
     locationManageStatus.textContent = "";
-    records.sort((a, b) => (safeDate(a.not_after) ?? Number.NEGATIVE_INFINITY) - (safeDate(b.not_after) ?? Number.NEGATIVE_INFINITY));
+    draw();
+  }
+
+  function draw() {
+    if (!displayedGeneration) return;
+    const now = Date.now();
+    clockAsOf.textContent = "Calculated as of this browser’s clock: " + new Date(now).toISOString() +
+      ". Check this device’s time before acting. This page does not alert or renew certificates.";
+    const records = loadedRecords.map(record => ({ ...record, expiry: expiryState(record, now) }));
+    const rank = { invalid: 0, expired: 1, soon: 2, medium: 3, future: 4, later: 5 };
+    records.sort((a, b) => rank[a.expiry.group] - rank[b.expiry.group] ||
+      (safeDate(a.not_after) ?? Number.NEGATIVE_INFINITY) - (safeDate(b.not_after) ?? Number.NEGATIVE_INFINITY) ||
+      a.fingerprint.localeCompare(b.fingerprint));
     list.replaceChildren();
     counts.replaceChildren();
     const totals = { expired: 0, soon: 0, medium: 0, later: 0, future: 0, invalid: 0 };
+    const filter = expiryFilter.value || "all";
+    const query = inventorySearch.value.trim().toLocaleLowerCase();
+    let shown = 0;
     for (const record of records) {
       totals[record.expiry.group]++;
+      if (filter !== "all" && filter !== record.expiry.group &&
+          !(filter === "missing-owner" && !record.owner) &&
+          !(filter === "missing-location" && !record.locations.length)) continue;
+      if (query && ![record.subject, record.fingerprint, record.owner, ...record.locations]
+        .some(value => value.toLocaleLowerCase().includes(query))) continue;
+      shown++;
       const item = document.createElement("li");
       addText(item, "strong", record.subject || "Subject not provided");
       addText(item, "span", record.expiry.name, "state " + record.expiry.group);
       addText(item, "small", "Expires: " + record.not_after + " · Import batch " + record.import_generation);
+      const guidance = {
+        invalid: "Next: check the imported certificate dates and your browser clock; do not use this status as a trust verdict.",
+        expired: "Next: identify the owner and deployment, then arrange replacement outside Rootwell; this record is not renewed automatically.",
+        soon: "Next: confirm the actual deployment and arrange renewal with its issuer before expiry.",
+        medium: "Next: plan renewal with the owner and confirm the real deployment.",
+        future: "Next: check the browser clock and certificate validity start before deployment.",
+        later: "Next: keep ownership and location notes current; deployment is not verified."
+      };
+      addText(item, "small", guidance[record.expiry.group], "next-action");
       if (record.imported_at) addText(item,"small","Saved at (server clock): " + record.imported_at);
       addText(item, "small", "Owner: " + (record.owner || "Unknown") + " · Manually listed locations: " +
         (record.locations.length ? record.locations.join(" · ") : "Unknown"));
@@ -206,10 +239,14 @@
       item.appendChild(manageLocationButton);
       list.appendChild(item);
     }
-    for (const [name, value] of Object.entries(totals)) {
-      if (value) addText(counts, "span", name + ": " + value);
-    }
-    listStatus.textContent = records.length ? records.length + " saved public certificate(s) · inventory generation " + data.generation :
+    const labels = { expired: "Expired", soon: "Within 30 days", medium: "After 30, within 90 days",
+      later: "More than 90 days", future: "Not yet valid", invalid: "Invalid dates" };
+    for (const [name, value] of Object.entries(totals)) addText(counts, "span", labels[name] + ": " + value);
+    const unknownOwners = records.filter(record => !record.owner).length;
+    const unknownLocations = records.filter(record => !record.locations.length).length;
+    addText(counts, "span", "Owner unknown: " + unknownOwners);
+    addText(counts, "span", "Location unknown: " + unknownLocations);
+    listStatus.textContent = records.length ? shown + " of " + records.length + " saved public certificate(s) shown · inventory generation " + displayedGeneration :
       "No certificates saved yet. This is not a trust store.";
   }
 
@@ -217,6 +254,8 @@
     const serial = ++loadSerial;
     refreshButton.disabled = true;
     displayedGeneration = 0;
+    loadedRecords = [];
+    clockAsOf.textContent = "";
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
     selectedManageFingerprint = null;
@@ -240,6 +279,7 @@
       if (serial !== loadSerial) return;
       list.replaceChildren();
       counts.replaceChildren();
+      clockAsOf.textContent = "";
       listStatus.textContent = error instanceof Error ? error.message : "Inventory could not be opened";
       return false;
     } finally {
@@ -468,5 +508,19 @@
   });
 
   refreshButton.addEventListener("click", refresh);
+  function changeView() {
+    if (!displayedGeneration || saving || associating || editingOwner || changingLocation) return;
+    selectedFingerprint = null;
+    selectedOwnerFingerprint = null;
+    selectedManageFingerprint = null;
+    selectedManageLocations = [];
+    originalOwner = null;
+    locationPanel.hidden = true;
+    ownerPanel.hidden = true;
+    locationManagePanel.hidden = true;
+    draw();
+  }
+  expiryFilter.addEventListener("change", changeView);
+  inventorySearch.addEventListener("input", changeView);
   refresh();
 }());
