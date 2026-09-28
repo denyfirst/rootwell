@@ -95,9 +95,11 @@ func unmarshalExact(input []byte, value any) error {
 	return nil
 }
 
-// Preflight requires the exact two-safe-content modern profile and caps all
-// three password KDFs before the dependency performs any expensive work. It
-// does not authenticate the PFX; Inspect repeats the check and verifies MAC.
+// Preflight requires the expected two-safe-content modern envelope and caps
+// its three visible password KDFs before the dependency decodes it. An extra
+// key bag hidden inside the encrypted safe is not visible here; the one-shot
+// CLI therefore also has a deadline. Preflight does not authenticate the PFX;
+// Inspect repeats this check and verifies MAC.
 func Preflight(input []byte) error {
 	if len(input) == 0 || len(input) > maxInputBytes {
 		return ErrUnsupported
