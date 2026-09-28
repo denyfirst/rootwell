@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,19 +17,19 @@ import (
 // is advisory; WriteNew independently rechecks all conditions before writing.
 func Preflight(path string) error {
 	if path == "" || filepath.Base(path) == "." {
-		return ErrUnsafe
+		return unsafe("invalid destination")
 	}
 	dir := filepath.Dir(path)
 	listed, err := os.Lstat(dir)
 	if err != nil || !listed.IsDir() || listed.Mode().Perm()&0o077 != 0 {
-		return ErrUnsafe
+		return unsafe("directory permissions")
 	}
 	owner, ok := listed.Sys().(*syscall.Stat_t)
 	if !ok || int64(owner.Uid) != int64(os.Geteuid()) {
-		return ErrUnsafe
+		return unsafe("directory ownership")
 	}
 	if _, err := os.Lstat(path); !os.IsNotExist(err) {
-		return ErrUnsafe
+		return unsafe("destination exists")
 	}
 	return nil
 }
@@ -38,65 +39,65 @@ func Preflight(path string) error {
 // callers receive ErrUncertain and must inspect the named destination.
 func WriteNew(path string, data []byte) error {
 	if path == "" || len(data) == 0 || filepath.Base(path) == "." {
-		return ErrUnsafe
+		return unsafe("invalid destination or empty data")
 	}
 	dir := filepath.Dir(path)
 	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return ErrUnsafe
+		return unsafe("open root")
 	}
 	defer root.Close()
 	listed, err := os.Lstat(dir)
 	if err != nil || !listed.IsDir() || listed.Mode().Perm()&0o077 != 0 {
-		return ErrUnsafe
+		return unsafe("directory permissions")
 	}
 	opened, err := root.Stat(".")
 	if err != nil || !os.SameFile(listed, opened) {
-		return ErrUnsafe
+		return unsafe("directory identity")
 	}
 	owner, ok := listed.Sys().(*syscall.Stat_t)
 	if !ok || int64(owner.Uid) != int64(os.Geteuid()) {
-		return ErrUnsafe
+		return unsafe("directory ownership")
 	}
 	var nonce [16]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
-		return ErrUnsafe
+		return unsafe("random staging name")
 	}
 	stagingName := ".rootwell-secret-" + hex.EncodeToString(nonce[:])
 	staging, err := root.OpenFile(stagingName, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return ErrUnsafe
+		return unsafe("create staging file")
 	}
 	defer func() { _ = root.Remove(stagingName) }()
 	stagedInfo, err := staging.Stat()
 	if err != nil || !stagedInfo.Mode().IsRegular() || stagedInfo.Mode().Perm()&0o077 != 0 {
 		_ = staging.Close()
-		return ErrUnsafe
+		return unsafe("staging permissions")
 	}
 	if written, err := staging.Write(data); err != nil || written != len(data) {
 		_ = staging.Close()
-		return ErrUnsafe
+		return unsafe("write staging file")
 	}
 	if err := staging.Sync(); err != nil {
 		_ = staging.Close()
-		return ErrUnsafe
+		return unsafe("sync staging file")
 	}
 	if _, err := staging.Seek(0, io.SeekStart); err != nil {
 		_ = staging.Close()
-		return ErrUnsafe
+		return unsafe("seek staging file")
 	}
 	readback := make([]byte, len(data))
 	defer clear(readback)
 	if _, err := io.ReadFull(staging, readback); err != nil || !bytes.Equal(readback, data) {
 		_ = staging.Close()
-		return ErrUnsafe
+		return unsafe("verify staging file")
 	}
 	if err := staging.Close(); err != nil {
-		return ErrUnsafe
+		return unsafe("close staging file")
 	}
 	name := filepath.Base(path)
 	if err := root.Link(stagingName, name); err != nil {
-		return ErrUnsafe
+		return unsafe("link destination")
 	}
 	outputInfo, err := root.Lstat(name)
 	if err != nil || !os.SameFile(stagedInfo, outputInfo) {
@@ -114,4 +115,8 @@ func WriteNew(path string, data []byte) error {
 		return ErrUncertain
 	}
 	return nil
+}
+
+func unsafe(stage string) error {
+	return fmt.Errorf("%w: %s", ErrUnsafe, stage)
 }
