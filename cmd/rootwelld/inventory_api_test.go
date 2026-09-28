@@ -145,3 +145,34 @@ func TestLocationChangeInputRequiresExactActionAndFields(t *testing.T) {
 		}
 	}
 }
+
+func TestInventoryDeleteInputRequiresTypedFingerprintConfirmationAndGeneration(t *testing.T) {
+	for _, tc := range []struct {
+		body, media string
+		want        int
+	}{
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","confirmation":"delete-public-record","expected_generation":3}`, "application/json", 0},
+		{`{"fingerprint":"abc","typed_fingerprint":"xyz","confirmation":"delete-public-record","expected_generation":3}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","confirmation":"delete-public-record","expected_generation":3}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","expected_generation":3}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","confirmation":"yes","expected_generation":3}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","confirmation":"delete-public-record","expected_generation":0}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","fingerprint":"abc","typed_fingerprint":"abc","confirmation":"delete-public-record","expected_generation":3}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","confirmation":"delete-public-record","expected_generation":3,"unknown":1}`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","confirmation":"delete-public-record","expected_generation":3} trailing`, "application/json", http.StatusBadRequest},
+		{`{"fingerprint":"abc","typed_fingerprint":"abc","confirmation":"delete-public-record","expected_generation":3}`, "text/plain", http.StatusUnsupportedMediaType},
+		{strings.Repeat("x", 1025), "application/json", http.StatusBadRequest},
+	} {
+		r := httptest.NewRequest("POST", "http://localhost/api/inventory/delete", strings.NewReader(tc.body))
+		r.Header.Set("Content-Type", tc.media)
+		w := httptest.NewRecorder()
+		input, ok := readInventoryDeleteInput(w, r)
+		if tc.want == 0 {
+			if !ok || input.Fingerprint != "abc" || input.TypedFingerprint != "abc" || input.ExpectedGeneration != 3 {
+				t.Fatalf("valid delete input refused: %d", w.Code)
+			}
+		} else if ok || w.Code != tc.want {
+			t.Fatalf("invalid delete input accepted: %d want %d", w.Code, tc.want)
+		}
+	}
+}

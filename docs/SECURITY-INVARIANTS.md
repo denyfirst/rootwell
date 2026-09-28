@@ -838,3 +838,24 @@ all writes; it never demonstrates durable storage or authentication.
 
 Guarded by `scripts/test-rootwelld-inventory.mjs` and
 `scripts/test-inventory-demo.mjs`.
+
+## C54 — Record deletion is exact, explicit, and never a revocation claim
+
+One saved public certificate and its manual notes can be removed from the
+current encrypted image only by an authenticated ready same-origin POST with
+the displayed generation, a duplicated exact fingerprint, and a fixed
+confirmation phrase. The UI additionally requires the operator to type the
+full displayed fingerprint and check a backup warning. The whole image is
+authenticated before deletion and atomically replaced; all surviving records
+retain their bytes, notes, and import provenance. Stale, absent, malformed,
+anonymous, cross-origin, and headerless attempts do not write. Removing the
+last record leaves a valid empty image. An older full snapshot still restores
+the old certificate, while a new snapshot restores its absence. This does
+not securely erase old bytes, delete backups, revoke a certificate, or alter
+a server deployment. No automatic deletion occurs.
+
+Guarded by `TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage`,
+`TestLinuxInventoryExplicitDeletionAndOldSnapshotRetention`,
+`TestInventoryDeleteInputRequiresTypedFingerprintConfirmationAndGeneration`,
+`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`, and
+`scripts/test-rootwelld-inventory.mjs`.

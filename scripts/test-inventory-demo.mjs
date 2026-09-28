@@ -37,6 +37,7 @@ try {
   assert.match(script, /addButton\.disabled = true/);
   assert.match(script, /editOwnerButton\.disabled = true/);
   assert.match(script, /manageLocationButton\.disabled = true/);
+  assert.match(script, /deleteRecordButton\.disabled = true/);
   console.log("Rootwell read-only fake-data Inventory demo boundary passed.");
 } finally {
   child.kill();

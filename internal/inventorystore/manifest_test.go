@@ -307,6 +307,77 @@ func TestChangeLocationPreservesCertificateAndImportProvenance(t *testing.T) {
 	}
 }
 
+func TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage(t *testing.T) {
+	key, id := testIdentity(t)
+	image, err := Create(key, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, first, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, second, err := Append(key, id, image, demo(t, "rootwell-verify-demo-root.pem"), "CA team", "ca/vault")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := bytes.Clone(image)
+	for _, tc := range []struct {
+		fingerprint string
+		generation  uint64
+		want        error
+	}{
+		{first[0].Fingerprint, 2, ErrStaleGeneration},
+		{"missing", 3, ErrNotFound},
+		{"", 3, ErrNotFound},
+	} {
+		if next, generation, err := DeleteRecord(key, id, image, tc.fingerprint, tc.generation); !errors.Is(err, tc.want) || next != nil || generation != 0 {
+			t.Fatalf("unsafe deletion accepted: %v", err)
+		}
+	}
+	if !bytes.Equal(image, previous) {
+		t.Fatal("rejected deletion changed input image")
+	}
+	next, generation, err := DeleteRecord(key, id, image, first[0].Fingerprint, 3)
+	if err != nil || generation != 4 || bytes.Contains(next, []byte("production/nginx")) {
+		t.Fatalf("exact deletion failed or leaked metadata: %v", err)
+	}
+	remaining, current, err := Open(key, id, next)
+	if err != nil || current != 4 || len(remaining) != 1 || remaining[0].Fingerprint != second[0].Fingerprint ||
+		remaining[0].Owner != second[0].Owner || remaining[0].Location != second[0].Location ||
+		remaining[0].ImportGeneration != second[0].ImportGeneration || remaining[0].ImportedAt != second[0].ImportedAt ||
+		!bytes.Equal(remaining[0].DER, second[0].DER) {
+		t.Fatalf("deletion changed surviving record: %v", err)
+	}
+	old, oldGeneration, err := Open(key, id, previous)
+	if err != nil || oldGeneration != 3 || len(old) != 2 || old[0].Fingerprint != first[0].Fingerprint {
+		t.Fatalf("older image did not retain deleted record: %v", err)
+	}
+	if result, got, err := DeleteRecord(key, id, next, first[0].Fingerprint, 4); !errors.Is(err, ErrNotFound) || result != nil || got != 0 {
+		t.Fatalf("repeated deletion accepted: %v", err)
+	}
+	corrupt := bytes.Clone(next)
+	corrupt[len(corrupt)/2] ^= 1
+	if result, got, err := DeleteRecord(key, id, corrupt, second[0].Fingerprint, 4); !errors.Is(err, ErrInvalid) || result != nil || got != 0 {
+		t.Fatalf("corrupt image deletion accepted: %v", err)
+	}
+	empty, generation, err := DeleteRecord(key, id, next, second[0].Fingerprint, 4)
+	if err != nil || generation != 5 {
+		t.Fatalf("last-record deletion failed: %v", err)
+	}
+	records, current, err := Open(key, id, empty)
+	if err != nil || current != 5 || len(records) != 0 {
+		t.Fatalf("empty image invalid: %v", err)
+	}
+	reimported, added, err := Append(key, id, empty, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	if err != nil || len(added) != 1 || added[0].ImportGeneration != 6 {
+		t.Fatalf("explicit reimport after deletion failed: %v", err)
+	}
+	if records, _, err := Open(key, id, reimported); err != nil || len(records) != 1 || records[0].Fingerprint != first[0].Fingerprint {
+		t.Fatalf("reimported image invalid: %v", err)
+	}
+}
+
 func TestAssociatedImageRejectsAuthorizedMalformedLocationPayload(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)

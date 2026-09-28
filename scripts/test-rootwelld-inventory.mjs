@@ -22,6 +22,7 @@ ids.push("location-manage-panel", "location-manage-form", "location-manage-targe
   "rename-location-button", "remove-location-button", "confirm-remove", "location-manage-cancel", "location-manage-status");
 ids.push("clock-as-of", "expiry-filter", "inventory-search");
 ids.push("preview-export-button", "download-export-button", "export-status", "export-preview");
+ids.push("delete-panel", "delete-form", "delete-target", "delete-fingerprint", "confirm-delete", "delete-button", "delete-cancel", "delete-status");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 elements["expiry-filter"].value = "all";
 const requests = [];
@@ -43,9 +44,21 @@ const response = { generation: 2, verification: "not-performed", records: [{
 let currentResponse = response;
 let rejectAssociation = false;
 let rejectOwner = false;
+let rejectDelete = false;
+let malformedDeleteResult = false;
 const fetchImpl = async (url, options) => {
   requests.push({ url, options });
   if (options.method === "GET") return { ok: true, async json() { return currentResponse; } };
+  if (url === "/api/inventory/delete") {
+    if (rejectDelete) return { ok: false, async text() { return "inventory changed; refresh before deletion"; } };
+    const body = JSON.parse(options.body);
+    if (malformedDeleteResult) return { ok: true, async json() { return { fingerprint: body.fingerprint,
+      generation: currentResponse.generation, deleted: false, verification: "not-performed" }; } };
+    currentResponse = { ...currentResponse, generation: currentResponse.generation + 1,
+      records: currentResponse.records.filter(record => record.fingerprint !== body.fingerprint) };
+    return { ok: true, async json() { return { fingerprint: body.fingerprint, generation: currentResponse.generation,
+      deleted: true, verification: "not-performed" }; } };
+  }
   if (url === "/api/inventory/locations") {
     if (rejectAssociation) return { ok: false, async text() { return "inventory changed; refresh before adding a location"; } };
     currentResponse = { ...response, generation: 3, records: [{ ...response.records[0], locations: ["production/nginx", "production/haproxy"] }] };
@@ -322,4 +335,46 @@ await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 0, "malformed date type was rendered");
 assert.equal(elements["download-export-button"].disabled, true);
 
-console.log("Rootwell public inventory UI boundary, expiry triage, and explicit local-only metadata export passed.");
+currentResponse = response;
+await elements["refresh-button"].listeners.click();
+elements.records.children[0].children.find(node => node.textContent === "Delete saved record").listeners.click();
+assert.equal(elements["delete-panel"].hidden, false);
+assert.match(elements["delete-target"].textContent, /ab:cd/);
+const beforeDelete = requests.length;
+await elements["delete-form"].listeners.submit({ preventDefault() {} });
+assert.equal(requests.length, beforeDelete, "unconfirmed deletion was transmitted");
+elements["delete-fingerprint"].value = "wrong";
+elements["confirm-delete"].checked = true;
+await elements["delete-form"].listeners.submit({ preventDefault() {} });
+assert.equal(requests.length, beforeDelete, "wrong fingerprint deletion was transmitted");
+elements["delete-fingerprint"].value = "ab:cd";
+rejectDelete = true;
+await elements["delete-form"].listeners.submit({ preventDefault() {} });
+assert.match(elements["delete-status"].textContent, /refresh before deletion/);
+assert.equal(elements["delete-panel"].hidden, false);
+rejectDelete = false;
+await elements["refresh-button"].listeners.click();
+elements.records.children[0].children.find(node => node.textContent === "Delete saved record").listeners.click();
+elements["delete-fingerprint"].value = "ab:cd";
+elements["confirm-delete"].checked = true;
+malformedDeleteResult = true;
+await elements["delete-form"].listeners.submit({ preventDefault() {} });
+assert.match(elements["delete-status"].textContent, /could not be confirmed/);
+assert.equal(elements.records.children.length, 1);
+malformedDeleteResult = false;
+await elements["refresh-button"].listeners.click();
+elements.records.children[0].children.find(node => node.textContent === "Delete saved record").listeners.click();
+elements["delete-fingerprint"].value = "ab:cd";
+elements["confirm-delete"].checked = true;
+await elements["delete-form"].listeners.submit({ preventDefault() {} });
+const deletion = requests.filter(request => request.url === "/api/inventory/delete").at(-1);
+assert.deepEqual(JSON.parse(deletion.options.body), { fingerprint: "ab:cd", typed_fingerprint: "ab:cd",
+  confirmation: "delete-public-record", expected_generation: 2 });
+assert.equal(deletion.options.credentials, "same-origin");
+assert.equal(deletion.options.headers["X-Rootwell-Request"], "1");
+assert.doesNotMatch(deletion.options.body, /certificate|PRIVATE KEY|AQ==/i);
+assert.equal(elements.records.children.length, 0, "deleted record stayed visible");
+assert.match(elements["list-status"].textContent, /Older snapshots may still contain it/);
+assert.equal(fileReads, 1, "deletion must not reread selected files");
+
+console.log("Rootwell public inventory UI, local export, and explicit record deletion passed.");

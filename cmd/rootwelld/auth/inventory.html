@@ -108,8 +108,22 @@
           <p id="location-manage-status" role="status" aria-live="polite"></p>
         </form>
       </section>
+      <section id="delete-panel" class="card metadata-panel" aria-labelledby="delete-heading" hidden>
+        <p class="eyebrow">07 / EXPLICIT RECORD DELETION</p>
+        <h2 id="delete-heading">Delete this saved certificate record</h2>
+        <p id="delete-target"></p>
+        <p>This removes the public certificate and its owner/location notes from the current encrypted inventory only. It does not revoke the certificate or remove it from a server. Older snapshots may restore it; this is not secure erasure. Re-import is possible if you still have the public certificate file.</p>
+        <form id="delete-form">
+          <label for="delete-fingerprint">Type the complete SHA-256 fingerprint shown above</label>
+          <input id="delete-fingerprint" type="text" autocomplete="off" spellcheck="false" required>
+          <label class="confirm-row" for="confirm-delete"><input id="confirm-delete" type="checkbox"> I understand that this removes only the current inventory record and older backups may retain it.</label>
+          <button id="delete-button" class="danger" type="submit">Delete this inventory record</button>
+          <button id="delete-cancel" class="secondary" type="button">Cancel</button>
+          <p id="delete-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
     </div>
-    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After saving certificates or locations, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An old snapshot cannot restore later changes.</p></aside>
+    <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>After any inventory change, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An older snapshot may restore records or notes you later deleted.</p></aside>
   </main>
 </body>
 </html>

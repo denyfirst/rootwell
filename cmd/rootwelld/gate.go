@@ -128,6 +128,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/owner":
 		g.inventoryOwnerEndpoint(w, r, s, signedIn)
 		return
+	case "/api/inventory/delete":
+		g.inventoryDeleteEndpoint(w, r, s, signedIn)
+		return
 	case "/inventory", "/inventory.js", "/inventory.css":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)

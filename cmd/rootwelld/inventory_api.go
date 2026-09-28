@@ -43,6 +43,21 @@ type inventoryLocationChangeInput struct {
 	ExpectedGeneration uint64
 }
 
+type inventoryDeleteInput struct {
+	Fingerprint        string
+	TypedFingerprint   string
+	Confirmation       string
+	ExpectedGeneration uint64
+}
+
+type inventoryDeleteOutput struct {
+	Fingerprint  string `json:"fingerprint"`
+	Generation   uint64 `json:"generation"`
+	Deleted      bool   `json:"deleted"`
+	Verification string `json:"verification"`
+	Backup       string `json:"backup"`
+}
+
 type inventoryItem struct {
 	Fingerprint      string   `json:"fingerprint"`
 	Subject          string   `json:"subject"`
@@ -382,6 +397,110 @@ func readInventoryOwnerInput(w http.ResponseWriter, r *http.Request) (inventoryO
 		len(input.Fingerprint) == 0 || len(input.Fingerprint) > 128 || input.ExpectedGeneration == 0 || !publicinventory.ValidOwner(input.Owner) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return inventoryOwnerInput{}, false
+	}
+	return input, true
+}
+
+func (g *gate) inventoryDeleteEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if !signedIn {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	if s.setup {
+		http.Error(w, "change the setup password first", http.StatusForbidden)
+		return
+	}
+	if runtime.GOOS != "linux" {
+		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
+		return
+	}
+	if !s.inventoryReady {
+		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+		return
+	}
+	if !g.sameOrigin(r) {
+		http.Error(w, "request origin refused", http.StatusForbidden)
+		return
+	}
+	input, ok := readInventoryDeleteInput(w, r)
+	if !ok {
+		return
+	}
+	generation, err := instanceaccess.DeleteInventoryRecord(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
+		input.ExpectedGeneration, input.Fingerprint)
+	if err != nil {
+		inventoryError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(inventoryDeleteOutput{Fingerprint: input.Fingerprint, Generation: generation, Deleted: true,
+		Verification: "not-performed", Backup: "Create a new full snapshot after deletion. Older snapshots may restore the deleted record."})
+}
+
+func readInventoryDeleteInput(w http.ResponseWriter, r *http.Request) (inventoryDeleteInput, bool) {
+	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || media != "application/json" {
+		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
+		return inventoryDeleteInput{}, false
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1024))
+	if err != nil || len(body) == 0 || !utf8.Valid(body) {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryDeleteInput{}, false
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	start, err := d.Token()
+	if err != nil || start != json.Delim('{') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryDeleteInput{}, false
+	}
+	var input inventoryDeleteInput
+	seen := make(map[string]bool, 4)
+	for d.More() {
+		token, err := d.Token()
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryDeleteInput{}, false
+		}
+		name, ok := token.(string)
+		if !ok || seen[name] {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryDeleteInput{}, false
+		}
+		seen[name] = true
+		switch name {
+		case "fingerprint":
+			err = d.Decode(&input.Fingerprint)
+		case "typed_fingerprint":
+			err = d.Decode(&input.TypedFingerprint)
+		case "confirmation":
+			err = d.Decode(&input.Confirmation)
+		case "expected_generation":
+			err = d.Decode(&input.ExpectedGeneration)
+		default:
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryDeleteInput{}, false
+		}
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return inventoryDeleteInput{}, false
+		}
+	}
+	end, err := d.Token()
+	if err != nil || end != json.Delim('}') {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryDeleteInput{}, false
+	}
+	if _, err := d.Token(); err != io.EOF || !seen["fingerprint"] || !seen["typed_fingerprint"] ||
+		!seen["confirmation"] || !seen["expected_generation"] || len(input.Fingerprint) == 0 || len(input.Fingerprint) > 128 ||
+		input.TypedFingerprint != input.Fingerprint || input.Confirmation != "delete-public-record" || input.ExpectedGeneration == 0 {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return inventoryDeleteInput{}, false
 	}
 	return input, true
 }

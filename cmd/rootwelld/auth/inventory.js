@@ -42,15 +42,25 @@
   const confirmRemove = document.getElementById("confirm-remove");
   const locationManageCancel = document.getElementById("location-manage-cancel");
   const locationManageStatus = document.getElementById("location-manage-status");
+  const deletePanel = document.getElementById("delete-panel");
+  const deleteForm = document.getElementById("delete-form");
+  const deleteTarget = document.getElementById("delete-target");
+  const deleteFingerprint = document.getElementById("delete-fingerprint");
+  const confirmDelete = document.getElementById("confirm-delete");
+  const deleteButton = document.getElementById("delete-button");
+  const deleteCancel = document.getElementById("delete-cancel");
+  const deleteStatus = document.getElementById("delete-status");
   const encoder = new TextEncoder();
   let loadSerial = 0;
   let saving = false;
   let associating = false;
   let editingOwner = false;
   let changingLocation = false;
+  let deleting = false;
   let selectedFingerprint = null;
   let selectedOwnerFingerprint = null;
   let selectedManageFingerprint = null;
+  let selectedDeleteFingerprint = null;
   let selectedManageLocations = [];
   let originalOwner = null;
   let displayedGeneration = 0;
@@ -137,11 +147,13 @@
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
     selectedManageFingerprint = null;
+    selectedDeleteFingerprint = null;
     selectedManageLocations = [];
     originalOwner = null;
     locationPanel.hidden = true;
     ownerPanel.hidden = true;
     locationManagePanel.hidden = true;
+    deletePanel.hidden = true;
     locationStatus.textContent = "";
     ownerStatus.textContent = "";
     locationManageStatus.textContent = "";
@@ -209,12 +221,14 @@
       addButton.textContent = "Add another location";
       addButton.disabled = record.locations.length >= 32;
       addButton.addEventListener("click", function () {
-        if (saving || associating || editingOwner || changingLocation || !displayedGeneration) return;
+        if (saving || associating || editingOwner || changingLocation || deleting || !displayedGeneration) return;
         selectedFingerprint = record.fingerprint;
         selectedOwnerFingerprint = null;
         selectedManageFingerprint = null;
+        selectedDeleteFingerprint = null;
         ownerPanel.hidden = true;
         locationManagePanel.hidden = true;
+        deletePanel.hidden = true;
         locationTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint;
         newLocation.value = "";
         locationStatus.textContent = "";
@@ -226,13 +240,15 @@
       editOwnerButton.className = "secondary";
       editOwnerButton.textContent = "Correct owner note";
       editOwnerButton.addEventListener("click", function () {
-        if (saving || associating || editingOwner || changingLocation || !displayedGeneration) return;
+        if (saving || associating || editingOwner || changingLocation || deleting || !displayedGeneration) return;
         selectedOwnerFingerprint = record.fingerprint;
         originalOwner = record.owner;
         selectedFingerprint = null;
         selectedManageFingerprint = null;
+        selectedDeleteFingerprint = null;
         locationPanel.hidden = true;
         locationManagePanel.hidden = true;
+        deletePanel.hidden = true;
         ownerTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint +
           " · Current owner: " + (record.owner || "Unknown");
         newOwner.value = record.owner;
@@ -246,13 +262,15 @@
       manageLocationButton.textContent = "Correct location notes";
       manageLocationButton.disabled = record.locations.length === 0;
       manageLocationButton.addEventListener("click", function () {
-        if (saving || associating || editingOwner || changingLocation || !displayedGeneration || !record.locations.length) return;
+        if (saving || associating || editingOwner || changingLocation || deleting || !displayedGeneration || !record.locations.length) return;
         selectedManageFingerprint = record.fingerprint;
         selectedManageLocations = record.locations.slice();
         selectedFingerprint = null;
         selectedOwnerFingerprint = null;
+        selectedDeleteFingerprint = null;
         locationPanel.hidden = true;
         ownerPanel.hidden = true;
+        deletePanel.hidden = true;
         locationManageTarget.textContent = "Certificate: " + (record.subject || record.fingerprint) + " · SHA-256: " + record.fingerprint;
         oldLocation.replaceChildren();
         for (const label of selectedManageLocations) {
@@ -268,6 +286,26 @@
         locationManagePanel.hidden = false;
       });
       item.appendChild(manageLocationButton);
+      const deleteRecordButton = document.createElement("button");
+      deleteRecordButton.type = "button";
+      deleteRecordButton.className = "secondary";
+      deleteRecordButton.textContent = "Delete saved record";
+      deleteRecordButton.addEventListener("click", function () {
+        if (saving || associating || editingOwner || changingLocation || deleting || !displayedGeneration) return;
+        selectedDeleteFingerprint = record.fingerprint;
+        selectedFingerprint = null;
+        selectedOwnerFingerprint = null;
+        selectedManageFingerprint = null;
+        locationPanel.hidden = true;
+        ownerPanel.hidden = true;
+        locationManagePanel.hidden = true;
+        deleteTarget.textContent = "Certificate: " + (record.subject || "Subject not provided") + " · SHA-256: " + record.fingerprint;
+        deleteFingerprint.value = "";
+        confirmDelete.checked = false;
+        deleteStatus.textContent = "";
+        deletePanel.hidden = false;
+      });
+      item.appendChild(deleteRecordButton);
       list.appendChild(item);
     }
     const labels = { expired: "Expired", soon: "Within 30 days", medium: "After 30, within 90 days",
@@ -292,11 +330,13 @@
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
     selectedManageFingerprint = null;
+    selectedDeleteFingerprint = null;
     selectedManageLocations = [];
     originalOwner = null;
     locationPanel.hidden = true;
     ownerPanel.hidden = true;
     locationManagePanel.hidden = true;
+    deletePanel.hidden = true;
     listStatus.textContent = "Reading encrypted inventory…";
     try {
       const response = await fetch("/api/inventory", { method: "GET", credentials: "same-origin", cache: "no-store",
@@ -322,7 +362,7 @@
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (saving || associating || editingOwner || changingLocation) return;
+    if (saving || associating || editingOwner || changingLocation || deleting) return;
     const file = fileInput.files && fileInput.files[0];
     const owner = ownerInput.value;
     const location = locationInput.value;
@@ -366,7 +406,7 @@
 
   locationForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (associating || saving || editingOwner || changingLocation || !selectedFingerprint || !displayedGeneration) return;
+    if (associating || saving || editingOwner || changingLocation || deleting || !selectedFingerprint || !displayedGeneration) return;
     const location = newLocation.value;
     if (!location || !validLabel(location)) {
       locationStatus.textContent = "Enter one short, plain-text location (up to 128 bytes).";
@@ -415,7 +455,7 @@
 
   ownerForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (editingOwner || saving || associating || changingLocation || !selectedOwnerFingerprint || !displayedGeneration) return;
+    if (editingOwner || saving || associating || changingLocation || deleting || !selectedOwnerFingerprint || !displayedGeneration) return;
     const owner = newOwner.value;
     if (!validLabel(owner)) {
       ownerStatus.textContent = "Enter a plain-text owner note of up to 128 bytes, or leave it blank.";
@@ -467,7 +507,7 @@
   });
 
   async function changeLocation(action) {
-    if (changingLocation || saving || associating || editingOwner || !selectedManageFingerprint || !displayedGeneration) return;
+    if (changingLocation || saving || associating || editingOwner || deleting || !selectedManageFingerprint || !displayedGeneration) return;
     const old = oldLocation.value;
     const index = selectedManageLocations.indexOf(old);
     if (index < 0) {
@@ -542,10 +582,11 @@
 
   refreshButton.addEventListener("click", refresh);
   function changeView() {
-    if (!displayedGeneration || saving || associating || editingOwner || changingLocation) return;
+    if (!displayedGeneration || saving || associating || editingOwner || changingLocation || deleting) return;
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
     selectedManageFingerprint = null;
+    selectedDeleteFingerprint = null;
     selectedManageLocations = [];
     originalOwner = null;
     selectedForExport.clear();
@@ -553,6 +594,7 @@
     locationPanel.hidden = true;
     ownerPanel.hidden = true;
     locationManagePanel.hidden = true;
+    deletePanel.hidden = true;
     draw();
   }
   expiryFilter.addEventListener("change", changeView);
@@ -612,6 +654,56 @@
       previewBytes = null;
       if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
     }
+  });
+  deleteForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    if (deleting || saving || associating || editingOwner || changingLocation || !selectedDeleteFingerprint || !displayedGeneration) return;
+    const fingerprint = selectedDeleteFingerprint;
+    const typed = deleteFingerprint.value;
+    if (typed !== fingerprint || !confirmDelete.checked) {
+      deleteStatus.textContent = "Type the exact full fingerprint and confirm the backup warning before deleting.";
+      return;
+    }
+    const expectedGeneration = displayedGeneration;
+    deleting = true;
+    displayedGeneration = 0;
+    deleteButton.disabled = true;
+    saveButton.disabled = true;
+    refreshButton.disabled = true;
+    deleteStatus.textContent = "Removing this record from the current encrypted inventory…";
+    try {
+      const response = await fetch("/api/inventory/delete", { method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" },
+        body: JSON.stringify({ fingerprint, typed_fingerprint: typed, confirmation: "delete-public-record", expected_generation: expectedGeneration }) });
+      if (!response.ok) {
+        const message = (await response.text()).trim().slice(0, 240);
+        throw new Error(message || "Deletion was not confirmed; refresh before retrying.");
+      }
+      const result = await response.json();
+      if (!result || result.deleted !== true || result.fingerprint !== fingerprint || result.generation !== expectedGeneration + 1 ||
+          result.verification !== "not-performed") {
+        throw new Error("Deletion outcome could not be confirmed; refresh before retrying.");
+      }
+      const loaded = await refresh();
+      if (!loaded || displayedGeneration !== result.generation || loadedRecords.some(record => record.fingerprint === fingerprint)) {
+        displayedGeneration = 0;
+        listStatus.textContent = "Deletion may have happened, but the current inventory could not be confirmed. Refresh before another change.";
+        return;
+      }
+      listStatus.textContent = "Record removed from the current inventory. Older snapshots may still contain it; make a new full snapshot.";
+    } catch (error) {
+      deleteStatus.textContent = error instanceof Error ? error.message : "Deletion was not confirmed; refresh before retrying.";
+    } finally {
+      deleting = false;
+      deleteButton.disabled = false;
+      saveButton.disabled = false;
+      refreshButton.disabled = false;
+    }
+  });
+  deleteCancel.addEventListener("click", function () {
+    if (deleting) return;
+    selectedDeleteFingerprint = null;
+    deletePanel.hidden = true;
   });
   refresh();
 }());

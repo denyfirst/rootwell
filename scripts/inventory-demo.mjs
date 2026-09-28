@@ -20,7 +20,7 @@ html = replaceOnce(html, "<main>", `<main><aside class="boundary" aria-label="De
 html = replaceOnce(html, 'id="certificate-file" type="file"', 'id="certificate-file" type="file" disabled');
 html = replaceOnce(html, '<button id="save-button" type="submit">', '<button id="save-button" type="submit" disabled>');
 let script = asset("inventory.js");
-for (const button of ["addButton", "editOwnerButton", "manageLocationButton"]) {
+for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
   script = replaceOnce(script, `item.appendChild(${button});`, `${button}.disabled = true; item.appendChild(${button});`);
 }
 

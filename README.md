@@ -109,6 +109,10 @@ disabled. For a **fake-data, read-only visual preview only**, run
 `node scripts/inventory-demo.mjs --fixture-only` and open
 `http://127.0.0.1:4181/inventory`. This fixture has no authentication or
 encrypted storage and is not a substitute for a Linux inventory test.
+Deleting a saved record requires typing its complete fingerprint and explicit
+confirmation. It changes only the current encrypted inventory; it neither
+revokes a certificate nor removes a deployed copy, and older full snapshots
+can restore the deleted record. Create a new full snapshot after deletion.
 
 ## Implemented commands
 
