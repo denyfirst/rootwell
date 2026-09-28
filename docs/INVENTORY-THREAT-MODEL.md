@@ -118,6 +118,16 @@ storage and an explicit user-facing loopback API are separate boundaries below.
    controls the destination. The fake-data development demo binds loopback
    only and rejects all writes; it is not authenticated storage. See
    [ADR 0027](adr/0027-explicit-public-inventory-export.md).
+   Deleting one public record requires a ready session, exact same-origin
+   request, duplicated typed fingerprint, fixed confirmation phrase, and the
+   displayed generation. The complete encrypted image authenticates before
+   one record is removed and atomically replaced. Other records retain their
+   ciphertext and import provenance. This is current-image removal, not
+   cryptographic erasure, certificate revocation, or remote undeployment.
+   Earlier full snapshots can restore the record, and a fresh snapshot after
+   deletion captures its absence. There is no automatic retention expiry or
+   backup deletion. See
+   [ADR 0028](adr/0028-explicit-certificate-record-deletion.md).
 5. Linux container bind-volume permissions and fresh restore now have a
    disposable CI drill. The local Compose profile keeps the server's backup
    mount absent and runs maintenance without a network; its Linux host network
@@ -130,8 +140,8 @@ storage and an explicit user-facing loopback API are separate boundaries below.
 An operator-controlled filesystem or browser process can still inspect
 plaintext in memory while Rootwell is unlocked. Encryption at rest does not
 protect a fully compromised host. Automatic deletion is not part of the
-planned inventory retention policy; explicit deletion and its backup effects
-need their own review.
+inventory retention policy. Explicit deletion removes only the current image
+entry; snapshots and any external copies remain the operator's responsibility.
 An older, intact ciphertext can be replayed with the same context unless a
 future trusted manifest rejects stale generations. The codec alone is not an
 anti-rollback or recoverability solution.

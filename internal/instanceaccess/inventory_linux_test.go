@@ -302,6 +302,75 @@ func TestLinuxLocationCorrectionsSurviveFullRestoreAndRejectStaleWrites(t *testi
 	}
 }
 
+func TestLinuxInventoryExplicitDeletionAndOldSnapshotRetention(t *testing.T) {
+	path, password, code, key, id, _ := inventoryFixture(t)
+	revision, err := Revision(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
+	if err != nil || generation != 2 {
+		t.Fatalf("import: %v", err)
+	}
+	fingerprint := added[0].Fingerprint
+	oldBackup := filepath.Join(privateSnapshotDir(t), "before-delete.rwfull")
+	if err := ExportFullSnapshot(path, oldBackup, password, code); err != nil {
+		t.Fatal(err)
+	}
+	before, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		fingerprint string
+		generation  uint64
+		want        error
+	}{{fingerprint, 1, inventorystore.ErrStaleGeneration}, {"missing", 2, inventorystore.ErrNotFound}} {
+		if _, err := DeleteInventoryRecord(path, key, id, revision, tc.generation, tc.fingerprint); !errors.Is(err, tc.want) {
+			t.Fatalf("unsafe deletion accepted: %v", err)
+		}
+		after, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatal("rejected deletion changed disk image")
+		}
+	}
+	if generation, err := DeleteInventoryRecord(path, key, id, revision, 2, fingerprint); err != nil || generation != 3 {
+		t.Fatalf("delete: %v", err)
+	}
+	current, generation, err := ReadInventory(path, key, id, revision)
+	if err != nil || generation != 3 || len(current) != 0 {
+		t.Fatalf("deleted record still in current image: %v", err)
+	}
+	newBackup := filepath.Join(privateSnapshotDir(t), "after-delete.rwfull")
+	if err := ExportFullSnapshot(path, newBackup, password, code); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		backup string
+		want   int
+	}{{oldBackup, 1}, {newBackup, 0}} {
+		fresh := filepath.Join(privateSnapshotDir(t), "access.json")
+		if err := RestoreFullSnapshot(tc.backup, fresh, code, SnapshotRecoveryCode); err != nil {
+			t.Fatalf("restore: %v", err)
+		}
+		freshRevision, err := Revision(fresh)
+		if err != nil {
+			t.Fatal(err)
+		}
+		restored, _, err := ReadInventory(fresh, key, id, freshRevision)
+		if err != nil || len(restored) != tc.want {
+			t.Fatalf("snapshot retention mismatch: %v", err)
+		}
+		if tc.want == 1 && restored[0].Fingerprint != fingerprint {
+			t.Fatal("old snapshot did not retain the deleted certificate")
+		}
+	}
+}
+
 func TestLinuxInventoryRefusesUnsafeAndBusyOperations(t *testing.T) {
 	path, password, code, key, id, _ := inventoryFixture(t)
 	other := filepath.Join(privateSnapshotDir(t), "second.rwfull")

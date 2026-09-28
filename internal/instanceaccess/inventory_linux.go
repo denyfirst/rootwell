@@ -193,6 +193,33 @@ func ChangeInventoryLocation(accessPath string, key, id []byte, expectedRevision
 	return updated, generation, err
 }
 
+// DeleteInventoryRecord removes one saved public certificate only after the
+// current access revision and complete encrypted image have been checked.
+// Older snapshots remain independently restorable.
+func DeleteInventoryRecord(accessPath string, key, id []byte, expectedRevision [32]byte, expectedGeneration uint64, fingerprint string) (uint64, error) {
+	var generation uint64
+	err := withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, expectedRevision); err != nil {
+			return err
+		}
+		path := filepath.Join(filepath.Dir(accessPath), inventoryName)
+		image, err := readInventory(path)
+		if err != nil {
+			return err
+		}
+		next, nextGeneration, err := inventorystore.DeleteRecord(key, id, image, fingerprint, expectedGeneration)
+		if err != nil {
+			return err
+		}
+		if err := replaceInventory(path, next); err != nil {
+			return err
+		}
+		generation = nextGeneration
+		return nil
+	})
+	return generation, err
+}
+
 func checkInventoryRevision(accessPath string, expected [32]byte) error {
 	body, err := readAccess(accessPath)
 	if err != nil || sha256.Sum256(body) != expected {

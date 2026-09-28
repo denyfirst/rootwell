@@ -59,6 +59,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
 		t.Fatal("setup session changed a location")
 	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", `{"fingerprint":"x","typed_fingerprint":"x","confirmation":"delete-public-record","expected_generation":1}`, setupCookie, "http://"+localHost, true); w.Code != http.StatusForbidden {
+		t.Fatal("setup session deleted a record")
+	}
 	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +81,9 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	}
 	if w := inventoryCall(g, "POST", "/api/inventory/locations/change", `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
 		t.Fatal("uninitialized inventory changed a location")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", `{"fingerprint":"x","typed_fingerprint":"x","confirmation":"delete-public-record","expected_generation":1}`, readyCookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("uninitialized inventory deleted a record")
 	}
 	code, err := instanceaccess.EnrollRecovery(path, nextTestPassword)
 	if err != nil {
@@ -339,5 +345,38 @@ func TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound(t *testing.T) {
 		!strings.Contains(unknown.Body.String(), `"locations":[]`) || !strings.Contains(unknown.Body.String(), `"location":""`) ||
 		!strings.Contains(unknown.Body.String(), `"fingerprint":"`+saved.Records[0].Fingerprint+`"`) {
 		t.Fatalf("last label removal deleted certificate or invented deployment: %d %s", unknown.Code, unknown.Body.String())
+	}
+	deleteBody := `{"fingerprint":"` + saved.Records[0].Fingerprint + `","typed_fingerprint":"` + saved.Records[0].Fingerprint + `","confirmation":"delete-public-record","expected_generation":8}`
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", deleteBody, nil, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+		t.Fatal("anonymous deletion accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", deleteBody, cookie, "http://evil.invalid", true); w.Code != http.StatusForbidden {
+		t.Fatal("cross-origin deletion accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", deleteBody, cookie, "http://"+localHost, false); w.Code != http.StatusForbidden {
+		t.Fatal("deletion without CSRF header accepted")
+	}
+	if w := inventoryCall(g, "GET", "/api/inventory/delete", "", cookie, "", true); w.Code != http.StatusMethodNotAllowed {
+		t.Fatal("deletion accepted GET")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", strings.Replace(deleteBody, `"expected_generation":8`, `"expected_generation":7`, 1), cookie, "http://"+localHost, true); w.Code != http.StatusConflict {
+		t.Fatal("stale deletion accepted")
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", strings.ReplaceAll(deleteBody, saved.Records[0].Fingerprint, "missing"), cookie, "http://"+localHost, true); w.Code != http.StatusNotFound {
+		t.Fatal("unknown fingerprint deletion accepted")
+	}
+	deleted := inventoryCall(g, "POST", "/api/inventory/delete", deleteBody, cookie, "http://"+localHost, true)
+	if deleted.Code != http.StatusOK || bytes.Contains(deleted.Body.Bytes(), cert) ||
+		!strings.Contains(deleted.Body.String(), `"fingerprint":"`+saved.Records[0].Fingerprint+`"`) ||
+		!strings.Contains(deleted.Body.String(), `"generation":9`) || !strings.Contains(deleted.Body.String(), `"deleted":true`) ||
+		!strings.Contains(deleted.Body.String(), `"verification":"not-performed"`) {
+		t.Fatalf("deletion failed or leaked DER: %d %s", deleted.Code, deleted.Body.String())
+	}
+	current := inventoryCall(g, "GET", "/api/inventory", "", cookie, "", true)
+	if current.Code != http.StatusOK || !strings.Contains(current.Body.String(), `"generation":9`) || !strings.Contains(current.Body.String(), `"records":[]`) {
+		t.Fatalf("deleted record remains in current inventory: %d %s", current.Code, current.Body.String())
+	}
+	if w := inventoryCall(g, "POST", "/api/inventory/delete", strings.Replace(deleteBody, `"expected_generation":8`, `"expected_generation":9`, 1), cookie, "http://"+localHost, true); w.Code != http.StatusNotFound {
+		t.Fatal("repeated deletion accepted")
 	}
 }

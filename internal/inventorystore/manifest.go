@@ -247,6 +247,36 @@ func ChangeLocation(key, installationID, image []byte, fingerprint, oldLabel, ne
 	return nil, publicinventory.Record{}, 0, ErrNotFound
 }
 
+// DeleteRecord removes exactly one saved public certificate and its manual
+// notes from a fully authenticated image. It cannot erase older snapshots or
+// change any deployed certificate. The caller must atomically install the
+// returned complete image under the writer lock.
+func DeleteRecord(key, installationID, image []byte, fingerprint string, expectedGeneration uint64) ([]byte, uint64, error) {
+	m, existing, err := decode(key, installationID, image)
+	if err != nil {
+		return nil, 0, err
+	}
+	if expectedGeneration == 0 || m.Generation != expectedGeneration {
+		return nil, 0, ErrStaleGeneration
+	}
+	if m.Generation >= maxGeneration {
+		return nil, 0, ErrLimit
+	}
+	for i, record := range existing {
+		if record.Fingerprint != fingerprint {
+			continue
+		}
+		m.Records = append(append([]sealedRecord{}, m.Records[:i]...), m.Records[i+1:]...)
+		m.Generation++
+		result, err := encode(key, m)
+		if err != nil {
+			return nil, 0, err
+		}
+		return result, m.Generation, nil
+	}
+	return nil, 0, ErrNotFound
+}
+
 func resealRecord(key, installationID []byte, m manifest, index int, updated publicinventory.Record) ([]byte, uint64, error) {
 	var additional []string
 	if len(updated.Locations) > 1 {
