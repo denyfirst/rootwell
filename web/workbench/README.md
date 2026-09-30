@@ -11,12 +11,15 @@ the certificate is extracted as DER by fingerprint, and the existing Go
 inspection response must agree with the card before details appear. **Convert**
 is a separate screen for those public certificates and can also start from
 its own public-file selector, using the same bounded inspection path. A new
-selection or failure clears its choices. Verify uses the same explicit-trust
-TLS server verifier as the CLI.
+selection or failure clears its choices. A separate private Convert picker
+recognizes one strict unencrypted PKCS#8, PKCS#1 RSA, or SEC1 EC key in
+PEM/DER and exports only a new password-encrypted PKCS#8 PEM file. It never
+accepts PFX or encrypted-key input and never saves to a vault. Verify uses the
+same explicit-trust TLS server verifier as the CLI.
 
 ## Security boundary
 
-- certificate bytes are never posted to a Rootwell or third-party HTTP API;
+- selected certificate and private-key bytes are never posted to a Rootwell or third-party HTTP API;
 - only `wasm-loader.js` may fetch, and it loads the same-origin
   `rootwell.wasm` application asset;
 - the loader has no DOM, selected-file, or file-byte access;
@@ -33,7 +36,16 @@ TLS server verifier as the CLI.
 - duplicate diagnostics name both local files and the full fingerprint across
   files, or the source file for an in-file duplicate; filenames are bounded and
   rendered as text, and duplicate certificates are never silently removed;
+- `private-key.js` can read only its explicitly selected key after a click;
+  it has no network, persistent storage, dynamic code, or markup-injection
+  capability. Inspect returns only public-key metadata; export re-reads the
+  selected file and binds its full public fingerprint to the visible result;
+  only the fixed encrypted PKCS#8 profile is downloadable;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
+  Browser memory, immutable password strings, extensions, a compromised host,
+  and browser-managed download permissions cannot be fully controlled. Static
+  serving is an unauthenticated developer preview; use the ready-session
+  `rootwelld` gate for local testing. This is not audited production custody.
 
 Explore displays subject, issuer, CA flag, validity start/end, encoding, fingerprint, and
 possible issuer links backed by issuer/subject names and signature checks.
@@ -96,7 +108,7 @@ one end-entity certificate; self-signed roots in these files are ignored as
 trust sources. Advanced accepts an explicit leaf, optional PEM intermediates,
 and optional RFC 3339 evaluation time. Both use the same Go verification
 policy. Success does not check revocation, live deployment, or private-key
-possession. Do not import private keys or PFX into this public-only UI.
+possession. Do not import private keys or PFX into the public Verify inputs.
 An optional full SHA-256 root certificate fingerprint can be entered as
 64 hex digits or colon-separated bytes. Rootwell compares it with the final
 anchor of the verified path and refuses a malformed or mismatched pin. Obtain
@@ -114,9 +126,10 @@ random browser-managed filename. An Advanced historical evaluation time is
 not a claim that the chain is valid now. See
 [ADR 0010](../../docs/adr/0010-browser-verified-public-fullchain-export.md).
 
-Browser-wide memory erasure is not guaranteed. This boundary is for public
-certificates only. Do not select private keys, passphrases, PFX/PKCS#12 files,
-or other secrets. See
+Browser-wide memory erasure is not guaranteed. The Inspect, Verify, and public
+Convert selectors are for public certificates only; use only the separately
+labelled private Convert picker for an unencrypted private key. Do not select
+PFX/PKCS#12 or passphrase-protected inputs yet. See
 [`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
 and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
 and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)

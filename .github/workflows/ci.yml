@@ -108,6 +108,8 @@ jobs:
           node --check web/workbench/app.js
           node --check scripts/test-browser-wasm.mjs
           node --check scripts/test-workbench-multifile.mjs
+          node --check scripts/test-workbench-private.mjs
+          node --check web/workbench/private-key.js
           node --check cmd/rootwelld/auth/auth.js
           node --check cmd/rootwelld/auth/inventory.js
           node --check scripts/test-rootwelld-auth.mjs
@@ -124,6 +126,7 @@ jobs:
             web/workbench/rootwell-demo-certificate.pem \
             web/workbench/rootwell-demo-bundle.pem
           node scripts/test-workbench-multifile.mjs
+          node scripts/test-workbench-private.mjs
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-inventory-demo.mjs

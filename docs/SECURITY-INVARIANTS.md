@@ -969,3 +969,26 @@ Guarded by `TestExportProducesOnlyEncryptedMatchingPKCS8`,
 `TestPFXExtractKeyBindsReadBeforePromptAndRejectsPasswordReuse`,
 `TestPFXExtractKeyUnsupportedPlatformRefusesBeforeInput`, and
 `TestPFXExtractKeyRejectsNonTTYAndUnsafeArguments`.
+
+## C60 — Browser private conversion is separate, bounded, and encrypted-only
+
+Only the explicit private-key Convert picker accepts a single strict
+unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 PEM/DER key up to 64 KiB. Its
+inspection response contains public metadata only. Export re-reads the file,
+binds it to the full displayed public-key fingerprint, requires a fresh
+20–128 printable-character output password, and emits one self-verified
+encrypted PKCS#8 PEM block with a random filename. Malformed, changed,
+oversized, wrong-fingerprint, weak-password, PFX, and encrypted-key input
+publish no key. The browser script cannot upload or persist selected bytes;
+buffers and password fields are cleared best-effort. The public Inspect,
+Verify, and certificate Convert inputs remain public-only. The browser and OS
+may retain memory/download copies and control file permissions; no vault or
+per-user key authorization is claimed.
+
+Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
+`TestPrivateConversionRefusesMalformedChangedAndWeakPassword`,
+`FuzzInspectPrivateKeyNoSecretEcho`,
+`TestWorkbenchPrivateConversionIsExplicitLocalAndEncryptedOnly`,
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
+`TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
+`scripts/test-browser-wasm.mjs` and `scripts/test-workbench-private.mjs`.

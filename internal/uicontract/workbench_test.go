@@ -20,7 +20,7 @@ import (
 )
 
 var workbenchAssetNames = []string{
-	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "favicon.svg",
+	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "private-key.js", "favicon.svg",
 	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
 	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
 	"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
@@ -212,7 +212,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	assets := workbenchAssets(t)
 	application := assets["app.js"]
 	loader := assets["wasm-loader.js"]
-	fileReadingScripts := application + "\n" + assets["theme.js"]
+	fileReadingScripts := application + "\n" + assets["private-key.js"] + "\n" + assets["theme.js"]
 	for _, forbidden := range []string{
 		"fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon",
 		"serviceWorker", "Worker(", "SharedWorker", "import(",
@@ -255,9 +255,9 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, statement := range []string{
-		"Certificate bytes stay inside this browser process",
+		"Selected file bytes stay inside this browser process",
 		"Local public-file inspection · not a trust verdict",
-		"PFX and private keys are not supported yet",
+		"PFX and encrypted-key input, plaintext legacy output, key reveal, and other key formats are not available yet",
 		"No chain verification performed · no trust anchor selected",
 		"do not prove chain trust",
 		"Revocation</strong> Not checked",
@@ -265,6 +265,37 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	} {
 		if !strings.Contains(html, statement) {
 			t.Errorf("workbench preview is missing boundary statement %q", statement)
+		}
+	}
+}
+
+func TestWorkbenchPrivateConversionIsExplicitLocalAndEncryptedOnly(t *testing.T) {
+	assets := workbenchAssets(t)
+	html := assets["index.html"]
+	script := assets["private-key.js"]
+	for _, required := range []string{
+		`src="private-key.js" defer`, `id="private-convert-file"`, `id="private-convert-password" type="password"`,
+		`id="private-convert-confirm" type="password"`, `id="private-convert-download" type="button"`,
+		"only output is a new password-encrypted PKCS#8 PEM", "does not upload or save the key",
+	} {
+		if !strings.Contains(html, required) {
+			t.Errorf("private conversion UI missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"file.slice(0, 64 * 1024 + 1).arrayBuffer()", "source.file.slice(0, 64 * 1024 + 1).arrayBuffer()", "engine.privateInspect(bytes)",
+		"engine.privateExportEncrypted(bytes, source.fingerprint, passwordBytes)",
+		"bytes.fill(0)", "passwordBytes.fill(0)", "output.fill(0)",
+		"passwordInput.value = \"\"", "confirmInput.value = \"\"",
+		"rootwell-encrypted-key-", "BEGIN ENCRYPTED PRIVATE KEY",
+	} {
+		if !strings.Contains(script, required) {
+			t.Errorf("private conversion script missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "sendBeacon", "innerHTML", "document.write", "BEGIN RSA PRIVATE KEY", "BEGIN EC PRIVATE KEY"} {
+		if strings.Contains(script, forbidden) {
+			t.Errorf("private conversion script contains forbidden capability %q", forbidden)
 		}
 	}
 }
@@ -322,7 +353,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 	}
 }
 
-func TestWorkbenchPublicConversionIsFindableWithoutClaimingSecretSupport(t *testing.T) {
+func TestWorkbenchPublicConversionIsFindableAndSecretFlowIsSeparate(t *testing.T) {
 	assets := workbenchAssets(t)
 	html := assets["index.html"]
 	if !strings.Contains(html, `<span><strong>Convert</strong><small>Download public PEM/DER</small></span>`) ||
@@ -330,7 +361,8 @@ func TestWorkbenchPublicConversionIsFindableWithoutClaimingSecretSupport(t *test
 		!strings.Contains(html, `id="convert-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`) ||
 		!strings.Contains(html, `id="convert-open-button" type="button" disabled`) ||
 		!strings.Contains(html, `id="convert-error" role="alert" hidden`) ||
-		!strings.Contains(html, "PFX and private keys are not supported yet") ||
+		!strings.Contains(html, `id="private-convert-file"`) ||
+		!strings.Contains(html, "the only output is a new password-encrypted PKCS#8 PEM") ||
 		strings.Contains(html, "Planned after write safety") {
 		t.Fatal("public-only conversion entry is missing or misleading")
 	}

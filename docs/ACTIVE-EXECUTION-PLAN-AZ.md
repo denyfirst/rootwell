@@ -69,21 +69,21 @@ olunmamış nəticəyə “verified” demək qadağandır.
    qeyd edir. [`ADR 0031`](adr/0031-bounded-pfx-public-inspection.md) dar modern
    profil üçün yalnız public PFX xülasəsini əlavə edir; public hissələri
    fingerprint ilə ayrı PEM/DER faylına çıxarmaq və Linux offline CLI-da uyğun
-   key-i yalnız yeni şifrəli PKCS#8 faylına çıxarmaq əlavə edilib. Legacy
-   plaintext key formatı və browser reveal ayrıca increment-lərdir.
-   Browser/server PFX və private key-ləri yalnız
-   ayrıca dependency review, memory/output/file-permission testləri və daxili
-   təhlükəsizlik qapılarından sonra qəbul edə bilər. Müstəqil xarici audit
+   key-i yalnız yeni şifrəli PKCS#8 faylına çıxarmaq əlavə edilib. İlk UI
+   private-key conversion increment-i [`ADR 0034`](adr/0034-browser-encrypted-private-key-conversion.md)
+   ilə ayrıca sərhəddədir: unencrypted PKCS#8/PKCS#1/SEC1 PEM/DER qəbul edir,
+   yalnız şifrəli PKCS#8 PEM endirir; PFX, plaintext çıxış və reveal etmir.
+   Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
    son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
 
-   **Növbəti secret-conversion sırası:** (a) RSA PKCS#8 ↔ PKCS#1 və ECDSA
-   PKCS#8 ↔ SEC1 üçün ayrıca format kontraktı; şifrəli PKCS#8 default qalır,
-   şifrəsiz legacy çıxış yalnız ayrıca xəbərdarlıq və explicit razılıqla;
-   (b) FortiGate, FortiWeb və FortiNAC kimi fərqli məhsul/versiyalar üçün
-   ayrı qəbul profilləri — tək universal “Fortinet” seçimi yoxdur;
-   (c) browser Convert-də PFX/key işi üçün ayrıca origin/CSP, zero-upload,
-   yaddaş və download testləri; yalnız həmin qapıdan sonra gözlə göstərmə.
+   **Növbəti secret-conversion sırası:** (a) bir Convert UI-da RSA PKCS#1,
+   ECDSA SEC1 və PKCS#8 üçün uyğun PEM/DER çıxışları; şifrəli PKCS#8 default
+   qalır, şifrəsiz çıxış yalnız ayrıca xəbərdarlıq və explicit razılıqla;
+   (b) browser-də PFX yaratma/çıxarma üçün ayrıca worker/time-limit, origin,
+   CSP, zero-upload, yaddaş və download testləri; (c) yalnız bu sərhədlərdən
+   sonra gözlə göstərmə. Müəyyən məhsul/versiya reseptləri ümumi format
+   mühərrikinin üzərində ayrıca gələcək; heç bir universal vendor rejimi yoxdur.
    Browser reveal hər dəfə PFX parolunu yenidən istəməli, saxlanmış key üçün
    əlavə instance reauthentication tələb etməli, qısa müddətdən sonra mətn
    sahəsini təmizləməli və heç nəyi log/history/URL/localStorage-a qoymamalıdır.
@@ -99,7 +99,8 @@ görünüşdə həmin sessiyada açılmış public sertifikatın PEM/DER endiril
 və seçilmiş public PEM bundle yaratmağı təklif edir; faylı birbaşa Convert-də
 seçmək də eyni bounded public inspection yolundan keçir. Yeni fayl seçimi köhnə
 convert seçimlərini silir. Texniki imza əlaqələri və JSON report Inspect-də
-istəyə bağlı detallardadır. Bu yeni PFX/private-key capability-si deyil.
+istəyə bağlı detallardadır. Public certificate axını private-key seçimindən
+ayrıdır; private conversion yalnız yuxarıdakı dar sərhəddədir.
 
 İstifadəçi inventory üçün self-hosted, lokal şifrəli saxlanma seçib: məlumat
 onun öz qurulumunda, özü silənədək qalacaq; avtomatik köhnə qeydləri silmək

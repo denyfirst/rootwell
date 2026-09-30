@@ -1,6 +1,6 @@
 # ADR 0029: Stage secret-bearing conversion outside the browser
 
-**Status:** accepted as an implementation boundary; Linux offline PFX creation is the first enabled increment
+**Status:** accepted for the initial sequence; separate encrypted-only browser key conversion is now governed by ADR 0034
 
 **Date:** 2026-09-28
 

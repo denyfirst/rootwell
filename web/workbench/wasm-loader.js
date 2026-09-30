@@ -21,6 +21,8 @@
           typeof globalThis.rootwellExportVerifiedSimple !== "function" ||
           typeof globalThis.rootwellExportVerifiedExplicit !== "function" ||
           typeof globalThis.rootwellExport !== "function" ||
+	      typeof globalThis.rootwellPrivateInspect !== "function" ||
+	      typeof globalThis.rootwellPrivateExportEncrypted !== "function" ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
         return;
@@ -36,6 +38,8 @@
         exportVerifiedSimple: globalThis.rootwellExportVerifiedSimple,
         exportVerifiedExplicit: globalThis.rootwellExportVerifiedExplicit,
         exportPublic: globalThis.rootwellExport,
+		privateInspect: globalThis.rootwellPrivateInspect,
+		privateExportEncrypted: globalThis.rootwellPrivateExportEncrypted,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));
     };

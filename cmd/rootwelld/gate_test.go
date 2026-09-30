@@ -33,7 +33,7 @@ func testGate(t *testing.T) (*gate, string) {
 	}
 	assets := t.TempDir()
 	for name, body := range map[string]string{
-		"index.html": "protected workbench", "app.js": "protected javascript", "rootwell.wasm": "protected wasm",
+		"index.html": "protected workbench", "app.js": "protected javascript", "private-key.js": "protected private javascript", "rootwell.wasm": "protected wasm",
 		"style.css": "protected css", "theme.js": "protected theme", "wasm-loader.js": "protected loader", "wasm_exec.js": "protected runtime",
 	} {
 		if err := os.WriteFile(filepath.Join(assets, name), []byte(body), 0o600); err != nil {
@@ -84,6 +84,9 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	if w := call(g, "GET", "/app.js", "", nil); w.Code != http.StatusSeeOther {
 		t.Fatalf("unguarded asset: %d", w.Code)
 	}
+	if w := call(g, "GET", "/private-key.js", "", nil); w.Code != http.StatusSeeOther {
+		t.Fatalf("unguarded private-key script: %d", w.Code)
+	}
 	loginPage := call(g, "GET", "/login", "", nil)
 	if loginPage.Code != http.StatusOK || loginPage.Header().Get("Cache-Control") != "no-store" ||
 		!strings.Contains(loginPage.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
@@ -105,7 +108,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("second setup session: %d", secondLogin.Code)
 	}
 	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/index.html", "/app.js", "/rootwell.wasm", "/account"} {
+	for _, route := range []string{"/", "/index.html", "/app.js", "/private-key.js", "/rootwell.wasm", "/account"} {
 		w := call(g, "GET", route, "", cookie)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
 			t.Fatalf("setup credential reached %s: %d", route, w.Code)
@@ -148,6 +151,9 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	}
 	if w := call(g, "GET", "/app.js", "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("protected asset: %d", w.Code)
+	}
+	if w := call(g, "GET", "/private-key.js", "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("protected private-key script: %d", w.Code)
 	}
 	if w := call(g, "GET", "/account", "", readyCookie); w.Code != http.StatusOK {
 		t.Fatalf("account page: %d", w.Code)
