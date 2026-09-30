@@ -85,8 +85,12 @@ public certificate or a collection of 1–8 public files (single DER
 certificates or strict PEM bundles), up to 64 certificates and 16 MiB combined.
 Convert is a separate view for exporting a selected public certificate or a
 user-selected public bundle; it can reuse the current Inspect session or open
-public files directly. Both use the bounded Go core through WebAssembly and
-never post selected bytes to a server API. A selected public certificate can
+public files directly. A separate Convert picker can recognize one strict
+unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 private key in PEM/DER and export
+only a new password-encrypted PKCS#8 PEM file. It does not reveal or save a
+key in the inventory/vault, accept PFX, or provide plaintext legacy output.
+These paths use the bounded Go core through WebAssembly and never post selected
+bytes to a server API. A selected public certificate can
 be downloaded as PEM or DER with a clearly labeled `.pem`, `.der`, `.crt`, or
 `.cer` filename extension; the browser manages the final save location.
 Verify checks a public server

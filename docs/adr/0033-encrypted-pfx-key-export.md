@@ -59,7 +59,9 @@ Primary references checked 2026-09-30: [Go X.509 APIs](https://pkg.go.dev/crypto
 
 The first key export is deliberately Linux CLI only. There is no browser,
 daemon, inventory, vault, network, stdout/JSON, Windows ACL, or Porch path.
-The existing public Convert screen continues to reject PFX and private keys.
+The public Convert picker continues to reject PFX and private keys. A later,
+separate encrypted-only browser private-key picker is scoped by ADR 0034; it
+does not import PFX.
 PKCS#8 encryption is password-based and AES-CBC does not authenticate the
 ciphertext; a weak password or tampering cannot be ruled out by the format.
 Runtime copies, swap, backups, terminal compromise, and a malicious local

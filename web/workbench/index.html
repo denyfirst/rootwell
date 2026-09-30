@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Rootwell local public certificate Workbench">
+  <meta name="description" content="Rootwell local certificate and key Workbench">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="dark light">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
@@ -14,6 +14,7 @@
   <script src="wasm_exec.js" defer></script>
   <script src="wasm-loader.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="private-key.js" defer></script>
 </head>
 <body class="workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -72,7 +73,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect, convert, or verify public certificates locally with Rootwell's bounded Go core. Certificate bytes stay inside this browser process.</p>
+          <p class="lede">Inspect and verify public certificates, or convert a private key locally with Rootwell's bounded Go core. Selected file bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -82,7 +83,7 @@
 
       <section class="boundary-strip" aria-label="Current privacy boundary">
         <div><span class="boundary-icon" aria-hidden="true">01</span><p><strong>Self-hosted assets</strong><span>No third-party scripts, fonts, or telemetry</span></p></div>
-        <div><span class="boundary-icon" aria-hidden="true">02</span><p><strong>Local processing</strong><span>Certificate bytes are never posted to a server API</span></p></div>
+        <div><span class="boundary-icon" aria-hidden="true">02</span><p><strong>Local processing</strong><span>Selected certificate and key bytes are never posted to a server API</span></p></div>
         <div><span class="boundary-icon" aria-hidden="true">03</span><p><strong>Shared Go core</strong><span>The CLI and browser enforce the same parser limits</span></p></div>
       </section>
 
@@ -230,10 +231,10 @@
           <div class="panel-head">
             <div>
               <p class="section-index">Tool 02 / Convert</p>
-              <h2>Download public certificates in the format you need</h2>
-              <p>Choose public certificate files here or use the ones already inspected. PEM and DER are encodings; .crt and .cer are filename extensions. PFX and private keys are not supported yet.</p>
+              <h2>Convert certificates and keys</h2>
+              <p>Choose public certificates below, or convert one local private key in the separate protected flow. PEM and DER are encodings; .crt and .cer are filename extensions. PFX is not supported here yet.</p>
             </div>
-            <span class="capability">Public only</span>
+            <span class="capability">Local processing</span>
           </div>
           <div class="file-zone">
             <input class="file-input" type="file" id="convert-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
@@ -260,6 +261,29 @@
             </div>
             <p class="export-status" id="export-status" aria-live="polite">Choose the certificate encoding and filename extension, then download. Rootwell does not write directly to disk.</p>
             <aside class="inspection-error" id="export-error" role="alert" hidden></aside>
+          </section>
+          <section class="result" aria-labelledby="private-convert-title">
+            <p class="result-kicker">Private key · local conversion</p>
+            <h3 id="private-convert-title">Protect a private key as encrypted PKCS#8</h3>
+            <p>Choose one unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Rootwell checks the format locally. It does not upload or save the key to Inventory or Vault.</p>
+            <p class="verify-note">For this first private-key step, the only output is a new password-encrypted PKCS#8 PEM. PFX and encrypted-key input, plaintext legacy output, key reveal, and other key formats are not available yet. Your browser controls the downloaded file and may keep copies in Downloads or backups.</p>
+            <div class="file-zone">
+              <input class="file-input" type="file" id="private-convert-file" accept=".pem,.key,.der,application/octet-stream">
+              <label for="private-convert-file"><span class="file-symbol" aria-hidden="true">＋</span><strong>Choose one private key</strong><span>PKCS#8 · PKCS#1 RSA · SEC1 EC · maximum 64 KiB</span></label>
+              <p class="file-selection" id="private-convert-file-state" aria-live="polite">No private key selected</p>
+            </div>
+            <div class="panel-actions"><button class="button" id="private-convert-inspect" type="button" disabled>Identify key format</button></div>
+            <aside class="inspection-error" id="private-convert-error" role="alert" hidden></aside>
+            <div id="private-convert-result" class="private-convert-fields" hidden>
+              <p id="private-convert-summary"></p>
+              <p>Output: encrypted PKCS#8 PEM (ENCRYPTED PRIVATE KEY). Choose a fresh high-entropy password, different from your Rootwell sign-in password.</p>
+              <label for="private-convert-password">New output password (20–128 printable characters)</label>
+              <input id="private-convert-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+              <label for="private-convert-confirm">Confirm output password</label>
+              <input id="private-convert-confirm" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+              <div class="panel-actions"><button class="button button-primary" id="private-convert-download" type="button">Download encrypted private key</button></div>
+              <p class="export-status" id="private-convert-status" aria-live="polite"></p>
+            </div>
           </section>
         </section>
 

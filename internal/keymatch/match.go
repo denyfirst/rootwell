@@ -146,6 +146,21 @@ func WithMatchedKey(certificateInput, privateKeyInput []byte, use func(*x509.Cer
 // this guarantee. It is for keys returned by a separately reviewed decoder.
 func ClearParsedKey(key any) { destroyPrivateKey(key) }
 
+// WithPrivateKey lends one strictly parsed, unencrypted private key to an
+// internal caller. The callback must not retain it or return key material in
+// diagnostics. Parsed values are cleared on a best-effort basis afterward.
+func WithPrivateKey(input []byte, use func(any, Encoding) error) error {
+	if use == nil {
+		return ErrInvalidPrivateKey
+	}
+	key, encoding, err := parsePrivateKey(input)
+	if err != nil {
+		return err
+	}
+	defer destroyPrivateKey(key)
+	return use(key, encoding)
+}
+
 func parsePrivateKey(input []byte) (any, Encoding, error) {
 	if len(input) == 0 {
 		return nil, "", ErrEmptyPrivateKey

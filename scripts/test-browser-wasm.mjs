@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import vm from "node:vm";
+import { createPrivateKey, generateKeyPairSync } from "node:crypto";
 
 const [wasmPath, runtimePath, certificatePath, bundlePath] = process.argv.slice(2);
 if (!wasmPath || !runtimePath || !certificatePath || !bundlePath) {
@@ -39,7 +40,32 @@ assert.equal(typeof globalThis.rootwellVerifyExplicit, "function");
 assert.equal(typeof globalThis.rootwellExportVerifiedSimple, "function");
 assert.equal(typeof globalThis.rootwellExportVerifiedExplicit, "function");
 assert.equal(typeof globalThis.rootwellExport, "function");
+assert.equal(typeof globalThis.rootwellPrivateInspect, "function");
+assert.equal(typeof globalThis.rootwellPrivateExportEncrypted, "function");
 assert.equal(globalThis.rootwellInspectMaxBytes, 16 * 1024 * 1024);
+
+const generated = generateKeyPairSync("ec", { namedCurve: "prime256v1", privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+const privateSource = new TextEncoder().encode(generated.privateKey);
+const privateSummary = JSON.parse(globalThis.rootwellPrivateInspect(privateSource));
+assert.equal(privateSummary.ok, true);
+assert.equal(privateSummary.result.input_format, "pkcs8-pem");
+assert.equal(privateSummary.result.algorithm, "ECDSA");
+const exportPassword = new TextEncoder().encode("non-production-browser-password-12345");
+const encryptedKey = globalThis.rootwellPrivateExportEncrypted(privateSource, privateSummary.result.public_fingerprint, exportPassword);
+assert.equal(encryptedKey.ok, true);
+assert.match(encryptedKey.result.filename, /^rootwell-encrypted-key-[0-9a-f]{16}-[0-9a-f]{32}\.pem$/);
+const encryptedText = new TextDecoder().decode(encryptedKey.result.bytes);
+assert.match(encryptedText, /^-----BEGIN ENCRYPTED PRIVATE KEY-----\n/);
+assert.equal(createPrivateKey({ key: encryptedText, passphrase: "non-production-browser-password-12345" }).asymmetricKeyType, "ec");
+const wrongPrivateFingerprint = globalThis.rootwellPrivateExportEncrypted(privateSource, "AA:".repeat(31) + "AA", exportPassword);
+assert.equal(wrongPrivateFingerprint.ok, false);
+assert.equal(wrongPrivateFingerprint.result, null);
+const malformedPrivate = JSON.parse(globalThis.rootwellPrivateInspect(new TextEncoder().encode("private-secret-sentinel")));
+assert.equal(malformedPrivate.ok, false);
+assert.equal(JSON.stringify(malformedPrivate).includes("private-secret-sentinel"), false);
+encryptedKey.result.bytes.fill(0);
+exportPassword.fill(0);
+privateSource.fill(0);
 
 const verifyFixture = JSON.parse(execFileSync("go", ["run", "./scripts/generate-browser-verify-fixture.go"], { encoding: "utf8" }));
 const encodePublic = (value) => new TextEncoder().encode(value);

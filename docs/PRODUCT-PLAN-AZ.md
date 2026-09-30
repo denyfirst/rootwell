@@ -278,8 +278,10 @@ və bundle/çoxfayllı public kolleksiyanın ümumi girişidir. Kartdan geniş
 inspection sahələri seçildikdə mənbə və fingerprint yenidən yoxlanır;
 **Convert** eyni sessiyanın public certificate-lərini ayrıca, aydın çıxış
 ekranında təqdim edir və birbaşa public fayl seçildikdə eyni bounded import
-yolunu işlədir. Bu görünüş bölgüsü private key/PFX browser importuna
-icazə vermir və heç bir automatic trust/chain qərarı yaratmır.
+yolunu işlədir. Ayrı private-key Convert seçimi strict unencrypted
+PKCS#8/PKCS#1/SEC1 PEM/DER faylını yalnız şifrəli PKCS#8 PEM-ə çevirir;
+PFX, plaintext çıxış və vault importu hələ yoxdur. Heç bir automatic
+trust/chain qərarı yaratmır.
 
 Sadə certificate import/Verify və public bundle explorer üçün konkret
 istifadəçi axını, etibar mənbəyi sərhədi və mərhələli qəbul meyarları

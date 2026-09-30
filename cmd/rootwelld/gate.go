@@ -50,7 +50,7 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"index.html", "app.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"index.html", "app.js", "private-key.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -500,7 +500,7 @@ func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentTy
 }
 
 var workbenchFiles = map[string]string{
-	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js",
+	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/private-key.js": "private-key.js",
 	"/style.css": "style.css", "/theme.js": "theme.js", "/wasm-loader.js": "wasm-loader.js",
 	"/wasm_exec.js": "wasm_exec.js", "/rootwell.wasm": "rootwell.wasm",
 	"/favicon.svg": "favicon.svg", "/rootwell-demo-bundle.pem": "rootwell-demo-bundle.pem",

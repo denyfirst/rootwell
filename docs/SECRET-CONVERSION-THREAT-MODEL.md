@@ -1,6 +1,6 @@
 # Secret-bearing conversion: pre-implementation threat model
 
-**Status:** Linux offline PFX creation, narrow public CLI inspection/extraction, and encrypted PKCS#8 key export implemented; plaintext legacy output and browser/server secret handling remain planned
+**Status:** Linux offline PFX creation/extraction and a first encrypted-only browser key conversion implemented; browser PFX, plaintext legacy output, and vault custody remain planned
 
 **Date:** 2026-09-29
 
@@ -10,9 +10,10 @@ Private keys, PFX passwords, extracted keys, and unencrypted working buffers
 are secret. Public certificates may still reveal internal identities. The
 operator supplies local files and a destination to an offline CLI process;
 file contents, filenames, directories, terminal state, and the chosen output
-path are untrusted. No network, browser, server, inventory, telemetry, or
-Porch boundary is crossed. The existing public Workbench and inventory must
-keep rejecting secret-bearing imports.
+path are untrusted. Those CLI operations cross no network, browser, server,
+inventory, telemetry, or Porch boundary. A separate browser Convert picker
+accepts only strict unencrypted private keys, never PFX; public Inspect/Verify
+and Inventory must keep rejecting secret-bearing imports.
 
 The attacker may supply a malicious container, swap a path before use, race a
 write, watch process arguments or logs, trick the operator into using a weak
@@ -27,7 +28,7 @@ administrator or compromised host is outside the confidentiality claim.
 | Wrong certificate or misleading chain | Public-key match, signature/relationship checks where claimed, duplicate and unrelated-certificate refusal, post-conversion semantic comparison; trust remains a separate Verify decision. |
 | Loss of unknown bags or attributes | Enumerate what the selected library exposes; refuse round-trip when semantics cannot be preserved or explicitly documented as intentionally discarded. Never label a lossy transformation lossless. |
 | Password disclosure | Terminal-only local input with echo disabled and prompt confirmation where output protection is created; no argv/env/URL/stdout/stderr/log/JSON password path. Refuse non-TTY before reading any key. Error strings never reflect attacker input. |
-| Private-key disclosure through output | Separate named action, private file only, no stdout or browser download in the first increments. Default key export must be encrypted PKCS#8; plaintext export, if ever allowed, needs a separate decision. |
+| Private-key disclosure through output | CLI uses a separate named action and private-file output. Browser conversion has a separate private picker and only encrypted PKCS#8 browser-managed download; browser/OS file permissions and copies cannot be guaranteed. Plaintext export needs a separate decision. |
 | Unsafe file write | Explicit destination, no overwrite, reject symlink/unsafe parent, create with private permissions, validate/sync before reporting success; failure cleanup and uncertain post-commit results are tested per platform. |
 | Stale or substituted input | Keep handles bound to inspected bytes or recheck a content digest before commit; test path replacement and key/certificate mismatch. |
 | Secret remnants | Clear owned byte buffers where possible, use bounded lifetimes, keep secrets out of errors and crash artifacts; document that runtime/OS copies cannot be reliably erased. |
@@ -58,9 +59,11 @@ unit, fuzz, race, vet, static, vulnerability, and supported-platform checks.
 Record exact versions and residual risks in the PR. Do not claim production
 secret custody or audited safety before external review.
 
+Browser private-key conversion is scoped by
+[`ADR 0034`](adr/0034-browser-encrypted-private-key-conversion.md).
 Browser/server PFX work has an additional development gate: specific
 origin/CSP, extension and download threat analysis, memory-retention tests,
 and no hidden upload evidence. The release candidate still requires an
-independent audit before real-user deployment. Until the browser boundary is
-implemented and internally tested, the public Convert UI must continue to
-refuse PFX and private keys.
+independent audit before real-user deployment. The public Convert picker,
+Inspect, Verify, and Inventory continue to refuse PFX and private keys;
+the separate private Convert picker refuses PFX and encrypted-key input.

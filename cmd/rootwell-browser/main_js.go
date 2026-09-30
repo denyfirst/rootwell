@@ -27,6 +27,8 @@ func main() {
 	verifiedExportSimpleFunction := js.FuncOf(exportVerifiedSimple)
 	verifiedExportExplicitFunction := js.FuncOf(exportVerifiedExplicit)
 	exportFunction := js.FuncOf(exportPublicCertificate)
+	privateInspectFunction := js.FuncOf(inspectPrivateKey)
+	privateExportFunction := js.FuncOf(exportEncryptedPrivateKey)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
 	js.Global().Set("rootwellAnalyze", analyzeFunction)
@@ -36,6 +38,8 @@ func main() {
 	js.Global().Set("rootwellExportVerifiedSimple", verifiedExportSimpleFunction)
 	js.Global().Set("rootwellExportVerifiedExplicit", verifiedExportExplicitFunction)
 	js.Global().Set("rootwellExport", exportFunction)
+	js.Global().Set("rootwellPrivateInspect", privateInspectFunction)
+	js.Global().Set("rootwellPrivateExportEncrypted", privateExportFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
