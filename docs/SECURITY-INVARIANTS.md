@@ -962,6 +962,7 @@ This does not establish CA trust and does not guarantee runtime zeroization or
 cancel an already timed-out decoder inside a reusable process.
 
 Guarded by `TestExportProducesOnlyEncryptedMatchingPKCS8`,
+`TestExportRSAKeepsMatchingKeyEncrypted`,
 `TestExportRefusesWrongSelectionPasswordAndTamper`,
 `TestPFXExtractKeyEncryptedPrivateNewFileAndOpenSSL`,
 `TestPFXExtractKeyRefusesWrongPasswordSelectionAndCollision`,
