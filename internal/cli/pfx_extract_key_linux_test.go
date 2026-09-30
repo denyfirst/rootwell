@@ -18,6 +18,15 @@ import (
 
 const cliExportPassword = "cli-export-password-8d130b7f"
 
+func privateExportPath(t *testing.T, name string) string {
+	t.Helper()
+	directory := t.TempDir()
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(directory, name)
+}
+
 func exportReader(value string) func(string) (string, error) {
 	count := 0
 	return func(string) (string, error) {
@@ -33,7 +42,7 @@ func exportReader(value string) func(string) (string, error) {
 
 func TestPFXExtractKeyEncryptedPrivateNewFileAndOpenSSL(t *testing.T) {
 	path, fingerprint, certificateDER := pfxExtractFixture(t)
-	output := filepath.Join(t.TempDir(), "exported-key.pem")
+	output := privateExportPath(t, "exported-key.pem")
 	args := []string{"pfx-extract-key", "--input", path, "--sha256", fingerprint, "--output", output}
 	var stdout, stderr bytes.Buffer
 	if code := runWithSecretReader(args, &stdout, &stderr, exportReader(cliPFXPassword)); code != ExitOK || stdout.Len() != 0 || stderr.Len() != 0 {
@@ -104,7 +113,7 @@ func TestPFXExtractKeyEncryptedPrivateNewFileAndOpenSSL(t *testing.T) {
 
 func TestPFXExtractKeyRefusesWrongPasswordSelectionAndCollision(t *testing.T) {
 	path, fingerprint, _ := pfxExtractFixture(t)
-	output := filepath.Join(t.TempDir(), "exported-key.pem")
+	output := privateExportPath(t, "exported-key.pem")
 	args := []string{"pfx-extract-key", "--input", path, "--sha256", fingerprint, "--output", output}
 	wrong := fingerprint[:94] + "0"
 	if wrong == fingerprint {
@@ -204,7 +213,7 @@ func TestPFXExtractKeyRejectsMalformedBeforePromptAndUnsafeDirectory(t *testing.
 
 func TestPFXExtractKeyBindsReadBeforePromptAndRejectsPasswordReuse(t *testing.T) {
 	path, fingerprint, _ := pfxExtractFixture(t)
-	output := filepath.Join(t.TempDir(), "exported-key.pem")
+	output := privateExportPath(t, "exported-key.pem")
 	args := []string{"pfx-extract-key", "--input", path, "--sha256", fingerprint, "--output", output}
 	var stdout, stderr bytes.Buffer
 	count := 0
@@ -227,7 +236,7 @@ func TestPFXExtractKeyBindsReadBeforePromptAndRejectsPasswordReuse(t *testing.T)
 	if _, err := os.Stat(output); err != nil {
 		t.Fatal("no encrypted output from original PFX")
 	}
-	separateOutput := filepath.Join(t.TempDir(), "reused-password.pem")
+	separateOutput := privateExportPath(t, "reused-password.pem")
 	path, fingerprint, _ = pfxExtractFixture(t)
 	args = []string{"pfx-extract-key", "--input", path, "--sha256", fingerprint, "--output", separateOutput}
 	stdout.Reset()
