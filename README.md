@@ -198,10 +198,29 @@ inspection result. `--to der` is also available. This does not create a
 fullchain, establish trust, or extract the private key. The output must not
 exist; PFX and password stay local. The first reader accepts a narrow, bounded
 modern profile; unsupported or older vendor PFX files fail explicitly.
-Private-key extraction, Windows secret output, and browser PFX conversion are
-not available yet. These development features
-have not had their release audit; see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md)
-and [ADR 0031](docs/adr/0031-bounded-pfx-public-inspection.md).
+Private-key extraction is a separate operation; Windows secret output and
+browser PFX conversion remain unsupported. On Linux, key export produces
+only a new password-encrypted PKCS#8 file inside an existing owner-private
+directory. Copy the complete `SHA-256` value of the **matching certificate**
+from `pfx-inspect`, then run:
+
+```text
+rootwell pfx-extract-key --input ./private-output/server.p12 \
+  --sha256 AA:BB:... --output ./private-output/server-key-encrypted.pem
+```
+
+Replace `AA:BB:...` with the full displayed fingerprint. The command asks
+for the PFX password, then twice for a **different, high-entropy** output
+password on the local terminal. Never reuse the instance login password.
+This file is still sensitive even though encrypted: back it up and restrict
+access. No key is printed, saved in inventory, exported unencrypted, or made
+available through the browser. Existing files are never replaced. The narrow
+modern PFX profile remains in force. Plaintext legacy RSA/PKCS#1 conversion,
+Windows secret output, browser key reveal, and browser PFX conversion are not
+available yet. These development features have not had their release audit;
+see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md),
+[ADR 0031](docs/adr/0031-bounded-pfx-public-inspection.md), and
+[ADR 0033](docs/adr/0033-encrypted-pfx-key-export.md).
 
 Inspection reports public-key details, key usages, Basic Constraints, key
 identifiers, SANs, critical-extension OIDs, and the SHA-256 fingerprint. JSON
