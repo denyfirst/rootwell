@@ -23,7 +23,7 @@ still accepts one file.
 | Ed25519 private key | PKCS#8 PEM/DER | planned | implemented (unencrypted) | n/a | planned | encrypted import requires a password-input decision |
 | RSA private key | PKCS#1 PEM/DER | planned | implemented (unencrypted) | n/a | planned | legacy import; write defaults to PKCS#8 |
 | ECDSA private key | SEC1 PEM/DER | planned | implemented (unencrypted) | n/a | planned | legacy import; write defaults to PKCS#8 |
-| Certificate and key bundle | PKCS#12/PFX | offline CLI public summary for bounded modern profile | planned | planned | offline Linux CLI create and public-only certificate extraction implemented; key extraction planned | password-protected creation from one matched RSA/ECDSA key and optional ordered issuers; extraction selects one exact fingerprint and never exports a key or claims trust; no browser/server support |
+| Certificate and key bundle | PKCS#12/PFX | offline CLI public summary for bounded modern profile | planned | planned | offline Linux CLI create, public certificate extraction, and encrypted PKCS#8 matching-key extraction implemented | password-protected creation from one matched RSA/ECDSA key and optional ordered issuers; both extraction paths bind exact matching fingerprint; key output is new encrypted private file only; no browser/server support or trust claim |
 | Java keystore | JKS | deferred | deferred | deferred | deferred | target profile phase, not v0.1 |
 | SSH key | OpenSSH and RFC 4716 | deferred | deferred | deferred | deferred | separate lifecycle and threat model |
 | OpenPGP key | RFC 9580 | deferred | deferred | deferred | deferred | separate lifecycle and threat model |

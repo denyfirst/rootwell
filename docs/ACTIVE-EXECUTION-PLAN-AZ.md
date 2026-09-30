@@ -68,12 +68,29 @@ olunmamış nəticəyə “verified” demək qadağandır.
    PKCS#12 dependency/profil qərarını və Linux offline PFX yaratma sərhədini
    qeyd edir. [`ADR 0031`](adr/0031-bounded-pfx-public-inspection.md) dar modern
    profil üçün yalnız public PFX xülasəsini əlavə edir; public hissələri
-   fingerprint ilə ayrı PEM/DER faylına çıxarmaq əlavə edilib, key extraction
-   isə ayrıca increment-dir. Browser/server PFX və private key-ləri yalnız
+   fingerprint ilə ayrı PEM/DER faylına çıxarmaq və Linux offline CLI-da uyğun
+   key-i yalnız yeni şifrəli PKCS#8 faylına çıxarmaq əlavə edilib. Legacy
+   plaintext key formatı və browser reveal ayrıca increment-lərdir.
+   Browser/server PFX və private key-ləri yalnız
    ayrıca dependency review, memory/output/file-permission testləri və daxili
    təhlükəsizlik qapılarından sonra qəbul edə bilər. Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
    son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
+
+   **Növbəti secret-conversion sırası:** (a) RSA PKCS#8 ↔ PKCS#1 və ECDSA
+   PKCS#8 ↔ SEC1 üçün ayrıca format kontraktı; şifrəli PKCS#8 default qalır,
+   şifrəsiz legacy çıxış yalnız ayrıca xəbərdarlıq və explicit razılıqla;
+   (b) FortiGate, FortiWeb və FortiNAC kimi fərqli məhsul/versiyalar üçün
+   ayrı qəbul profilləri — tək universal “Fortinet” seçimi yoxdur;
+   (c) browser Convert-də PFX/key işi üçün ayrıca origin/CSP, zero-upload,
+   yaddaş və download testləri; yalnız həmin qapıdan sonra gözlə göstərmə.
+   Browser reveal hər dəfə PFX parolunu yenidən istəməli, saxlanmış key üçün
+   əlavə instance reauthentication tələb etməli, qısa müddətdən sonra mətn
+   sahəsini təmizləməli və heç nəyi log/history/URL/localStorage-a qoymamalıdır.
+   Bu tədbirlər zərərli browser extension və komprometasiya olunmuş hostdan
+   tam müdafiə vədi deyil. Hər real browser increment-i istifadəyə yararlı
+   sintetik demo faylı ilə göstərilməlidir; CLI xüsusiyyəti web-də varmış
+   kimi təqdim edilməyəcək.
 
 Workbench-də **Inspect** tək public sertifikatı və ya PEM bundle/çoxfayllı
 kolleksiyanı eyni yerdə açır. Hər kartdan seçilmiş sertifikatın geniş

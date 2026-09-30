@@ -945,3 +945,27 @@ Guarded by `TestCertificateDERSelectsExactPublicObject`,
 `TestPFXExtractCertBindsSelectionToAlreadyReadBytes`,
 `TestPFXExtractCertRefusesWrongSelectionPasswordAndOutputCollision`, and
 `TestPFXExtractCertRequiresTTYAndValidProfileBeforePrompt`.
+
+## C59 — PFX private-key export is encrypted, isolated, and no-overwrite
+
+The offline Linux CLI may export only the one key bound to an exact inspected
+non-CA certificate fingerprint from an authenticated, bounded modern PFX.
+The output is one password-encrypted PKCS#8 PEM block, never plaintext,
+stdout, JSON, inventory, or browser content. A new terminal-entered output
+password is confirmed, meets policy, and differs from the PFX password.
+Unsupported OS, non-TTY, malformed/oversized/legacy/tampered input, wrong
+password or fingerprint, unsafe directory, existing/symlink destination, and
+failed output verification do not publish a key. The PFX input is read once
+before prompting; the decoder and encryption run within the one-shot CLI
+deadline. Output is written through the private no-overwrite file primitive.
+This does not establish CA trust and does not guarantee runtime zeroization or
+cancel an already timed-out decoder inside a reusable process.
+
+Guarded by `TestExportProducesOnlyEncryptedMatchingPKCS8`,
+`TestExportRSAKeepsMatchingKeyEncrypted`,
+`TestExportRefusesWrongSelectionPasswordAndTamper`,
+`TestPFXExtractKeyEncryptedPrivateNewFileAndOpenSSL`,
+`TestPFXExtractKeyRefusesWrongPasswordSelectionAndCollision`,
+`TestPFXExtractKeyBindsReadBeforePromptAndRejectsPasswordReuse`,
+`TestPFXExtractKeyUnsupportedPlatformRefusesBeforeInput`, and
+`TestPFXExtractKeyRejectsNonTTYAndUnsafeArguments`.

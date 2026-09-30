@@ -64,17 +64,24 @@ func openPFX(path string, readSecret func(string) (string, error), stderr io.Wri
 }
 
 func inspectPFXWithDeadline(input []byte, password string, budget time.Duration, decode func([]byte, string) (pfxinspect.Result, error)) (pfxinspect.Result, error) {
+	return pfxWithDeadline(input, password, budget, decode)
+}
+
+// pfxWithDeadline is safe only in the one-shot CLI. A timed-out decoder has
+// no cancellation API; main must exit rather than serving another request.
+func pfxWithDeadline[T any](input []byte, password string, budget time.Duration, decode func([]byte, string) (T, error)) (T, error) {
 	type outcome struct {
-		result pfxinspect.Result
+		result T
 		err    error
 	}
 	completed := make(chan outcome, 1)
 	go func() {
-		var result pfxinspect.Result
+		var result T
 		var err error
 		defer func() {
 			if recover() != nil {
-				result = pfxinspect.Result{}
+				var zero T
+				result = zero
 				err = pfxinspect.ErrInvalid
 			}
 			clear(input)
@@ -88,7 +95,8 @@ func inspectPFXWithDeadline(input []byte, password string, budget time.Duration,
 	case output := <-completed:
 		return output.result, output.err
 	case <-timer.C:
-		return pfxinspect.Result{}, errPFXInspectionTimeout
+		var zero T
+		return zero, errPFXInspectionTimeout
 	}
 }
 

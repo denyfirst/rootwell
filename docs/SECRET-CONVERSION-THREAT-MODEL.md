@@ -1,6 +1,6 @@
 # Secret-bearing conversion: pre-implementation threat model
 
-**Status:** Linux offline PFX creation and narrow public CLI inspection/extraction implemented; private-key extraction and browser/server secret handling remain planned
+**Status:** Linux offline PFX creation, narrow public CLI inspection/extraction, and encrypted PKCS#8 key export implemented; plaintext legacy output and browser/server secret handling remain planned
 
 **Date:** 2026-09-29
 
