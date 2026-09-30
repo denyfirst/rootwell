@@ -202,8 +202,9 @@ rootwell csr --key <file> --dns example.com --dns www.example.com
 Hazırda public PEM/DER convert işləyir; `pfx-create` isə yalnız Linux offline
 CLI-da modern, parolla qorunan PFX yaradır. `pfx-inspect` dar, limitli müasir
 profildəki PFX-in yalnız public sertifikat xülasəsini göstərir. Sertifikat/key
-çıxarmaq, geniş vendor PFX importu, encrypted key importu və browser secret
-conversion ayrıca increment-lərdir.
+private key çıxarmaq, geniş vendor PFX importu, encrypted key importu və browser
+secret conversion ayrıca increment-lərdir. Dəqiq fingerprint ilə yalnız bir
+public sertifikatı PFX-dən PEM/DER kimi çıxarmaq offline CLI-da işləyir.
 
 v0.1 format scope-u:
 

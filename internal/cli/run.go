@@ -35,6 +35,9 @@ commands:
                    create a password-protected PFX on Linux only
   pfx-inspect --input <file>
                    show public certificates from a supported modern PFX
+  pfx-extract-cert --input <file> --sha256 <fingerprint>
+                   --to pem|der --output <new-file>
+                   save one selected public certificate; never a key or chain
   match --cert <file> --key <file> [--json]
                    compare a certificate with an unencrypted private key
   verify <file> --trust-bundle <roots.pem> [--intermediates <chain.pem>]
@@ -121,6 +124,12 @@ func runWithSecretReader(args []string, stdout, stderr io.Writer, readSecret fun
 			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
 		}
 		return runPFXInspect(args[2], readSecret, stdout, stderr)
+	case "pfx-extract-cert":
+		arguments, ok := parsePFXExtractCertArguments(args[1:])
+		if !ok {
+			return writeDiagnostic(stderr, "invalid arguments\n", ExitUsage)
+		}
+		return runPFXExtractCert(arguments, readSecret, stderr)
 	case "verify":
 		arguments, ok := parseVerifyArguments(args[1:])
 		if !ok {

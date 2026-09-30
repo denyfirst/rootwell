@@ -1,6 +1,7 @@
 package pfxinspect
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -15,11 +16,44 @@ import (
 
 var ErrInvalid = errors.New("PFX could not be authenticated or contains unsupported material")
 
-// Result contains only public metadata. Additional certificates are in file
-// order, not a verified issuer path; none becomes a trust anchor.
+// Result contains public metadata and private copies of public certificate DER.
+// Additional certificates are in file order, not a verified issuer path;
+// none becomes a trust anchor.
 type Result struct {
 	MatchingCertificate certinspect.Result
 	Additional          []certinspect.Result
+	publicDER           map[string][]byte
+}
+
+// CertificateDER returns a copy of the exact public certificate selected by
+// the fingerprint shown by pfx-inspect. It never returns private-key material.
+func (result Result) CertificateDER(fingerprint string) ([]byte, bool) {
+	if !ValidFingerprint(fingerprint) {
+		return nil, false
+	}
+	der, ok := result.publicDER[fingerprint]
+	if !ok {
+		return nil, false
+	}
+	return bytes.Clone(der), true
+}
+
+// ValidFingerprint accepts only the exact uppercase colon-hex SHA-256 form
+// displayed by the inspection command.
+func ValidFingerprint(value string) bool {
+	if len(value) != 95 {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if index%3 == 2 {
+			if value[index] != ':' {
+				return false
+			}
+		} else if !((value[index] >= '0' && value[index] <= '9') || (value[index] >= 'A' && value[index] <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // Inspect accepts only the bounded modern profile and a nonempty printable
@@ -49,6 +83,7 @@ func Inspect(input []byte, password string) (Result, error) {
 	var key crypto.Signer
 	var certificates []*x509.Certificate
 	var reports []certinspect.Result
+	publicDER := make(map[string][]byte)
 	seen := make(map[[32]byte]bool)
 	for _, block := range blocks {
 		if block == nil {
@@ -93,6 +128,7 @@ func Inspect(input []byte, password string) (Result, error) {
 			}
 			certificates = append(certificates, certificate)
 			reports = append(reports, report)
+			publicDER[report.SHA256Fingerprint] = bytes.Clone(certificate.Raw)
 		default:
 			return Result{}, ErrInvalid
 		}
@@ -104,7 +140,7 @@ func Inspect(input []byte, password string) (Result, error) {
 	if err != nil {
 		return Result{}, ErrInvalid
 	}
-	var result Result
+	result := Result{publicDER: publicDER}
 	matches := 0
 	for index, certificate := range certificates {
 		certificateSPKI, marshalErr := x509.MarshalPKIXPublicKey(certificate.PublicKey)

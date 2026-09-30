@@ -68,7 +68,8 @@ olunmamış nəticəyə “verified” demək qadağandır.
    PKCS#12 dependency/profil qərarını və Linux offline PFX yaratma sərhədini
    qeyd edir. [`ADR 0031`](adr/0031-bounded-pfx-public-inspection.md) dar modern
    profil üçün yalnız public PFX xülasəsini əlavə edir; public hissələri
-   çıxarma və sonra key extraction ayrıca increment-lərdir. Browser/server PFX və private key-ləri yalnız
+   fingerprint ilə ayrı PEM/DER faylına çıxarmaq əlavə edilib, key extraction
+   isə ayrıca increment-dir. Browser/server PFX və private key-ləri yalnız
    ayrıca dependency review, memory/output/file-permission testləri və daxili
    təhlükəsizlik qapılarından sonra qəbul edə bilər. Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün

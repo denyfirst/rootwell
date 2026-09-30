@@ -185,10 +185,21 @@ rootwell pfx-inspect --input ./private-output/server.p12
 
 It prompts for the password locally, identifies the certificate matching the
 contained key, and lists any additional certificates without claiming trust.
-It never exports or saves the key. The first reader accepts a narrow, bounded
+Copy the exact `SHA-256` value printed beside the desired public certificate
+and save just that certificate to a new file:
+
+```text
+rootwell pfx-extract-cert --input ./private-output/server.p12 \
+  --sha256 AA:BB:... --to pem --output server-public.pem
+```
+
+Replace `AA:BB:...` with the complete, uppercase fingerprint from the
+inspection result. `--to der` is also available. This does not create a
+fullchain, establish trust, or extract the private key. The output must not
+exist; PFX and password stay local. The first reader accepts a narrow, bounded
 modern profile; unsupported or older vendor PFX files fail explicitly.
-Public certificate extraction, key extraction, Windows secret output, and
-browser PFX conversion are not available yet. These development features
+Private-key extraction, Windows secret output, and browser PFX conversion are
+not available yet. These development features
 have not had their release audit; see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md)
 and [ADR 0031](docs/adr/0031-bounded-pfx-public-inspection.md).
 

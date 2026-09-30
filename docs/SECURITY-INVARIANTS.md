@@ -925,3 +925,23 @@ Guarded by `TestInspectModernPFXPublicOnly`,
 `TestPFXInspectRejectsUnsupportedBeforePasswordPrompt`, and
 `TestPFXInspectDeadlineReturnsWithoutPartialResult`, and
 `TestPFXInspectDecoderPanicIsNotPrinted`.
+
+## C58 — PFX public extraction is exact-selection and never key export
+
+The offline CLI accepts only a complete canonical SHA-256 fingerprint printed
+by inspection, authenticates and validates the same bounded modern PFX profile,
+and writes exactly the selected public certificate as PEM or DER to a new file.
+It does not choose by order, infer a chain or trust, overwrite an existing
+path, publish a key/PFX/password, or follow a substituted input path after the
+original bounded read. Wrong selection or password, malformed/oversized PFX,
+non-TTY input, unsupported output format, and output collision produce no
+partial file. The public file writer is not a secret-output primitive, and
+the one-shot decoder boundary from C57 still applies.
+
+Guarded by `TestCertificateDERSelectsExactPublicObject`,
+`TestInspectShowsAdditionalCertificateWithoutTrustClaim`,
+`TestInspectModernOpenSSLGeneratedPFX`,
+`TestPFXExtractCertWritesOnlySelectedPublicCertificate`,
+`TestPFXExtractCertBindsSelectionToAlreadyReadBytes`,
+`TestPFXExtractCertRefusesWrongSelectionPasswordAndOutputCollision`, and
+`TestPFXExtractCertRequiresTTYAndValidProfileBeforePrompt`.

@@ -55,6 +55,32 @@ func TestInspectModernPFXPublicOnly(t *testing.T) {
 	}
 }
 
+func TestCertificateDERSelectsExactPublicObject(t *testing.T) {
+	data, certificate, _ := fixture(t)
+	result, err := Inspect(data, testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := result.CertificateDER(result.MatchingCertificate.SHA256Fingerprint)
+	if !ok || !bytes.Equal(got, certificate.Raw) {
+		t.Fatal("selected certificate DER changed")
+	}
+	got[0] ^= 0xff
+	again, ok := result.CertificateDER(result.MatchingCertificate.SHA256Fingerprint)
+	if !ok || !bytes.Equal(again, certificate.Raw) {
+		t.Fatal("caller changed retained public certificate")
+	}
+	other := result.MatchingCertificate.SHA256Fingerprint[:94] + "0"
+	if other == result.MatchingCertificate.SHA256Fingerprint {
+		other = result.MatchingCertificate.SHA256Fingerprint[:94] + "1"
+	}
+	for _, fingerprint := range []string{other, "", "lowercase", result.MatchingCertificate.SHA256Fingerprint + ":00"} {
+		if der, ok := result.CertificateDER(fingerprint); ok || der != nil {
+			t.Fatal("unknown or malformed fingerprint selected a certificate")
+		}
+	}
+}
+
 func TestInspectRejectsWrongPasswordTamperAndUnsupported(t *testing.T) {
 	data, _, _ := fixture(t)
 	if _, err := Inspect(data, "wrong-password"); !errors.Is(err, ErrInvalid) {
@@ -151,6 +177,10 @@ func TestInspectShowsAdditionalCertificateWithoutTrustClaim(t *testing.T) {
 	result, err := Inspect(data, testPassword)
 	if err != nil || len(result.Additional) != 1 || result.Additional[0].Subject != issuer.Subject.String() {
 		t.Fatalf("additional certificate missing: %+v, %v", result, err)
+	}
+	selected, ok := result.CertificateDER(result.Additional[0].SHA256Fingerprint)
+	if !ok || !bytes.Equal(selected, issuer.Raw) {
+		t.Fatal("additional public certificate could not be selected")
 	}
 }
 

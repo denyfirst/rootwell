@@ -42,6 +42,10 @@ about a live server. No browser/server PFX path is opened. The CLI remains
 offline. Output uses bounded, terminal-escaped public fields and stable
 diagnostics that never echo paths, passwords, or input bytes.
 
+Later [ADR 0032](0032-fingerprint-selected-public-pfx-extraction.md) adds an
+explicit, public-only extraction command without expanding the PFX profile or
+authorizing private-key export.
+
 The preflight mirrors only a small envelope grammar using Go's standard
 `encoding/asn1`; SSLMate performs the actual MAC and decryption. It is not a
 second PKCS#12 implementation. A malicious authenticated encrypted safe may
