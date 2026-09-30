@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -80,6 +81,51 @@ func TestExportProducesOnlyEncryptedMatchingPKCS8(t *testing.T) {
 	second, err := Export(data, fixturePFXPassword, fingerprint, []byte(fixtureNewPassword))
 	if err != nil || bytes.Equal(output, second) {
 		t.Fatal("encrypted output reused salt and IV or failed second export")
+	}
+}
+
+func TestExportRSAKeepsMatchingKeyEncrypted(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Add(-time.Hour)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(302), Subject: pkix.Name{CommonName: "rsa-export.example"},
+		DNSNames: []string{"rsa-export.example"}, NotBefore: now, NotAfter: now.Add(24 * time.Hour),
+		BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificate, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := pkcs12.Modern2023.WithIterations(100_000).Encode(key, certificate, nil, fixturePFXPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := pfxinspect.Inspect(data, fixturePFXPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := Export(data, fixturePFXPassword, inspection.MatchingCertificate.SHA256Fingerprint, []byte(fixtureNewPassword))
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, trailing := pem.Decode(output)
+	if block == nil || block.Type != "ENCRYPTED PRIVATE KEY" || len(trailing) != 0 {
+		t.Fatal("RSA export was not encrypted PKCS#8")
+	}
+	parsed, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, []byte(fixtureNewPassword))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, ok := parsed.(*rsa.PrivateKey)
+	if !ok || !actual.PublicKey.Equal(key.Public()) {
+		t.Fatal("RSA export key changed")
 	}
 }
 
