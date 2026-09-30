@@ -91,9 +91,33 @@ assert.equal(exportCalls, 2);
 assert.equal(output[0], 0, "rejected output buffer was not cleared");
 assert.equal(get("private-convert-error").hidden, false);
 
+await get("private-convert-inspect").listeners.click();
+assert.equal(get("private-convert-result").hidden, false);
+
+sourceByte = 66;
+get("private-convert-password").value = "non-production-output-password-12345";
+get("private-convert-confirm").value = "non-production-output-password-12345";
+await get("private-convert-download").listeners.click();
+assert.equal(exportCalls, 3);
+assert.equal(get("private-convert-result").hidden, true, "changed key left a stale export result visible");
+assert.equal(get("private-convert-download").disabled, true);
+sourceByte = 65;
+
 get("private-convert-file").files = [];
 get("private-convert-file").listeners.change();
 assert.equal(get("private-convert-result").hidden, true);
 await get("private-convert-download").listeners.click();
-assert.equal(exportCalls, 2, "stale selection allowed another export");
+assert.equal(exportCalls, 3, "stale selection allowed another export");
+
+let releaseRead;
+const slowFile = { size: 1, slice: () => ({ arrayBuffer: () => new Promise((resolve) => { releaseRead = resolve; }) }) };
+get("private-convert-file").files = [slowFile];
+get("private-convert-file").listeners.change();
+const pendingInspect = get("private-convert-inspect").listeners.click();
+get("private-convert-file").files = [file];
+get("private-convert-file").listeners.change();
+releaseRead(Uint8Array.of(65).buffer);
+await pendingInspect;
+assert.equal(get("private-convert-inspect").disabled, false, "new selection stayed disabled after stale read");
+assert.equal(get("private-convert-result").hidden, true, "stale read showed a result");
 console.log("Private-key Workbench state and refusal tests passed.");

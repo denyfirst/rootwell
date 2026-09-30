@@ -46,6 +46,7 @@
     selected = null;
     inspected = null;
     resultBox.hidden = true;
+    downloadButton.disabled = true;
     errorBox.hidden = true;
     status.textContent = "";
     clearSecrets();
@@ -75,6 +76,7 @@
     const request = generation;
     busy = true;
     inspectButton.disabled = true;
+    inspected = null;
     resultBox.hidden = true;
     errorBox.hidden = true;
     let bytes;
@@ -92,13 +94,14 @@
         " · public-key SHA-256 " + response.result.public_fingerprint;
       status.textContent = "Format identified locally. The key has not been saved or uploaded.";
       resultBox.hidden = false;
+      downloadButton.disabled = false;
     } catch {
       if (request === generation) fail("This private key is malformed, encrypted, unsupported, or too large. No key details were shown.");
     } finally {
       clearSecrets();
       if (bytes) bytes.fill(0);
       busy = false;
-      if (request === generation) inspectButton.disabled = !selected || !engine;
+      inspectButton.disabled = !selected || !engine;
     }
   });
 
@@ -147,7 +150,11 @@
       anchor.remove();
       status.textContent = "Encrypted-key download requested. Check the browser save location; this is not a Vault save.";
     } catch {
-      if (request === generation) fail("Private-key conversion failed safely. No download was requested.");
+      if (request === generation) {
+        inspected = null;
+        resultBox.hidden = true;
+        fail("Private-key conversion failed safely. No download was requested. Identify the key again before retrying.");
+      }
     } finally {
       clearSecrets();
       if (bytes) bytes.fill(0);
@@ -155,7 +162,7 @@
       if (output) output.fill(0);
       if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
       busy = false;
-      if (request === generation) downloadButton.disabled = false;
+      if (request === generation) downloadButton.disabled = !inspected;
       inspectButton.disabled = !selected || !engine;
     }
   });
