@@ -17,24 +17,34 @@ var errPFXInspectionTimeout = errors.New("PFX inspection exceeded time budget")
 const pfxInspectionTimeout = 10 * time.Second
 
 func runPFXInspect(path string, readSecret func(string) (string, error), stdout, stderr io.Writer) int {
+	result, code := openPFX(path, readSecret, stderr, "inspection")
+	if code != ExitOK {
+		return code
+	}
+	return writeRequested(stdout, stderr, renderPFXInspection(result, time.Now()))
+}
+
+// openPFX is the one-shot local CLI admission boundary shared by public
+// inspection and public certificate extraction. It must not run in a daemon.
+func openPFX(path string, readSecret func(string) (string, error), stderr io.Writer, operation string) (pfxinspect.Result, int) {
 	if readSecret == nil {
-		return writeDiagnostic(stderr, "interactive terminal required for PFX inspection\n", ExitFailure)
+		return pfxinspect.Result{}, writeDiagnostic(stderr, "interactive terminal required for PFX "+operation+"\n", ExitFailure)
 	}
 	input, err := fileinput.ReadAtMost(path, 1<<20)
 	if err != nil {
 		if errors.Is(err, fileinput.ErrTooLarge) {
-			return writeDiagnostic(stderr, "PFX exceeds 1 MiB inspection limit\n", ExitFailure)
+			return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX exceeds 1 MiB inspection limit\n", ExitFailure)
 		}
-		return writeDiagnostic(stderr, "PFX could not be read\n", ExitFailure)
+		return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX could not be read\n", ExitFailure)
 	}
 	if err := pfxinspect.Preflight(input); err != nil {
 		clear(input)
-		return writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
+		return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
 	}
 	password, err := readSecret("PFX password (local terminal only): ")
 	if err != nil {
 		clear(input)
-		return writeDiagnostic(stderr, "PFX password could not be read\n", ExitFailure)
+		return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX password could not be read\n", ExitFailure)
 	}
 	passwordBytes := []byte(password)
 	defer clear(passwordBytes)
@@ -43,14 +53,14 @@ func runPFXInspect(path string, readSecret func(string) (string, error), stdout,
 	result, err := inspectPFXWithDeadline(input, password, pfxInspectionTimeout, pfxinspect.Inspect)
 	if err != nil {
 		if errors.Is(err, errPFXInspectionTimeout) {
-			return writeDiagnostic(stderr, "PFX inspection exceeded safety time limit\n", ExitFailure)
+			return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX inspection exceeded safety time limit\n", ExitFailure)
 		}
 		if errors.Is(err, pfxinspect.ErrUnsupported) {
-			return writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
+			return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
 		}
-		return writeDiagnostic(stderr, "PFX password or contents could not be authenticated\n", ExitFailure)
+		return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX password or contents could not be authenticated\n", ExitFailure)
 	}
-	return writeRequested(stdout, stderr, renderPFXInspection(result, time.Now()))
+	return result, ExitOK
 }
 
 func inspectPFXWithDeadline(input []byte, password string, budget time.Duration, decode func([]byte, string) (pfxinspect.Result, error)) (pfxinspect.Result, error) {

@@ -57,4 +57,8 @@ func TestInspectModernOpenSSLGeneratedPFX(t *testing.T) {
 	if err != nil || result.MatchingCertificate.Subject != certificate.Subject.String() {
 		t.Fatalf("OpenSSL modern PFX was not inspected: %v", err)
 	}
+	selected, ok := result.CertificateDER(result.MatchingCertificate.SHA256Fingerprint)
+	if !ok || string(selected) != string(certificate.Raw) {
+		t.Fatal("OpenSSL public certificate was not preserved exactly")
+	}
 }
