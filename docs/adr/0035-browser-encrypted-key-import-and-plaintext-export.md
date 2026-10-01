@@ -34,8 +34,9 @@ backups. No automatic Inventory/Vault save, upload, reveal, PFX, or Porch
 integration is added.
 
 The imported CBC container is not authenticated, and the pinned decoder is
-not constant time; wrong-password/tamper behavior is a refusal, not a proof
-of integrity. KDF work is bounded but runs in the current browser WebAssembly
+not constant time. Malformed input and tested wrong passwords refuse, but
+tampering may go undetected; parsing does not prove source authenticity or
+integrity. KDF work is bounded but runs in the current browser WebAssembly
 context; a dedicated worker/deadline remains a hardening task before wider
 encrypted-container support. JavaScript strings, Go runtime copies, browser
 extensions, OS memory, and downloaded plaintext copies cannot be reliably

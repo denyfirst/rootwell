@@ -266,7 +266,7 @@
             <p class="result-kicker">Private key · local conversion</p>
             <h3 id="private-convert-title">Convert a private key</h3>
             <p>Choose one PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Encrypted PKCS#8 is supported for a limited modern profile. Rootwell checks it locally and does not upload or save it to Inventory or Vault.</p>
-            <p class="verify-note">PFX and legacy encrypted RSA/EC PEM are not supported here. Your browser controls downloads and may keep copies in Downloads or backups; Rootwell cannot set private file permissions for you.</p>
+            <p class="verify-note">PFX and legacy encrypted RSA/EC PEM are not supported here. A password-protected key does not prove its source or integrity. Your browser controls downloads and may keep copies in Downloads or backups; Rootwell cannot set private file permissions for you.</p>
             <div class="file-zone">
               <input class="file-input" type="file" id="private-convert-file" accept=".pem,.key,.der,application/octet-stream">
               <label for="private-convert-file"><span class="file-symbol" aria-hidden="true">＋</span><strong>Choose one private key</strong><span>PKCS#8 · PKCS#1 RSA · SEC1 EC · maximum 64 KiB</span></label>
