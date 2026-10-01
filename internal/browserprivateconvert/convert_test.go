@@ -2,6 +2,7 @@ package browserprivateconvert
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -138,6 +139,126 @@ func TestPrivateConversionRefusesMalformedChangedAndWeakPassword(t *testing.T) {
 	}
 }
 
+func TestEncryptedInputAndPlaintextTargets(t *testing.T) {
+	inputPassword := []byte("test-only-current-password")
+	outputPassword := []byte("test-only-new-output-password-123")
+	for _, kind := range []string{"RSA", "ECDSA", "Ed25519"} {
+		key := testKey(t, kind)
+		plain := testInputs(t, key)["pkcs8-der"]
+		plainInfo, err := Inspect(plain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts := &pkcs8.Opts{Cipher: pkcs8.AES256CBC, KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 100_000, HMACHash: crypto.SHA256}}
+		ciphertext, err := pkcs8.MarshalPrivateKey(key, inputPassword, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, input := range [][]byte{ciphertext, pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: ciphertext})} {
+			if _, err := InspectWithPassword(input, nil); err != ErrInputPasswordRequired {
+				t.Fatalf("missing password not recognized: %v", err)
+			}
+			if _, err := InspectWithPassword(input, []byte("wrong")); err == nil {
+				t.Fatal("wrong password accepted")
+			}
+			info, err := InspectWithPassword(input, inputPassword)
+			if err != nil || info.PublicFingerprint != plainInfo.PublicFingerprint || !strings.HasPrefix(info.InputFormat, "encrypted-pkcs8-") {
+				t.Fatalf("encrypted inspection: %#v %v", info, err)
+			}
+			if output, name, err := Export(input, info.PublicFingerprint, []byte("wrong"), "pkcs8-pem", nil); err == nil || output != nil || name != "" {
+				t.Fatal("wrong input password published plaintext")
+			}
+			if output, name, err := Export(input, info.PublicFingerprint, inputPassword, "encrypted-pkcs8-pem", inputPassword); err == nil || output != nil || name != "" {
+				t.Fatal("reused input password was accepted for encrypted output")
+			}
+			formats := []string{"pkcs8-pem", "pkcs8-der", "encrypted-pkcs8-pem"}
+			if kind == "RSA" {
+				formats = append(formats, "pkcs1-pem", "pkcs1-der")
+			}
+			if kind == "ECDSA" {
+				formats = append(formats, "sec1-pem", "sec1-der")
+			}
+			for _, format := range formats {
+				password := []byte(nil)
+				if format == "encrypted-pkcs8-pem" {
+					password = outputPassword
+				}
+				output, filename, err := Export(input, info.PublicFingerprint, inputPassword, format, password)
+				if err != nil || len(output) == 0 || !strings.HasSuffix(filename, "."+format[len(format)-3:]) {
+					t.Fatalf("%s/%s export: %v %q", kind, format, err, filename)
+				}
+				if format == "encrypted-pkcs8-pem" {
+					if _, err := InspectWithPassword(output, outputPassword); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					decoded, err := Inspect(output)
+					if err != nil || decoded.PublicFingerprint != info.PublicFingerprint {
+						t.Fatalf("plaintext changed key: %v", err)
+					}
+				}
+				clear(output)
+			}
+		}
+		if kind == "RSA" {
+			pemInput := pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: ciphertext})
+			for _, malformed := range [][]byte{
+				append(bytes.Clone(pemInput), pemInput...),
+				append(bytes.Clone(ciphertext), 0),
+				pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Headers: map[string]string{"Proc-Type": "4,ENCRYPTED"}, Bytes: ciphertext}),
+			} {
+				if _, err := InspectWithPassword(malformed, inputPassword); err == nil {
+					t.Fatal("malformed encrypted input accepted")
+				}
+			}
+		}
+	}
+}
+
+func TestEncryptedInputRefusesUnsafeProfilesAndNoPartialExport(t *testing.T) {
+	key := testKey(t, "RSA")
+	goodPassword := []byte("test-only-current-password")
+	for _, test := range []struct {
+		name string
+		opts *pkcs8.Opts
+	}{
+		{"excessive-kdf", &pkcs8.Opts{Cipher: pkcs8.AES256CBC, KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 1_000_001, HMACHash: crypto.SHA256}}},
+		{"sha1", &pkcs8.Opts{Cipher: pkcs8.AES256CBC, KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 100, HMACHash: crypto.SHA1}}},
+		{"short-salt", &pkcs8.Opts{Cipher: pkcs8.AES256CBC, KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 4, IterationCount: 100, HMACHash: crypto.SHA256}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			input, err := pkcs8.MarshalPrivateKey(key, goodPassword, test.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := InspectWithPassword(input, goodPassword); err == nil {
+				t.Fatal("unsupported profile accepted")
+			}
+		})
+	}
+	plain := testInputs(t, key)["pkcs8-der"]
+	info, _ := Inspect(plain)
+	for _, test := range []struct {
+		name        string
+		input       []byte
+		inPassword  []byte
+		format      string
+		outPassword []byte
+	}{
+		{"mismatched-target", plain, nil, "sec1-pem", nil},
+		{"unknown-target", plain, nil, "pfx", nil},
+		{"plaintext-with-password", plain, nil, "pkcs8-pem", []byte("unexpected")},
+		{"unencrypted-input-with-password", plain, goodPassword, "pkcs8-pem", nil},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			output, filename, err := Export(test.input, info.PublicFingerprint, test.inPassword, test.format, test.outPassword)
+			if err == nil || output != nil || filename != "" {
+				t.Fatal("unsafe export returned key material")
+			}
+		})
+	}
+}
+
 func FuzzInspectPrivateKeyNoSecretEcho(f *testing.F) {
 	f.Add([]byte("-----BEGIN PRIVATE KEY-----\nAA==\n-----END PRIVATE KEY-----\n"))
 	f.Add([]byte("secret-password-in-malformed-input"))
@@ -146,5 +267,17 @@ func FuzzInspectPrivateKeyNoSecretEcho(f *testing.F) {
 		if err != nil && bytes.Contains([]byte(err.Error()), input) && len(input) > 0 {
 			t.Fatal("input echoed in error")
 		}
+	})
+}
+
+func FuzzEncryptedProfileNoPanic(f *testing.F) {
+	f.Add([]byte{0x30, 0x00})
+	f.Add([]byte("-----BEGIN ENCRYPTED PRIVATE KEY-----\nAA==\n-----END ENCRYPTED PRIVATE KEY-----\n"))
+	f.Add(bytes.Repeat([]byte{0xff}, 257))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) > 64<<10 {
+			return
+		}
+		_, _, _, _ = encryptedDER(input)
 	})
 }

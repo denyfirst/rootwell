@@ -4,6 +4,11 @@
 
 **Date:** 2026-09-30
 
+This record covers the Linux PFX extraction increment. ADR 0035 later adds
+separately bounded encrypted-PKCS#8 browser import; the no-arbitrary-import
+statements below describe the original increment, not the current browser
+capability.
+
 ## Decision
 
 `rootwell pfx-extract-key --input <file> --sha256 <matching-fingerprint>

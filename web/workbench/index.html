@@ -264,24 +264,43 @@
           </section>
           <section class="result" aria-labelledby="private-convert-title">
             <p class="result-kicker">Private key · local conversion</p>
-            <h3 id="private-convert-title">Protect a private key as encrypted PKCS#8</h3>
-            <p>Choose one unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Rootwell checks the format locally. It does not upload or save the key to Inventory or Vault.</p>
-            <p class="verify-note">For this first private-key step, the only output is a new password-encrypted PKCS#8 PEM. PFX and encrypted-key input, plaintext legacy output, key reveal, and other key formats are not available yet. Your browser controls the downloaded file and may keep copies in Downloads or backups.</p>
+            <h3 id="private-convert-title">Convert a private key</h3>
+            <p>Choose one PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Encrypted PKCS#8 is supported for a limited modern profile. Rootwell checks it locally and does not upload or save it to Inventory or Vault.</p>
+            <p class="verify-note">PFX and legacy encrypted RSA/EC PEM are not supported here. Your browser controls downloads and may keep copies in Downloads or backups; Rootwell cannot set private file permissions for you.</p>
             <div class="file-zone">
               <input class="file-input" type="file" id="private-convert-file" accept=".pem,.key,.der,application/octet-stream">
               <label for="private-convert-file"><span class="file-symbol" aria-hidden="true">＋</span><strong>Choose one private key</strong><span>PKCS#8 · PKCS#1 RSA · SEC1 EC · maximum 64 KiB</span></label>
               <p class="file-selection" id="private-convert-file-state" aria-live="polite">No private key selected</p>
             </div>
+            <label for="private-convert-input-password">Current key password, if encrypted (not your Rootwell sign-in password)</label>
+            <input id="private-convert-input-password" type="password" autocomplete="off" maxlength="256" spellcheck="false">
+            <p class="verify-note">For an encrypted key, enter the current password to identify it. You will enter it again before downloading; Rootwell does not retain it.</p>
             <div class="panel-actions"><button class="button" id="private-convert-inspect" type="button" disabled>Identify key format</button></div>
             <aside class="inspection-error" id="private-convert-error" role="alert" hidden></aside>
             <div id="private-convert-result" class="private-convert-fields" hidden>
               <p id="private-convert-summary"></p>
-              <p>Output: encrypted PKCS#8 PEM (ENCRYPTED PRIVATE KEY). Choose a fresh high-entropy password, different from your Rootwell sign-in password.</p>
-              <label for="private-convert-password">New output password (20–128 printable characters)</label>
-              <input id="private-convert-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
-              <label for="private-convert-confirm">Confirm output password</label>
-              <input id="private-convert-confirm" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
-              <div class="panel-actions"><button class="button button-primary" id="private-convert-download" type="button">Download encrypted private key</button></div>
+              <label for="private-convert-format">Output format and protection</label>
+              <select id="private-convert-format">
+                <option value="encrypted-pkcs8-pem">Encrypted PKCS#8 PEM (recommended)</option>
+                <option value="pkcs8-pem">No password · PKCS#8 PEM</option>
+                <option value="pkcs8-der">No password · PKCS#8 DER</option>
+                <option value="pkcs1-pem">No password · RSA PKCS#1 PEM</option>
+                <option value="pkcs1-der">No password · RSA PKCS#1 DER</option>
+                <option value="sec1-pem">No password · EC SEC1 PEM</option>
+                <option value="sec1-der">No password · EC SEC1 DER</option>
+              </select>
+              <div id="private-convert-output-passwords">
+                <p>Choose a fresh high-entropy output password, different from the current key and Rootwell sign-in passwords.</p>
+                <label for="private-convert-password">New output password (20–128 printable characters)</label>
+                <input id="private-convert-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+                <label for="private-convert-confirm">Confirm new output password</label>
+                <input id="private-convert-confirm" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+              </div>
+              <div id="private-convert-plaintext-warning" hidden>
+                <p class="verify-note">Warning: this download contains an unencrypted private key. Anyone with the file can use the key. Move it to a restricted location, set private permissions, and remove unwanted Downloads/backups copies.</p>
+                <label><input id="private-convert-plaintext-confirm" type="checkbox"> I understand and explicitly want a key with no password</label>
+              </div>
+              <div class="panel-actions"><button class="button button-primary" id="private-convert-download" type="button">Download private key</button></div>
               <p class="export-status" id="private-convert-status" aria-live="polite"></p>
             </div>
           </section>

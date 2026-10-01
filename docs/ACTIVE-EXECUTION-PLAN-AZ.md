@@ -71,15 +71,16 @@ olunmamış nəticəyə “verified” demək qadağandır.
    fingerprint ilə ayrı PEM/DER faylına çıxarmaq və Linux offline CLI-da uyğun
    key-i yalnız yeni şifrəli PKCS#8 faylına çıxarmaq əlavə edilib. İlk UI
    private-key conversion increment-i [`ADR 0034`](adr/0034-browser-encrypted-private-key-conversion.md)
-   ilə ayrıca sərhəddədir: unencrypted PKCS#8/PKCS#1/SEC1 PEM/DER qəbul edir,
-   yalnız şifrəli PKCS#8 PEM endirir; PFX, plaintext çıxış və reveal etmir.
+   ilə ayrıca sərhəddə başlayıb: unencrypted PKCS#8/PKCS#1/SEC1 PEM/DER qəbul edir.
+   [`ADR 0035`](adr/0035-browser-encrypted-key-import-and-plaintext-export.md)
+   limitli şifrəli PKCS#8 importunu və açıq təsdiqlə parolsuz uyğun formatları
+   əlavə edir; default yenə şifrəli PKCS#8-dir. PFX və reveal hələ yoxdur.
    Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
    son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
 
-   **Növbəti secret-conversion sırası:** (a) bir Convert UI-da RSA PKCS#1,
-   ECDSA SEC1 və PKCS#8 üçün uyğun PEM/DER çıxışları; şifrəli PKCS#8 default
-   qalır, şifrəsiz çıxış yalnız ayrıca xəbərdarlıq və explicit razılıqla;
+   **Növbəti secret-conversion sırası:** (a) import edilmiş şifrəli key üçün
+   browser worker/deadline sərtləşməsi və interop matrix-in genişləndirilməsi;
    (b) browser-də PFX yaratma/çıxarma üçün ayrıca worker/time-limit, origin,
    CSP, zero-upload, yaddaş və download testləri; (c) yalnız bu sərhədlərdən
    sonra gözlə göstərmə. Müəyyən məhsul/versiya reseptləri ümumi format

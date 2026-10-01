@@ -13,8 +13,10 @@ is a separate screen for those public certificates and can also start from
 its own public-file selector, using the same bounded inspection path. A new
 selection or failure clears its choices. A separate private Convert picker
 recognizes one strict unencrypted PKCS#8, PKCS#1 RSA, or SEC1 EC key in
-PEM/DER and exports only a new password-encrypted PKCS#8 PEM file. It never
-accepts PFX or encrypted-key input and never saves to a vault. Verify uses the
+PEM/DER, or a bounded encrypted PKCS#8 PEM/DER key with its current password.
+Encrypted PKCS#8 PEM is the default output; compatible unencrypted PEM/DER
+targets require an explicit warning and confirmation. It never accepts PFX
+or legacy encrypted PEM and never saves to a vault. Verify uses the
 same explicit-trust TLS server verifier as the CLI.
 
 ## Security boundary
@@ -40,7 +42,8 @@ same explicit-trust TLS server verifier as the CLI.
   it has no network, persistent storage, dynamic code, or markup-injection
   capability. Inspect returns only public-key metadata; export re-reads the
   selected file and binds its full public fingerprint to the visible result;
-  only the fixed encrypted PKCS#8 profile is downloadable;
+  encrypted PKCS#8 is the default download; plaintext targets require a
+  separate choice and explicit confirmation, without a file-permission claim;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
   Browser memory, immutable password strings, extensions, a compromised host,
   and browser-managed download permissions cannot be fully controlled. Static
