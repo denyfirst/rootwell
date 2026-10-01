@@ -532,9 +532,12 @@ main {
 .verify-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 1.15rem; }
 .verify-inputs label { display: grid; align-content: start; gap: 0.35rem; min-width: 0; font-size: 0.76rem; font-weight: 650; }
 .verify-inputs input { width: 100%; min-width: 0; padding: 0.55rem; border: 1px solid var(--rule); border-radius: 0; background: var(--paper); color: var(--ink); font: 0.78rem var(--sans); }
+label[for="private-convert-input-password"] { display: block; margin-top: 0.9rem; font-size: 0.76rem; font-weight: 650; }
 .private-convert-fields { margin-top: 1rem; }
 .private-convert-fields label { display: block; margin-top: 0.8rem; font-size: 0.76rem; font-weight: 650; }
-.private-convert-fields input { display: block; width: min(100%, 30rem); margin-top: 0.3rem; padding: 0.55rem; border: 1px solid var(--rule); border-radius: 0; background: var(--paper); color: var(--ink); font: 0.78rem var(--sans); }
+#private-convert-input-password, .private-convert-fields input[type="password"], .private-convert-fields select { display: block; width: min(100%, 30rem); min-width: 0; margin-top: 0.3rem; padding: 0.55rem; border: 1px solid var(--rule); border-radius: 0; background: var(--paper); color: var(--ink); font: 0.78rem var(--sans); }
+#private-convert-plaintext-warning label { display: flex; align-items: flex-start; gap: 0.55rem; line-height: 1.45; cursor: pointer; }
+.private-convert-fields input[type="checkbox"] { display: inline-block; flex: 0 0 auto; width: 1rem; height: 1rem; margin: 0.1rem 0 0; padding: 0; accent-color: var(--brand); }
 .private-convert-fields p { overflow-wrap: anywhere; }
 .verify-inputs p { margin: 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
 .verify-note { margin: 0.9rem 0 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
