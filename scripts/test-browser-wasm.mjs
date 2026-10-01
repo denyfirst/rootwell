@@ -50,6 +50,15 @@ const privateSummary = JSON.parse(globalThis.rootwellPrivateInspect(privateSourc
 assert.equal(privateSummary.ok, true);
 assert.equal(privateSummary.result.input_format, "pkcs8-pem");
 assert.equal(privateSummary.result.algorithm, "ECDSA");
+const externalPassword = new TextEncoder().encode("test-only-external-password");
+const externalEncrypted = new TextEncoder().encode(createPrivateKey(generated.privateKey).export({
+  type: "pkcs8", format: "pem", cipher: "aes-256-cbc", passphrase: "test-only-external-password"
+}));
+const externalSummary = JSON.parse(globalThis.rootwellPrivateInspect(externalEncrypted, externalPassword));
+assert.equal(externalSummary.ok, true, "independently generated encrypted PKCS#8 import failed");
+assert.equal(externalSummary.result.public_fingerprint, privateSummary.result.public_fingerprint);
+externalPassword.fill(0);
+externalEncrypted.fill(0);
 const exportPassword = new TextEncoder().encode("non-production-browser-password-12345");
 const encryptedKey = globalThis.rootwellPrivateExport(privateSource, privateSummary.result.public_fingerprint, new Uint8Array(), "encrypted-pkcs8-pem", exportPassword);
 assert.equal(encryptedKey.ok, true);
