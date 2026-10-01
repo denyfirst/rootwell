@@ -10,6 +10,8 @@ class Element {
     this.textContent = "";
     this.hidden = false;
     this.disabled = false;
+    this.options = [];
+    this.selectedOptions = [];
   }
   addEventListener(event, listener) { this.listeners[event] = listener; }
   click() { this.clicked = true; }
@@ -22,6 +24,8 @@ const get = (id) => {
 };
 const document = { getElementById: get, createElement: () => new Element(), body: { append() {} } };
 const fingerprint = "AA:".repeat(31) + "AA";
+get("private-convert-format").options = ["encrypted-pkcs8-pem", "pkcs8-pem", "pkcs8-der", "pkcs1-pem", "pkcs1-der", "sec1-pem", "sec1-der"].map(value => ({ value, disabled: false }));
+Object.defineProperty(get("private-convert-format"), "selectedOptions", { get() { return this.options.filter(option => option.value === this.value); } });
 let inspectCalls = 0;
 let exportCalls = 0;
 let downloaded = null;
@@ -29,22 +33,30 @@ let capturedInput = null;
 let capturedPassword = null;
 let output = null;
 let invalidResponse = false;
+let encryptedMode = false;
+let capturedCurrentPassword = null;
 const engine = {
-  privateInspect(bytes) {
+  privateInspect(bytes, currentPassword) {
     inspectCalls++;
     capturedInput = bytes;
+    if (encryptedMode && currentPassword.byteLength === 0) {
+      return JSON.stringify({ schema_version: "rootwell.browser.private-convert.v1", ok: false, result: null, error: "input-password-required" });
+    }
+    assert.equal(new TextDecoder().decode(currentPassword), encryptedMode ? "current-password" : "");
     return JSON.stringify({ schema_version: "rootwell.browser.private-convert.v1", ok: true, error: null,
-      result: { input_format: "pkcs1-pem", algorithm: "RSA", bits: 2048, curve: "", public_fingerprint: fingerprint } });
+      result: { input_format: encryptedMode ? "encrypted-pkcs8-pem" : "pkcs1-pem", algorithm: "RSA", bits: 2048, curve: "", public_fingerprint: fingerprint } });
   },
-  privateExportEncrypted(bytes, selected, password) {
+  privateExport(bytes, selected, currentPassword, format, password) {
     exportCalls++;
     assert.equal(bytes[0], 65);
     assert.equal(selected, fingerprint);
+    assert.equal(new TextDecoder().decode(currentPassword), encryptedMode ? "current-password" : "");
     capturedInput = bytes;
+    capturedCurrentPassword = currentPassword;
     capturedPassword = password;
-    output = new TextEncoder().encode("-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + "A".repeat(80));
+    output = new TextEncoder().encode("-----BEGIN " + (format === "encrypted-pkcs8-pem" ? "ENCRYPTED " : "") + "PRIVATE KEY-----\n" + "A".repeat(80));
     return { schema_version: "rootwell.browser.private-convert.v1", ok: true, error: null,
-      result: { filename: invalidResponse ? "unsafe.pem" : "rootwell-encrypted-key-aaaaaaaaaaaaaaaa-" + "b".repeat(32) + ".pem", bytes: output } };
+      result: { format, filename: invalidResponse ? "unsafe.pem" : "rootwell-" + (format === "encrypted-pkcs8-pem" ? "encrypted" : "plaintext") + "-key-aaaaaaaaaaaaaaaa-" + "b".repeat(32) + ".pem", bytes: output } };
   }
 };
 const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob,
@@ -83,11 +95,22 @@ assert.ok(downloaded instanceof Blob);
 assert.equal(get("private-convert-password").value, "");
 assert.equal(get("private-convert-confirm").value, "");
 
+get("private-convert-format").value = "pkcs8-pem";
+get("private-convert-format").listeners.change();
+await get("private-convert-download").listeners.click();
+assert.equal(exportCalls, 1, "plaintext export lacked confirmation but was accepted");
+get("private-convert-plaintext-confirm").checked = true;
+await get("private-convert-download").listeners.click();
+assert.equal(exportCalls, 2, "confirmed plaintext export did not run");
+assert.equal(capturedPassword.byteLength, 0);
+get("private-convert-format").value = "encrypted-pkcs8-pem";
+get("private-convert-format").listeners.change();
+
 invalidResponse = true;
 get("private-convert-password").value = "non-production-output-password-12345";
 get("private-convert-confirm").value = "non-production-output-password-12345";
 await get("private-convert-download").listeners.click();
-assert.equal(exportCalls, 2);
+assert.equal(exportCalls, 3);
 assert.equal(output[0], 0, "rejected output buffer was not cleared");
 assert.equal(get("private-convert-error").hidden, false);
 
@@ -98,7 +121,7 @@ sourceByte = 66;
 get("private-convert-password").value = "non-production-output-password-12345";
 get("private-convert-confirm").value = "non-production-output-password-12345";
 await get("private-convert-download").listeners.click();
-assert.equal(exportCalls, 3);
+assert.equal(exportCalls, 4);
 assert.equal(get("private-convert-result").hidden, true, "changed key left a stale export result visible");
 assert.equal(get("private-convert-download").disabled, true);
 sourceByte = 65;
@@ -107,7 +130,7 @@ get("private-convert-file").files = [];
 get("private-convert-file").listeners.change();
 assert.equal(get("private-convert-result").hidden, true);
 await get("private-convert-download").listeners.click();
-assert.equal(exportCalls, 3, "stale selection allowed another export");
+assert.equal(exportCalls, 4, "stale selection allowed another export");
 
 let releaseRead;
 const slowFile = { size: 1, slice: () => ({ arrayBuffer: () => new Promise((resolve) => { releaseRead = resolve; }) }) };
@@ -120,4 +143,25 @@ releaseRead(Uint8Array.of(65).buffer);
 await pendingInspect;
 assert.equal(get("private-convert-inspect").disabled, false, "new selection stayed disabled after stale read");
 assert.equal(get("private-convert-result").hidden, true, "stale read showed a result");
+
+encryptedMode = true;
+get("private-convert-file").files = [file];
+get("private-convert-file").listeners.change();
+await get("private-convert-inspect").listeners.click();
+assert.match(get("private-convert-error").textContent, /current password/);
+assert.equal(get("private-convert-result").hidden, true);
+get("private-convert-input-password").value = "current-password";
+await get("private-convert-inspect").listeners.click();
+assert.equal(get("private-convert-input-password").value, "", "current password retained after inspection");
+get("private-convert-format").value = "pkcs8-pem";
+get("private-convert-format").listeners.change();
+get("private-convert-plaintext-confirm").checked = true;
+await get("private-convert-download").listeners.click();
+assert.equal(exportCalls, 4, "encrypted source exported without current password");
+get("private-convert-input-password").value = "current-password";
+get("private-convert-plaintext-confirm").checked = true;
+await get("private-convert-download").listeners.click();
+assert.equal(exportCalls, 5);
+assert.equal(capturedCurrentPassword[0], 0, "current password bytes were not cleared");
+assert.equal(get("private-convert-plaintext-confirm").checked, false, "plaintext consent persisted after download");
 console.log("Private-key Workbench state and refusal tests passed.");

@@ -4,6 +4,10 @@
 
 **Date:** 2026-09-30
 
+This record describes the first increment. ADR 0035 separately authorizes
+bounded encrypted PKCS#8 input and explicit plaintext targets; the
+encrypted-only restrictions below remain historical for that first increment.
+
 ## Context and decision
 
 The user-facing product is the self-hosted UI, not a collection of CLI-only

@@ -257,7 +257,7 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	for _, statement := range []string{
 		"Selected file bytes stay inside this browser process",
 		"Local public-file inspection · not a trust verdict",
-		"PFX and encrypted-key input, plaintext legacy output, key reveal, and other key formats are not available yet",
+		"PFX and legacy encrypted RSA/EC PEM are not supported here",
 		"No chain verification performed · no trust anchor selected",
 		"do not prove chain trust",
 		"Revocation</strong> Not checked",
@@ -269,31 +269,33 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	}
 }
 
-func TestWorkbenchPrivateConversionIsExplicitLocalAndEncryptedOnly(t *testing.T) {
+func TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords(t *testing.T) {
 	assets := workbenchAssets(t)
 	html := assets["index.html"]
 	script := assets["private-key.js"]
 	for _, required := range []string{
 		`src="private-key.js" defer`, `id="private-convert-file"`, `id="private-convert-password" type="password"`,
 		`id="private-convert-confirm" type="password"`, `id="private-convert-download" type="button"`,
-		"only output is a new password-encrypted PKCS#8 PEM", "does not upload or save the key",
+		`id="private-convert-input-password" type="password"`, `id="private-convert-format"`,
+		`id="private-convert-plaintext-confirm" type="checkbox"`, "does not upload or save it to Inventory or Vault",
+		"Rootwell cannot set private file permissions for you",
 	} {
 		if !strings.Contains(html, required) {
 			t.Errorf("private conversion UI missing %q", required)
 		}
 	}
 	for _, required := range []string{
-		"file.slice(0, 64 * 1024 + 1).arrayBuffer()", "source.file.slice(0, 64 * 1024 + 1).arrayBuffer()", "engine.privateInspect(bytes)",
-		"engine.privateExportEncrypted(bytes, source.fingerprint, passwordBytes)",
-		"bytes.fill(0)", "passwordBytes.fill(0)", "output.fill(0)",
-		"passwordInput.value = \"\"", "confirmInput.value = \"\"",
-		"rootwell-encrypted-key-", "BEGIN ENCRYPTED PRIVATE KEY",
+		"file.slice(0, 64 * 1024 + 1).arrayBuffer()", "source.file.slice(0, 64 * 1024 + 1).arrayBuffer()", "engine.privateInspect(bytes, currentPasswordBytes)",
+		"engine.privateExport(bytes, source.fingerprint, currentPasswordBytes, format, passwordBytes)",
+		"bytes.fill(0)", "currentPasswordBytes.fill(0)", "passwordBytes.fill(0)", "output.fill(0)",
+		"inputPasswordInput.value = \"\"", "passwordInput.value = \"\"", "confirmInput.value = \"\"",
+		"plaintextConfirm.checked", "ENCRYPTED PRIVATE KEY",
 	} {
 		if !strings.Contains(script, required) {
 			t.Errorf("private conversion script missing %q", required)
 		}
 	}
-	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "sendBeacon", "innerHTML", "document.write", "BEGIN RSA PRIVATE KEY", "BEGIN EC PRIVATE KEY"} {
+	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "sendBeacon", "innerHTML", "document.write"} {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("private conversion script contains forbidden capability %q", forbidden)
 		}
@@ -362,7 +364,7 @@ func TestWorkbenchPublicConversionIsFindableAndSecretFlowIsSeparate(t *testing.T
 		!strings.Contains(html, `id="convert-open-button" type="button" disabled`) ||
 		!strings.Contains(html, `id="convert-error" role="alert" hidden`) ||
 		!strings.Contains(html, `id="private-convert-file"`) ||
-		!strings.Contains(html, "the only output is a new password-encrypted PKCS#8 PEM") ||
+		!strings.Contains(html, "Output format and protection") ||
 		strings.Contains(html, "Planned after write safety") {
 		t.Fatal("public-only conversion entry is missing or misleading")
 	}

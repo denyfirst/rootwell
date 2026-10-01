@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"syscall/js"
 
 	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
@@ -26,18 +27,18 @@ func copyPrivateBytes(value js.Value, maximum int) ([]byte, bool) {
 	return bytes, true
 }
 
-func privateInspectFailure() string {
-	return `{"schema_version":"rootwell.browser.private-convert.v1","ok":false,"result":null,"error":"invalid-private-key"}`
+func privateInspectFailure(code string) string {
+	return `{"schema_version":"rootwell.browser.private-convert.v1","ok":false,"result":null,"error":"` + code + `"}`
 }
 
 func inspectPrivateKey(_ js.Value, arguments []js.Value) (response any) {
-	response = privateInspectFailure()
+	response = privateInspectFailure("invalid-private-key")
 	defer func() {
 		if recover() != nil {
-			response = privateInspectFailure()
+			response = privateInspectFailure("invalid-private-key")
 		}
 	}()
-	if len(arguments) != 1 {
+	if len(arguments) != 2 {
 		return response
 	}
 	input, ok := copyPrivateBytes(arguments[0], int(limits.MaxPrivateKeyBytes))
@@ -45,8 +46,16 @@ func inspectPrivateKey(_ js.Value, arguments []js.Value) (response any) {
 		return response
 	}
 	defer clear(input)
-	summary, err := browserprivateconvert.Inspect(input)
+	password, ok := copyOptionalPrivatePassword(arguments[1])
+	if !ok {
+		return response
+	}
+	defer clear(password)
+	summary, err := browserprivateconvert.InspectWithPassword(input, password)
 	if err != nil {
+		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
+			return privateInspectFailure("input-password-required")
+		}
 		return response
 	}
 	encoded, err := json.Marshal(struct {
@@ -70,14 +79,14 @@ func privateExportFailure() js.Value {
 	})
 }
 
-func exportEncryptedPrivateKey(_ js.Value, arguments []js.Value) (response any) {
+func exportPrivateKey(_ js.Value, arguments []js.Value) (response any) {
 	response = privateExportFailure()
 	defer func() {
 		if recover() != nil {
 			response = privateExportFailure()
 		}
 	}()
-	if len(arguments) != 3 || arguments[1].Type() != js.TypeString || len(arguments[1].String()) != 95 {
+	if len(arguments) != 5 || arguments[1].Type() != js.TypeString || len(arguments[1].String()) != 95 || arguments[3].Type() != js.TypeString {
 		return response
 	}
 	input, ok := copyPrivateBytes(arguments[0], int(limits.MaxPrivateKeyBytes))
@@ -85,12 +94,17 @@ func exportEncryptedPrivateKey(_ js.Value, arguments []js.Value) (response any) 
 		return response
 	}
 	defer clear(input)
-	password, ok := copyPrivateBytes(arguments[2], 128)
+	inputPassword, ok := copyOptionalPrivatePassword(arguments[2])
 	if !ok {
 		return response
 	}
-	defer clear(password)
-	output, filename, err := browserprivateconvert.ExportEncrypted(input, arguments[1].String(), password)
+	defer clear(inputPassword)
+	outputPassword, ok := copyOptionalPrivatePassword(arguments[4])
+	if !ok {
+		return response
+	}
+	defer clear(outputPassword)
+	output, filename, err := browserprivateconvert.Export(input, arguments[1].String(), inputPassword, arguments[3].String(), outputPassword)
 	if err != nil {
 		return response
 	}
@@ -106,7 +120,24 @@ func exportEncryptedPrivateKey(_ js.Value, arguments []js.Value) (response any) 
 		"error":          nil,
 		"result": js.ValueOf(map[string]any{
 			"filename": filename,
+			"format":   arguments[3].String(),
 			"bytes":    resultBytes,
 		}),
 	})
+}
+
+func copyOptionalPrivatePassword(value js.Value) ([]byte, bool) {
+	if value.Type() != js.TypeObject || !value.InstanceOf(js.Global().Get("Uint8Array")) {
+		return nil, false
+	}
+	length := value.Get("byteLength")
+	if length.Type() != js.TypeNumber || length.Float() < 0 || length.Float() > 256 {
+		return nil, false
+	}
+	bytes := make([]byte, length.Int())
+	if js.CopyBytesToGo(bytes, value) != len(bytes) {
+		clear(bytes)
+		return nil, false
+	}
+	return bytes, true
 }

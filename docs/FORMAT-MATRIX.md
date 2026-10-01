@@ -18,11 +18,12 @@ still accepts one file.
 | Certificate chain | PEM bundle | implemented (CLI/browser `explore`) | n/a | implemented (CLI explicit roots/intermediates) | browser export of one selected public certificate; other conversions planned | exploration is not trust verification; order is not a trust signal |
 | CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
 | CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
-| RSA private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | browser encrypted PKCS#8 PEM output | encrypted import and plaintext output planned |
-| ECDSA private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | browser encrypted PKCS#8 PEM output | encrypted import and plaintext output planned |
-| Ed25519 private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | browser encrypted PKCS#8 PEM output | no PKCS#1/SEC1 target exists for Ed25519 |
-| RSA private key | unencrypted PKCS#1 PEM/DER | browser format summary | implemented | n/a | browser encrypted PKCS#8 PEM output | legacy plaintext target planned with explicit warning |
-| ECDSA private key | unencrypted SEC1 PEM/DER | browser format summary | implemented | n/a | browser encrypted PKCS#8 PEM output | legacy plaintext target planned with explicit warning |
+| RSA private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | encrypted PKCS#8 PEM default; opt-in plaintext PKCS#8/PKCS#1 PEM/DER | no PFX in browser |
+| ECDSA private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | encrypted PKCS#8 PEM default; opt-in plaintext PKCS#8/SEC1 PEM/DER | no PFX in browser |
+| Ed25519 private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | encrypted PKCS#8 PEM default; opt-in plaintext PKCS#8 PEM/DER | no PKCS#1/SEC1 target exists for Ed25519 |
+| RSA private key | unencrypted PKCS#1 PEM/DER | browser format summary | implemented | n/a | same compatible private targets | plaintext requires explicit warning |
+| ECDSA private key | unencrypted SEC1 PEM/DER | browser format summary | implemented | n/a | same compatible private targets | plaintext requires explicit warning |
+| RSA/ECDSA/Ed25519 private key | encrypted PKCS#8 PEM/DER, bounded PBES2/PBKDF2-SHA256/AES-256-CBC | browser password-gated public summary | n/a | n/a | same compatible private targets | input password distinct from output password; unsupported profiles refused |
 | Certificate and key bundle | PKCS#12/PFX | offline CLI public summary for bounded modern profile | planned | planned | offline Linux CLI create, public certificate extraction, and encrypted PKCS#8 matching-key extraction implemented | password-protected creation from one matched RSA/ECDSA key and optional ordered issuers; both extraction paths bind exact matching fingerprint; key output is new encrypted private file only; no browser PFX support or trust claim |
 | Java keystore | JKS | deferred | deferred | deferred | deferred | target profile phase, not v0.1 |
 | SSH key | OpenSSH and RFC 4716 | deferred | deferred | deferred | deferred | separate lifecycle and threat model |

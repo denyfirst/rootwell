@@ -70,6 +70,8 @@ jobs:
             package: ./internal/keymatch
           - target: FuzzInspectPrivateKeyNoSecretEcho
             package: ./internal/browserprivateconvert
+          - target: FuzzEncryptedProfileNoPanic
+            package: ./internal/browserprivateconvert
           - target: FuzzPFXPreflight
             package: ./internal/pfxinspect
           - target: FuzzVersionValue

@@ -970,16 +970,18 @@ Guarded by `TestExportProducesOnlyEncryptedMatchingPKCS8`,
 `TestPFXExtractKeyUnsupportedPlatformRefusesBeforeInput`, and
 `TestPFXExtractKeyRejectsNonTTYAndUnsafeArguments`.
 
-## C60 — Browser private conversion is separate, bounded, and encrypted-only
+## C60 — Browser private conversion is separate and bounded
 
-Only the explicit private-key Convert picker accepts a single strict
-unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 PEM/DER key up to 64 KiB. Its
-inspection response contains public metadata only. Export re-reads the file,
-binds it to the full displayed public-key fingerprint, requires a fresh
-20–128 printable-character output password, and emits one self-verified
-encrypted PKCS#8 PEM block with a random filename. Malformed, changed,
-oversized, wrong-fingerprint, weak-password, PFX, and encrypted-key input
-publish no key. The browser script cannot upload or persist selected bytes;
+Only the explicit private-key Convert picker accepts one strict unencrypted
+PKCS#8, RSA PKCS#1, or EC SEC1 PEM/DER key or a bounded modern encrypted
+PKCS#8 PEM/DER key up to 64 KiB. Inspection returns public metadata only.
+Encrypted input requires its current password on inspection and again on
+export. Export re-reads the file and binds it to the full displayed public
+fingerprint. Encrypted PKCS#8 output with a fresh 20–128 printable-character
+password is default; plaintext compatible targets require separate visible
+selection and confirmation. Malformed, changed, oversized, wrong-fingerprint,
+wrong-password, unsupported target/profile, and PFX input publish no key.
+The browser script cannot upload or persist selected bytes;
 buffers and password fields are cleared best-effort. The public Inspect,
 Verify, and certificate Convert inputs remain public-only. The browser and OS
 may retain memory/download copies and control file permissions; no vault or
@@ -988,7 +990,9 @@ per-user key authorization is claimed.
 Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
 `TestPrivateConversionRefusesMalformedChangedAndWeakPassword`,
 `FuzzInspectPrivateKeyNoSecretEcho`,
-`TestWorkbenchPrivateConversionIsExplicitLocalAndEncryptedOnly`,
+`TestEncryptedInputAndPlaintextTargets`,
+`TestEncryptedInputRefusesUnsafeProfilesAndNoPartialExport`,
+`TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
 `TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
 `scripts/test-browser-wasm.mjs` and `scripts/test-workbench-private.mjs`.

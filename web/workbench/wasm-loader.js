@@ -22,7 +22,7 @@
           typeof globalThis.rootwellExportVerifiedExplicit !== "function" ||
           typeof globalThis.rootwellExport !== "function" ||
 	      typeof globalThis.rootwellPrivateInspect !== "function" ||
-	      typeof globalThis.rootwellPrivateExportEncrypted !== "function" ||
+	      typeof globalThis.rootwellPrivateExport !== "function" ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
         return;
@@ -39,7 +39,7 @@
         exportVerifiedExplicit: globalThis.rootwellExportVerifiedExplicit,
         exportPublic: globalThis.rootwellExport,
 		privateInspect: globalThis.rootwellPrivateInspect,
-		privateExportEncrypted: globalThis.rootwellPrivateExportEncrypted,
+		privateExport: globalThis.rootwellPrivateExport,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));
     };
