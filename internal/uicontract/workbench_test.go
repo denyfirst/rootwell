@@ -300,6 +300,15 @@ func TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords(t *testing.T
 			t.Errorf("private conversion script contains forbidden capability %q", forbidden)
 		}
 	}
+	style := assets["style.css"]
+	for _, selector := range []string{`#private-convert-input-password`, `.private-convert-fields input[type="password"]`, `.private-convert-fields select`, `.private-convert-fields input[type="checkbox"]`, `#private-convert-plaintext-warning label`} {
+		if !strings.Contains(style, selector) {
+			t.Errorf("private conversion control styling missing %q", selector)
+		}
+	}
+	if strings.Contains(style, `.private-convert-fields input {`) {
+		t.Error("generic private conversion input rule would style consent checkbox as a password field")
+	}
 }
 
 func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
