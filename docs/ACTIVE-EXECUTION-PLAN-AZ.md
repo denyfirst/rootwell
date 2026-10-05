@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-09-29. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-05. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -81,8 +81,9 @@ olunmamış nəticəyə “verified” demək qadağandır.
 
    **Növbəti secret-conversion sırası:** (a) import edilmiş şifrəli key üçün
    browser worker/deadline sərtləşməsi (ADR 0036) və interop matrix-in genişləndirilməsi;
-   (b) browser-də PFX yaratma/çıxarma üçün ayrıca worker/time-limit, origin,
-   CSP, zero-upload, yaddaş və download testləri; (c) yalnız bu sərhədlərdən
+   (b) browser-də məhdud modern PFX yaratma/çıxarma üçün ayrıca worker/time-limit, origin,
+   CSP, zero-upload, yaddaş və download testləri (ADR 0037; development increment tamamlanıb);
+   (c) yalnız bu sərhədlərdən
    sonra gözlə göstərmə. Müəyyən məhsul/versiya reseptləri ümumi format
    mühərrikinin üzərində ayrıca gələcək; heç bir universal vendor rejimi yoxdur.
    Browser reveal hər dəfə PFX parolunu yenidən istəməli, saxlanmış key üçün

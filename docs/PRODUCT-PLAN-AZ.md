@@ -205,8 +205,11 @@ profildəki PFX-in yalnız public sertifikat xülasəsini göstərir. Dəqiq
 fingerprint ilə bir public sertifikatı PEM/DER kimi çıxarmaq və Linux offline
 CLI-da uyğun private key-i yeni parolla şifrələnmiş PKCS#8 faylına çıxarmaq
 işləyir. Browser Convert-də məhdud encrypted PKCS#8 importu və explicit
-parolsuz uyğun çıxış ayrıca increment kimi tamamlanıb; geniş vendor PFX
-importu və vault custody ayrıca qalır.
+parolsuz uyğun çıxış tamamlanıb. Ayrı PFX bölməsi dar modern profildə
+browser daxilində açma, public hissəni və yalnız yeni şifrəli matching key-i
+çıxarma, uyğun açar/sertifikatla PFX yaratma imkanı verir (ADR 0037). Geniş
+vendor PFX importu, encrypted input key ilə PFX yaratma və vault custody
+ayrıca qalır.
 
 v0.1 format scope-u:
 
@@ -282,7 +285,8 @@ ekranında təqdim edir və birbaşa public fayl seçildikdə eyni bounded impor
 yolunu işlədir. Ayrı private-key Convert seçimi strict unencrypted
 PKCS#8/PKCS#1/SEC1 PEM/DER və məhdud modern encrypted PKCS#8 PEM/DER qəbul edir;
 default şifrəli PKCS#8 çıxışı, explicit təsdiqlə uyğun parolsuz çıxışı verir.
-PFX və vault importu hələ yoxdur. Heç bir automatic
+Private-key picker PFX qəbul etmir; ayrıca PFX bölməsi dar modern profildə
+işləyir. Vault importu hələ yoxdur. Heç bir automatic
 trust/chain qərarı yaratmır.
 
 Sadə certificate import/Verify və public bundle explorer üçün konkret

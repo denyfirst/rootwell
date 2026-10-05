@@ -16,6 +16,8 @@
   <script src="app.js" defer></script>
   <script src="private-worker-client.js" defer></script>
   <script src="private-key.js" defer></script>
+  <script src="pfx-worker-client.js" defer></script>
+  <script src="pfx.js" defer></script>
 </head>
 <body class="workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -74,7 +76,7 @@
         <div>
           <p class="eyebrow">Certificate workbench</p>
           <h1 id="workbench-title">Know what you have.<br><span>Before you trust it.</span></h1>
-          <p class="lede">Inspect and verify public certificates, or convert a private key locally with Rootwell's bounded Go core. Selected file bytes stay inside this browser process.</p>
+          <p class="lede">Inspect and verify public certificates, convert private keys, or work with a modern PFX locally. Selected file bytes stay inside this browser process.</p>
         </div>
         <div class="preview-mark" aria-label="Local engine status">
           <strong>Local engine</strong>
@@ -96,7 +98,7 @@
           </button>
           <button class="tool-tab" type="button" id="convert-tab" data-tool="convert" aria-controls="convert-panel" aria-selected="false">
             <span class="tool-number">02</span>
-            <span><strong>Convert</strong><small>Download public PEM/DER</small></span>
+            <span><strong>Convert</strong><small>Certificates, keys and PFX</small></span>
           </button>
           <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
             <span class="tool-number">03</span>
@@ -233,11 +235,18 @@
             <div>
               <p class="section-index">Tool 02 / Convert</p>
               <h2>Convert certificates and keys</h2>
-              <p>Choose public certificates below, or convert one local private key in the separate protected flow. PEM and DER are encodings; .crt and .cer are filename extensions. PFX is not supported here yet.</p>
+              <p>Choose public certificates, convert a private key, or open and create a modern PFX below. PEM and DER are encodings; .crt and .cer are filename extensions.</p>
             </div>
             <span class="capability">Local processing</span>
           </div>
-          <div class="file-zone">
+          <nav class="conversion-jump" aria-label="Convert sections">
+            <span>Jump to</span>
+            <a href="#convert-public">Public certificates</a>
+            <a href="#private-convert-title">Private key</a>
+            <a href="#pfx-open-title">Open PFX</a>
+            <a href="#pfx-create-title">Create PFX</a>
+          </nav>
+          <div class="file-zone" id="convert-public">
             <input class="file-input" type="file" id="convert-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert">
             <label for="convert-file">
               <span class="file-symbol" aria-hidden="true">＋</span>
@@ -253,7 +262,7 @@
           </div>
           <aside class="inspection-error" id="convert-error" role="alert" hidden></aside>
           <section class="result" id="convert-result" hidden>
-            <h3>Choose what to download</h3>
+            <h3 id="convert-public-title">Choose what to download</h3>
             <p>Each card downloads one public certificate. Select content encoding and extension explicitly; the certificate itself is not changed.</p>
             <ol class="bundle-list" id="convert-certificates" aria-label="Public certificates available for conversion"></ol>
             <div class="bundle-collection-actions">
@@ -267,7 +276,7 @@
             <p class="result-kicker">Private key · local conversion</p>
             <h3 id="private-convert-title">Convert a private key</h3>
             <p>Choose one PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Encrypted PKCS#8 is supported for a limited modern profile. Rootwell checks it locally and does not upload or save it to Inventory or Vault.</p>
-            <p class="verify-note">PFX and legacy encrypted RSA/EC PEM are not supported here. A password-protected key does not prove its source or integrity. Your browser controls downloads and may keep copies in Downloads or backups; Rootwell cannot set private file permissions for you.</p>
+            <p class="verify-note">PFX belongs to the separate flow below. Legacy encrypted RSA/EC PEM is unsupported. A password-protected key does not prove its source or integrity. Your browser controls downloads and may keep copies in Downloads or backups; Rootwell cannot set private file permissions for you.</p>
             <div class="file-zone">
               <input class="file-input" type="file" id="private-convert-file" accept=".pem,.key,.der,application/octet-stream">
               <label for="private-convert-file"><span class="file-symbol" aria-hidden="true">＋</span><strong>Choose one private key</strong><span>PKCS#8 · PKCS#1 RSA · SEC1 EC · maximum 64 KiB</span></label>
@@ -304,6 +313,59 @@
               <div class="panel-actions"><button class="button button-primary" id="private-convert-download" type="button">Download private key</button></div>
               <p class="export-status" id="private-convert-status" aria-live="polite"></p>
             </div>
+          </section>
+          <section class="result pfx-section" aria-labelledby="pfx-open-title">
+            <p class="result-kicker">PFX / PKCS#12 · local workbench</p>
+            <h3 id="pfx-open-title">Open a PFX</h3>
+            <p>Choose one password-protected PFX. Rootwell identifies the certificate matching its private key and lists any other included certificates. Included does not mean trusted or verified.</p>
+            <div class="file-zone">
+              <input class="file-input" type="file" id="pfx-open-file" accept=".pfx,.p12,application/x-pkcs12">
+              <label for="pfx-open-file"><span class="file-symbol" aria-hidden="true">＋</span><strong>Choose a PFX / P12 file</strong><span>Modern AES-256/PBKDF2 profile only · maximum 1 MiB</span></label>
+              <p class="file-selection" id="pfx-open-file-state">No PFX selected</p>
+            </div>
+            <label for="pfx-open-password">PFX password (not your Rootwell sign-in password)</label>
+            <input id="pfx-open-password" type="password" autocomplete="off" maxlength="128" spellcheck="false">
+            <p class="verify-note">Supported profile accepts a 1–128 character ASCII password with no spaces. Existing PFX files using another profile or password encoding are refused.</p>
+            <div class="panel-actions"><button class="button" type="button" id="pfx-open-button" disabled>Open locally</button></div>
+            <aside class="inspection-error" id="pfx-open-error" role="alert" hidden></aside>
+            <div id="pfx-open-result" hidden>
+              <p class="verify-note">Password cleared after opening. Enter it again for any download; Rootwell re-reads and rechecks the file.</p>
+              <ol class="bundle-list" id="pfx-certificates" aria-label="Certificates inside PFX"></ol>
+              <label for="pfx-cert-choice">Public certificate to download</label>
+              <select id="pfx-cert-choice"></select>
+              <label for="pfx-cert-format">Public output format</label>
+              <select id="pfx-cert-format"><option value="pem">PEM (.pem)</option><option value="der">DER (.der)</option></select>
+              <div class="panel-actions"><button class="button" type="button" id="pfx-cert-download">Download selected public certificate</button></div>
+              <details class="pfx-key-export">
+                <summary>Need the matching private key separately?</summary>
+                <p>Rootwell exports only a newly password-encrypted PKCS#8 PEM key. Choose a fresh random password; never reuse the PFX or sign-in password. The browser may keep a copy in Downloads/backups.</p>
+                <label for="pfx-key-password">New key password (20–128 non-space ASCII characters)</label>
+                <input id="pfx-key-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+                <label for="pfx-key-confirm">Confirm new key password</label>
+                <input id="pfx-key-confirm" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+                <div class="panel-actions"><button class="button" type="button" id="pfx-key-download">Download encrypted private key</button></div>
+              </details>
+            </div>
+            <p id="pfx-open-status" class="export-status" aria-live="polite"></p>
+            <aside class="nonclaim"><strong>What opening a PFX does not prove</strong><p>No certificate is automatically trusted. This is not chain, hostname, revocation, deployment, or key-custody verification. Legacy/unknown PFX profiles fail closed; there is no generic vendor compatibility mode.</p></aside>
+          </section>
+          <section class="result pfx-section" aria-labelledby="pfx-create-title">
+            <p class="result-kicker">PFX / PKCS#12 · local creation</p>
+            <h3 id="pfx-create-title">Create a PFX</h3>
+            <p>Choose one certificate, its matching unencrypted RSA or EC private key, and optionally an ordered intermediate bundle (nearest issuer first). Rootwell checks the match and issuer signatures before creating a password-protected PFX.</p>
+            <div class="pfx-create-grid">
+              <label>Certificate (.pem/.cer/.crt/.der)<input id="pfx-create-cert" type="file" accept=".pem,.cer,.crt,.der"></label>
+              <label>Matching private key (.pem/.key/.der)<input id="pfx-create-key" type="file" accept=".pem,.key,.der"></label>
+              <label>Intermediates, optional (.pem)<input id="pfx-create-chain" type="file" accept=".pem"></label>
+            </div>
+            <p class="verify-note">Encrypted input keys are not accepted in this first PFX creation profile. Do not place a self-signed root in the intermediate bundle. This step does not save a key to Vault.</p>
+            <label for="pfx-create-password">New PFX password (20–128 non-space ASCII characters)</label>
+            <input id="pfx-create-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+            <label for="pfx-create-confirm">Confirm new PFX password</label>
+            <input id="pfx-create-confirm" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
+            <div class="panel-actions"><button class="button button-primary" type="button" id="pfx-create-button" disabled>Create and download PFX</button></div>
+            <aside class="inspection-error" id="pfx-create-error" role="alert" hidden></aside>
+            <p id="pfx-create-status" class="export-status" aria-live="polite"></p>
           </section>
         </section>
 
@@ -389,7 +451,7 @@
 
     <footer class="colophon">
       <p><span class="footer-brand"><span>root</span>well</span> · Your private root of trust.</p>
-      <p>Local WebAssembly inspection, public conversion, and verification · no certificate uploads</p>
+      <p>Local certificate, key and PFX work · no file uploads</p>
     </footer>
   </div>
 </body>

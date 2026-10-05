@@ -539,6 +539,18 @@ label[for="private-convert-input-password"] { display: block; margin-top: 0.9rem
 #private-convert-plaintext-warning label { display: flex; align-items: flex-start; gap: 0.55rem; line-height: 1.45; cursor: pointer; }
 .private-convert-fields input[type="checkbox"] { display: inline-block; flex: 0 0 auto; width: 1rem; height: 1rem; margin: 0.1rem 0 0; padding: 0; accent-color: var(--brand); }
 .private-convert-fields p { overflow-wrap: anywhere; }
+.pfx-section { margin-top: 1.2rem; }
+.conversion-jump { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.8rem; margin: 1rem 0; font-size: 0.75rem; }
+.conversion-jump span { color: var(--ink-faint); font-weight: 650; }
+.conversion-jump a { color: var(--brand); text-decoration: underline; text-underline-offset: 0.2rem; }
+.pfx-section > label, .pfx-section > div > label, .pfx-key-export label { display: block; margin-top: 0.85rem; font-size: 0.76rem; font-weight: 650; }
+.pfx-section input[type="password"], .pfx-section select { display: block; width: min(100%, 30rem); min-width: 0; margin-top: 0.3rem; padding: 0.55rem; border: 1px solid var(--rule); border-radius: 0; background: var(--paper); color: var(--ink); font: 0.78rem var(--sans); }
+.pfx-create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem 1rem; margin-top: 0.9rem; }
+.pfx-create-grid label { display: grid; gap: 0.35rem; min-width: 0; font-size: 0.76rem; font-weight: 650; }
+.pfx-create-grid input { min-width: 0; max-width: 100%; font: 0.74rem var(--sans); }
+.pfx-key-export { margin-top: 1rem; padding: 0.9rem; border: 1px solid var(--rule); background: var(--paper-sunk); }
+.pfx-key-export summary { cursor: pointer; color: var(--brand); font-size: 0.78rem; font-weight: 650; }
+.pfx-key-export p { color: var(--ink-soft); font-size: 0.75rem; line-height: 1.5; }
 .verify-inputs p { margin: 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
 .verify-note { margin: 0.9rem 0 0; color: var(--ink-soft); font-size: 0.74rem; line-height: 1.5; }
 .verify-mode { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; margin: 1.1rem 0 0; padding: 0.7rem 0.9rem; border: 1px solid var(--rule); }
@@ -592,6 +604,15 @@ label[for="private-convert-input-password"] { display: block; margin-top: 0.9rem
   .evidence-grid { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 80rem) {
+  .tool-layout { display: block; }
+  .tool-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--rule); }
+  .tool-tab { min-width: 0; }
+  .tool-tab + .tool-tab { margin: 0; }
+  .tool-tab[aria-selected="true"] { box-shadow: inset 0 -3px var(--brand); }
+  .pfx-create-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 48rem) {
   .workspace { display: block; }
   .rail { position: relative; height: auto; padding: 1rem; border-right: 0; border-bottom: 1px solid var(--rule); }
@@ -613,7 +634,7 @@ label[for="private-convert-input-password"] { display: block; margin-top: 0.9rem
   .tool-tab small, .tool-number { display: none; }
   .tool-tab[aria-selected="true"] { box-shadow: inset 0 -3px var(--brand); }
   .tool-panel { padding: 1.1rem; }
-  .verify-guide, .verify-inputs, .detail-grid { grid-template-columns: 1fr; }
+  .verify-guide, .verify-inputs, .detail-grid, .pfx-create-grid { grid-template-columns: 1fr; }
   .panel-actions, .result-head { align-items: stretch; flex-direction: column; }
   .button { width: 100%; }
   .colophon { display: block; padding: 1rem; }
