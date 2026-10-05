@@ -6,7 +6,7 @@
   <meta name="description" content="Rootwell local certificate and key Workbench">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="dark light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Rootwell Workbench</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
@@ -14,6 +14,7 @@
   <script src="wasm_exec.js" defer></script>
   <script src="wasm-loader.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="private-worker-client.js" defer></script>
   <script src="private-key.js" defer></script>
 </head>
 <body class="workspace">

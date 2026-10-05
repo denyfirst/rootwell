@@ -35,6 +35,10 @@ let output = null;
 let invalidResponse = false;
 let encryptedMode = false;
 let capturedCurrentPassword = null;
+let holdInspect = false;
+let releaseInspect;
+let holdExport = false;
+let releaseExport;
 const engine = {
   privateInspect(bytes, currentPassword) {
     inspectCalls++;
@@ -59,9 +63,20 @@ const engine = {
       result: { format, filename: invalidResponse ? "unsafe.pem" : "rootwell-" + (format === "encrypted-pkcs8-pem" ? "encrypted" : "plaintext") + "-key-aaaaaaaaaaaaaaaa-" + "b".repeat(32) + ".pem", bytes: output } };
   }
 };
+class MockModule {}
+const workerApi = {
+  async run(_module, operation, bytes, currentPassword, fingerprint, format, password, signal) {
+    assert.equal(signal.aborted, false);
+    if (holdInspect && operation === "inspect") return new Promise(resolve => { releaseInspect = () => resolve(engine.privateInspect(bytes, currentPassword)); });
+    if (holdExport && operation === "export") return new Promise(resolve => { releaseExport = () => resolve(engine.privateExport(bytes, fingerprint, currentPassword, format, password)); });
+    return operation === "inspect" ? engine.privateInspect(bytes, currentPassword) :
+      engine.privateExport(bytes, fingerprint, currentPassword, format, password);
+  }
+};
 const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob,
+  AbortController, WebAssembly: { Module: MockModule }, rootwellPrivateWorker: workerApi,
   URL: { createObjectURL(blob) { downloaded = blob; return "blob:private-test"; }, revokeObjectURL() {} },
-  setTimeout() {}, rootwellWorkbenchReady: Promise.resolve(engine) });
+  setTimeout() {}, rootwellWorkbenchReady: Promise.resolve({ module: new MockModule() }) });
 vm.runInContext(fs.readFileSync("web/workbench/private-key.js", "utf8"), context, { filename: "private-key.js" });
 await new Promise((resolve) => setImmediate(resolve));
 
@@ -144,6 +159,20 @@ await pendingInspect;
 assert.equal(get("private-convert-inspect").disabled, false, "new selection stayed disabled after stale read");
 assert.equal(get("private-convert-result").hidden, true, "stale read showed a result");
 
+holdInspect = true;
+get("private-convert-file").files = [file];
+get("private-convert-file").listeners.change();
+const pendingWorker = get("private-convert-inspect").listeners.click();
+await new Promise(resolve => setImmediate(resolve));
+get("private-convert-file").files = [];
+get("private-convert-file").listeners.change();
+releaseInspect();
+await pendingWorker;
+holdInspect = false;
+assert.equal(get("private-convert-result").hidden, true, "stale worker response showed a key");
+assert.equal(get("private-convert-file-state").textContent, "No private key selected");
+
+invalidResponse = false;
 encryptedMode = true;
 get("private-convert-file").files = [file];
 get("private-convert-file").listeners.change();
@@ -164,4 +193,23 @@ await get("private-convert-download").listeners.click();
 assert.equal(exportCalls, 5);
 assert.equal(capturedCurrentPassword[0], 0, "current password bytes were not cleared");
 assert.equal(get("private-convert-plaintext-confirm").checked, false, "plaintext consent persisted after download");
+assert.equal(get("private-convert-result").hidden, false, "successful encrypted-input export lost inspection: " + get("private-convert-error").textContent);
+
+holdExport = true;
+get("private-convert-format").value = "encrypted-pkcs8-pem";
+get("private-convert-format").listeners.change();
+get("private-convert-input-password").value = "current-password";
+get("private-convert-password").value = "non-production-output-password-12345";
+get("private-convert-confirm").value = "non-production-output-password-12345";
+const beforeCancelled = downloaded;
+const pendingExport = get("private-convert-download").listeners.click();
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(typeof releaseExport, "function", "export did not start: " + get("private-convert-error").textContent + " / " + get("private-convert-status").textContent);
+get("private-convert-format").value = "pkcs8-pem";
+get("private-convert-format").listeners.change();
+releaseExport();
+await pendingExport;
+holdExport = false;
+assert.equal(downloaded, beforeCancelled, "changed output choice downloaded a stale private key");
+assert.equal(get("private-convert-download").disabled, false, "cancelled export could not be retried");
 console.log("Private-key Workbench state and refusal tests passed.");

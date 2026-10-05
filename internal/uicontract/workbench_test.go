@@ -20,7 +20,8 @@ import (
 )
 
 var workbenchAssetNames = []string{
-	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "private-key.js", "favicon.svg",
+	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "private-key.js",
+	"private-worker-client.js", "private-key-worker.js", "favicon.svg",
 	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
 	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
 	"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
@@ -149,7 +150,7 @@ func TestWorkbenchContentSecurityPolicyRestrictsConnections(t *testing.T) {
 		"connect-src 'self'",
 		"font-src 'none'",
 		"object-src 'none'",
-		"worker-src 'none'",
+		"worker-src 'self'",
 		"manifest-src 'none'",
 		"base-uri 'none'",
 		"form-action 'none'",
@@ -239,6 +240,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	}
 	for _, required := range []string{
 		`fetch("rootwell.wasm"`,
+		"module: wasmModule",
 		"rootwellExplore",
 		"rootwellExport",
 		`credentials: "omit"`,
@@ -248,6 +250,25 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	} {
 		if !strings.Contains(loader, required) {
 			t.Errorf("WebAssembly loader is missing restriction %q", required)
+		}
+	}
+	client := assets["private-worker-client.js"]
+	worker := assets["private-key-worker.js"]
+	for _, required := range []string{`new Worker("private-key-worker.js"`, `setTimeout(function () { finish(true); }`,
+		`worker.terminate()`, `signal.addEventListener("abort"`, `source.fill(0)`, `current.fill(0)`, `output.fill(0)`} {
+		if !strings.Contains(client, required) {
+			t.Errorf("private worker client is missing boundary %q", required)
+		}
+	}
+	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon", "localStorage", "sessionStorage", "indexedDB", "document", "innerHTML", "eval("} {
+		if strings.Contains(client+worker, forbidden) {
+			t.Errorf("private worker path contains forbidden capability %q", forbidden)
+		}
+	}
+	for _, required := range []string{`importScripts("wasm_exec.js")`, `WebAssembly.instantiate(request.module`, `input.fill(0)`,
+		`currentPassword.fill(0)`, `outputPassword.fill(0)`, `self.rootwellPrivateInspect`, `self.rootwellPrivateExport`} {
+		if !strings.Contains(worker, required) {
+			t.Errorf("private worker is missing boundary %q", required)
 		}
 	}
 }
@@ -274,7 +295,7 @@ func TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords(t *testing.T
 	html := assets["index.html"]
 	script := assets["private-key.js"]
 	for _, required := range []string{
-		`src="private-key.js" defer`, `id="private-convert-file"`, `id="private-convert-password" type="password"`,
+		`src="private-worker-client.js" defer`, `src="private-key.js" defer`, `id="private-convert-file"`, `id="private-convert-password" type="password"`,
 		`id="private-convert-confirm" type="password"`, `id="private-convert-download" type="button"`,
 		`id="private-convert-input-password" type="password"`, `id="private-convert-format"`,
 		`id="private-convert-plaintext-confirm" type="checkbox"`, "does not upload or save it to Inventory or Vault",
@@ -285,8 +306,8 @@ func TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords(t *testing.T
 		}
 	}
 	for _, required := range []string{
-		"file.slice(0, 64 * 1024 + 1).arrayBuffer()", "source.file.slice(0, 64 * 1024 + 1).arrayBuffer()", "engine.privateInspect(bytes, currentPasswordBytes)",
-		"engine.privateExport(bytes, source.fingerprint, currentPasswordBytes, format, passwordBytes)",
+		"file.slice(0, 64 * 1024 + 1).arrayBuffer()", "source.file.slice(0, 64 * 1024 + 1).arrayBuffer()", `rootwellPrivateWorker.run(engine, "inspect"`,
+		`rootwellPrivateWorker.run(engine, "export"`, `activeController.abort()`,
 		"bytes.fill(0)", "currentPasswordBytes.fill(0)", "passwordBytes.fill(0)", "output.fill(0)",
 		"inputPasswordInput.value = \"\"", "passwordInput.value = \"\"", "confirmInput.value = \"\"",
 		"plaintextConfirm.checked", "ENCRYPTED PRIVATE KEY",

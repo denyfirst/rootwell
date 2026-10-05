@@ -25,6 +25,7 @@
   let selected = null;
   let inspected = null;
   let busy = false;
+  let activeController = null;
 
   function clearSecrets() {
     inputPasswordInput.value = "";
@@ -41,7 +42,18 @@
     confirmInput.value = "";
   }
 
-  formatInput.addEventListener("change", updateFormat);
+  function cancelPendingChoice() {
+    if (!activeController) return;
+    generation++;
+    activeController.abort();
+    status.textContent = "Choices changed. Start this operation again.";
+  }
+
+  formatInput.addEventListener("change", function () { cancelPendingChoice(); updateFormat(); });
+  for (const field of [inputPasswordInput, passwordInput, confirmInput]) {
+    field.addEventListener("input", cancelPendingChoice);
+  }
+  plaintextConfirm.addEventListener("change", cancelPendingChoice);
 
   function fail(message) {
     errorBox.textContent = message;
@@ -60,6 +72,7 @@
   }
 
   function invalidate() {
+    if (activeController) activeController.abort();
     generation++;
     selected = null;
     inspected = null;
@@ -82,11 +95,12 @@
 
   fileInput.addEventListener("change", invalidate);
   rootwellWorkbenchReady.then(function (ready) {
-    if (typeof ready.privateInspect !== "function" || typeof ready.privateExport !== "function") {
+    if (!(ready.module instanceof WebAssembly.Module) || !globalThis.rootwellPrivateWorker ||
+        typeof globalThis.rootwellPrivateWorker.run !== "function") {
       fail("Local private-key engine is unavailable.");
       return;
     }
-    engine = ready;
+    engine = ready.module;
     inspectButton.disabled = !selected;
   }, function () { fail("Local private-key engine is unavailable."); });
 
@@ -99,15 +113,19 @@
     inspected = null;
     resultBox.hidden = true;
     errorBox.hidden = true;
+    status.textContent = "Identifying this key locally…";
     let bytes;
     let currentPasswordBytes;
+    const controller = new AbortController();
+    activeController = controller;
     try {
       bytes = new Uint8Array(await file.slice(0, 64 * 1024 + 1).arrayBuffer());
       if (request !== generation || file !== selected) return;
       if (bytes.byteLength !== file.size || bytes.byteLength === 0 || bytes.byteLength > 64 * 1024) throw new Error("invalid source");
       currentPasswordBytes = encoder.encode(inputPasswordInput.value);
       if (currentPasswordBytes.length > 256) throw new Error("invalid password length");
-      const answer = engine.privateInspect(bytes, currentPasswordBytes);
+      const answer = await rootwellPrivateWorker.run(engine, "inspect", bytes, currentPasswordBytes, "", "", new Uint8Array(0), controller.signal);
+      if (request !== generation || file !== selected) return;
       if (typeof answer !== "string" || answer.length > 2048) throw new Error("invalid response");
       const response = JSON.parse(answer);
       if (response && response.error === "input-password-required") {
@@ -133,11 +151,12 @@
       resultBox.hidden = false;
       downloadButton.disabled = false;
     } catch {
-      if (request === generation) fail("This private key or current password is invalid, unsupported, or too large. No key details were shown.");
+      if (request === generation) fail("This key/password is invalid or unsupported, or local processing failed or timed out. No key details were shown.");
     } finally {
       clearSecrets();
       if (bytes) bytes.fill(0);
       if (currentPasswordBytes) currentPasswordBytes.fill(0);
+      if (activeController === controller) activeController = null;
       busy = false;
       inspectButton.disabled = !selected || !engine;
     }
@@ -157,6 +176,8 @@
     let passwordBytes;
     let output;
     let url;
+    const controller = new AbortController();
+    activeController = controller;
     try {
       bytes = new Uint8Array(await source.file.slice(0, 64 * 1024 + 1).arrayBuffer());
       if (request !== generation || inspected !== source) return;
@@ -191,8 +212,10 @@
         return;
       }
       passwordBytes = encoder.encode(format === "encrypted-pkcs8-pem" ? password : "");
-      const response = engine.privateExport(bytes, source.fingerprint, currentPasswordBytes, format, passwordBytes);
+      const response = await rootwellPrivateWorker.run(engine, "export", bytes, currentPasswordBytes,
+        source.fingerprint, format, passwordBytes, controller.signal);
       if (response && response.result && response.result.bytes instanceof Uint8Array) output = response.result.bytes;
+      if (request !== generation || inspected !== source) return;
       if (!response || response.schema_version !== "rootwell.browser.private-convert.v1" || response.ok !== true || response.error !== null ||
           !response.result || !output || output.byteLength === 0 || output.byteLength > 96 * 1024 || response.result.format !== format ||
           !new RegExp("^rootwell-" + (format === "encrypted-pkcs8-pem" ? "encrypted" : "plaintext") + "-key-[0-9a-f]{16}-[0-9a-f]{32}\\." + (format.endsWith("-der") ? "der" : "pem") + "$").test(response.result.filename)) {
@@ -223,10 +246,11 @@
       if (currentPasswordBytes) currentPasswordBytes.fill(0);
       if (passwordBytes) passwordBytes.fill(0);
       if (output) output.fill(0);
+      if (activeController === controller) activeController = null;
       plaintextConfirm.checked = false;
       if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
       busy = false;
-      if (request === generation) downloadButton.disabled = !inspected;
+      downloadButton.disabled = !inspected;
       inspectButton.disabled = !selected || !engine;
     }
   });

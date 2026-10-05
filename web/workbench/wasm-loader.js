@@ -3,6 +3,7 @@
 (function () {
   const ready = new Promise(function (resolve, reject) {
     let settled = false;
+    let wasmModule = null;
 
     function fail() {
       if (settled) return;
@@ -21,8 +22,7 @@
           typeof globalThis.rootwellExportVerifiedSimple !== "function" ||
           typeof globalThis.rootwellExportVerifiedExplicit !== "function" ||
           typeof globalThis.rootwellExport !== "function" ||
-	      typeof globalThis.rootwellPrivateInspect !== "function" ||
-	      typeof globalThis.rootwellPrivateExport !== "function" ||
+          !(wasmModule instanceof WebAssembly.Module) ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
         return;
@@ -38,8 +38,7 @@
         exportVerifiedSimple: globalThis.rootwellExportVerifiedSimple,
         exportVerifiedExplicit: globalThis.rootwellExportVerifiedExplicit,
         exportPublic: globalThis.rootwellExport,
-		privateInspect: globalThis.rootwellPrivateInspect,
-		privateExport: globalThis.rootwellPrivateExport,
+        module: wasmModule,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));
     };
@@ -62,8 +61,9 @@
       return response.arrayBuffer().then(function (bytes) {
         return WebAssembly.instantiate(bytes, go.importObject);
       });
-    }).then(function (module) {
-      return go.run(module.instance);
+    }).then(function (result) {
+      wasmModule = result.module;
+      return go.run(result.instance);
     }).then(fail, fail);
   });
 

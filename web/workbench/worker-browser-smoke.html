@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; worker-src 'self'; style-src 'none'; base-uri 'none'">
+  <title>Rootwell synthetic worker smoke test</title>
+  <script src="wasm_exec.js" defer></script>
+  <script src="wasm-loader.js" defer></script>
+  <script src="private-worker-client.js" defer></script>
+  <script src="worker-browser-smoke.js" defer></script>
+</head>
+<body><p id="result">Synthetic worker test is running…</p></body>
+</html>
