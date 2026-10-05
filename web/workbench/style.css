@@ -649,3 +649,7 @@ label[for="private-convert-input-password"] { display: block; margin-top: 0.9rem
   .bundle-list dl { grid-template-columns: 1fr; }
   .chain li, .detail-grid dl > div { grid-template-columns: 1fr; gap: 0.2rem; }
 }
+.eye-icon { width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.secret-reveal { margin: 16px 0; padding: 16px; border: 1px solid var(--accent); border-radius: 6px; }
+.secret-reveal pre { max-height: 260px; overflow: auto; padding: 12px; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+@media print { .secret-reveal { display: none !important; } }

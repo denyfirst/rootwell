@@ -12,12 +12,18 @@ class Element {
 }
 const elements = new Map();
 const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
-const document = { getElementById: get, createElement: () => new Element(), body: new Element() };
+const document = { getElementById: get, createElement: () => new Element(), body: new Element(), addEventListener() {} };
+const boundaries = {};
+get("pfx-reveal-panel").hidden = true;
 const fingerprint = "AA:".repeat(31) + "AA";
 get("pfx-cert-format").value = "pem";
 let downloaded = 0;
 let inspected = 0;
 let exported = 0;
+let revealed = 0;
+let holdReveal = false;
+let malformedOutput = false;
+let releaseReveal;
 let created = 0;
 let held = false;
 let holdCreate = false;
@@ -43,21 +49,25 @@ const worker = {
       created++;
       assert.equal(new TextDecoder().decode(second), "existing-synthetic-key-password", "existing key password did not reach worker");
     }
+    else if (operation === "reveal") { revealed++; assert.equal(option, fingerprint); assert.equal(second.length, 0); }
     else exported++;
-    const format = operation === "create" ? "pfx" : operation === "key" ? "encrypted-pkcs8-pem" : "pem";
-    const filename = operation === "create" ? "rootwell-bundle-" + "b".repeat(32) + ".pfx" :
+    const format = operation === "create" ? "pfx" : operation === "key" ? "encrypted-pkcs8-pem" : operation === "reveal" ? "pkcs8-pem" : "pem";
+    const filename = operation === "reveal" ? "" : operation === "create" ? "rootwell-bundle-" + "b".repeat(32) + ".pfx" :
       "rootwell-" + (operation === "key" ? "encrypted-key" : "certificate") + "-" + "a".repeat(16) + "-" + "b".repeat(32) + ".pem";
     responseBytes = operation === "create" ? Uint8Array.of(0x30, 0x03, 0x01) :
-      new TextEncoder().encode("-----BEGIN " + (operation === "key" ? "ENCRYPTED PRIVATE KEY" : "CERTIFICATE") + "-----\n" + "A".repeat(40));
+      new TextEncoder().encode("-----BEGIN " + (operation === "key" ? "ENCRYPTED PRIVATE KEY" : operation === "reveal" ? "PRIVATE KEY" : "CERTIFICATE") + "-----\n" + "A".repeat(80) + "\n-----END " + (operation === "key" ? "ENCRYPTED PRIVATE KEY" : operation === "reveal" ? "PRIVATE KEY" : "CERTIFICATE") + "-----\n");
     const answer = { schema_version: "rootwell.browser.pfx.v1", ok: true, error: null,
-      result: { bytes: responseBytes, format, filename } };
+      result: { bytes: malformedOutput ? "not-a-byte-buffer" : responseBytes, format, filename } };
     if (operation === "create" && holdCreate) return new Promise(resolve => { releaseCreate = () => resolve(answer); });
+    if (operation === "reveal" && holdReveal) return new Promise(resolve => { releaseReveal = () => resolve(answer); });
     return answer;
   }
 };
-const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, AbortController,
+const context = vm.createContext({ document, TextEncoder, TextDecoder, Uint8Array, Blob, AbortController,
   WebAssembly: { Module }, rootwellPFXWorker: worker, rootwellWorkbenchReady: Promise.resolve({ module: new Module() }),
-  URL: { createObjectURL() { downloaded++; return "blob:test"; }, revokeObjectURL() {} }, setTimeout() {} });
+  URL: { createObjectURL() { downloaded++; return "blob:test"; }, revokeObjectURL() {} }, setTimeout() {}, clearTimeout() {},
+  addEventListener(event, fn) { boundaries[event] = fn; } });
+vm.runInContext(fs.readFileSync("web/workbench/secret-view.js", "utf8"), context);
 vm.runInContext(fs.readFileSync("web/workbench/pfx.js", "utf8"), context);
 await new Promise(resolve => setImmediate(resolve));
 
@@ -94,6 +104,30 @@ await get("pfx-key-download").listeners.click();
 assert.equal(exported, 2);
 assert.equal(downloaded, 2);
 assert.equal(captured.second[0], 0, "key output password was not cleared");
+
+await get("pfx-reveal-button").listeners.click();
+assert.equal(revealed, 0, "PFX reveal skipped fresh password");
+get("pfx-open-password").value = "synthetic-PFX-password-2026";
+await get("pfx-reveal-button").listeners.click();
+assert.equal(revealed, 1);
+assert.equal(downloaded, 2, "viewing a key requested a download");
+assert.equal(get("pfx-reveal-panel").hidden, false);
+assert.match(get("pfx-reveal-content").textContent, /^-----BEGIN PRIVATE KEY-----/);
+assert.equal(responseBytes[0], 0);
+get("pfx-key-tools").open = false;
+get("pfx-key-tools").listeners.toggle();
+assert.equal(get("pfx-reveal-content").textContent, "", "closing key tools retained plaintext");
+holdReveal = true;
+get("pfx-open-password").value = "synthetic-PFX-password-2026";
+const pendingReveal = get("pfx-reveal-button").listeners.click();
+await new Promise(resolve => setImmediate(resolve));
+boundaries.pagehide();
+releaseReveal();
+await pendingReveal;
+holdReveal = false;
+assert.equal(get("pfx-reveal-panel").hidden, true, "late reveal revived hidden key");
+assert.equal(responseBytes[0], 0);
+assert.equal(downloaded, 2);
 
 get("pfx-create-cert").files = [file];
 get("pfx-create-key").files = [file];
@@ -150,5 +184,16 @@ get("pfx-open-file").listeners.change();
 release();
 await pending;
 assert.equal(get("pfx-open-result").hidden, true, "late worker result revived stale PFX");
+assert.equal(downloaded, 3);
+held = false;
+get("pfx-open-file").files = [file];
+get("pfx-open-file").listeners.change();
+get("pfx-open-password").value = "synthetic-PFX-password-2026";
+await get("pfx-open-button").listeners.click();
+malformedOutput = true;
+get("pfx-open-password").value = "synthetic-PFX-password-2026";
+await assert.doesNotReject(get("pfx-reveal-button").listeners.click());
+assert.equal(get("pfx-reveal-content").textContent, "", "malformed worker output was displayed");
+assert.equal(get("pfx-open-button").disabled, false, "malformed worker output prevented safe retry");
 assert.equal(downloaded, 3);
 console.log("PFX UI fresh-password, no-partial-download, stale-result and buffer-clearing checks passed.");

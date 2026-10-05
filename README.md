@@ -86,9 +86,14 @@ certificates or strict PEM bundles), up to 64 certificates and 16 MiB combined.
 Convert is a separate view for exporting a selected public certificate or a
 user-selected public bundle; it can reuse the current Inspect session or open
 public files directly. A separate Convert picker can recognize one strict
-unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 private key in PEM/DER and export
-only a new password-encrypted PKCS#8 PEM file. It does not reveal or save a
-key in the inventory/vault, accept PFX, or provide plaintext legacy output.
+unencrypted PKCS#8, RSA PKCS#1, or EC SEC1 private key in PEM/DER, or bounded
+encrypted PKCS#8. Encrypted PKCS#8 output is the default; compatible plaintext
+targets require explicit consent. A separate PFX picker creates/opens bounded
+modern PFX, extracts public certificates or a newly encrypted matching key.
+Creation also accepts bounded encrypted PKCS#8 input directly. A separate eye
+button shows PKCS#8 PEM for at most 30 seconds: encrypted files require fresh
+file-password authentication; plaintext files require renewed screen consent.
+No key is saved to Inventory/Vault. PFX-key downloads remain encrypted.
 These paths use the bounded Go core through WebAssembly and never post selected
 bytes to a server API. A selected public certificate can
 be downloaded as PEM or DER with a clearly labeled `.pem`, `.der`, `.crt`, or
@@ -202,8 +207,8 @@ inspection result. `--to der` is also available. This does not create a
 fullchain, establish trust, or extract the private key. The output must not
 exist; PFX and password stay local. The first reader accepts a narrow, bounded
 modern profile; unsupported or older vendor PFX files fail explicitly.
-Private-key extraction is a separate operation; Windows secret output and
-browser PFX conversion remain unsupported. On Linux, key export produces
+Private-key extraction is a separate operation; native Windows CLI secret
+output remains unsupported. On Linux, key export produces
 only a new password-encrypted PKCS#8 file inside an existing owner-private
 directory. Copy the complete `SHA-256` value of the **matching certificate**
 from `pfx-inspect`, then run:
@@ -217,11 +222,11 @@ Replace `AA:BB:...` with the full displayed fingerprint. The command asks
 for the PFX password, then twice for a **different, high-entropy** output
 password on the local terminal. Never reuse the instance login password.
 This file is still sensitive even though encrypted: back it up and restrict
-access. No key is printed, saved in inventory, exported unencrypted, or made
-available through the browser. Existing files are never replaced. The narrow
-modern PFX profile remains in force. Plaintext legacy RSA/PKCS#1 conversion,
-Windows secret output, browser key reveal, and browser PFX conversion are not
-available yet. These development features have not had their release audit;
+access. This CLI never prints a key, saves it in inventory, or exports it
+unencrypted. Existing files are never replaced. The narrow modern PFX profile
+remains in force. Browser operations have their own boundary described above;
+native Windows CLI secret output remains unsupported. These development
+features have not had their release audit;
 see [ADR 0030](docs/adr/0030-pkcs12-dependency-and-profile.md),
 [ADR 0031](docs/adr/0031-bounded-pfx-public-inspection.md), and
 [ADR 0033](docs/adr/0033-encrypted-pfx-key-export.md).
@@ -286,6 +291,6 @@ constraints, and Rootwell's initial algorithm policy. It does **not** check
 revocation, OCSP, CRLs, Certificate Transparency, or the certificate currently
 served by a remote endpoint. See [the TLS verification contract](docs/VERIFY-TLS.md).
 
-Private-key conversion and writing are intentionally not implemented yet.
-Their threat boundaries and failure contracts must be established before code
-is added.
+Private-key conversion and PFX operations have the separate, bounded boundaries
+described above. Secret custody, automatic renewal and deployment remain future
+work and need their own threat models and tests.

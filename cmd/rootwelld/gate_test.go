@@ -33,7 +33,7 @@ func testGate(t *testing.T) (*gate, string) {
 	}
 	assets := t.TempDir()
 	for name, body := range map[string]string{
-		"index.html": "protected workbench", "app.js": "protected javascript", "private-key.js": "protected private javascript", "rootwell.wasm": "protected wasm",
+		"index.html": "protected workbench", "app.js": "protected javascript", "secret-view.js": "protected transient secret view", "private-key.js": "protected private javascript", "rootwell.wasm": "protected wasm",
 		"private-worker-client.js": "protected worker client", "private-key-worker.js": "protected key worker",
 		"pfx.js": "protected PFX UI", "pfx-worker-client.js": "protected PFX worker client", "pfx-worker.js": "protected PFX worker",
 		"style.css": "protected css", "theme.js": "protected theme", "wasm-loader.js": "protected loader", "wasm_exec.js": "protected runtime",
@@ -116,7 +116,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("second setup session: %d", secondLogin.Code)
 	}
 	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/index.html", "/app.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/rootwell.wasm", "/account"} {
+	for _, route := range []string{"/", "/index.html", "/app.js", "/secret-view.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/rootwell.wasm", "/account"} {
 		w := call(g, "GET", route, "", cookie)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
 			t.Fatalf("setup credential reached %s: %d", route, w.Code)

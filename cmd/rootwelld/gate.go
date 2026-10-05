@@ -50,7 +50,7 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"index.html", "app.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"index.html", "app.js", "secret-view.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -504,6 +504,7 @@ func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentTy
 
 var workbenchFiles = map[string]string{
 	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/private-key.js": "private-key.js",
+	"/secret-view.js":           "secret-view.js",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",
 	"/pfx.js": "pfx.js", "/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",
 	"/style.css": "style.css", "/theme.js": "theme.js", "/wasm-loader.js": "wasm-loader.js",

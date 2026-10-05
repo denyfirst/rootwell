@@ -20,7 +20,7 @@ import (
 )
 
 var workbenchAssetNames = []string{
-	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "private-key.js",
+	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "secret-view.js", "private-key.js",
 	"private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "favicon.svg",
 	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
 	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
@@ -213,7 +213,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	assets := workbenchAssets(t)
 	application := assets["app.js"]
 	loader := assets["wasm-loader.js"]
-	fileReadingScripts := application + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["theme.js"]
+	fileReadingScripts := application + "\n" + assets["secret-view.js"] + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["theme.js"]
 	for _, forbidden := range []string{
 		"fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon",
 		"serviceWorker", "Worker(", "SharedWorker", "import(",
@@ -604,6 +604,29 @@ func TestWorkbenchElementReferencesResolve(t *testing.T) {
 		if _, exists := ids[match[1]]; !exists {
 			t.Errorf("element reference %q has no matching id", match[1])
 		}
+	}
+}
+
+func TestWorkbenchPrivateViewHasNoPersistenceOrDownload(t *testing.T) {
+	assets := workbenchAssets(t)
+	viewer := assets["secret-view.js"]
+	for _, forbidden := range []string{"localStorage", "sessionStorage", "indexedDB", "console.", "fetch(", "navigator.clipboard", "new Blob", "createObjectURL", ".download", "innerHTML", "insertAdjacentHTML"} {
+		if strings.Contains(viewer, forbidden) {
+			t.Errorf("private viewer has forbidden capability %q", forbidden)
+		}
+	}
+	for _, required := range []string{"content.textContent = \"\"", "setTimeout(hide, 30000)", "visibilitychange", "pagehide", "blur", "hashchange"} {
+		if !strings.Contains(viewer, required) {
+			t.Errorf("private viewer lacks guard %q", required)
+		}
+	}
+	for _, id := range []string{"private-reveal-button", "private-reveal-confirm", "pfx-reveal-button", "pfx-reveal-panel"} {
+		if !strings.Contains(assets["index.html"], `id="`+id+`"`) {
+			t.Errorf("missing private view element %q", id)
+		}
+	}
+	if !strings.Contains(assets["style.css"], "@media print") || !strings.Contains(assets["style.css"], ".secret-reveal { display: none !important; }") {
+		t.Error("private view can print")
 	}
 }
 

@@ -75,3 +75,12 @@ worker, independently from the output password; no plaintext intermediate
 download is needed. Input/output password reuse is refused. Windows imports
 test output with an ephemeral key store, and the WASM path also consumes an
 independently encoded Node/OpenSSL encrypted input.
+
+ADR 0039 adds explicit, transient private-key display. Encrypted files require
+fresh file-password authentication and inspected identity; plaintext files
+require renewed screen-exposure consent. Future saved keys need separate
+instance reauthentication. Text is cleared after 30 seconds and on page/tool/
+source changes, manual hide or closing PFX key tools. Pending operations are
+cancelled at page boundaries. No clipboard, download, logging, URL or storage
+path is added. Screen capture, extensions, same-origin compromise, assistive
+technology and runtime strings remain residual risks, not erasure guarantees.

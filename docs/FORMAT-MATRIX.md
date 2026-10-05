@@ -31,6 +31,11 @@ still accepts one file.
 
 ## Parsing limits
 
+Inspection summaries remain public-only. ADR 0039 adds an explicit transient
+PKCS#8 PEM view: fresh current-file password for encrypted keys/PFX, renewed
+screen-exposure consent for plaintext files, 30-second clearing and page/source
+cancellation. This is not a download or Vault save.
+
 Initial limits are deliberately conservative and become code constants with
 tests when parsing begins:
 

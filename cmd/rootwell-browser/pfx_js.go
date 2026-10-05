@@ -133,10 +133,16 @@ func pfxOutput(_ js.Value, arguments []js.Value) (response any) {
 		}
 		output, filename, err = browserpfx.ExportKey(inputs[0], password, option, second)
 		format = "encrypted-pkcs8-pem"
+	case "reveal":
+		if len(inputs[1]) != 0 || len(inputs[2]) != 0 || len(second) != 0 {
+			return response
+		}
+		output, err = browserpfx.RevealKey(inputs[0], password, option)
+		format = "pkcs8-pem"
 	default:
 		return response
 	}
-	if err != nil || len(output) == 0 || len(output) > 1<<20 || filename == "" {
+	if err != nil || len(output) == 0 || len(output) > 1<<20 || (filename == "" && operation != "reveal") {
 		clear(output)
 		return response
 	}

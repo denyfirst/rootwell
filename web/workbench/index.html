@@ -14,6 +14,7 @@
   <script src="wasm_exec.js" defer></script>
   <script src="wasm-loader.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="secret-view.js" defer></script>
   <script src="private-worker-client.js" defer></script>
   <script src="private-key.js" defer></script>
   <script src="pfx-worker-client.js" defer></script>
@@ -284,11 +285,18 @@
             </div>
             <label for="private-convert-input-password">Current key password, if encrypted (not your Rootwell sign-in password)</label>
             <input id="private-convert-input-password" type="password" autocomplete="off" maxlength="256" spellcheck="false">
-            <p class="verify-note">For an encrypted key, enter the current password to identify it. You will enter it again before downloading; Rootwell does not retain it.</p>
+            <p class="verify-note">For an encrypted key, enter the current password to identify it. Enter it again before viewing or downloading; Rootwell does not retain it.</p>
             <div class="panel-actions"><button class="button" id="private-convert-inspect" type="button" disabled>Identify key format</button></div>
             <aside class="inspection-error" id="private-convert-error" role="alert" hidden></aside>
             <div id="private-convert-result" class="private-convert-fields" hidden>
               <p id="private-convert-summary"></p>
+              <label id="private-reveal-confirm-label" hidden><input id="private-reveal-confirm" type="checkbox"> This file has no password. I want to show its private key on screen.</label>
+              <div class="panel-actions"><button class="button" id="private-reveal-button" type="button" disabled><svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg> View key for 30 seconds</button></div>
+              <div class="secret-reveal" id="private-reveal-panel" hidden>
+                <p>Private key · automatically hides after 30 seconds. Keep your screen private.</p>
+                <pre id="private-reveal-content" tabindex="0" aria-label="Revealed private key"></pre>
+                <button class="button" id="private-reveal-hide" type="button">Hide key now</button>
+              </div>
               <label for="private-convert-format">Output format and protection</label>
               <select id="private-convert-format">
                 <option value="encrypted-pkcs8-pem">Encrypted PKCS#8 PEM (recommended)</option>
@@ -336,8 +344,15 @@
               <label for="pfx-cert-format">Public output format</label>
               <select id="pfx-cert-format"><option value="pem">PEM (.pem)</option><option value="der">DER (.der)</option></select>
               <div class="panel-actions"><button class="button" type="button" id="pfx-cert-download">Download selected public certificate</button></div>
-              <details class="pfx-key-export">
+              <details class="pfx-key-export" id="pfx-key-tools">
                 <summary>Need the matching private key separately?</summary>
+                <p>To view it briefly, re-enter the PFX password above, then choose View key. Keep your screen private.</p>
+                <div class="panel-actions"><button class="button" id="pfx-reveal-button" type="button"><svg class="eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg> View matching key for 30 seconds</button></div>
+                <div class="secret-reveal" id="pfx-reveal-panel" hidden>
+                  <p>Private key · automatically hides after 30 seconds.</p>
+                  <pre id="pfx-reveal-content" tabindex="0" aria-label="Revealed matching PFX key"></pre>
+                  <button class="button" id="pfx-reveal-hide" type="button">Hide matching key now</button>
+                </div>
                 <p>Rootwell exports only a newly password-encrypted PKCS#8 PEM key. Choose a fresh random password; never reuse the PFX or sign-in password. The browser may keep a copy in Downloads/backups.</p>
                 <label for="pfx-key-password">New key password (20–128 non-space ASCII characters)</label>
                 <input id="pfx-key-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">

@@ -136,6 +136,8 @@ jobs:
           node --check scripts/test-browser-pfx.mjs
           node --check scripts/workbench-preview.mjs
           node --check web/workbench/private-key.js
+          node --check web/workbench/secret-view.js
+          node --check scripts/test-workbench-secret-view.mjs
           node --check web/workbench/private-worker-client.js
           node --check web/workbench/private-key-worker.js
           node --check web/workbench/pfx.js
@@ -159,6 +161,7 @@ jobs:
             web/workbench/rootwell-demo-bundle.pem
           node scripts/test-workbench-multifile.mjs
           node scripts/test-workbench-private.mjs
+          node scripts/test-workbench-secret-view.mjs
           node scripts/test-workbench-private-worker.mjs
           node scripts/test-browser-pfx.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-workbench-pfx-worker.mjs

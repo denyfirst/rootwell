@@ -33,6 +33,15 @@
   const createButton = byID("pfx-create-button");
   const createError = byID("pfx-create-error");
   const createStatus = byID("pfx-create-status");
+  const view = rootwellSecretView.create(byID("pfx-reveal-panel"), byID("pfx-reveal-content"), byID("pfx-reveal-hide"),
+    () => {
+      cancelOpen();
+      if (createController) { createGeneration++; createController.abort(); }
+      for (const field of [openPassword, keyPassword, keyConfirm, createInputPassword, createPassword, createConfirm]) field.value = "";
+    }, () => { openStatus.textContent = "Private key hidden."; });
+  byID("pfx-key-tools").addEventListener("toggle", () => {
+    if (!byID("pfx-key-tools").open) { cancelOpen(); openPassword.value = keyPassword.value = keyConfirm.value = ""; }
+  });
 
   function fail(box, status, message) {
     box.textContent = message;
@@ -92,6 +101,7 @@
   }
 
   function invalidateOpen() {
+    view.hide();
     openGeneration++;
     if (openController) openController.abort();
     inspected = null;
@@ -106,7 +116,7 @@
     openButton.disabled = !module || !validFile(file, 1 << 20) || openBusy;
   }
   openFile.addEventListener("change", invalidateOpen);
-  function cancelOpen() { if (openController) { openGeneration++; openController.abort(); openStatus.textContent = "Choices changed. Start this operation again."; } }
+  function cancelOpen() { view.hide(); if (openController) { openGeneration++; openController.abort(); openStatus.textContent = "Choices changed. Start this operation again."; } }
   for (const field of [openPassword, certChoice, certFormat, keyPassword, keyConfirm]) field.addEventListener(field.tagName === "SELECT" ? "change" : "input", cancelOpen);
 
   rootwellWorkbenchReady.then(ready => {
@@ -122,6 +132,7 @@
   openButton.addEventListener("click", async () => {
     const file = openFile.files && openFile.files[0];
     if (!module || !validFile(file, 1 << 20) || openBusy) return;
+    view.hide();
     const generation = openGeneration;
     const controller = new AbortController();
     openController = controller;
@@ -146,7 +157,7 @@
         matching: parsed.result.certificates.find(cert => cert.matching_key).fingerprint };
       showSummary(parsed.result.certificates);
       openResult.hidden = false;
-      openStatus.textContent = "Opened locally. Nothing was uploaded or saved. Enter the PFX password again before a download.";
+      openStatus.textContent = "Opened locally. Nothing was uploaded or saved. Enter the PFX password again before viewing the key or downloading.";
     } catch {
       if (generation === openGeneration) fail(openError, openStatus, "PFX/password is invalid or outside the supported modern profile, or processing timed out.");
     } finally {
@@ -161,6 +172,7 @@
 
   async function exportOpened(kind) {
     if (!module || !inspected || openBusy) return;
+    view.hide();
     const source = inspected;
     const generation = openGeneration;
     const selected = certChoice.value;
@@ -171,10 +183,10 @@
     openPassword.value = "";
     keyPassword.value = "";
     keyConfirm.value = "";
-    if (!source.fingerprints.includes(selected) || !["pem", "der"].includes(format) ||
+    if ((kind === "certificate" && (!source.fingerprints.includes(selected) || !["pem", "der"].includes(format))) ||
         !pfxPassword || pfxPassword.length > 128 ||
         (kind === "key" && (!newPassword(next) || next !== confirm || next === pfxPassword))) {
-      fail(openError, openStatus, kind === "key" ? "Re-enter the PFX password and choose a different, confirmed 20–128 character non-space ASCII key password." : "Re-enter the PFX password and choose a certificate.");
+      fail(openError, openStatus, kind === "key" ? "Re-enter the PFX password and choose a different, confirmed 20–128 character non-space ASCII key password." : kind === "reveal" ? "Re-enter the PFX password before viewing its matching key." : "Re-enter the PFX password and choose a certificate.");
       return;
     }
     const controller = new AbortController();
@@ -189,31 +201,35 @@
       if (generation !== openGeneration || source !== inspected) return;
       password = encoder.encode(pfxPassword);
       outputPassword = encoder.encode(kind === "key" ? next : "");
-      const option = kind === "key" ? source.matching : selected + ":" + format;
+      const option = kind !== "certificate" ? source.matching : selected + ":" + format;
       const answer = await rootwellPFXWorker.run(module, kind, [bytes, new Uint8Array(), new Uint8Array()], password, outputPassword, option, controller.signal);
       output = answer && answer.result && answer.result.bytes;
       if (generation !== openGeneration || source !== inspected) return;
-      const expectedFormat = kind === "key" ? "encrypted-pkcs8-pem" : format;
+      const expectedFormat = kind === "key" ? "encrypted-pkcs8-pem" : kind === "reveal" ? "pkcs8-pem" : format;
       const expectedName = kind === "key" ? /^rootwell-encrypted-key-[0-9a-f]{16}-[0-9a-f]{32}\.pem$/ :
         new RegExp("^rootwell-certificate-[0-9a-f]{16}-[0-9a-f]{32}\\." + format + "$");
       if (!answer || answer.schema_version !== "rootwell.browser.pfx.v1" || answer.ok !== true || answer.error !== null ||
-          !answer.result || answer.result.format !== expectedFormat || !expectedName.test(answer.result.filename) ||
+          !answer.result || answer.result.format !== expectedFormat || (kind === "reveal" ? answer.result.filename !== "" : !expectedName.test(answer.result.filename)) ||
           !(output instanceof Uint8Array) || output.length < 1 || output.length > 1 << 20) throw new Error("invalid response");
       if (expectedFormat !== "der") {
-        const header = encoder.encode(kind === "key" ? "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" : "-----BEGIN CERTIFICATE-----\n");
+        const header = encoder.encode(kind === "key" ? "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" : kind === "reveal" ? "-----BEGIN PRIVATE KEY-----\n" : "-----BEGIN CERTIFICATE-----\n");
         if (!header.every((byte, index) => output[index] === byte)) throw new Error("invalid output");
       }
-      requestDownload(output, answer.result.filename, expectedFormat === "der" ? "application/octet-stream" : "application/x-pem-file");
-      openStatus.textContent = "Download requested. Check the browser save location; this is not a Vault save.";
+      if (kind === "reveal") {
+        view.show(output);
+        openStatus.textContent = "Private key visible for 30 seconds. No download was requested.";
+      } else {
+        requestDownload(output, answer.result.filename, expectedFormat === "der" ? "application/octet-stream" : "application/x-pem-file");
+        openStatus.textContent = "Download requested. Check the browser save location; this is not a Vault save.";
+      }
     } catch {
       if (generation === openGeneration) fail(openError, openStatus, "PFX export failed safely. Open the PFX again before retrying.");
-      inspected = null;
-      openResult.hidden = true;
+      if (generation === openGeneration) { inspected = null; openResult.hidden = true; }
     } finally {
       if (bytes) bytes.fill(0);
       if (password) password.fill(0);
       if (outputPassword) outputPassword.fill(0);
-      if (output) output.fill(0);
+      if (output instanceof Uint8Array) output.fill(0);
       if (openController === controller) openController = null;
       openBusy = false;
       openButton.disabled = !module || !validFile(openFile.files && openFile.files[0], 1 << 20);
@@ -221,8 +237,10 @@
   }
   byID("pfx-cert-download").addEventListener("click", () => exportOpened("certificate"));
   byID("pfx-key-download").addEventListener("click", () => exportOpened("key"));
+  byID("pfx-reveal-button").addEventListener("click", () => exportOpened("reveal"));
 
   function invalidateCreate() {
+    view.hide();
     createGeneration++;
     if (createController) createController.abort();
     createPassword.value = "";
@@ -236,6 +254,7 @@
   }
   for (const field of [createCert, createKey, createChain]) field.addEventListener("change", invalidateCreate);
   for (const field of [createInputPassword, createPassword, createConfirm]) field.addEventListener("input", () => {
+    view.hide();
     if (createController) { createGeneration++; createController.abort(); createStatus.textContent = "Password changed. Start again."; }
   });
   createButton.addEventListener("click", async () => {
@@ -243,6 +262,7 @@
     const key = createKey.files && createKey.files[0];
     const chain = createChain.files && createChain.files[0];
     if (!module || createBusy || !validFile(certificate, 1 << 20) || !validFile(key, 64 << 10) || (chain && !validFile(chain, 1 << 20))) return;
+    view.hide();
     const pfxPassword = createPassword.value;
     const confirmation = createConfirm.value;
     const inputPassword = createInputPassword.value;
@@ -285,7 +305,7 @@
       if (chainBytes) chainBytes.fill(0);
       if (passwordBytes) passwordBytes.fill(0);
       if (inputPasswordBytes) inputPasswordBytes.fill(0);
-      if (output) output.fill(0);
+      if (output instanceof Uint8Array) output.fill(0);
       if (createController === controller) createController = null;
       createBusy = false;
       createButton.disabled = !module || !validFile(createCert.files && createCert.files[0], 1 << 20) || !validFile(createKey.files && createKey.files[0], 64 << 10);

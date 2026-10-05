@@ -1,11 +1,13 @@
 // Package browserpfx exposes the bounded offline PFX profile to a one-shot
-// browser worker. It returns no private material except for an explicit,
-// newly encrypted key export.
+// browser worker. Private output requires an explicit encrypted export or
+// separately requested, transient on-screen reveal.
 package browserpfx
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -17,6 +19,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/pfxcreate"
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/denyfirst/rootwell/internal/pfxkeyexport"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 const SchemaVersion = "rootwell.browser.pfx.v1"
@@ -30,6 +33,49 @@ type Certificate struct {
 	Fingerprint string `json:"fingerprint"`
 	IsCA        bool   `json:"is_ca"`
 	MatchingKey bool   `json:"matching_key"`
+}
+
+// RevealKey reauthenticates the exact selected matching certificate and
+// returns strict PKCS#8 PEM for a transient view only. The caller must clear
+// the bytes, hide the view promptly, and never download or persist this output.
+func RevealKey(input, password []byte, fingerprint string) ([]byte, error) {
+	if len(input) == 0 || len(input) > 1<<20 || len(password) == 0 || len(password) > 128 || !pfxinspect.ValidFingerprint(fingerprint) {
+		return nil, ErrInvalid
+	}
+	bound := bytes.Clone(input)
+	defer clear(bound)
+	summary, err := pfxinspect.Inspect(bound, string(password))
+	if err != nil || summary.MatchingCertificate.SHA256Fingerprint != fingerprint {
+		return nil, ErrInvalid
+	}
+	expected, ok := summary.CertificateDER(fingerprint)
+	if !ok {
+		return nil, ErrInvalid
+	}
+	defer clear(expected)
+	key, leaf, _, err := pkcs12.DecodeChain(bound, string(password))
+	if key != nil {
+		defer keymatch.ClearParsedKey(key)
+	}
+	if err != nil || leaf == nil || !bytes.Equal(leaf.Raw, expected) {
+		return nil, ErrInvalid
+	}
+	plain, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil || len(plain) == 0 || len(plain) > 64<<10 {
+		clear(plain)
+		return nil, ErrInvalid
+	}
+	defer clear(plain)
+	matched, err := keymatch.Match(expected, plain)
+	if err != nil || !matched.Match {
+		return nil, ErrInvalid
+	}
+	output := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: plain})
+	if len(output) == 0 || len(output) > 96<<10 {
+		clear(output)
+		return nil, ErrInvalid
+	}
+	return output, nil
 }
 
 type Summary struct {
