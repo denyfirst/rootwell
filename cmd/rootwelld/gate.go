@@ -50,7 +50,7 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"index.html", "app.js", "secret-view.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"index.html", "app.js", "secret-view.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "csr.js", "csr-worker-client.js", "csr-worker.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -79,7 +79,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	w.Header().Set("Permissions-Policy", "camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
-	if r.URL.Path == "/private-key-worker.js" || r.URL.Path == "/pfx-worker.js" {
+	if r.URL.Path == "/private-key-worker.js" || r.URL.Path == "/pfx-worker.js" || r.URL.Path == "/csr-worker.js" {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'")
 	}
 	if r.Host != g.host || (r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodDelete) {
@@ -507,6 +507,7 @@ var workbenchFiles = map[string]string{
 	"/secret-view.js":           "secret-view.js",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",
 	"/pfx.js": "pfx.js", "/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",
+	"/csr.js": "csr.js", "/csr-worker-client.js": "csr-worker-client.js", "/csr-worker.js": "csr-worker.js",
 	"/style.css": "style.css", "/theme.js": "theme.js", "/wasm-loader.js": "wasm-loader.js",
 	"/wasm_exec.js": "wasm_exec.js", "/rootwell.wasm": "rootwell.wasm",
 	"/favicon.svg": "favicon.svg", "/rootwell-demo-bundle.pem": "rootwell-demo-bundle.pem",

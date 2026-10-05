@@ -87,9 +87,11 @@ olunmamış nəticəyə “verified” demək qadağandır.
    dar modern browser PFX axını tamamlanıb. ADR 0038 PFX yaratmaq üçün şifrəli
    PKCS#8 giriş key-ini parolla birbaşa qəbul edib uyğunluğunu worker-də yoxlayır;
    aralıq parolsuz fayl endirməsi tələb edilmir. ADR 0039 əvvəlcədən
-   razılaşdırılmış məhdud **gözlə göstərmə** axınıdır. Daha sonra
-   browser-də key + CSR yaratma və geri gələn sertifikatı həmin key/CSR ilə
-   uyğunlaşdırma axını gəlir. Müəyyən məhsul/versiya reseptləri ümumi format
+   razılaşdırılmış məhdud **gözlə göstərmə** axınıdır və PR #70 ilə tamamlanıb.
+   ADR 0040 browser-də key + CSR yaratma, imzalı CSR PEM/DER açma/çevirmə və
+   geri gələn sertifikatı həmin public key/CSR adları ilə müqayisə etmə
+   axınıdır. Bu dalğanın yoxlamaları bitmədən növbəti məhsul bölməsinə keçmirik.
+   Müəyyən məhsul/versiya reseptləri ümumi format
    mühərrikinin üzərində ayrıca gələcək; heç bir universal vendor rejimi yoxdur.
    Browser reveal hər dəfə PFX parolunu yenidən istəməli, saxlanmış key üçün
    əlavə instance reauthentication tələb etməli, qısa müddətdən sonra mətn
@@ -100,6 +102,15 @@ olunmamış nəticəyə “verified” demək qadağandır.
    kimi təqdim edilməyəcək.
 
 ### Növbəti funksional dalğanın qəbul meyarları
+
+İcra vəziyyəti: şifrəli key-dən PFX (PR #69) və məhdud reveal (PR #70)
+tamamlanıb. Key + CSR wizard üçün ADR 0040, unit/refusal/fuzz, WASM, worker/UI
+və müstəqil Node/OpenSSL interop yoxlamaları əlavə edilib. Windows browserdə
+sintetik yeni RSA key + CSR, mövcud CSR importu və eyni/fərqli sertifikat
+müqayisəsi sınanır; Linux race/cross-platform CI tamamlanmadan bu increment
+bağlanmır. Bu sübut Linux-da faktiki browser sessiyası və ya universal
+sertifikat formatı uyğunluğu demək deyil. CLI CSR, geniş vendor/legacy profil,
+vault, issuance və renewal ayrıca qalır.
 
 1. **Şifrəli key-dən PFX.** Browser UI mövcud dəstəklənən şifrəli PKCS#8
    private key, onun parolu, uyğun public sertifikat və istəyə bağlı issuer-ləri

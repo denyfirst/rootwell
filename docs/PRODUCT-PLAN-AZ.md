@@ -211,6 +211,12 @@ browser daxilində açma, public hissəni və yalnız yeni şifrəli matching ke
 vendor PFX importu və vault custody ayrıca qalır. ADR 0038 browser-də məhdud
 encrypted PKCS#8 input key-i birbaşa açıb uyğun sertifikatla PFX yaratmağa
 imkan verir; parolsuz ara fayl endirmək lazım deyil.
+ADR 0040 browser-də ayrıca **Request certificate** axını əlavə edir: yeni
+RSA/ECDSA key və imzalı DNS/IP CSR, yaxud mövcud dəstəklənən key ilə yalnız
+CSR. Yeni key yalnız şifrəli PKCS#8 kimi public CSR ilə ZIP-də endirilir;
+ZIP özü şifrəli deyil. CSR PEM/DER açma və çevirmə imzanı yoxlayır. Qayıdan
+sertifikatla public key və ad fərqləri müqayisə edilir; bu issuance, trust,
+revocation və renewal deyil. CLI CSR əmri hələ implementasiya olunmayıb.
 
 v0.1 format scope-u:
 

@@ -31,6 +31,7 @@ func main() {
 	privateExportFunction := js.FuncOf(exportPrivateKey)
 	pfxInspectFunction := js.FuncOf(pfxInspect)
 	pfxOutputFunction := js.FuncOf(pfxOutput)
+	csrFunction := js.FuncOf(csrOperation)
 	js.Global().Set("rootwellInspect", inspectFunction)
 	js.Global().Set("rootwellExplore", exploreFunction)
 	js.Global().Set("rootwellAnalyze", analyzeFunction)
@@ -44,6 +45,7 @@ func main() {
 	js.Global().Set("rootwellPrivateExport", privateExportFunction)
 	js.Global().Set("rootwellPFXInspect", pfxInspectFunction)
 	js.Global().Set("rootwellPFXOutput", pfxOutputFunction)
+	js.Global().Set("rootwellCSROperate", csrFunction)
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()

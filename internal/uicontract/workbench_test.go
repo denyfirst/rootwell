@@ -22,6 +22,7 @@ import (
 var workbenchAssetNames = []string{
 	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "secret-view.js", "private-key.js",
 	"private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "favicon.svg",
+	"csr.js", "csr-worker-client.js", "csr-worker.js",
 	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
 	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
 	"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
@@ -213,7 +214,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	assets := workbenchAssets(t)
 	application := assets["app.js"]
 	loader := assets["wasm-loader.js"]
-	fileReadingScripts := application + "\n" + assets["secret-view.js"] + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["theme.js"]
+	fileReadingScripts := application + "\n" + assets["secret-view.js"] + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["csr.js"] + "\n" + assets["theme.js"]
 	for _, forbidden := range []string{
 		"fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon",
 		"serviceWorker", "Worker(", "SharedWorker", "import(",
@@ -627,6 +628,31 @@ func TestWorkbenchPrivateViewHasNoPersistenceOrDownload(t *testing.T) {
 	}
 	if !strings.Contains(assets["style.css"], "@media print") || !strings.Contains(assets["style.css"], ".secret-reveal { display: none !important; }") {
 		t.Error("private view can print")
+	}
+}
+
+func TestWorkbenchCSRBoundaryIsExplicit(t *testing.T) {
+	assets := workbenchAssets(t)
+	for _, required := range []string{`id="request-tab"`, `id="csr-mode"`, `id="csr-dns"`, `id="csr-result"`, `id="csr-certificate"`, "never send it to the CA", "ZIP itself is not encrypted", "Same key is not a trust check", "does not prove identity", "single site certificate, not a bundle", "Challenge passwords, unknown attributes/extensions"} {
+		if !strings.Contains(assets["index.html"], required) {
+			t.Errorf("CSR UI lacks boundary %q", required)
+		}
+	}
+	for _, forbidden := range []string{"localStorage", "sessionStorage", "indexedDB", "console.", "navigator.clipboard", "innerHTML", "insertAdjacentHTML"} {
+		if strings.Contains(assets["csr.js"], forbidden) {
+			t.Errorf("CSR UI has forbidden capability %q", forbidden)
+		}
+	}
+	path := assets["csr-worker-client.js"] + assets["csr-worker.js"]
+	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "WebSocket", "localStorage", "sessionStorage", "indexedDB", "console.", "document.", "https://", "http://"} {
+		if strings.Contains(path, forbidden) {
+			t.Errorf("CSR worker has forbidden capability %q", forbidden)
+		}
+	}
+	for _, required := range []string{`new Worker("csr-worker.js"`, "worker.terminate()", `signal.addEventListener("abort"`, `importScripts("wasm_exec.js")`, "bytes.fill(0)", "180000", "90000", "30000"} {
+		if !strings.Contains(path, required) {
+			t.Errorf("CSR worker lacks guard %q", required)
+		}
 	}
 }
 

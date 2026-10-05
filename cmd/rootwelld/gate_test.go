@@ -36,6 +36,7 @@ func testGate(t *testing.T) (*gate, string) {
 		"index.html": "protected workbench", "app.js": "protected javascript", "secret-view.js": "protected transient secret view", "private-key.js": "protected private javascript", "rootwell.wasm": "protected wasm",
 		"private-worker-client.js": "protected worker client", "private-key-worker.js": "protected key worker",
 		"pfx.js": "protected PFX UI", "pfx-worker-client.js": "protected PFX worker client", "pfx-worker.js": "protected PFX worker",
+		"csr.js": "protected CSR UI", "csr-worker-client.js": "protected CSR worker client", "csr-worker.js": "protected CSR worker",
 		"style.css": "protected css", "theme.js": "protected theme", "wasm-loader.js": "protected loader", "wasm_exec.js": "protected runtime",
 	} {
 		if err := os.WriteFile(filepath.Join(assets, name), []byte(body), 0o600); err != nil {
@@ -116,7 +117,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("second setup session: %d", secondLogin.Code)
 	}
 	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/index.html", "/app.js", "/secret-view.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/rootwell.wasm", "/account"} {
+	for _, route := range []string{"/", "/index.html", "/app.js", "/secret-view.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/account"} {
 		w := call(g, "GET", route, "", cookie)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
 			t.Fatalf("setup credential reached %s: %d", route, w.Code)
@@ -172,6 +173,10 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	pfxWorker := call(g, "GET", "/pfx-worker.js", "", readyCookie)
 	if pfxWorker.Code != http.StatusOK || !strings.Contains(pfxWorker.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(pfxWorker.Header().Get("Content-Security-Policy"), "worker-src 'none'") {
 		t.Fatalf("PFX worker missing authenticated access or isolated CSP: %d", pfxWorker.Code)
+	}
+	csrWorker := call(g, "GET", "/csr-worker.js", "", readyCookie)
+	if csrWorker.Code != http.StatusOK || !strings.Contains(csrWorker.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(csrWorker.Header().Get("Content-Security-Policy"), "worker-src 'none'") {
+		t.Fatalf("CSR worker lacks isolated authenticated access: %d", csrWorker.Code)
 	}
 	if w := call(g, "GET", "/account", "", readyCookie); w.Code != http.StatusOK {
 		t.Fatalf("account page: %d", w.Code)

@@ -38,7 +38,7 @@ for (const event of ["blur", "pagehide", "hashchange", "visibilitychange"]) {
   document.hidden = false;
 }
 assert.equal(cancelled, 4, "page boundaries failed to cancel pending operations");
-for (const id of ["inspect-tab", "convert-tab", "verify-tab", "convert-open-inspect"]) {
+for (const id of ["inspect-tab", "convert-tab", "verify-tab", "request-tab", "convert-open-inspect"]) {
   view.show(key);
   elements.get(id).listeners.click();
   assert.equal(content.textContent, "", "tool change retained private key");

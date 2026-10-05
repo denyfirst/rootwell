@@ -74,6 +74,8 @@ jobs:
             package: ./internal/browserprivateconvert
           - target: FuzzPFXPreflight
             package: ./internal/pfxinspect
+          - target: FuzzInspectCSR
+            package: ./internal/csrworkbench
           - target: FuzzVersionValue
             package: ./internal/version
     steps:

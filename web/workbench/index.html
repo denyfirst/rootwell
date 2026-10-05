@@ -19,6 +19,8 @@
   <script src="private-key.js" defer></script>
   <script src="pfx-worker-client.js" defer></script>
   <script src="pfx.js" defer></script>
+  <script src="csr-worker-client.js" defer></script>
+  <script src="csr.js" defer></script>
 </head>
 <body class="workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -104,6 +106,10 @@
           <button class="tool-tab" type="button" id="verify-tab" data-tool="verify" aria-controls="verify-panel" aria-selected="false">
             <span class="tool-number">03</span>
             <span><strong>Verify</strong><small>Check an explicit trust chain</small></span>
+          </button>
+          <button class="tool-tab" type="button" id="request-tab" data-tool="request" aria-controls="request-panel" aria-selected="false">
+            <span class="tool-number">04</span>
+            <span><strong>Request certificate</strong><small>Create a key and signed CSR</small></span>
           </button>
         </nav>
 
@@ -384,6 +390,69 @@
             <div class="panel-actions"><button class="button button-primary" type="button" id="pfx-create-button" disabled>Create and download PFX</button></div>
             <aside class="inspection-error" id="pfx-create-error" role="alert" hidden></aside>
             <p id="pfx-create-status" class="export-status" aria-live="polite"></p>
+          </section>
+        </section>
+
+        <section class="tool-panel csr-form" id="request-panel" aria-labelledby="request-tab" hidden>
+          <div class="panel-head">
+            <div><p class="section-index">Tool 04 / Request certificate</p><h2>Create a certificate request</h2>
+              <p>A CSR is a signed request you send to your certificate authority (CA). It is not a certificate. Your private key stays here; never send it to the CA.</p></div>
+            <span class="capability">Local processing</span>
+          </div>
+          <section class="pfx-tool" aria-labelledby="csr-create-title">
+            <h3 id="csr-create-title">1. Choose your key and site names</h3>
+            <label for="csr-mode">Which key should sign this request?</label>
+            <select id="csr-mode"><option value="generate">Create a new key (recommended for a new certificate)</option><option value="key">Use my existing private key</option></select>
+            <div id="csr-new-key">
+              <label for="csr-algorithm">New key type</label>
+              <select id="csr-algorithm"><option value="rsa-3072">RSA 3072 — broad compatibility</option><option value="rsa-2048">RSA 2048</option><option value="rsa-4096">RSA 4096 — slower</option><option value="ec-p256">EC P-256 — check your CA/server support</option><option value="ec-p384">EC P-384</option><option value="ec-p521">EC P-521</option></select>
+              <div class="pfx-create-grid">
+                <div><label for="csr-password">Protect the new key with a password</label><input id="csr-password" type="password" maxlength="128" autocomplete="off" spellcheck="false"></div>
+                <div><label for="csr-confirm">Confirm key password</label><input id="csr-confirm" type="password" maxlength="128" autocomplete="off" spellcheck="false"></div>
+              </div>
+              <p class="verify-note">Use a fresh random 20–128 character non-space ASCII password and save it in your password manager. Rootwell does not keep it. The download is a ZIP containing the encrypted key and public CSR; the ZIP itself is not encrypted.</p>
+            </div>
+            <div id="csr-existing-key" hidden>
+              <label for="csr-key-file">Existing private key (.pem/.key/.der · maximum 64 KiB)</label><input id="csr-key-file" type="file" accept=".pem,.key,.der">
+              <label for="csr-input-password">Current key password, if protected</label><input id="csr-input-password" type="password" maxlength="256" autocomplete="off" spellcheck="false">
+              <p class="verify-note">Leave it blank for an unencrypted key. PKCS#8, RSA PKCS#1 and EC SEC1 are supported; encrypted keys must use the supported modern PKCS#8 profile. PFX and legacy encrypted PEM are not accepted here. Only the CSR is downloaded; your existing key is not copied.</p>
+              <p class="verify-note">Opening a password-protected key does not prove its origin or integrity. Use a trusted copy of your key.</p>
+              <label for="csr-key-format">CSR download format</label><select id="csr-key-format"><option value="pem">PEM (.csr) — usual CA input</option><option value="der">DER binary (.der)</option></select>
+            </div>
+            <label for="csr-dns">Site names covered by the request</label><textarea id="csr-dns" rows="3" maxlength="8192" placeholder="example.com&#10;www.example.com" spellcheck="false"></textarea>
+            <p class="verify-note">One DNS name per line, or separate names with commas. Maximum 32. No https://, port or path. Wildcards use *.example.com; international names need punycode. The first name becomes the common name; TLS names come from this list (SAN).</p>
+            <details class="pfx-key-export"><summary>IP addresses and organisation details (optional)</summary>
+              <label for="csr-ips">IP addresses, one per line (maximum 8)</label><textarea id="csr-ips" rows="2" maxlength="512" placeholder="192.0.2.10&#10;2001:db8::10" spellcheck="false"></textarea>
+              <div class="pfx-create-grid">
+                <div><label for="csr-organization">Organisation</label><input id="csr-organization" type="text" maxlength="128" autocomplete="off"></div>
+                <div><label for="csr-country">Country code (two letters, for example AZ)</label><input id="csr-country" type="text" maxlength="2" autocomplete="off"></div>
+                <div><label for="csr-unit">Organisational unit</label><input id="csr-unit" type="text" maxlength="128" autocomplete="off"></div>
+                <div><label for="csr-locality">City / locality</label><input id="csr-locality" type="text" maxlength="128" autocomplete="off"></div>
+                <div><label for="csr-province">State / province</label><input id="csr-province" type="text" maxlength="128" autocomplete="off"></div>
+              </div>
+              <p class="verify-note">These are requested values, not identity proof. Your CA decides what to include. At least one site name or IP address is required.</p>
+            </details>
+            <button class="button button-primary action-button" id="csr-create-button" type="button" disabled>Create key and CSR download</button>
+            <p class="inspection-error" id="csr-error" role="alert" hidden></p><p class="verify-note" id="csr-status" role="status"></p>
+          </section>
+          <details class="pfx-tool" id="csr-open-tools"><summary>Already have a CSR? Open it here</summary>
+            <label for="csr-open-file">One signed CSR (.csr/.pem/.der · maximum 64 KiB)</label><input id="csr-open-file" type="file" accept=".csr,.pem,.der">
+            <p class="verify-note">DNS/IP CSR profile only. Challenge passwords, unknown attributes/extensions and email/URI requests are refused, not silently ignored.</p>
+            <button class="button button-primary action-button" id="csr-open-button" type="button" disabled>Open CSR locally</button>
+          </details>
+          <section class="pfx-tool" id="csr-result" aria-labelledby="csr-result-title" hidden>
+            <h3 id="csr-result-title">2. Send only the CSR to your CA</h3>
+            <p id="csr-summary"></p><ul id="csr-names"></ul>
+            <p class="verify-note">The request signature was checked locally. It does not prove identity, your possession of an imported request's private key, or issue a certificate. Keep the private key and its password safe; only the CSR goes to the CA.</p>
+            <button class="button button-primary action-button" id="csr-download-pem" type="button">Download public CSR · PEM</button>
+            <button class="button button-primary action-button" id="csr-download-der" type="button">Download public CSR · DER</button>
+            <details class="pfx-key-export"><summary>Technical request details</summary><p class="verify-note" id="csr-technical"></p></details>
+            <h3>3. Check the certificate your CA returns</h3>
+            <label for="csr-certificate">Returned public certificate (.crt/.cer/.pem/.der · maximum 1 MiB)</label><input id="csr-certificate" type="file" accept=".crt,.cer,.pem,.der">
+            <p class="verify-note">Choose the single site certificate, not a bundle. If your CA supplied a bundle, use Inspect to choose and download the site certificate first.</p>
+            <button class="button button-primary action-button" id="csr-match-button" type="button" disabled>Compare returned certificate</button>
+            <div id="csr-comparison" hidden><p id="csr-match-summary"></p><ul id="csr-match-differences"></ul>
+              <p class="verify-note">Same key is not a trust check. A fake certificate can contain the same public key. Use Verify with the CA chain and an independently trusted root next; issuer signature, time, purpose, revocation and live deployment are not checked here.</p></div>
           </section>
         </section>
 

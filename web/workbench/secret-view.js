@@ -28,7 +28,7 @@
     const view = Object.freeze({ show, hide });
     views.add({ view, boundary });
     hideButton.addEventListener("click", hide);
-    for (const id of ["inspect-tab", "convert-tab", "verify-tab", "convert-open-inspect"]) {
+    for (const id of ["inspect-tab", "convert-tab", "verify-tab", "request-tab", "convert-open-inspect"]) {
       const button = document.getElementById(id);
       if (button) button.addEventListener("click", boundary);
     }

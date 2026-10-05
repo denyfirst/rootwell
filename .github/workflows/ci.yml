@@ -38,6 +38,20 @@ jobs:
       - name: Import a synthetic PFX without persisting its key
         shell: pwsh
         run: ./scripts/test-windows-pfx-interop.ps1
+      - name: Verify browser CSR/key output with Windows Node and OpenSSL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $csrWasm = Join-Path $env:RUNNER_TEMP 'rootwell-csr.wasm'
+          $env:GOOS = 'js'
+          $env:GOARCH = 'wasm'
+          go build -trimpath -o $csrWasm ./cmd/rootwell-browser
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item Env:GOOS
+          Remove-Item Env:GOARCH
+          $csrRuntime = Join-Path (go env GOROOT) 'lib/wasm/wasm_exec.js'
+          node scripts/test-browser-csr.mjs $csrWasm $csrRuntime
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   container-volume:
     name: Linux container volume recovery
@@ -143,6 +157,12 @@ jobs:
           node --check web/workbench/pfx.js
           node --check web/workbench/pfx-worker-client.js
           node --check web/workbench/pfx-worker.js
+          node --check web/workbench/csr.js
+          node --check web/workbench/csr-worker-client.js
+          node --check web/workbench/csr-worker.js
+          node --check scripts/test-workbench-csr-ui.mjs
+          node --check scripts/test-workbench-csr-worker.mjs
+          node --check scripts/test-browser-csr.mjs
           node --check web/workbench/worker-browser-smoke.js
           node --check cmd/rootwelld/auth/auth.js
           node --check cmd/rootwelld/auth/inventory.js
@@ -166,6 +186,9 @@ jobs:
           node scripts/test-browser-pfx.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-workbench-pfx-worker.mjs
           node scripts/test-workbench-pfx-ui.mjs
+          node scripts/test-browser-csr.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
+          node scripts/test-workbench-csr-ui.mjs
+          node scripts/test-workbench-csr-worker.mjs
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-inventory-demo.mjs
