@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -148,6 +149,77 @@ func TestExistingKeyCSRFormatsAndEncryptedInput(t *testing.T) {
 	}
 	if output, err := FromKey(plain, []byte(syntheticPassword), params(), "pem"); err != ErrInvalid || len(output.Bytes) != 0 {
 		t.Fatal("unexpected password on plaintext accepted")
+	}
+}
+
+func TestCSRFromAllSupportedExistingKeyFamilies(t *testing.T) {
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, edKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []crypto.Signer{rsaKey, ecKey, edKey} {
+		defer keymatch.ClearParsedKey(key)
+		plain, err := x509.MarshalPKCS8PrivateKey(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer clear(plain)
+		public, err := x509.MarshalPKIXPublicKey(key.Public())
+		if err != nil {
+			t.Fatal(err)
+		}
+		inputs := []struct {
+			kind           string
+			data, password []byte
+		}{{"PRIVATE KEY", plain, nil}}
+		switch value := key.(type) {
+		case *rsa.PrivateKey:
+			inputs = append(inputs, struct {
+				kind           string
+				data, password []byte
+			}{"RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(value), nil})
+		case *ecdsa.PrivateKey:
+			sec1, err := x509.MarshalECPrivateKey(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs = append(inputs, struct {
+				kind           string
+				data, password []byte
+			}{"EC PRIVATE KEY", sec1, nil})
+		}
+		encrypted, err := pkcs8.MarshalPrivateKey(key, []byte(syntheticPassword), &pkcs8.Opts{Cipher: pkcs8.AES256CBC, KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 1000, HMACHash: crypto.SHA256}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		inputs = append(inputs, struct {
+			kind           string
+			data, password []byte
+		}{"ENCRYPTED PRIVATE KEY", encrypted, []byte(syntheticPassword)})
+		for _, source := range inputs {
+			for _, input := range [][]byte{source.data, pem.EncodeToMemory(&pem.Block{Type: source.kind, Bytes: source.data})} {
+				for _, format := range []string{"pem", "der"} {
+					output, err := FromKey(input, source.password, params(), format)
+					if err != nil || output.Summary.PublicFingerprint != fingerprint(public) || !output.Summary.SignatureChecked {
+						t.Fatalf("supported existing family/encoding refused or changed key: %s/%s", source.kind, format)
+					}
+					clear(output.Bytes)
+					clear(output.CSR)
+				}
+				if !bytes.Equal(input, source.data) {
+					clear(input)
+				}
+			}
+			clear(source.data)
+		}
 	}
 }
 
