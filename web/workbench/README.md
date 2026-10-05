@@ -15,8 +15,12 @@ selection or failure clears its choices. A separate private Convert picker
 recognizes one strict unencrypted PKCS#8, PKCS#1 RSA, or SEC1 EC key in
 PEM/DER, or a bounded encrypted PKCS#8 PEM/DER key with its current password.
 Encrypted PKCS#8 PEM is the default output; compatible unencrypted PEM/DER
-targets require an explicit warning and confirmation. It never accepts PFX
-or legacy encrypted PEM and never saves to a vault. Verify uses the
+targets require an explicit warning and confirmation. That picker does not
+accept PFX or legacy encrypted PEM and never saves to a vault. A separate
+PFX section opens a bounded modern authenticated PFX, exports one selected
+public certificate, exports the matching private key only as freshly encrypted
+PKCS#8 PEM, and creates a modern PFX from a matching unencrypted RSA/ECDSA
+key and certificate plus optional ordered intermediates. Verify uses the
 same explicit-trust TLS server verifier as the CLI.
 
 ## Security boundary
@@ -49,6 +53,12 @@ same explicit-trust TLS server verifier as the CLI.
   selected file and binds its full public fingerprint to the visible result;
   encrypted PKCS#8 is the default download; plaintext targets require a
   separate choice and explicit confirmation, without a file-permission claim;
+- `pfx.js` reads only its explicitly selected PFX/certificate/key files after
+  a click, and has no network or persistent-storage capability. Each action
+  uses a separate one-shot worker with a 45-second inspection or 90-second
+  output deadline. The PFX password is re-entered for extraction, and the
+  selected full fingerprint is rechecked; output is a public PEM/DER
+  certificate or a newly encrypted private key, never a plaintext PFX key;
 - JavaScript and Go entry buffers are cleared after use on a best-effort basis.
   Browser memory, immutable password strings, extensions, a compromised host,
   and browser-managed download permissions cannot be fully controlled. Static
@@ -137,13 +147,15 @@ not a claim that the chain is valid now. See
 Browser-wide memory erasure is not guaranteed. The Inspect, Verify, and public
 Convert selectors are for public certificates only; use only the separately
 labelled private Convert picker for supported unencrypted keys or bounded
-encrypted PKCS#8. PFX/PKCS#12 and legacy encrypted PEM remain unsupported in
+encrypted PKCS#8. PFX/PKCS#12 belongs only in the separate bounded PFX
+section; legacy and unknown PFX profiles and legacy encrypted PEM remain unsupported in
 the browser. See
 [`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
 and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
 and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)
 and [bundle export decision](../../docs/adr/0008-browser-selected-public-bundle-export.md)
 and [Verify decision](../../docs/adr/0009-browser-explicit-trust-verification.md)
+and [PFX worker decision](../../docs/adr/0037-browser-pfx-worker-and-conversion.md)
 for the decision and non-claims.
 
 ## Build the local engine
@@ -180,6 +192,14 @@ inspection, encrypted export, and encrypted re-import, then clears its byte
 buffers; it never requests a download. The preview is unauthenticated and
 loopback-only. Do not select real keys there.
 
+For a disposable PFX UI demonstration, run
+`go run ./scripts/generate-browser-pfx-fixture.go --write-files`. It prints an
+OS-temp directory and a synthetic password. Select only those generated
+`.pem`/`.pfx` files on the loopback preview. The files contain a synthetic
+private key and are not production credentials; delete that exact temporary
+directory when no longer needed. The automated WASM and worker tests use
+freshly generated material without writing fixture files.
+
 For a safe first test, download `rootwell-demo-certificate.pem` from Inspect
 and select it there. It contains one non-production public certificate for
 `.invalid` names and deliberately contains no private key. To see two Inspect
@@ -210,7 +230,7 @@ Cross-Origin-Resource-Policy: same-origin
 Permissions-Policy: camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()
 ```
 
-Serve `private-key-worker.js` with its own response CSP:
+Serve `private-key-worker.js` and `pfx-worker.js` with their own response CSP:
 `default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'`.
 The HTML meta policy cannot impose this worker response boundary by itself.
 

@@ -1,6 +1,6 @@
 # Secret-bearing conversion: pre-implementation threat model
 
-**Status:** Linux offline PFX creation/extraction and bounded browser encrypted-PKCS#8 import plus opt-in plaintext key output implemented; browser PFX and vault custody remain planned
+**Status:** Linux offline PFX creation/extraction, bounded browser private-key conversion, and narrow modern browser PFX work implemented for development; vault custody and production audit remain planned
 
 **Date:** 2026-09-29
 
@@ -12,7 +12,7 @@ operator supplies local files and a destination to an offline CLI process;
 file contents, filenames, directories, terminal state, and the chosen output
 path are untrusted. Those CLI operations cross no network, browser, server,
 inventory, telemetry, or Porch boundary. A separate browser Convert picker
-accepts strict unencrypted keys and bounded encrypted PKCS#8, never PFX; public Inspect/Verify
+accepts strict unencrypted keys and bounded encrypted PKCS#8; a distinct PFX picker uses the modern profile of ADR 0037. Public Inspect/Verify
 and Inventory must keep rejecting secret-bearing imports.
 
 The attacker may supply a malicious container, swap a path before use, race a
@@ -61,7 +61,7 @@ secret custody or audited safety before external review.
 
 Browser private-key conversion is scoped by
 [`ADR 0034`](adr/0034-browser-encrypted-private-key-conversion.md).
-Browser/server PFX work has an additional development gate: specific
+Browser PFX work follows ADR 0037 and has an additional development gate: specific
 origin/CSP, extension and download threat analysis, memory-retention tests,
 and no hidden upload evidence. The release candidate still requires an
 independent audit before real-user deployment. The public Convert picker,

@@ -21,7 +21,7 @@ import (
 
 var workbenchAssetNames = []string{
 	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "private-key.js",
-	"private-worker-client.js", "private-key-worker.js", "favicon.svg",
+	"private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "favicon.svg",
 	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
 	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
 	"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
@@ -213,7 +213,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	assets := workbenchAssets(t)
 	application := assets["app.js"]
 	loader := assets["wasm-loader.js"]
-	fileReadingScripts := application + "\n" + assets["private-key.js"] + "\n" + assets["theme.js"]
+	fileReadingScripts := application + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["theme.js"]
 	for _, forbidden := range []string{
 		"fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon",
 		"serviceWorker", "Worker(", "SharedWorker", "import(",
@@ -271,6 +271,18 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 			t.Errorf("private worker is missing boundary %q", required)
 		}
 	}
+	pfxClient := assets["pfx-worker-client.js"]
+	pfxWorker := assets["pfx-worker.js"]
+	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon", "localStorage", "sessionStorage", "indexedDB", "document", "innerHTML", "eval("} {
+		if strings.Contains(pfxClient+pfxWorker, forbidden) {
+			t.Errorf("PFX worker path contains forbidden capability %q", forbidden)
+		}
+	}
+	for _, required := range []string{`new Worker("pfx-worker.js"`, "worker.terminate()", `signal.addEventListener("abort"`, `importScripts("wasm_exec.js")`, `self.rootwellPFXInspect`, `self.rootwellPFXOutput`, "bytes.fill(0)"} {
+		if !strings.Contains(pfxClient+pfxWorker, required) {
+			t.Errorf("PFX worker path missing %q", required)
+		}
+	}
 }
 
 func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
@@ -278,7 +290,8 @@ func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	for _, statement := range []string{
 		"Selected file bytes stay inside this browser process",
 		"Local public-file inspection · not a trust verdict",
-		"PFX and legacy encrypted RSA/EC PEM are not supported here",
+		"Legacy encrypted RSA/EC PEM is unsupported",
+		"Modern AES-256/PBKDF2 profile only",
 		"No chain verification performed · no trust anchor selected",
 		"do not prove chain trust",
 		"Revocation</strong> Not checked",
@@ -388,7 +401,7 @@ func TestWorkbenchExploreIsPublicOnlyAndFunctional(t *testing.T) {
 func TestWorkbenchPublicConversionIsFindableAndSecretFlowIsSeparate(t *testing.T) {
 	assets := workbenchAssets(t)
 	html := assets["index.html"]
-	if !strings.Contains(html, `<span><strong>Convert</strong><small>Download public PEM/DER</small></span>`) ||
+	if !strings.Contains(html, `<span><strong>Convert</strong><small>Certificates, keys and PFX</small></span>`) ||
 		!strings.Contains(html, `id="convert-tab" data-tool="convert"`) ||
 		!strings.Contains(html, `id="convert-file" multiple accept=".pem,.cer,.crt,.der,application/x-x509-ca-cert"`) ||
 		!strings.Contains(html, `id="convert-open-button" type="button" disabled`) ||

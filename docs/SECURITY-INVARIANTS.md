@@ -996,3 +996,32 @@ Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
 `TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
 `scripts/test-browser-wasm.mjs` and `scripts/test-workbench-private.mjs`.
+
+## C61 — Browser PFX stays isolated, bounded, and honest
+
+Only the separate PFX picker accepts a password-protected PFX, at most 1 MiB,
+with the authenticated modern profile and pre-decryption KDF caps. Inspection
+returns public certificate metadata only and labels additional certificates
+as included, not trusted. Each extraction re-reads and reauthenticates the
+selected file; public extraction binds its displayed full fingerprint, while
+private extraction binds the matching certificate and outputs only newly
+encrypted PKCS#8 PEM under a distinct new password. Creation accepts one
+strict matching unencrypted RSA/ECDSA key, non-CA certificate, and optional
+ordered issuer PEM. Wrong passwords, tampering, changed selection, mismatch,
+unsupported profiles, malformed inputs, stale UI operations, and worker
+timeout request no download. Neither path writes Inventory or Vault.
+
+The one-shot PFX worker receives bounded transferred buffers only after
+readiness. The authenticated gateway denies worker network connections and
+the file-reading script has no network/storage/markup-injection capability.
+Best-effort buffer clearing and browser download restrictions do not promise
+memory erasure, private filesystem permissions, no overwrite, or protection
+from a malicious extension or compromised host. A release still requires
+independent security audit.
+
+Guarded by `TestCreateInspectExtractAndRefuse`,
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
+`TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
+`scripts/test-browser-pfx.mjs` and
+`scripts/test-workbench-pfx-worker.mjs` and
+`scripts/test-workbench-pfx-ui.mjs`.
