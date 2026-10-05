@@ -66,3 +66,8 @@ tests, static capability checks, gateway/CSP tests, and a browser visual
 check. A release candidate still requires independent security audit and
 real-world interoperability testing. Legacy and vendor-specific PFX profiles
 remain unsupported until separately reviewed.
+
+Later increments: ADR 0038 adds bounded encrypted PKCS#8 input to creation;
+ADR 0039 adds a separate transient view of the matching key, with fresh file
+authentication. The original no-reveal scope above describes this first
+increment; PFX-key downloads still remain encrypted.

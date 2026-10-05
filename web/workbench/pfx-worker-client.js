@@ -2,7 +2,7 @@
 
 (function () {
   function run(module, operation, inputs, password, secondPassword, option, signal) {
-    if (!(module instanceof WebAssembly.Module) || !["inspect", "certificate", "key", "create"].includes(operation) ||
+    if (!(module instanceof WebAssembly.Module) || !["inspect", "certificate", "key", "create", "reveal"].includes(operation) ||
         !Array.isArray(inputs) || inputs.length !== 3 ||
         !inputs.every((item, index) => item instanceof Uint8Array && item.length <= [1 << 20, 64 << 10, 1 << 20][index]) ||
         !(password instanceof Uint8Array) || password.length > 128 ||

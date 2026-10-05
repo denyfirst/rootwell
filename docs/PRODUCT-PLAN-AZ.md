@@ -216,6 +216,8 @@ v0.1 format scope-u:
 
 - X.509 certificate: PEM və DER
 - CSR: PEM və DER
+- ADR 0039: ayrıca göz düyməsi ilə 30 saniyəlik private-key görünüşü;
+  şifrəli faylda fresh parol, parolsuz faylda təzə ekran razılığı. Vault save deyil.
 - private key: PKCS#8, PKCS#1 və SEC1
 - bundle: PKCS#12/PFX
 - certificate chain: PEM bundle

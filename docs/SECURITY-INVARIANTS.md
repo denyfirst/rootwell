@@ -1026,3 +1026,21 @@ Guarded by `TestCreateInspectExtractAndRefuse`,
 `scripts/test-browser-pfx.mjs` and
 `scripts/test-workbench-pfx-worker.mjs` and
 `scripts/test-workbench-pfx-ui.mjs`.
+
+## C62 — Private-key display is explicit, transient and separate
+
+Normal summaries contain no private key. A separate eye action requires fresh
+file authentication for encrypted PKCS#8/PFX and binds the inspected identity.
+Plaintext input needs renewed screen-exposure consent, not a fake password.
+Viewing adds no download, clipboard, logging, storage or network capability.
+Text is cleared after 30 seconds and at page/tool/source boundaries; pending
+operations are cancelled to prevent revival. Only one view is visible; print
+CSS excludes it. Saved Vault keys need future separate instance reauthentication.
+Screen capture, extensions and runtime copies remain residual risks.
+
+Guarded by `TestPFXRevealReauthenticatesAndMatches`,
+`TestPFXRevealRefusesUnsafeInputs`,
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`,
+`TestWorkbenchPrivateViewHasNoPersistenceOrDownload`, plus
+`scripts/test-browser-pfx.mjs`, `scripts/test-workbench-private.mjs`,
+`scripts/test-workbench-pfx-ui.mjs` and `scripts/test-workbench-secret-view.mjs`.

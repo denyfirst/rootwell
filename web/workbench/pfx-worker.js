@@ -43,7 +43,7 @@ self.onmessage = function (event) {
         arrays[1].length === 0 && arrays[2].length === 0 && arrays[3].length > 0 && arrays[4].length === 0 && request.option === "") {
       answer = self.rootwellPFXInspect(arrays[0], arrays[3]);
       if (typeof answer !== "string" || answer.length > 65536) throw new Error("invalid response");
-    } else if (["certificate", "key", "create"].includes(request.operation)) {
+    } else if (["certificate", "key", "create", "reveal"].includes(request.operation)) {
       answer = self.rootwellPFXOutput(request.operation, arrays[0], arrays[1], arrays[2], arrays[3], arrays[4], request.option);
       if (answer && answer.result && answer.result.bytes instanceof Uint8Array) output = answer.result.bytes;
       if (!answer || answer.schema_version !== "rootwell.browser.pfx.v1" || !answer.ok ||

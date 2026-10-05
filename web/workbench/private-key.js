@@ -16,6 +16,9 @@
   const confirmInput = document.getElementById("private-convert-confirm");
   const downloadButton = document.getElementById("private-convert-download");
   const status = document.getElementById("private-convert-status");
+  const revealButton = document.getElementById("private-reveal-button");
+  const revealConfirm = document.getElementById("private-reveal-confirm");
+  const revealLabel = document.getElementById("private-reveal-confirm-label");
   const encoder = new TextEncoder();
   const fingerprintPattern = /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/;
   const formats = new Set(["pkcs8-pem", "pkcs8-der", "pkcs1-pem", "pkcs1-der", "sec1-pem", "sec1-der", "encrypted-pkcs8-pem", "encrypted-pkcs8-der"]);
@@ -26,6 +29,10 @@
   let inspected = null;
   let busy = false;
   let activeController = null;
+  const view = rootwellSecretView.create(document.getElementById("private-reveal-panel"),
+    document.getElementById("private-reveal-content"), document.getElementById("private-reveal-hide"),
+    function () { cancelPendingChoice(); clearSecrets(); revealConfirm.checked = false; },
+    function () { status.textContent = "Private key hidden."; });
 
   function clearSecrets() {
     inputPasswordInput.value = "";
@@ -43,6 +50,7 @@
   }
 
   function cancelPendingChoice() {
+    view.hide();
     if (!activeController) return;
     generation++;
     activeController.abort();
@@ -54,11 +62,12 @@
     field.addEventListener("input", cancelPendingChoice);
   }
   plaintextConfirm.addEventListener("change", cancelPendingChoice);
+  revealConfirm.addEventListener("change", cancelPendingChoice);
 
   function fail(message) {
     errorBox.textContent = message;
     errorBox.hidden = false;
-    status.textContent = "No private key was downloaded.";
+    status.textContent = "No private key was shown or downloaded.";
   }
 
   function validSummary(response) {
@@ -72,6 +81,9 @@
   }
 
   function invalidate() {
+    view.hide();
+    revealConfirm.checked = false;
+    revealButton.disabled = true;
     if (activeController) activeController.abort();
     generation++;
     selected = null;
@@ -106,6 +118,9 @@
 
   inspectButton.addEventListener("click", async function () {
     if (!engine || !selected || busy) return;
+    view.hide();
+    revealConfirm.checked = false;
+    revealButton.disabled = true;
     const file = selected;
     const request = generation;
     busy = true;
@@ -134,6 +149,7 @@
       }
       if (!validSummary(response)) throw new Error("invalid key");
       inspected = Object.freeze({ file, fingerprint: response.result.public_fingerprint, encrypted: response.result.input_format.startsWith("encrypted-") });
+      revealLabel.hidden = inspected.encrypted;
       for (const option of formatInput.options) {
         option.disabled = option.value.startsWith("pkcs1-") && response.result.algorithm !== "RSA" ||
           option.value.startsWith("sec1-") && response.result.algorithm !== "ECDSA";
@@ -147,7 +163,7 @@
         inputLabel + (response.result.curve ? " · " + response.result.curve : "") +
         " · public-key SHA-256 " + response.result.public_fingerprint;
       status.textContent = "Format identified locally. The key has not been saved or uploaded." +
-        (inspected.encrypted ? " Re-enter the current key password before downloading." : "");
+        (inspected.encrypted ? " Re-enter the current key password before viewing or downloading." : "");
       resultBox.hidden = false;
       downloadButton.disabled = false;
     } catch {
@@ -158,12 +174,16 @@
       if (currentPasswordBytes) currentPasswordBytes.fill(0);
       if (activeController === controller) activeController = null;
       busy = false;
+      revealButton.disabled = !inspected;
       inspectButton.disabled = !selected || !engine;
     }
   });
 
   downloadButton.addEventListener("click", async function () {
     if (!engine || !inspected || busy) return;
+    view.hide();
+    revealConfirm.checked = false;
+    revealButton.disabled = true;
     const source = inspected;
     const request = generation;
     errorBox.hidden = true;
@@ -250,7 +270,58 @@
       plaintextConfirm.checked = false;
       if (url) setTimeout(function () { URL.revokeObjectURL(url); }, 15000);
       busy = false;
+      revealButton.disabled = !inspected;
       downloadButton.disabled = !inspected;
+      inspectButton.disabled = !selected || !engine;
+    }
+  });
+
+  revealButton.addEventListener("click", async function () {
+    if (!engine || !inspected || busy) return;
+    view.hide();
+    const source = inspected;
+    const request = generation;
+    const currentPassword = inputPasswordInput.value;
+    const consent = revealConfirm.checked === true;
+    clearSecrets();
+    revealConfirm.checked = false;
+    if ((source.encrypted && !currentPassword) || (!source.encrypted && (currentPassword || !consent))) {
+      fail(source.encrypted ? "Re-enter the current key password before viewing." : "This key has no password. Confirm that you want to show it on screen, and leave the current-password field empty.");
+      return;
+    }
+    let bytes, password, output;
+    const controller = new AbortController();
+    activeController = controller;
+    busy = true;
+    inspectButton.disabled = downloadButton.disabled = revealButton.disabled = true;
+    errorBox.hidden = true;
+    status.textContent = "Rechecking the key locally before showing it…";
+    try {
+      password = encoder.encode(currentPassword);
+      if (password.length > 256) throw new Error("invalid password");
+      bytes = new Uint8Array(await source.file.slice(0, 64 * 1024 + 1).arrayBuffer());
+      if (request !== generation || inspected !== source) return;
+      if (!bytes.length || bytes.length !== source.file.size || bytes.length > 64 * 1024) throw new Error("changed file");
+      const response = await rootwellPrivateWorker.run(engine, "export", bytes, password,
+        source.fingerprint, "pkcs8-pem", new Uint8Array(), controller.signal);
+      output = response && response.result && response.result.bytes;
+      if (request !== generation || inspected !== source) return;
+      if (!response || response.schema_version !== "rootwell.browser.private-convert.v1" || response.ok !== true || response.error !== null ||
+          !response.result || response.result.format !== "pkcs8-pem" ||
+          !/^rootwell-plaintext-key-[0-9a-f]{16}-[0-9a-f]{32}\.pem$/.test(response.result.filename)) throw new Error("invalid response");
+      view.show(output);
+      status.textContent = "Private key visible for 30 seconds. No download was requested.";
+    } catch {
+      view.hide();
+      if (request === generation) fail("The key could not be shown safely. Check its password and identify it again if the file changed.");
+    } finally {
+      if (bytes) bytes.fill(0);
+      if (password) password.fill(0);
+      if (output instanceof Uint8Array) output.fill(0);
+      clearSecrets();
+      if (activeController === controller) activeController = null;
+      busy = false;
+      revealButton.disabled = downloadButton.disabled = !inspected;
       inspectButton.disabled = !selected || !engine;
     }
   });

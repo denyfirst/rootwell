@@ -22,7 +22,9 @@ const get = (id) => {
   if (!elements.has(id)) elements.set(id, new Element());
   return elements.get(id);
 };
-const document = { getElementById: get, createElement: () => new Element(), body: { append() {} } };
+const document = { getElementById: get, createElement: () => new Element(), body: { append() {} }, addEventListener() {} };
+get("private-reveal-panel").hidden = true;
+const boundaries = {};
 const fingerprint = "AA:".repeat(31) + "AA";
 get("private-convert-format").options = ["encrypted-pkcs8-pem", "pkcs8-pem", "pkcs8-der", "pkcs1-pem", "pkcs1-der", "sec1-pem", "sec1-der"].map(value => ({ value, disabled: false }));
 Object.defineProperty(get("private-convert-format"), "selectedOptions", { get() { return this.options.filter(option => option.value === this.value); } });
@@ -58,7 +60,8 @@ const engine = {
     capturedInput = bytes;
     capturedCurrentPassword = currentPassword;
     capturedPassword = password;
-    output = new TextEncoder().encode("-----BEGIN " + (format === "encrypted-pkcs8-pem" ? "ENCRYPTED " : "") + "PRIVATE KEY-----\n" + "A".repeat(80));
+    const label = (format === "encrypted-pkcs8-pem" ? "ENCRYPTED " : "") + "PRIVATE KEY";
+    output = new TextEncoder().encode("-----BEGIN " + label + "-----\n" + "A".repeat(80) + "\n-----END " + label + "-----\n");
     return { schema_version: "rootwell.browser.private-convert.v1", ok: true, error: null,
       result: { format, filename: invalidResponse ? "unsafe.pem" : "rootwell-" + (format === "encrypted-pkcs8-pem" ? "encrypted" : "plaintext") + "-key-aaaaaaaaaaaaaaaa-" + "b".repeat(32) + ".pem", bytes: output } };
   }
@@ -73,10 +76,11 @@ const workerApi = {
       engine.privateExport(bytes, fingerprint, currentPassword, format, password);
   }
 };
-const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob,
+const context = vm.createContext({ document, TextEncoder, TextDecoder, Uint8Array, Blob,
   AbortController, WebAssembly: { Module: MockModule }, rootwellPrivateWorker: workerApi,
   URL: { createObjectURL(blob) { downloaded = blob; return "blob:private-test"; }, revokeObjectURL() {} },
-  setTimeout() {}, rootwellWorkbenchReady: Promise.resolve({ module: new MockModule() }) });
+  setTimeout() {}, clearTimeout() {}, addEventListener(event, fn) { boundaries[event] = fn; }, rootwellWorkbenchReady: Promise.resolve({ module: new MockModule() }) });
+vm.runInContext(fs.readFileSync("web/workbench/secret-view.js", "utf8"), context);
 vm.runInContext(fs.readFileSync("web/workbench/private-key.js", "utf8"), context, { filename: "private-key.js" });
 await new Promise((resolve) => setImmediate(resolve));
 
@@ -212,4 +216,44 @@ await pendingExport;
 holdExport = false;
 assert.equal(downloaded, beforeCancelled, "changed output choice downloaded a stale private key");
 assert.equal(get("private-convert-download").disabled, false, "cancelled export could not be retried");
+
+const beforeReveal = downloaded;
+await get("private-reveal-button").listeners.click();
+assert.equal(get("private-reveal-panel").hidden, true, "encrypted reveal skipped fresh password");
+get("private-convert-input-password").value = "wrong-password";
+await get("private-reveal-button").listeners.click();
+assert.equal(get("private-reveal-panel").hidden, true, "wrong password showed key");
+get("private-convert-input-password").value = "current-password";
+await get("private-reveal-button").listeners.click();
+assert.equal(get("private-reveal-panel").hidden, false, "authenticated reveal was refused");
+assert.match(get("private-reveal-content").textContent, /^-----BEGIN PRIVATE KEY-----/);
+assert.equal(downloaded, beforeReveal, "reveal created a download");
+assert.equal(output[0], 0, "revealed output bytes were retained");
+assert.equal(get("private-convert-input-password").value, "");
+boundaries.blur();
+assert.equal(get("private-reveal-content").textContent, "", "blur retained plaintext");
+
+holdExport = true;
+get("private-convert-input-password").value = "current-password";
+const pendingReveal = get("private-reveal-button").listeners.click();
+await new Promise(resolve => setImmediate(resolve));
+boundaries.pagehide();
+releaseExport();
+await pendingReveal;
+holdExport = false;
+assert.equal(get("private-reveal-panel").hidden, true, "late worker revived hidden key");
+assert.equal(output[0], 0);
+
+encryptedMode = false;
+get("private-convert-file").listeners.change();
+await get("private-convert-inspect").listeners.click();
+await get("private-reveal-button").listeners.click();
+assert.equal(get("private-reveal-panel").hidden, true, "plaintext key revealed without consent");
+get("private-reveal-confirm").checked = true;
+await get("private-reveal-button").listeners.click();
+assert.equal(get("private-reveal-panel").hidden, false, "confirmed plaintext reveal failed");
+assert.equal(get("private-reveal-confirm").checked, false);
+get("private-convert-file").listeners.change();
+assert.equal(get("private-reveal-content").textContent, "", "file change retained plaintext");
+assert.equal(downloaded, beforeReveal);
 console.log("Private-key Workbench state and refusal tests passed.");

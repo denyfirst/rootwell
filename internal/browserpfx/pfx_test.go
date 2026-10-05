@@ -98,6 +98,15 @@ func TestCreatePFXFromEncryptedKey(t *testing.T) {
 					if err != nil || !bytes.Equal(actual, cert) {
 						t.Fatal("PFX changed the input certificate")
 					}
+					revealed, err := RevealKey(output, []byte(syntheticPassword), opened.Certificates[0].Fingerprint)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer clear(revealed)
+					matched, err := keymatch.Match(cert, revealed)
+					if err != nil || !matched.Match {
+						t.Fatal("revealed RSA/EC key changed identity")
+					}
 					if _, err := Inspect(output, currentPassword); err == nil {
 						t.Fatal("input password unlocked output PFX")
 					}

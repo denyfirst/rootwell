@@ -10,7 +10,7 @@ const types = new Map([
   ["index.html", "text/html; charset=utf-8"], ["style.css", "text/css; charset=utf-8"],
   ["worker-browser-smoke.html", "text/html; charset=utf-8"], ["worker-browser-smoke.js", "text/javascript; charset=utf-8"],
   ["favicon.svg", "image/svg+xml"], ["rootwell.wasm", "application/wasm"],
-  ...["theme.js", "wasm_exec.js", "wasm-loader.js", "app.js", "private-key.js",
+  ...["theme.js", "wasm_exec.js", "wasm-loader.js", "app.js", "secret-view.js", "private-key.js",
     "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js"].map(name => [name, "text/javascript; charset=utf-8"]),
   ...["rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem", "rootwell-verify-demo-leaf.pem",
     "rootwell-verify-demo-intermediate.pem", "rootwell-verify-demo-root.pem",

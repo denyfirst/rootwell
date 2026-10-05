@@ -77,8 +77,8 @@ olunmamış nəticəyə “verified” demək qadağandır.
    əlavə edir; default yenə şifrəli PKCS#8-dir. [`ADR 0037`](adr/0037-browser-pfx-worker-and-conversion.md)
    ilə dar modern profil üçün browser PFX yaratma, public hissələri çıxarma və
    uyğun private key-i yalnız şifrəli PKCS#8 kimi çıxarma əlavə edilib. Key
-   reveal və vault custody hələ yoxdur. ADR 0038 şifrəli giriş key-i ilə PFX
-   yaratmanı əlavə edir; bu increment-in development qapıları ayrıca yoxlanır.
+   reveal ADR 0039 ilə ayrıca, 30 saniyəlik görünüşdür; vault custody yoxdur.
+   ADR 0038 şifrəli key-dən PFX yaratmanı tamamlayıb (PR #69).
    Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
    son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
@@ -86,8 +86,8 @@ olunmamış nəticəyə “verified” demək qadağandır.
    **Növbəti funksional sıra:** ADR 0036 worker/deadline sərtləşməsi və ADR 0037
    dar modern browser PFX axını tamamlanıb. ADR 0038 PFX yaratmaq üçün şifrəli
    PKCS#8 giriş key-ini parolla birbaşa qəbul edib uyğunluğunu worker-də yoxlayır;
-   aralıq parolsuz fayl endirməsi tələb edilmir. Development qapıları keçəndən
-   sonra əvvəlcədən razılaşdırılmış məhdud **gözlə göstərmə**, daha sonra
+   aralıq parolsuz fayl endirməsi tələb edilmir. ADR 0039 əvvəlcədən
+   razılaşdırılmış məhdud **gözlə göstərmə** axınıdır. Daha sonra
    browser-də key + CSR yaratma və geri gələn sertifikatı həmin key/CSR ilə
    uyğunlaşdırma axını gəlir. Müəyyən məhsul/versiya reseptləri ümumi format
    mühərrikinin üzərində ayrıca gələcək; heç bir universal vendor rejimi yoxdur.
