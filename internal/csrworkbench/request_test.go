@@ -152,6 +152,40 @@ func TestExistingKeyCSRFormatsAndEncryptedInput(t *testing.T) {
 	}
 }
 
+func TestLargeDERCSRPublicExportPreservesSignedRequest(t *testing.T) {
+	key, _ := existing(t)
+	// Preserve the complete signed subject, not the convenience Name summary.
+	rdns := pkix.RDNSequence{}
+	for range 50 {
+		rdns = append(rdns, pkix.RelativeDistinguishedNameSET{{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: strings.Repeat("a", 1050)}})
+	}
+	rdns = append(rdns, pkix.RelativeDistinguishedNameSET{{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: "demo.rootwell.invalid"}})
+	subject, err := asn1.Marshal(rdns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{RawSubject: subject, DNSNames: []string{"demo.rootwell.invalid"}}, key)
+	if err != nil || len(der) > MaxRequestBytes {
+		t.Fatal("invalid bounded DER fixture")
+	}
+	inspected, err := Inspect(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := Convert(der, inspected.RequestFingerprint, "pem")
+	if err != nil || len(output.CSR) <= MaxRequestBytes || len(output.CSR) > 96<<10 {
+		t.Fatal("bounded DER-to-PEM output was not preserved")
+	}
+	block, rest := pem.Decode(output.Bytes)
+	if block == nil || len(rest) != 0 || !bytes.Equal(block.Bytes, der) {
+		t.Fatal("public export changed signed subject or request")
+	}
+	// Input still has a 64 KiB encoded cap; retain/use the original DER.
+	if _, err := Inspect(output.Bytes); err != ErrInvalid {
+		t.Fatal("larger encoded import bypassed input cap")
+	}
+}
+
 func TestCSRFromAllSupportedExistingKeyFamilies(t *testing.T) {
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

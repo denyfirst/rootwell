@@ -35,6 +35,9 @@ Inspection summaries remain public-only. ADR 0039 adds an explicit transient
 PKCS#8 PEM view: fresh current-file password for encrypted keys/PFX, renewed
 screen-exposure consent for plaintext files, 30-second clearing and page/source
 cancellation. This is not a download or Vault save.
+CSR import is limited to 64 KiB of encoded input. Public export allows up to
+96 KiB of CSR PEM because base64 can expand bounded DER; a PEM larger than the
+input cap must not be reimported directly (retain/use its DER representation).
 
 Initial limits are deliberately conservative and become code constants with
 tests when parsing begins:

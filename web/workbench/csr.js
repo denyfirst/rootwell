@@ -59,7 +59,7 @@
     const value = answer && answer.result;
     if (!answer || answer.schema_version !== "rootwell.browser.csr.v1" || answer.ok !== true || answer.error !== null || !value || value.format !== format ||
         !(value.bytes instanceof Uint8Array) || !value.bytes.length || value.bytes.length > 256 << 10 ||
-        !(value.csr instanceof Uint8Array) || !value.csr.length || value.csr.length > 64 << 10 ||
+        !(value.csr instanceof Uint8Array) || !value.csr.length || value.csr.length > 96 << 10 ||
         typeof value.summary !== "string" || value.summary.length > 16384) throw new Error("invalid output");
     const summary = JSON.parse(value.summary);
     if (!validSummary(summary) || (expected && summary.request_fingerprint !== expected)) throw new Error("changed request");
@@ -148,7 +148,7 @@
         const summary = fileAnswer(answer, expectedFormat, kind === "convert" ? source.fingerprint : "");
         download(answer.result);
         if (kind === "create") show({ csr: answer.result.csr.slice(), fingerprint: summary.request_fingerprint, summary });
-        status.textContent = expectedFormat === "zip" ? "Download requested: ZIP with encrypted private key and signed public CSR. Save it and your password securely; send only the CSR to your CA." : "Public CSR download requested. Your private key was not included.";
+        status.textContent = expectedFormat === "zip" ? "Download requested: ZIP with encrypted private key and signed public CSR. Save it and your password securely; send only the CSR to your CA." : "Public CSR download requested. Your private key was not included." + (expectedFormat === "pem" && answer.result.bytes.length > (64 << 10) ? " This expanded PEM exceeds the 64 KiB import limit; retain the original DER for reopening." : "");
       }
     } catch {
       if (request === generation) fail(refusal(kind, selectedMode));

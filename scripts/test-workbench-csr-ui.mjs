@@ -20,7 +20,7 @@ const fingerprint = "AA:".repeat(31) + "AA";
 const csrText = "-----BEGIN CERTIFICATE REQUEST-----\n" + "A".repeat(80) + "\n-----END CERTIFICATE REQUEST-----\n";
 const summary = { input_format: "pem", subject: "CN=demo.rootwell.invalid", dns_names: ["demo.rootwell.invalid"], ip_addresses: [], algorithm: "RSA", bits: 3072, curve: "", signature_algorithm: "SHA256-RSA", signature_checked: true, request_fingerprint: fingerprint, public_fingerprint: fingerprint };
 const encoder = new TextEncoder();
-let downloads = 0, calls = 0, held = false, release, captured, output, malformed = false, invalidSignature = false, badPassword = false, trusted = false, differentKey = false;
+let downloads = 0, calls = 0, held = false, release, captured, output, malformed = false, invalidSignature = false, badPassword = false, trusted = false, differentKey = false, csrOutputSize = 0;
 class Module {}
 const worker = {
   async run(_module, operation, input, cert, secret, option, signal) {
@@ -36,6 +36,7 @@ const worker = {
       const format = operation === "generate" ? "zip" : operation === "key" ? JSON.parse(option).format : option.slice(96);
       const filename = format === "zip" ? "rootwell-request-and-key-" + "b".repeat(32) + ".zip" : "rootwell-request-" + "b".repeat(32) + (format === "pem" ? ".csr" : ".der");
       output = { bytes: format === "zip" ? Uint8Array.of(0x50, 0x4b, 1) : format === "der" ? Uint8Array.of(0x30, 3, 1) : encoder.encode(csrText), csr: encoder.encode(csrText), format, filename, summary: JSON.stringify(summary) };
+      if (csrOutputSize) { output.csr = encoder.encode(csrText.padEnd(csrOutputSize, "A")); if (format === "pem") output.bytes = output.csr.slice(); }
       answer = badPassword ? { schema_version: "rootwell.browser.csr.v1", ok: false, error: "failed", result: null } :
         { schema_version: "rootwell.browser.csr.v1", ok: true, error: null, result: malformed ? { ...output, bytes: "unsafe" } : output };
     }
@@ -104,4 +105,11 @@ document.hidden = true; docEvents.visibilitychange(); release(); await pendingCr
 assert.equal(downloads, 3, "hidden page downloaded late key package"); assert.equal(output.bytes[0], 0); assert.equal(output.csr[0], 0);
 assert.equal(get("csr-result").hidden, true); assert.equal(get("csr-create-button").disabled, false);
 for (const name of ["blur", "pagehide", "hashchange"]) { get("csr-password").value = "synthetic-secret"; boundaries[name](); assert.equal(get("csr-password").value, ""); }
+await get("csr-open-button").listeners.click();
+csrOutputSize = 90 << 10;
+await get("csr-download-pem").listeners.click(); assert.equal(downloads, 4, "bounded DER expansion was refused");
+assert.equal(output.bytes[0], 0); assert.equal(output.csr[0], 0); assert.match(get("csr-status").textContent, /retain the original DER/);
+csrOutputSize = (96 << 10) + 1;
+await get("csr-download-pem").listeners.click(); assert.equal(downloads, 4, "oversized expanded CSR was downloaded");
+assert.equal(output.bytes[0], 0); assert.equal(output.csr[0], 0); csrOutputSize = 0;
 console.log("CSR UI names/password refusal, no partial output, public-only state, key/name differences, stale cancellation and buffer clearing passed.");

@@ -1068,6 +1068,7 @@ download permissions remain outside the best-effort memory-clearing claim.
 Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,
 `TestExistingKeyCSRFormatsAndEncryptedInput`,
 `TestCSRFromAllSupportedExistingKeyFamilies`,
+`TestLargeDERCSRPublicExportPreservesSignedRequest`,
 `TestReturnedCertificateComparisonDoesNotImplyTrust`,
 `TestCSRRefusesMalformedUnsafeAndIgnoredFields`,
 `TestCSRNameSubjectPasswordAndFormatRefusal`, `FuzzInspectCSR`,
