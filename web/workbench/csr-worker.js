@@ -8,6 +8,9 @@ self.rootwellWasmReady = function () {
   self.postMessage({ type: "ready" });
 };
 self.onmessage = function (event) {
+  // Dedicated-worker messages use a private MessagePort channel: empty
+  // origin and null source, not Window.postMessage or a shared-worker port.
+  if (!event || event.origin !== "" || event.source !== null) { refuse(); return; }
   const request = event.data;
   if (!initialized) {
     initialized = true;

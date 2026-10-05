@@ -27,6 +27,7 @@
         worker.onerror = () => finish(true);
         worker.onmessage = event => {
           if (finished) return;
+          if (!event || event.origin !== "" || event.source !== null) { finish(true); return; }
           const message = event.data;
           if (!message || typeof message !== "object") { finish(true); return; }
           if (!sent && message.type === "ready") {

@@ -1059,7 +1059,10 @@ differences, subject encoding/value changes and CA status, with trust false.
 A fake certificate can copy a public key; issuer/chain/time/purpose/revocation
 and deployment must not be inferred. One-shot worker deadlines, selection and
 page cancellation prevent stale downloads; secrets never enter UI persistence,
-network, clipboard, logs or public summaries. Browser/OS copies and actual
+network, clipboard, logs or public summaries.
+Both directions reject foreign/missing dedicated-worker event metadata before
+initialization or secret transfer; this is not a Window message allowlist.
+Browser/OS copies and actual
 download permissions remain outside the best-effort memory-clearing claim.
 
 Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,

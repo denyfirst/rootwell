@@ -41,6 +41,12 @@ into a fake certificate; Verify with independent trust remains required.
 
 One-shot workers own bounded transferred copies, with finite deadlines and
 generation/abort guards for stale choices, navigation and hidden documents.
+Both message directions require the dedicated-worker MessagePort event shape
+(empty origin, null source), rejecting foreign/missing event metadata before
+initialization or secret transfer. This is not a Window.postMessage origin
+allowlist or protection against compromised same-origin code. The private
+worker handle, validated one-shot protocol and CSP are the actual channel
+boundary; do not reuse this handler as a window/shared-worker receiver.
 Passwords and owned buffers are cleared best-effort. Only public CSR bytes may
 remain in the page for the explicit matching step. File-reading UI has no network,
 storage, clipboard or markup-injection capability; worker CSP denies connections.
@@ -63,3 +69,5 @@ two-direction sabotage; normal signed PR/CI/self-review gates and synthetic UI d
 
 Standards: [PKCS#10 RFC 2986](https://www.rfc-editor.org/rfc/rfc2986) and
 [X.509 RFC 5280](https://www.rfc-editor.org/rfc/rfc5280).
+Worker protocol: [WHATWG dedicated workers](https://html.spec.whatwg.org/multipage/workers.html#dom-worker-postmessage)
+and [MessagePort event initialization](https://html.spec.whatwg.org/multipage/web-messaging.html#message-ports).
