@@ -352,13 +352,16 @@
           <section class="result pfx-section" aria-labelledby="pfx-create-title">
             <p class="result-kicker">PFX / PKCS#12 · local creation</p>
             <h3 id="pfx-create-title">Create a PFX</h3>
-            <p>Choose one certificate, its matching unencrypted RSA or EC private key, and optionally an ordered intermediate bundle (nearest issuer first). Rootwell checks the match and issuer signatures before creating a password-protected PFX.</p>
+            <p>Choose one certificate, its matching RSA or EC private key, and optionally an intermediate bundle (nearest issuer first). Rootwell checks that they belong together before creating a password-protected PFX.</p>
             <div class="pfx-create-grid">
               <label>Certificate (.pem/.cer/.crt/.der)<input id="pfx-create-cert" type="file" accept=".pem,.cer,.crt,.der"></label>
               <label>Matching private key (.pem/.key/.der)<input id="pfx-create-key" type="file" accept=".pem,.key,.der"></label>
               <label>Intermediates, optional (.pem)<input id="pfx-create-chain" type="file" accept=".pem"></label>
             </div>
-            <p class="verify-note">Encrypted input keys are not accepted in this first PFX creation profile. Do not place a self-signed root in the intermediate bundle. This step does not save a key to Vault.</p>
+            <label for="pfx-create-input-password">Private key password, if protected</label>
+            <input id="pfx-create-input-password" type="password" autocomplete="off" maxlength="256" spellcheck="false" aria-describedby="pfx-create-input-help">
+            <p id="pfx-create-input-help" class="verify-note">Leave this blank for a key without a password. Protected keys must use the supported encrypted PKCS#8 format. Your key is opened locally; no unprotected file is downloaded.</p>
+            <p class="verify-note">Do not include a self-signed root in the intermediate bundle. This step does not save a key to Vault.</p>
             <label for="pfx-create-password">New PFX password (20–128 non-space ASCII characters)</label>
             <input id="pfx-create-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
             <label for="pfx-create-confirm">Confirm new PFX password</label>

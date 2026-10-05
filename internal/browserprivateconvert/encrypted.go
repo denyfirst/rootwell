@@ -165,3 +165,13 @@ func withInputKey(input, password []byte, use func(any, keymatch.Encoding) error
 	defer clear(plain)
 	return keymatch.WithPrivateKey(plain, func(validated any, _ keymatch.Encoding) error { return use(validated, encoding) })
 }
+
+// WithInputKey lends one strictly validated private key to an internal
+// operation. Encrypted input is limited to the bounded profile above. The
+// callback must neither retain the key nor expose it in errors or output.
+func WithInputKey(input, password []byte, use func(any, keymatch.Encoding) error) error {
+	if use == nil {
+		return ErrInvalid
+	}
+	return withInputKey(input, password, use)
+}

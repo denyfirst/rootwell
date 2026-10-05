@@ -2,9 +2,11 @@ package browserpfx
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/keymatch"
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/youmark/pkcs8"
 )
@@ -39,6 +42,113 @@ func fixture(t *testing.T) ([]byte, []byte) {
 		t.Fatal(err)
 	}
 	return cert, private
+}
+
+func TestCreatePFXFromEncryptedKey(t *testing.T) {
+	for _, algorithm := range []string{"EC", "RSA"} {
+		t.Run(algorithm, func(t *testing.T) {
+			var key crypto.Signer
+			var err error
+			if algorithm == "RSA" {
+				key, err = rsa.GenerateKey(rand.Reader, 2048)
+			} else {
+				key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer keymatch.ClearParsedKey(key)
+			now := time.Now().Add(-time.Hour)
+			template := &x509.Certificate{SerialNumber: big.NewInt(73), Subject: pkix.Name{CommonName: "encrypted.synthetic.invalid"},
+				DNSNames: []string{"encrypted.synthetic.invalid"}, NotBefore: now, NotAfter: now.Add(time.Hour * 24),
+				BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature}
+			cert, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			currentPassword := []byte("synthetic-existing-key-password-2026")
+			encrypted, err := pkcs8.MarshalPrivateKey(key, currentPassword, &pkcs8.Opts{Cipher: pkcs8.AES256CBC,
+				KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 10_000, HMACHash: crypto.SHA256}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer clear(encrypted)
+			for _, encoding := range []string{"DER", "PEM"} {
+				t.Run(encoding, func(t *testing.T) {
+					input := encrypted
+					if encoding == "PEM" {
+						input = pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: encrypted})
+						defer clear(input)
+					}
+					before := bytes.Clone(input)
+					defer clear(before)
+					output, name, err := CreateWithInputPassword(cert, input, nil, []byte(syntheticPassword), currentPassword)
+					if err != nil || !strings.HasSuffix(name, ".pfx") {
+						t.Fatalf("encrypted create failed: %v", err)
+					}
+					defer clear(output)
+					if !bytes.Equal(input, before) {
+						t.Fatal("caller-owned key was modified")
+					}
+					opened, err := Inspect(output, []byte(syntheticPassword))
+					if err != nil || len(opened.Certificates) != 1 {
+						t.Fatalf("PFX round trip failed: %v", err)
+					}
+					actual, _, err := ExportCertificate(output, []byte(syntheticPassword), opened.Certificates[0].Fingerprint, "der")
+					if err != nil || !bytes.Equal(actual, cert) {
+						t.Fatal("PFX changed the input certificate")
+					}
+					if _, err := Inspect(output, currentPassword); err == nil {
+						t.Fatal("input password unlocked output PFX")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestEncryptedPFXCreationRefusesUnsafeInputs(t *testing.T) {
+	cert, plain := fixture(t)
+	defer clear(plain)
+	parsed, err := x509.ParsePKCS8PrivateKey(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keymatch.ClearParsedKey(parsed)
+	currentPassword := []byte("synthetic-existing-key-password-2026")
+	options := &pkcs8.Opts{Cipher: pkcs8.AES256CBC, KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 1000, HMACHash: crypto.SHA256}}
+	encrypted, err := pkcs8.MarshalPrivateKey(parsed, currentPassword, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clear(encrypted)
+	otherCert, otherKey := fixture(t)
+	defer clear(otherKey)
+	for _, tc := range []struct {
+		name                                              string
+		certificate, key, password, outputPassword, chain []byte
+	}{
+		{"missing-password", cert, encrypted, nil, []byte(syntheticPassword), nil},
+		{"wrong-password", cert, encrypted, []byte("wrong"), []byte(syntheticPassword), nil},
+		{"unrelated-certificate", otherCert, encrypted, currentPassword, []byte(syntheticPassword), nil},
+		{"unexpected-password-for-plaintext", cert, plain, currentPassword, []byte(syntheticPassword), nil},
+		{"reused-password", cert, encrypted, currentPassword, currentPassword, nil},
+		{"long-password", cert, encrypted, bytes.Repeat([]byte("A"), 257), []byte(syntheticPassword), nil},
+		{"truncated-key", cert, encrypted[:len(encrypted)-1], currentPassword, []byte(syntheticPassword), nil},
+		{"trailing-key", cert, append(bytes.Clone(encrypted), 0), currentPassword, []byte(syntheticPassword), nil},
+		{"bad-chain", cert, encrypted, currentPassword, []byte(syntheticPassword), []byte("not a chain")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			output, name, err := CreateWithInputPassword(tc.certificate, tc.key, tc.chain, tc.outputPassword, tc.password)
+			if err == nil || output != nil || name != "" {
+				clear(output)
+				t.Fatal("unsafe input produced output")
+			}
+			if err.Error() != ErrInvalid.Error() {
+				t.Fatal("failure exposed variable diagnostics")
+			}
+		})
+	}
 }
 
 func TestCreateInspectExtractAndRefuse(t *testing.T) {

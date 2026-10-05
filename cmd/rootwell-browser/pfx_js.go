@@ -97,7 +97,7 @@ func pfxOutput(_ js.Value, arguments []js.Value) (response any) {
 		return response
 	}
 	defer clear(password)
-	second, ok := pfxBytes(arguments[5], 128, true)
+	second, ok := pfxBytes(arguments[5], 256, true)
 	if !ok {
 		return response
 	}
@@ -111,10 +111,10 @@ func pfxOutput(_ js.Value, arguments []js.Value) (response any) {
 	var err error
 	switch operation {
 	case "create":
-		if len(inputs[1]) == 0 || len(second) != 0 || option != "" {
+		if len(inputs[1]) == 0 || option != "" {
 			return response
 		}
-		output, filename, err = browserpfx.Create(inputs[0], inputs[1], inputs[2], password)
+		output, filename, err = browserpfx.CreateWithInputPassword(inputs[0], inputs[1], inputs[2], password, second)
 		format = "pfx"
 	case "certificate":
 		if len(inputs[1]) != 0 || len(inputs[2]) != 0 || len(second) != 0 || len(option) < 99 {

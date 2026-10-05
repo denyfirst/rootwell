@@ -1006,7 +1006,7 @@ as included, not trusted. Each extraction re-reads and reauthenticates the
 selected file; public extraction binds its displayed full fingerprint, while
 private extraction binds the matching certificate and outputs only newly
 encrypted PKCS#8 PEM under a distinct new password. Creation accepts one
-strict matching unencrypted RSA/ECDSA key, non-CA certificate, and optional
+strict matching RSA/ECDSA key (unencrypted or bounded encrypted PKCS#8), non-CA certificate, and optional
 ordered issuer PEM. Wrong passwords, tampering, changed selection, mismatch,
 unsupported profiles, malformed inputs, stale UI operations, and worker
 timeout request no download. Neither path writes Inventory or Vault.
@@ -1020,6 +1020,7 @@ from a malicious extension or compromised host. A release still requires
 independent security audit.
 
 Guarded by `TestCreateInspectExtractAndRefuse`,
+`TestCreatePFXFromEncryptedKey`, `TestEncryptedPFXCreationRefusesUnsafeInputs`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
 `TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
 `scripts/test-browser-pfx.mjs` and

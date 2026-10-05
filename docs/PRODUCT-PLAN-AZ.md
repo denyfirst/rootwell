@@ -208,8 +208,9 @@ işləyir. Browser Convert-də məhdud encrypted PKCS#8 importu və explicit
 parolsuz uyğun çıxış tamamlanıb. Ayrı PFX bölməsi dar modern profildə
 browser daxilində açma, public hissəni və yalnız yeni şifrəli matching key-i
 çıxarma, uyğun açar/sertifikatla PFX yaratma imkanı verir (ADR 0037). Geniş
-vendor PFX importu, encrypted input key ilə PFX yaratma və vault custody
-ayrıca qalır.
+vendor PFX importu və vault custody ayrıca qalır. ADR 0038 browser-də məhdud
+encrypted PKCS#8 input key-i birbaşa açıb uyğun sertifikatla PFX yaratmağa
+imkan verir; parolsuz ara fayl endirmək lazım deyil.
 
 v0.1 format scope-u:
 

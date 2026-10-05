@@ -37,7 +37,36 @@ func Create(certificateInput, keyInput, chainInput []byte, password string) ([]b
 	if !validPassword(password) {
 		return nil, ErrInvalidPassword
 	}
-	if int64(len(certificateInput)) > limits.MaxInputBytes || int64(len(keyInput)) > limits.MaxPrivateKeyBytes || int64(len(chainInput)) > limits.MaxInputBytes {
+	if int64(len(keyInput)) > limits.MaxPrivateKeyBytes {
+		return nil, ErrInvalidInput
+	}
+	var output []byte
+	err := keymatch.WithPrivateKey(keyInput, func(key any, _ keymatch.Encoding) error {
+		var createErr error
+		output, createErr = CreateWithParsedKey(certificateInput, key, chainInput, password)
+		return createErr
+	})
+	if err != nil {
+		clear(output)
+		if errors.Is(err, keymatch.ErrKeyMismatch) {
+			return nil, keymatch.ErrKeyMismatch
+		}
+		if errors.Is(err, ErrInvalidInput) || errors.Is(err, ErrInvalidChain) || errors.Is(err, ErrInvalidPassword) || errors.Is(err, ErrEncodingFailed) {
+			return nil, err
+		}
+		return nil, ErrInvalidInput
+	}
+	return output, nil
+}
+
+// CreateWithParsedKey consumes a previously strict-validated private key for
+// the duration of the call. It never retains it; the caller owns erasure.
+// The certificate/key match and output round-trip are independently checked.
+func CreateWithParsedKey(certificateInput []byte, key any, chainInput []byte, password string) ([]byte, error) {
+	if !validPassword(password) {
+		return nil, ErrInvalidPassword
+	}
+	if int64(len(certificateInput)) > limits.MaxInputBytes || int64(len(chainInput)) > limits.MaxInputBytes {
 		return nil, ErrInvalidInput
 	}
 	leaf, _, err := certinspect.Parse(certificateInput)
@@ -48,25 +77,42 @@ func Create(certificateInput, keyInput, chainInput []byte, password string) ([]b
 	if err != nil {
 		return nil, err
 	}
-	var output []byte
-	err = keymatch.WithMatchedKey(certificateInput, keyInput, func(certificate *x509.Certificate, key any) error {
-		switch key.(type) {
-		case *rsa.PrivateKey, *ecdsa.PrivateKey:
-		default:
-			return ErrInvalidInput
-		}
-		var encodeErr error
-		output, encodeErr = pkcs12.Modern2023.WithIterations(iterations).Encode(key, certificate, issuers, password)
-		return encodeErr
-	})
-	if err != nil {
-		clear(output)
-		if errors.Is(err, keymatch.ErrKeyMismatch) {
-			return nil, keymatch.ErrKeyMismatch
-		}
-		if errors.Is(err, ErrInvalidInput) || errors.Is(err, keymatch.ErrInvalidPrivateKey) || errors.Is(err, keymatch.ErrEncryptedPrivateKey) || errors.Is(err, keymatch.ErrUnsupportedPrivateKey) || errors.Is(err, keymatch.ErrPrivateKeyResourceLimit) || errors.Is(err, keymatch.ErrPrivateKeyTooLarge) || errors.Is(err, keymatch.ErrUnsupportedPrivateKeyFormat) {
+	switch value := key.(type) {
+	case *rsa.PrivateKey:
+		if value == nil || value.N == nil || value.N.BitLen() > limits.MaxPrivateKeyBits || value.Validate() != nil {
 			return nil, ErrInvalidInput
 		}
+	case *ecdsa.PrivateKey:
+		if value == nil {
+			return nil, ErrInvalidInput
+		}
+		raw, err := value.Bytes()
+		clear(raw)
+		if err != nil {
+			return nil, ErrInvalidInput
+		}
+		if _, err := value.PublicKey.Bytes(); err != nil {
+			return nil, ErrInvalidInput
+		}
+	default:
+		return nil, ErrInvalidInput
+	}
+	signer := key.(crypto.Signer)
+	certSPKI, err := x509.MarshalPKIXPublicKey(leaf.PublicKey)
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+	keySPKI, err := x509.MarshalPKIXPublicKey(signer.Public())
+	if err != nil {
+		return nil, ErrInvalidInput
+	}
+	defer clear(keySPKI)
+	if len(certSPKI) != len(keySPKI) || subtle.ConstantTimeCompare(certSPKI, keySPKI) != 1 {
+		return nil, keymatch.ErrKeyMismatch
+	}
+	output, err := pkcs12.Modern2023.WithIterations(iterations).Encode(key, leaf, issuers, password)
+	if err != nil {
+		clear(output)
 		return nil, ErrEncodingFailed
 	}
 	if len(output) == 0 || int64(len(output)) > limits.MaxInputBytes || !checkRoundTrip(output, password, leaf, issuers) {
@@ -87,6 +133,10 @@ func validPassword(value string) bool {
 	}
 	return true
 }
+
+// PasswordAllowed exposes the creation policy for pre-decryption validation
+// at the browser boundary. It does not measure password entropy.
+func PasswordAllowed(value string) bool { return validPassword(value) }
 
 func parseIssuers(leaf *x509.Certificate, input []byte) ([]*x509.Certificate, error) {
 	if len(input) == 0 {

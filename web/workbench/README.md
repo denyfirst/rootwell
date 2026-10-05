@@ -156,6 +156,7 @@ and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candid
 and [bundle export decision](../../docs/adr/0008-browser-selected-public-bundle-export.md)
 and [Verify decision](../../docs/adr/0009-browser-explicit-trust-verification.md)
 and [PFX worker decision](../../docs/adr/0037-browser-pfx-worker-and-conversion.md)
+and [encrypted PFX input decision](../../docs/adr/0038-browser-pfx-encrypted-input-key.md)
 for the decision and non-claims.
 
 ## Build the local engine

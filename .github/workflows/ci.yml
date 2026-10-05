@@ -18,6 +18,27 @@ concurrency:
 # module checksum database without entering Rootwell's runtime module.
 
 jobs:
+  windows-pfx:
+    name: Windows ephemeral PFX interoperability
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the commit under test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git init -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git remote add origin "https://github.com/$env:GITHUB_REPOSITORY.git"
+          git fetch -q --depth 1 origin $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git checkout -q FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Import a synthetic PFX without persisting its key
+        shell: pwsh
+        run: ./scripts/test-windows-pfx-interop.ps1
+
   container-volume:
     name: Linux container volume recovery
     runs-on: ubuntu-24.04

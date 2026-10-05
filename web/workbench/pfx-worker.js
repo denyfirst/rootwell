@@ -37,7 +37,7 @@ self.onmessage = function (event) {
         !(request.password instanceof ArrayBuffer) || !(request.secondPassword instanceof ArrayBuffer) ||
         typeof request.option !== "string" || request.option.length > 99) throw new Error("invalid request");
     arrays = [...request.inputs.map(item => new Uint8Array(item)), new Uint8Array(request.password), new Uint8Array(request.secondPassword)];
-    if (arrays.some((item, index) => item.length > [1 << 20, 64 << 10, 1 << 20, 128, 128][index])) throw new Error("invalid request");
+    if (arrays.some((item, index) => item.length > [1 << 20, 64 << 10, 1 << 20, 128, request.operation === "create" ? 256 : 128][index])) throw new Error("invalid request");
     let answer;
     if (request.operation === "inspect" && arrays[0].length > 0 && arrays[0].length <= 1 << 20 &&
         arrays[1].length === 0 && arrays[2].length === 0 && arrays[3].length > 0 && arrays[4].length === 0 && request.option === "") {

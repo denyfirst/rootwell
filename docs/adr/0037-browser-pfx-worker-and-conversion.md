@@ -4,6 +4,10 @@
 
 **Date:** 2026-10-05
 
+**Update:** ADR 0038 extends browser creation to bounded encrypted PKCS#8
+input keys without requiring a plaintext intermediate download. The original
+creation boundary below records the initial increment.
+
 ## Decision
 
 The Convert screen has separate **Open a PFX** and **Create a PFX** sections.
