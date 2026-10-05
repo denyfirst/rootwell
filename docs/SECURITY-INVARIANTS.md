@@ -1044,3 +1044,30 @@ Guarded by `TestPFXRevealReauthenticatesAndMatches`,
 `TestWorkbenchPrivateViewHasNoPersistenceOrDownload`, plus
 `scripts/test-browser-pfx.mjs`, `scripts/test-workbench-private.mjs`,
 `scripts/test-workbench-pfx-ui.mjs` and `scripts/test-workbench-secret-view.mjs`.
+
+## C63 — Offline key + CSR work is bounded and never issuance or trust
+
+New RSA/ECDSA keys use crypto/rand and leave the worker only encrypted as
+PKCS#8 in a ZIP with the public signed CSR; the ZIP is not encrypted. Existing
+supported keys produce only a CSR. Every request is reparsed, signature-checked
+and subject/SAN/public-key checked under the modern policy. Import consumes one
+complete PEM/DER request at most 64 KiB; unknown attributes/extensions, ignored
+email/URI names, duplicate/malformed names and weak signatures fail closed.
+Public export binds the full displayed request fingerprint. Returned-certificate
+comparison separately reports canonical public-key identity, literal SAN
+differences, subject encoding/value changes and CA status, with trust false.
+A fake certificate can copy a public key; issuer/chain/time/purpose/revocation
+and deployment must not be inferred. One-shot worker deadlines, selection and
+page cancellation prevent stale downloads; secrets never enter UI persistence,
+network, clipboard, logs or public summaries. Browser/OS copies and actual
+download permissions remain outside the best-effort memory-clearing claim.
+
+Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,
+`TestExistingKeyCSRFormatsAndEncryptedInput`,
+`TestReturnedCertificateComparisonDoesNotImplyTrust`,
+`TestCSRRefusesMalformedUnsafeAndIgnoredFields`,
+`TestCSRNameSubjectPasswordAndFormatRefusal`, `FuzzInspectCSR`,
+`TestWorkbenchCSRBoundaryIsExplicit`,
+`TestWorkbenchHasNoNetworkOrProcessImports`, plus
+`scripts/test-browser-csr.mjs`, `scripts/test-workbench-csr-ui.mjs` and
+`scripts/test-workbench-csr-worker.mjs`.

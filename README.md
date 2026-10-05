@@ -93,6 +93,13 @@ modern PFX, extracts public certificates or a newly encrypted matching key.
 Creation also accepts bounded encrypted PKCS#8 input directly. A separate eye
 button shows PKCS#8 PEM for at most 30 seconds: encrypted files require fresh
 file-password authentication; plaintext files require renewed screen consent.
+Request certificate creates a new RSA/ECDSA key and signed DNS/IP CSR locally,
+or signs with an existing supported key. New keys download only encrypted as
+PKCS#8 in a ZIP with the public CSR; the ZIP itself is not encrypted. Existing
+CSR PEM/DER import/export checks signatures and refuses unknown attributes or
+extensions. Returned-certificate comparison shows key and name differences,
+not CA trust, issuance, revocation, renewal or deployment. See
+[ADR 0040](docs/adr/0040-offline-key-and-csr-workbench.md).
 No key is saved to Inventory/Vault. PFX-key downloads remain encrypted.
 These paths use the bounded Go core through WebAssembly and never post selected
 bytes to a server API. A selected public certificate can

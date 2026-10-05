@@ -32,6 +32,30 @@ func CheckCertificatePolicy(certificate *x509.Certificate) error {
 	return checkCertificatePolicy(certificate)
 }
 
+// CheckRequestPolicy applies the same algorithm/key floor to a CSR. It does
+// not verify its signature; callers must separately call CheckSignature.
+func CheckRequestPolicy(request *x509.CertificateRequest) error {
+	if request == nil {
+		return ErrDisallowedPublicKey
+	}
+	if !allowedSignatureAlgorithm(request.SignatureAlgorithm) {
+		return ErrDisallowedSignatureAlgorithm
+	}
+	if !allowedPublicKey(request.PublicKey) {
+		return ErrDisallowedPublicKey
+	}
+	return nil
+}
+
+// CheckPublicKeyPolicy enforces the key floor before a private-key signing
+// operation. It does not prove ownership, a signature, or certificate trust.
+func CheckPublicKeyPolicy(publicKey any) error {
+	if !allowedPublicKey(publicKey) {
+		return ErrDisallowedPublicKey
+	}
+	return nil
+}
+
 func allowedSignatureAlgorithm(algorithm x509.SignatureAlgorithm) bool {
 	switch algorithm {
 	case x509.SHA256WithRSA,

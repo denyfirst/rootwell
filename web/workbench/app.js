@@ -5,7 +5,8 @@
   const panels = {
     inspect: document.getElementById("inspect-panel"),
     convert: document.getElementById("convert-panel"),
-    verify: document.getElementById("verify-panel")
+    verify: document.getElementById("verify-panel"),
+    request: document.getElementById("request-panel")
   };
   const pagePath = document.getElementById("page-path");
   const engineState = document.getElementById("engine-state");
@@ -101,7 +102,7 @@
     Object.keys(panels).forEach(function (panelName) {
       panels[panelName].hidden = panelName !== name;
     });
-    pagePath.textContent = name === "verify" ? "Verify" : name === "convert" ? "Convert" : "Inspect";
+    pagePath.textContent = name === "request" ? "Request certificate" : name === "verify" ? "Verify" : name === "convert" ? "Convert" : "Inspect";
   }
 
   convertOpenInspect.addEventListener("click", function () { selectTool("inspect"); });

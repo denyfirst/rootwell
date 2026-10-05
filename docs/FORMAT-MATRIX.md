@@ -16,8 +16,8 @@ still accepts one file.
 | X.509 certificate | PEM | implemented (single) | implemented | implemented (TLS server) | browser public-only export and CLI PEM/DER conversion | exactly one header-free `CERTIFICATE` block |
 | X.509 certificate | DER | implemented (single) | implemented | implemented (TLS server) | browser public-only export and CLI PEM/DER conversion | exactly one certificate; trailing data rejected |
 | Certificate chain | PEM bundle | implemented (CLI/browser `explore`) | n/a | implemented (CLI explicit roots/intermediates) | browser export of one selected public certificate; other conversions planned | exploration is not trust verification; order is not a trust signal |
-| CSR / PKCS#10 | PEM | planned | planned | n/a | planned | signature checked after parsing |
-| CSR / PKCS#10 | DER | planned | planned | n/a | planned | trailing data rejected |
+| CSR / PKCS#10 | PEM | browser Request certificate | returned-certificate key/SAN comparison | n/a | browser generation and PEM/DER export | one signature-checked DNS/IP request; 64 KiB; unknown attributes/extensions refused |
+| CSR / PKCS#10 | DER | browser Request certificate | returned-certificate key/SAN comparison | n/a | browser generation and PEM/DER export | exact object; same bounded profile; comparison is not trust |
 | RSA private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | encrypted PKCS#8 PEM default; opt-in plaintext PKCS#8/PKCS#1 PEM/DER | separate modern PFX creation also accepts matching bounded encrypted PKCS#8 input |
 | ECDSA private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | encrypted PKCS#8 PEM default; opt-in plaintext PKCS#8/SEC1 PEM/DER | separate modern PFX creation also accepts matching bounded encrypted PKCS#8 input |
 | Ed25519 private key | unencrypted PKCS#8 PEM/DER | browser format summary | implemented | n/a | encrypted PKCS#8 PEM default; opt-in plaintext PKCS#8 PEM/DER | no PKCS#1/SEC1 target exists for Ed25519 |
@@ -61,8 +61,11 @@ Recognition is not permission to generate, sign, or recommend it.
 The initial TLS verification policy accepts SHA-2 RSA and RSA-PSS signatures,
 SHA-2 ECDSA signatures, and Ed25519. Accepted public keys are RSA with at least
 2048 bits and exponent at least 65537, ECDSA P-256/P-384/P-521, and Ed25519.
-This is not a FIPS claim. The generation policy will be defined separately
-before `key generate` exists; Rootwell currently generates no user keys.
+This is not a FIPS claim. Browser Request certificate generates RSA
+2048/3072/4096 (default 3072) or ECDSA P-256/P-384/P-521 with crypto/rand;
+the new key is exported only encrypted as PKCS#8, together with its public CSR
+in an unencrypted ZIP. Existing supported modern keys may sign a CSR without
+being exported. No CLI key-generation or CSR command is claimed.
 
 ## Password handling
 

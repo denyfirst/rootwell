@@ -84,3 +84,13 @@ source changes, manual hide or closing PFX key tools. Pending operations are
 cancelled at page boundaries. No clipboard, download, logging, URL or storage
 path is added. Screen capture, extensions, same-origin compromise, assistive
 technology and runtime strings remain residual risks, not erasure guarantees.
+
+ADR 0040 adds a separate offline key + DNS/IP CSR wizard, not a CA or vault.
+Only encrypted new keys leave the worker; a ZIP groups the encrypted PKCS#8
+and public signed CSR, but is not itself encrypted. Existing keys are not
+exported. Strict signed-request parsing, modern key policy, full-fingerprint
+export binding, one-shot deadlines and stale-choice cancellation apply.
+Returned certificates are compared by canonical public key and literal names;
+copying a public key into a fake certificate is possible, so independent trust
+verification remains mandatory before relying on it. Browser/OS copies and
+download permissions are not controlled by this workbench.
