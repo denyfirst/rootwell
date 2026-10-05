@@ -22,6 +22,7 @@ let inspected = 0;
 let exported = 0;
 let revealed = 0;
 let holdReveal = false;
+let malformedOutput = false;
 let releaseReveal;
 let created = 0;
 let held = false;
@@ -56,7 +57,7 @@ const worker = {
     responseBytes = operation === "create" ? Uint8Array.of(0x30, 0x03, 0x01) :
       new TextEncoder().encode("-----BEGIN " + (operation === "key" ? "ENCRYPTED PRIVATE KEY" : operation === "reveal" ? "PRIVATE KEY" : "CERTIFICATE") + "-----\n" + "A".repeat(80) + "\n-----END " + (operation === "key" ? "ENCRYPTED PRIVATE KEY" : operation === "reveal" ? "PRIVATE KEY" : "CERTIFICATE") + "-----\n");
     const answer = { schema_version: "rootwell.browser.pfx.v1", ok: true, error: null,
-      result: { bytes: responseBytes, format, filename } };
+      result: { bytes: malformedOutput ? "not-a-byte-buffer" : responseBytes, format, filename } };
     if (operation === "create" && holdCreate) return new Promise(resolve => { releaseCreate = () => resolve(answer); });
     if (operation === "reveal" && holdReveal) return new Promise(resolve => { releaseReveal = () => resolve(answer); });
     return answer;
@@ -183,5 +184,16 @@ get("pfx-open-file").listeners.change();
 release();
 await pending;
 assert.equal(get("pfx-open-result").hidden, true, "late worker result revived stale PFX");
+assert.equal(downloaded, 3);
+held = false;
+get("pfx-open-file").files = [file];
+get("pfx-open-file").listeners.change();
+get("pfx-open-password").value = "synthetic-PFX-password-2026";
+await get("pfx-open-button").listeners.click();
+malformedOutput = true;
+get("pfx-open-password").value = "synthetic-PFX-password-2026";
+await assert.doesNotReject(get("pfx-reveal-button").listeners.click());
+assert.equal(get("pfx-reveal-content").textContent, "", "malformed worker output was displayed");
+assert.equal(get("pfx-open-button").disabled, false, "malformed worker output prevented safe retry");
 assert.equal(downloaded, 3);
 console.log("PFX UI fresh-password, no-partial-download, stale-result and buffer-clearing checks passed.");

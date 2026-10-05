@@ -229,7 +229,7 @@
       if (bytes) bytes.fill(0);
       if (password) password.fill(0);
       if (outputPassword) outputPassword.fill(0);
-      if (output) output.fill(0);
+      if (output instanceof Uint8Array) output.fill(0);
       if (openController === controller) openController = null;
       openBusy = false;
       openButton.disabled = !module || !validFile(openFile.files && openFile.files[0], 1 << 20);
@@ -305,7 +305,7 @@
       if (chainBytes) chainBytes.fill(0);
       if (passwordBytes) passwordBytes.fill(0);
       if (inputPasswordBytes) inputPasswordBytes.fill(0);
-      if (output) output.fill(0);
+      if (output instanceof Uint8Array) output.fill(0);
       if (createController === controller) createController = null;
       createBusy = false;
       createButton.disabled = !module || !validFile(createCert.files && createCert.files[0], 1 << 20) || !validFile(createKey.files && createKey.files[0], 64 << 10);
