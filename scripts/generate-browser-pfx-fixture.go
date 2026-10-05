@@ -6,6 +6,7 @@
 package main
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -21,10 +22,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/browserpfx"
 	"github.com/denyfirst/rootwell/internal/pfxcreate"
+	"github.com/youmark/pkcs8"
 )
 
 const password = "synthetic-browser-PFX-2026-fd48"
+const inputPassword = "synthetic-existing-key-2026-5ad3"
 
 func main() {
 	writeFiles := flag.Bool("write-files", false, "write disposable synthetic files to an OS temp directory")
@@ -46,20 +50,32 @@ func main() {
 	pfx, err := pfxcreate.Create(certPEM, keyPEM, nil, password)
 	check(err)
 	defer clear(pfx)
+	encryptedDER, err := pkcs8.MarshalPrivateKey(key, []byte(inputPassword), &pkcs8.Opts{Cipher: pkcs8.AES256CBC,
+		KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 600_000, HMACHash: crypto.SHA256}})
+	check(err)
+	defer clear(encryptedDER)
+	encryptedKey := pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: encryptedDER})
+	defer clear(encryptedKey)
+	encryptedInputPFX, _, err := browserpfx.CreateWithInputPassword(certPEM, encryptedKey, nil, []byte(password), []byte(inputPassword))
+	check(err)
+	defer clear(encryptedInputPFX)
 	if *writeFiles {
 		directory, err := os.MkdirTemp("", "rootwell-synthetic-pfx-")
 		check(err)
 		check(os.WriteFile(filepath.Join(directory, "synthetic-cert.pem"), certPEM, 0o600))
 		check(os.WriteFile(filepath.Join(directory, "synthetic-key.pem"), keyPEM, 0o600))
 		check(os.WriteFile(filepath.Join(directory, "synthetic-bundle.pfx"), pfx, 0o600))
-		check(json.NewEncoder(os.Stdout).Encode(map[string]string{"directory": directory, "password": password}))
+		check(os.WriteFile(filepath.Join(directory, "synthetic-encrypted-key.pem"), encryptedKey, 0o600))
+		check(os.WriteFile(filepath.Join(directory, "synthetic-from-encrypted-key.pfx"), encryptedInputPFX, 0o600))
+		check(json.NewEncoder(os.Stdout).Encode(map[string]string{"directory": directory, "password": password, "input_password": inputPassword}))
 		return
 	}
 	check(json.NewEncoder(os.Stdout).Encode(map[string]string{
-		"certificate": base64.StdEncoding.EncodeToString(certPEM),
-		"key":         base64.StdEncoding.EncodeToString(keyPEM),
-		"pfx":         base64.StdEncoding.EncodeToString(pfx),
-		"password":    password,
+		"certificate":         base64.StdEncoding.EncodeToString(certPEM),
+		"key":                 base64.StdEncoding.EncodeToString(keyPEM),
+		"pfx":                 base64.StdEncoding.EncodeToString(pfx),
+		"password":            password,
+		"encrypted_input_pfx": base64.StdEncoding.EncodeToString(encryptedInputPFX),
 	}))
 }
 

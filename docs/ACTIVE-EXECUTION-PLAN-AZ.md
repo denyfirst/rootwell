@@ -74,17 +74,22 @@ olunmamış nəticəyə “verified” demək qadağandır.
    ilə ayrıca sərhəddə başlayıb: unencrypted PKCS#8/PKCS#1/SEC1 PEM/DER qəbul edir.
    [`ADR 0035`](adr/0035-browser-encrypted-key-import-and-plaintext-export.md)
    limitli şifrəli PKCS#8 importunu və açıq təsdiqlə parolsuz uyğun formatları
-   əlavə edir; default yenə şifrəli PKCS#8-dir. PFX və reveal hələ yoxdur.
+   əlavə edir; default yenə şifrəli PKCS#8-dir. [`ADR 0037`](adr/0037-browser-pfx-worker-and-conversion.md)
+   ilə dar modern profil üçün browser PFX yaratma, public hissələri çıxarma və
+   uyğun private key-i yalnız şifrəli PKCS#8 kimi çıxarma əlavə edilib. Key
+   reveal və vault custody hələ yoxdur. ADR 0038 şifrəli giriş key-i ilə PFX
+   yaratmanı əlavə edir; bu increment-in development qapıları ayrıca yoxlanır.
    Müstəqil xarici audit
    development-i saxlayan qapı yox, ilk release/real-user istifadəsi üçün
    son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
 
-   **Növbəti secret-conversion sırası:** (a) import edilmiş şifrəli key üçün
-   browser worker/deadline sərtləşməsi (ADR 0036) və interop matrix-in genişləndirilməsi;
-   (b) browser-də məhdud modern PFX yaratma/çıxarma üçün ayrıca worker/time-limit, origin,
-   CSP, zero-upload, yaddaş və download testləri (ADR 0037; development increment tamamlanıb);
-   (c) yalnız bu sərhədlərdən
-   sonra gözlə göstərmə. Müəyyən məhsul/versiya reseptləri ümumi format
+   **Növbəti funksional sıra:** ADR 0036 worker/deadline sərtləşməsi və ADR 0037
+   dar modern browser PFX axını tamamlanıb. ADR 0038 PFX yaratmaq üçün şifrəli
+   PKCS#8 giriş key-ini parolla birbaşa qəbul edib uyğunluğunu worker-də yoxlayır;
+   aralıq parolsuz fayl endirməsi tələb edilmir. Development qapıları keçəndən
+   sonra əvvəlcədən razılaşdırılmış məhdud **gözlə göstərmə**, daha sonra
+   browser-də key + CSR yaratma və geri gələn sertifikatı həmin key/CSR ilə
+   uyğunlaşdırma axını gəlir. Müəyyən məhsul/versiya reseptləri ümumi format
    mühərrikinin üzərində ayrıca gələcək; heç bir universal vendor rejimi yoxdur.
    Browser reveal hər dəfə PFX parolunu yenidən istəməli, saxlanmış key üçün
    əlavə instance reauthentication tələb etməli, qısa müddətdən sonra mətn
@@ -93,6 +98,34 @@ olunmamış nəticəyə “verified” demək qadağandır.
    tam müdafiə vədi deyil. Hər real browser increment-i istifadəyə yararlı
    sintetik demo faylı ilə göstərilməlidir; CLI xüsusiyyəti web-də varmış
    kimi təqdim edilməyəcək.
+
+### Növbəti funksional dalğanın qəbul meyarları
+
+1. **Şifrəli key-dən PFX.** Browser UI mövcud dəstəklənən şifrəli PKCS#8
+   private key, onun parolu, uyğun public sertifikat və istəyə bağlı issuer-ləri
+   qəbul edir; key/cert uyğunluğu yoxlanır. Yanlış parol, uyğun olmayan key,
+   qarışıq chain və limitdən böyük/malformed giriş aydın rədd olunur. PFX
+   parolu ayrıca seçilir; private key aralıq parolsuz fayl kimi endirilmir.
+   Mövcud dar modern profil qorunur və real interop fixture-ləri ilə sərhəd
+   ayrıca ölçülür; hər PFX vendor variantına dəstək iddia edilmir.
+2. **Məhdud key reveal.** Yalnız istifadəçinin açıq istəyi ilə, uyğun fresh
+   parol/reauth-dan sonra qısa müddətli göstərmə; avtomatik gizlətmə və
+   navigation/selection dəyişəndə təmizləmə. Heç bir secret log, history,
+   URL və ya localStorage-a düşmür. PFX və gələcək saxlanan vault key-i üçün
+   authentication qaydaları qarışdırılmır.
+3. **Key + CSR wizard.** UI-da dəstəklənən RSA/ECDSA key yaratmaq, key-i
+   şifrəli formada endirmək, SAN/subject seçib imzalı CSR almaq və CSR-i
+   parse/signature qaydaları ilə yenidən yoxlamaq. CA-dan gələn sertifikatı
+   həmin public key-ə uyğunlaşdırmaq; CSR yaratma issuance və ya trust deyil.
+4. **Real istifadə matrix-i.** Bu axınlar üçün müstəqil alətlərlə açılıb
+   yoxlanan fixture-lər, yanlış/korrupt/parol/limit sınaqları, Windows/Linux
+   browser yoxlaması və istifadəçinin izləyə biləcəyi sintetik demo. Dəstəklənən
+   və dəstəklənməyən formatlar UI və format cədvəlində eyni göstərilir.
+
+Bu dalğa private-key vault, ACME renewal, deployment agent, SSH/PGP və geniş
+vendor reseptlərini səssizcə əlavə etmir. Onlar ayrıca trust boundary və
+məhsul mərhələləridir. Hər increment öz test/CI/self-review qapısından keçir;
+müstəqil dərin audit ilk production/real-user release-dən əvvəl ayrıca qalır.
 
 Workbench-də **Inspect** tək public sertifikatı və ya PEM bundle/çoxfayllı
 kolleksiyanı eyni yerdə açır. Hər kartdan seçilmiş sertifikatın geniş

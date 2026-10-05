@@ -20,6 +20,8 @@ let inspected = 0;
 let exported = 0;
 let created = 0;
 let held = false;
+let holdCreate = false;
+let releaseCreate;
 let release;
 let sourceByte = 65;
 let captured;
@@ -37,15 +39,20 @@ const worker = {
       if (held) return new Promise(resolve => { release = () => resolve(summary); });
       return summary;
     }
-    if (operation === "create") created++;
+    if (operation === "create") {
+      created++;
+      assert.equal(new TextDecoder().decode(second), "existing-synthetic-key-password", "existing key password did not reach worker");
+    }
     else exported++;
     const format = operation === "create" ? "pfx" : operation === "key" ? "encrypted-pkcs8-pem" : "pem";
     const filename = operation === "create" ? "rootwell-bundle-" + "b".repeat(32) + ".pfx" :
       "rootwell-" + (operation === "key" ? "encrypted-key" : "certificate") + "-" + "a".repeat(16) + "-" + "b".repeat(32) + ".pem";
     responseBytes = operation === "create" ? Uint8Array.of(0x30, 0x03, 0x01) :
       new TextEncoder().encode("-----BEGIN " + (operation === "key" ? "ENCRYPTED PRIVATE KEY" : "CERTIFICATE") + "-----\n" + "A".repeat(40));
-    return { schema_version: "rootwell.browser.pfx.v1", ok: true, error: null,
+    const answer = { schema_version: "rootwell.browser.pfx.v1", ok: true, error: null,
       result: { bytes: responseBytes, format, filename } };
+    if (operation === "create" && holdCreate) return new Promise(resolve => { releaseCreate = () => resolve(answer); });
+    return answer;
   }
 };
 const context = vm.createContext({ document, TextEncoder, Uint8Array, Blob, AbortController,
@@ -95,11 +102,42 @@ get("pfx-create-key").listeners.change();
 assert.equal(get("pfx-create-button").disabled, false);
 get("pfx-create-password").value = "new-synthetic-PFX-password-2026";
 get("pfx-create-confirm").value = "new-synthetic-PFX-password-2026";
+get("pfx-create-input-password").value = "existing-synthetic-key-password";
 await get("pfx-create-button").listeners.click();
 assert.equal(created, 1);
 assert.equal(downloaded, 3);
 assert.equal(responseBytes[0], 0, "PFX output buffer was not cleared");
 assert.equal(captured.inputs[1][0], 0, "private input key was not cleared");
+assert.equal(captured.second[0], 0, "existing key password was not cleared");
+assert.equal(get("pfx-create-input-password").value, "");
+
+holdCreate = true;
+get("pfx-create-input-password").value = "existing-synthetic-key-password";
+get("pfx-create-password").value = "new-synthetic-PFX-password-2026";
+get("pfx-create-confirm").value = "new-synthetic-PFX-password-2026";
+const pendingCreate = get("pfx-create-button").listeners.click();
+await new Promise(resolve => setImmediate(resolve));
+get("pfx-create-input-password").value = "changed";
+get("pfx-create-input-password").listeners.input();
+releaseCreate();
+await pendingCreate;
+assert.equal(created, 2);
+assert.equal(downloaded, 3, "late result downloaded a PFX after the password changed");
+assert.equal(responseBytes[0], 0, "stale PFX output was not cleared");
+holdCreate = false;
+
+get("pfx-create-input-password").value = "new-synthetic-PFX-password-2026";
+get("pfx-create-password").value = "new-synthetic-PFX-password-2026";
+get("pfx-create-confirm").value = "new-synthetic-PFX-password-2026";
+await get("pfx-create-button").listeners.click();
+assert.equal(created, 2, "reused input/output password reached worker");
+assert.equal(downloaded, 3);
+get("pfx-create-input-password").value = "ü".repeat(129);
+get("pfx-create-password").value = "new-synthetic-PFX-password-2026";
+get("pfx-create-confirm").value = "new-synthetic-PFX-password-2026";
+await get("pfx-create-button").listeners.click();
+assert.equal(created, 2, "over-limit UTF-8 input password reached worker");
+assert.equal(get("pfx-create-input-password").value, "");
 
 held = true;
 get("pfx-open-file").files = [file];

@@ -143,3 +143,14 @@ func TestCreateRefusesWeakRSACertificate(t *testing.T) {
 		t.Fatalf("weak RSA key accepted: %v", err)
 	}
 }
+
+func TestPFXParsedKeyBoundaryRefusesInvalidKeys(t *testing.T) {
+	leaf, _, _, _ := testMaterial(t)
+	for _, key := range []any{nil, (*rsa.PrivateKey)(nil), (*ecdsa.PrivateKey)(nil), &rsa.PrivateKey{}, &ecdsa.PrivateKey{}, "unsupported"} {
+		output, err := CreateWithParsedKey(leaf, key, nil, testPassword)
+		if !errors.Is(err, ErrInvalidInput) || output != nil {
+			clear(output)
+			t.Fatal("invalid parsed key was accepted")
+		}
+	}
+}

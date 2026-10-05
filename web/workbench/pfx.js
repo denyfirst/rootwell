@@ -27,6 +27,7 @@
   const createCert = byID("pfx-create-cert");
   const createKey = byID("pfx-create-key");
   const createChain = byID("pfx-create-chain");
+  const createInputPassword = byID("pfx-create-input-password");
   const createPassword = byID("pfx-create-password");
   const createConfirm = byID("pfx-create-confirm");
   const createButton = byID("pfx-create-button");
@@ -226,6 +227,7 @@
     if (createController) createController.abort();
     createPassword.value = "";
     createConfirm.value = "";
+    createInputPassword.value = "";
     createError.hidden = true;
     createStatus.textContent = "";
     createButton.disabled = !module || createBusy || !validFile(createCert.files && createCert.files[0], 1 << 20) ||
@@ -233,7 +235,7 @@
       !!(createChain.files && createChain.files.length && !validFile(createChain.files[0], 1 << 20));
   }
   for (const field of [createCert, createKey, createChain]) field.addEventListener("change", invalidateCreate);
-  for (const field of [createPassword, createConfirm]) field.addEventListener("input", () => {
+  for (const field of [createInputPassword, createPassword, createConfirm]) field.addEventListener("input", () => {
     if (createController) { createGeneration++; createController.abort(); createStatus.textContent = "Password changed. Start again."; }
   });
   createButton.addEventListener("click", async () => {
@@ -243,10 +245,14 @@
     if (!module || createBusy || !validFile(certificate, 1 << 20) || !validFile(key, 64 << 10) || (chain && !validFile(chain, 1 << 20))) return;
     const pfxPassword = createPassword.value;
     const confirmation = createConfirm.value;
+    const inputPassword = createInputPassword.value;
     createPassword.value = "";
     createConfirm.value = "";
-    if (!newPassword(pfxPassword) || pfxPassword !== confirmation) {
-      fail(createError, createStatus, "Choose and confirm a new, random 20–128 character non-space ASCII PFX password.");
+    createInputPassword.value = "";
+    const inputPasswordBytes = encoder.encode(inputPassword);
+    if (!newPassword(pfxPassword) || pfxPassword !== confirmation || (inputPassword && inputPassword === pfxPassword) || inputPasswordBytes.length > 256) {
+      inputPasswordBytes.fill(0);
+      fail(createError, createStatus, "Choose and confirm a new, random 20–128 character non-space ASCII PFX password, different from the key password. The existing key password must fit within 256 UTF-8 bytes.");
       return;
     }
     const generation = createGeneration;
@@ -263,7 +269,7 @@
       chainBytes = chain ? await read(chain, 1 << 20) : new Uint8Array();
       if (generation !== createGeneration || certificate !== createCert.files[0] || key !== createKey.files[0] || chain !== (createChain.files && createChain.files[0])) return;
       passwordBytes = encoder.encode(pfxPassword);
-      const answer = await rootwellPFXWorker.run(module, "create", [certBytes, keyBytes, chainBytes], passwordBytes, new Uint8Array(), "", controller.signal);
+      const answer = await rootwellPFXWorker.run(module, "create", [certBytes, keyBytes, chainBytes], passwordBytes, inputPasswordBytes, "", controller.signal);
       output = answer && answer.result && answer.result.bytes;
       if (generation !== createGeneration) return;
       if (!answer || answer.schema_version !== "rootwell.browser.pfx.v1" || answer.ok !== true || answer.error !== null ||
@@ -272,12 +278,13 @@
       requestDownload(output, answer.result.filename, "application/x-pkcs12");
       createStatus.textContent = "Password-protected PFX download requested. Store it securely; the browser may keep a copy in Downloads/backups.";
     } catch {
-      if (generation === createGeneration) fail(createError, createStatus, "PFX creation refused: invalid/mismatched certificate or key, invalid issuer order, or local processing failure.");
+      if (generation === createGeneration) fail(createError, createStatus, "PFX could not be created. Check the key password, supported key format, certificate/key match, and intermediate order. Nothing was downloaded.");
     } finally {
       if (certBytes) certBytes.fill(0);
       if (keyBytes) keyBytes.fill(0);
       if (chainBytes) chainBytes.fill(0);
       if (passwordBytes) passwordBytes.fill(0);
+      if (inputPasswordBytes) inputPasswordBytes.fill(0);
       if (output) output.fill(0);
       if (createController === controller) createController = null;
       createBusy = false;

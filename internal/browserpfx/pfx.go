@@ -11,7 +11,9 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/denyfirst/rootwell/internal/certinspect"
+	"github.com/denyfirst/rootwell/internal/keymatch"
 	"github.com/denyfirst/rootwell/internal/pfxcreate"
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/denyfirst/rootwell/internal/pfxkeyexport"
@@ -112,8 +114,25 @@ func ExportKey(input, password []byte, fingerprint string, outputPassword []byte
 // optional ordered issuer bundle. It deliberately does not claim universal
 // vendor compatibility or preserve PFX bag attributes.
 func Create(certificate, key, issuers, password []byte) ([]byte, string, error) {
-	output, err := pfxcreate.Create(certificate, key, issuers, string(password))
-	if err != nil {
+	return CreateWithInputPassword(certificate, key, issuers, password, nil)
+}
+
+// CreateWithInputPassword also accepts the bounded encrypted PKCS#8 profile.
+// The input password must be empty for plaintext keys. Decryption and match
+// happen inside the caller's one-shot worker without an intermediate download.
+func CreateWithInputPassword(certificate, key, issuers, password, inputPassword []byte) ([]byte, string, error) {
+	if !pfxcreate.PasswordAllowed(string(password)) || len(certificate) == 0 || len(certificate) > 1<<20 || len(issuers) > 1<<20 || len(inputPassword) > 256 ||
+		(len(inputPassword) != 0 && len(inputPassword) == len(password) && subtle.ConstantTimeCompare(inputPassword, password) == 1) {
+		return nil, "", ErrInvalid
+	}
+	var output []byte
+	err := browserprivateconvert.WithInputKey(key, inputPassword, func(parsed any, _ keymatch.Encoding) error {
+		var createErr error
+		output, createErr = pfxcreate.CreateWithParsedKey(certificate, parsed, issuers, string(password))
+		return createErr
+	})
+	if err != nil || len(output) == 0 || len(output) > 1<<20 {
+		clear(output)
 		return nil, "", ErrInvalid
 	}
 	name := filename("bundle", "", ".pfx")

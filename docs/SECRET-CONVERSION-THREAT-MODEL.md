@@ -68,3 +68,10 @@ independent audit before real-user deployment. The public Convert picker,
 Inspect, Verify, and Inventory continue to refuse PFX and private keys;
 the separate private Convert picker refuses PFX and legacy encrypted PEM; its
 bounded encrypted-PKCS#8 import and plaintext targets follow ADR 0035.
+
+ADR 0038 additionally permits a bounded encrypted PKCS#8 key directly in
+browser PFX creation. Its current password is transferred only to the one-shot
+worker, independently from the output password; no plaintext intermediate
+download is needed. Input/output password reuse is refused. Windows imports
+test output with an ephemeral key store, and the WASM path also consumes an
+independently encoded Node/OpenSSL encrypted input.

@@ -44,9 +44,23 @@ assert.equal(rootwellPFXOutput("key", sourcePFX, empty, empty, new TextEncoder()
 const created = rootwellPFXOutput("create", certificate, key, empty, password, empty, "");
 assert.equal(created.ok, true);
 assert.equal(JSON.parse(rootwellPFXInspect(created.result.bytes, password)).result.certificates[0].fingerprint, fingerprint);
+// Node's OpenSSL-backed encoder provides an independent encrypted input.
+const inputPassword = new TextEncoder().encode("separate-synthetic-input-key-password-2026");
+const encryptedInput = Uint8Array.from(Buffer.from(createPrivateKey(Buffer.from(key)).export({
+  type: "pkcs8", format: "pem", cipher: "aes-256-cbc", passphrase: Buffer.from(inputPassword)
+})));
+const encryptedCreated = rootwellPFXOutput("create", certificate, encryptedInput, empty, password, inputPassword, "");
+assert.equal(encryptedCreated.ok, true, "OpenSSL-backed encrypted PKCS#8 input failed");
+assert.equal(JSON.parse(rootwellPFXInspect(encryptedCreated.result.bytes, password)).result.certificates[0].fingerprint, fingerprint);
+assert.equal(JSON.parse(rootwellPFXInspect(encryptedCreated.result.bytes, inputPassword)).ok, false);
+assert.equal(rootwellPFXOutput("create", certificate, encryptedInput, empty, password, empty, "").ok, false);
+assert.equal(rootwellPFXOutput("create", certificate, encryptedInput, empty, password, new TextEncoder().encode("wrong"), "").ok, false);
+assert.equal(rootwellPFXOutput("create", certificate, encryptedInput, empty, inputPassword, inputPassword, "").ok, false);
+assert.equal(rootwellPFXOutput("create", certificate, key, empty, password, inputPassword, "").ok, false);
+assert.equal(rootwellPFXOutput("create", certificate, encryptedInput, empty, password, new Uint8Array(257), "").ok, false);
 assert.equal(rootwellPFXOutput("create", certificate, new TextEncoder().encode("not a key"), empty, password, empty, "").ok, false);
 assert.equal(rootwellPFXOutput("create", certificate, key, empty, new TextEncoder().encode("short"), empty, "").ok, false);
 assert.equal(rootwellPFXOutput("certificate", sourcePFX, empty, empty, password, empty, fingerprint + ":garbage").ok, false);
-for (const item of [certificate, key, sourcePFX, password, newKeyPassword, tampered,
-  exportedCert.result.bytes, exportedKey.result.bytes, created.result.bytes]) item.fill(0);
+for (const item of [certificate, key, sourcePFX, password, newKeyPassword, tampered, inputPassword, encryptedInput,
+  exportedCert.result.bytes, exportedKey.result.bytes, created.result.bytes, encryptedCreated.result.bytes]) item.fill(0);
 console.log("Browser PFX WASM creation, inspection, authenticated extraction, mismatch and refusal passed.");

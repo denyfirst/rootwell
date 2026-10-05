@@ -6,7 +6,7 @@
         !Array.isArray(inputs) || inputs.length !== 3 ||
         !inputs.every((item, index) => item instanceof Uint8Array && item.length <= [1 << 20, 64 << 10, 1 << 20][index]) ||
         !(password instanceof Uint8Array) || password.length > 128 ||
-        !(secondPassword instanceof Uint8Array) || secondPassword.length > 128 ||
+        !(secondPassword instanceof Uint8Array) || secondPassword.length > (operation === "create" ? 256 : 128) ||
         typeof option !== "string" || option.length > 99 || signal.aborted || typeof Worker !== "function") {
       return Promise.reject(new Error("PFX worker unavailable"));
     }
