@@ -40,7 +40,12 @@ same explicit-trust TLS server verifier as the CLI.
   rendered as text, and duplicate certificates are never silently removed;
 - `private-key.js` can read only its explicitly selected key after a click;
   it has no network, persistent storage, dynamic code, or markup-injection
-  capability. Inspect returns only public-key metadata; export re-reads the
+  capability. Each operation runs in a fresh, one-shot browser worker with a
+  30-second inspection or 60-second export deadline. Selection changes abort
+  the worker; failure has no synchronous main-thread fallback. The worker
+  receives the already loaded same-origin WebAssembly module, and the
+  authenticated server denies network connections from its script. Inspect
+  returns only public-key metadata; export re-reads the
   selected file and binds its full public fingerprint to the visible result;
   encrypted PKCS#8 is the default download; plaintext targets require a
   separate choice and explicit confirmation, without a file-permission claim;
@@ -131,8 +136,9 @@ not a claim that the chain is valid now. See
 
 Browser-wide memory erasure is not guaranteed. The Inspect, Verify, and public
 Convert selectors are for public certificates only; use only the separately
-labelled private Convert picker for an unencrypted private key. Do not select
-PFX/PKCS#12 or passphrase-protected inputs yet. See
+labelled private Convert picker for supported unencrypted keys or bounded
+encrypted PKCS#8. PFX/PKCS#12 and legacy encrypted PEM remain unsupported in
+the browser. See
 [`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
 and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
 and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)
@@ -166,6 +172,14 @@ Serve `web/workbench` from a static server. Direct `file://` opening remains a
 visual fallback because browsers do not consistently load local WebAssembly.
 The server must send `Content-Type: application/wasm` for `rootwell.wasm`.
 
+For a strictly synthetic local browser smoke test after building the engine,
+run `node scripts/workbench-preview.mjs --synthetic-preview-only` from the
+repository root and open `http://127.0.0.1:4190/worker-browser-smoke.html`.
+The page generates a temporary ECDSA key in that browser, verifies worker
+inspection, encrypted export, and encrypted re-import, then clears its byte
+buffers; it never requests a download. The preview is unauthenticated and
+loopback-only. Do not select real keys there.
+
 For a safe first test, download `rootwell-demo-certificate.pem` from Inspect
 and select it there. It contains one non-production public certificate for
 `.invalid` names and deliberately contains no private key. To see two Inspect
@@ -188,13 +202,17 @@ The HTML meta policy is a fallback, not the deployment boundary. The static
 server should send at least:
 
 ```text
-Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 Referrer-Policy: no-referrer
 X-Content-Type-Options: nosniff
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Resource-Policy: same-origin
 Permissions-Policy: camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()
 ```
+
+Serve `private-key-worker.js` with its own response CSP:
+`default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'`.
+The HTML meta policy cannot impose this worker response boundary by itself.
 
 Use an authenticated administrative origin with no third-party script
 injection, publish checksums with the release bundle, and package

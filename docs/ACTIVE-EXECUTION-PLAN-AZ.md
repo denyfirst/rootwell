@@ -80,7 +80,7 @@ olunmamış nəticəyə “verified” demək qadağandır.
    son qapıdır; hər increment-in daxili təhlükəsizlik yoxlamaları qalır.
 
    **Növbəti secret-conversion sırası:** (a) import edilmiş şifrəli key üçün
-   browser worker/deadline sərtləşməsi və interop matrix-in genişləndirilməsi;
+   browser worker/deadline sərtləşməsi (ADR 0036) və interop matrix-in genişləndirilməsi;
    (b) browser-də PFX yaratma/çıxarma üçün ayrıca worker/time-limit, origin,
    CSP, zero-upload, yaddaş və download testləri; (c) yalnız bu sərhədlərdən
    sonra gözlə göstərmə. Müəyyən məhsul/versiya reseptləri ümumi format
