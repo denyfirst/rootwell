@@ -10,6 +10,12 @@
   let module = null, generation = 0, controller = null, busy = false, current = null;
   function clearSecrets() { password.value = confirm.value = inputPassword.value = ""; }
   function fail(message) { error.textContent = message; error.hidden = false; status.textContent = "No download was requested by this operation."; }
+  function refusal(kind, selectedMode) {
+    if (kind === "inspect") return "Choose a supported signed CSR, not a certificate or private key. Only DNS/IP requests are supported; unknown attributes or extensions are refused. If the check timed out, try opening the CSR again.";
+    if (kind === "match") return "Choose one public site certificate, not a bundle or private key. Reopen the CSR if its file changed, then compare again. No trust result was produced.";
+    if (kind === "convert") return "The CSR could not be exported safely. Open the signed CSR again, then choose PEM or DER. No new download was requested.";
+    return selectedMode === "key" ? "The request could not be created. Check your current key password, supported key format, site names and optional details. If the check timed out, try again. No new download was requested." : "The request could not be created. Check your site names and optional details, or try again if key generation timed out. No new download was requested.";
+  }
   function validFile(file, maximum) { return file && Number.isSafeInteger(file.size) && file.size > 0 && file.size <= maximum; }
   function first(field) { return field.files && field.files.length === 1 ? field.files[0] : null; }
   function buttons() {
@@ -145,7 +151,7 @@
         status.textContent = expectedFormat === "zip" ? "Download requested: ZIP with encrypted private key and signed public CSR. Save it and your password securely; send only the CSR to your CA." : "Public CSR download requested. Your private key was not included.";
       }
     } catch {
-      if (request === generation) fail("The operation could not finish safely. Check the names, subject, key password and supported file profile, or retry after a timeout. No new download was requested.");
+      if (request === generation) fail(refusal(kind, selectedMode));
     } finally {
       for (const bytes of [input, cert, secret, answer && answer.result && answer.result.bytes, answer && answer.result && answer.result.csr]) if (bytes instanceof Uint8Array) bytes.fill(0);
       clearSecrets(); if (controller === active) controller = null; busy = false; buttons();
