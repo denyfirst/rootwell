@@ -262,10 +262,14 @@ func TestEncryptedInputRefusesUnsafeProfilesAndNoPartialExport(t *testing.T) {
 func FuzzInspectPrivateKeyNoSecretEcho(f *testing.F) {
 	f.Add([]byte("-----BEGIN PRIVATE KEY-----\nAA==\n-----END PRIVATE KEY-----\n"))
 	f.Add([]byte("secret-password-in-malformed-input"))
+	f.Add([]byte("p")) // A short input can occur inside a fixed public error message.
 	f.Fuzz(func(t *testing.T, input []byte) {
 		_, err := Inspect(input)
-		if err != nil && bytes.Contains([]byte(err.Error()), input) && len(input) > 0 {
-			t.Fatal("input echoed in error")
+		// Inspect must return only these exact, public sentinels. Looking for
+		// arbitrary input substrings in the error yields false positives for
+		// short inputs that happen to occur in a fixed error message.
+		if err != nil && err != ErrInvalid && err != ErrInputPasswordRequired {
+			t.Fatal("inspection returned a non-public error")
 		}
 	})
 }
