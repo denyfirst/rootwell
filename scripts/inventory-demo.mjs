@@ -36,7 +36,17 @@ const records = [
     not_before: instant(-30), not_after: instant(180), owner: "Demo operations", location: "demo/haproxy",
     locations: ["demo/haproxy", "demo/fortinet"], import_generation: 4, imported_at: instant(-10) }
 ];
-const fixture = JSON.stringify({ generation: 4, verification: "not-performed", records });
+function fixture() {
+  const checkedAt = instant(0);
+  const now = Date.parse(checkedAt);
+  return JSON.stringify({ generation: 4, verification: "not-performed",
+    monitoring: { checked_at: checkedAt, clock_source: "server-clock", refresh_after_seconds: 60 },
+    records: records.map(record => {
+      const seconds = (Date.parse(record.not_after) - now) / 1000;
+      const status = seconds <= 0 ? "expired" : seconds <= 30*86400 ? "soon" : seconds <= 90*86400 ? "medium" : "later";
+      return { ...record, expiry: { status, days_left: seconds > 0 ? Math.ceil(seconds/86400) : Math.trunc(seconds/86400) } };
+    }) });
+}
 const assets = new Map([
   ["/inventory", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
@@ -52,7 +62,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.method === "GET" && request.url === "/api/inventory" && request.headers["x-rootwell-request"] === "1") {
-    response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(fixture);
+    response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(fixture());
     return;
   }
   const selected = request.method === "GET" ? assets.get(request.url) : null;

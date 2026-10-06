@@ -808,7 +808,7 @@ Guarded by `TestRenameAndRemoveLocationPreserveCertificateAndUnknownState`,
 `TestLocationChangeInputRequiresExactActionAndFields`, `TestContainerVolumeDrill`,
 and `scripts/test-rootwelld-inventory.mjs`.
 
-## C52 — Expiry triage is a local, untrusted-clock view, not automation
+## C52 — Expiry triage is a local view, not a trust verdict
 
 The saved public inventory response is fully validated before local-only
 priority sorting, text search, and expiry or missing-note filters. At the exact
@@ -816,9 +816,10 @@ NotAfter instant the certificate is expired. Counts include all records even
 when filtered; the shown count states the distinction. Filtering neither
 transmits metadata nor rereads selected files, stores search terms, changes
 the encrypted image, or opens a correction panel for a stale selection. The
-browser clock is displayed with an explicit warning, and next-action text
-does not claim verified deployment, trust, notification, or renewal. An
-incorrect device clock remains a residual risk.
+original browser-clock view is superseded by one server-clock observation
+(ADR 0041, C64). Search and filters remain browser-memory-only. Next-action
+text does not claim verified deployment, trust or renewal. Incorrect clocks
+remain a residual risk; reminders are page-only, not guaranteed delivery.
 
 Guarded by `scripts/test-rootwelld-inventory.mjs`.
 
@@ -1076,3 +1077,30 @@ Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,
 `TestWorkbenchHasNoNetworkOrProcessImports`, plus
 `scripts/test-browser-csr.mjs`, `scripts/test-workbench-csr-ui.mjs` and
 `scripts/test-workbench-csr-worker.mjs`.
+
+## C64 — Saved-certificate reminders bind one server instant and fail visibly
+
+After ready-session/revision/image authentication, inventory reads derive
+date-only expiry from one UTC whole-second server instant. Reads do not change
+generation or ciphertext. Exact NotAfter is expired; malformed or zero/reversed
+ranges are invalid; long dates cannot saturate a duration. The API still omits
+certificate bytes and explicitly says verification was not performed.
+
+The page validates the whole response and agreement of every expiry field
+before rendering. Missing/inconsistent metadata, malformed UTF-8/JSON, more
+than 4 MiB, read timeout or refused authentication clears cards and pauses
+automatic retries. Visible-page reads are minute-spaced and do not extend a
+session or interrupt pending edits. Hidden/pagehide views clear metadata,
+abort reads, discard late results and stop timers; BFCache return reauthenticates.
+At 120 seconds the snapshot is stale, including during disabled refresh or an
+open editor. Clock disagreement is warned about, never silently corrected.
+7/14/30/90-day windows are local ephemeral views; expired/invalid/future records
+always need attention. Reminder counts cover the entire snapshot, not only
+the current search. There is no secret custody, outbound notification,
+guaranteed closed-page alert, discovery, trust, renewal or Porch change.
+
+Guarded by `TestObserveExpiryExactBoundariesAndNoTrust`,
+`TestObserveExpiryRejectsMalformedAndHandlesLongDates`,
+`TestInventoryMonitoringBindsOneServerClockAndNeverMutates`,
+`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
+`scripts/test-rootwelld-inventory.mjs` and `scripts/test-inventory-demo.mjs`.

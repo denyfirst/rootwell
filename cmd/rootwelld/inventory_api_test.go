@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
@@ -45,10 +47,41 @@ func TestInventoryInputRejectsDuplicateUnknownAndOversizedJSON(t *testing.T) {
 
 func TestInventoryOutputNeverSerializesCertificateBytes(t *testing.T) {
 	w := httptest.NewRecorder()
-	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{{Fingerprint: "fingerprint", DER: []byte("secret-certificate-source-bytes"), Subject: "subject", Locations: []string{"one", "two"}, ImportGeneration: 2}}, 3)
+	(&gate{now: time.Now}).writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{{Fingerprint: "fingerprint", DER: []byte("secret-certificate-source-bytes"), Subject: "subject", Locations: []string{"one", "two"}, ImportGeneration: 2}}, 3)
 	if w.Code != http.StatusOK || bytes.Contains(w.Body.Bytes(), []byte("secret-certificate-source-bytes")) ||
 		!strings.Contains(w.Body.String(), `"verification":"not-performed"`) || !strings.Contains(w.Body.String(), `"locations":["one","two"]`) {
 		t.Fatal("inventory response leaked DER or misreported verification")
+	}
+}
+
+func TestInventoryMonitoringBindsOneServerClockAndNeverMutates(t *testing.T) {
+	now := time.Date(2026, 10, 6, 12, 0, 0, 999, time.FixedZone("test", 3600))
+	r := publicinventory.Record{Fingerprint: "one", NotBefore: "2026-01-01T00:00:00Z", NotAfter: "2026-10-18T11:00:00Z", DER: []byte("not-for-output")}
+	calls := 0
+	g := &gate{now: func() time.Time { calls++; return now }}
+	w := httptest.NewRecorder()
+	g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{r, r}, 5)
+	var data inventoryOutput
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 || data.Monitoring.CheckedAt != "2026-10-06T11:00:00Z" || data.Monitoring.ClockSource != "server-clock" ||
+		data.Monitoring.RefreshAfterSeconds != 60 || data.Generation != 5 || data.Verification != "not-performed" || len(data.Records) != 2 {
+		t.Fatal("monitoring did not bind one public, non-verifying snapshot")
+	}
+	for _, item := range data.Records {
+		if item.Expiry.Status != "soon" || item.Expiry.DaysLeft == nil || *item.Expiry.DaysLeft != 12 {
+			t.Fatal("wrong server-based expiry")
+		}
+	}
+	if string(r.DER) != "not-for-output" || bytes.Contains(w.Body.Bytes(), r.DER) {
+		t.Fatal("monitoring changed or disclosed certificate source")
+	}
+	g.now = func() time.Time { return time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC) }
+	w = httptest.NewRecorder()
+	g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{r}, 5)
+	if w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), "one") {
+		t.Fatal("invalid clock released metadata")
 	}
 }
 

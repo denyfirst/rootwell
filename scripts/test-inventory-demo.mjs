@@ -30,6 +30,11 @@ try {
   assert.equal(inventory.status, 200);
   const result = await inventory.json();
   assert.equal(result.verification, "not-performed");
+  assert.equal(result.monitoring.clock_source,"server-clock");
+  assert.equal(result.monitoring.refresh_after_seconds,60);
+  assert.ok(Number.isFinite(Date.parse(result.monitoring.checked_at)));
+  assert.deepEqual(result.records.map(record => record.expiry.status),["expired","soon","later"]);
+  assert.equal(result.records[1].expiry.days_left,12);
   assert.equal(result.records.length, 3);
   assert.ok(result.records.every(record => record.subject.includes("demo-") && !Object.hasOwn(record, "der")));
   assert.equal((await fetch(origin + "/api/inventory")).status, 404);

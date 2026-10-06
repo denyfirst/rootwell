@@ -14,6 +14,9 @@
   const clockAsOf = document.getElementById("clock-as-of");
   const expiryFilter = document.getElementById("expiry-filter");
   const inventorySearch = document.getElementById("inventory-search");
+  const monitorSummary = document.getElementById("monitor-summary");
+  const warningDays = document.getElementById("warning-days");
+  const autoRefresh = document.getElementById("auto-refresh");
   const locationPanel = document.getElementById("location-panel");
   const locationForm = document.getElementById("location-form");
   const locationTarget = document.getElementById("location-target");
@@ -61,6 +64,13 @@
   let originalOwner = null;
   let displayedGeneration = 0;
   let loadedRecords = [];
+  let checkedAt = null;
+  let receivedAt = null;
+  let receivedWall = null;
+  let refreshController = null;
+  let timer = null;
+  let refreshing = false;
+  let automaticPaused = false;
 
   function validLabel(value) {
     return encoder.encode(value).length <= 128 && value.trim() === value &&
@@ -84,13 +94,40 @@
   function expiryState(record, now) {
     const start = safeDate(record.not_before);
     const end = safeDate(record.not_after);
-    if (start === null || end === null || start > end) return { name: "Invalid date range", group: "invalid" };
-    if (now < start) return { name: "Not yet valid", group: "future" };
-    if (now >= end) return { name: "Expired", group: "expired" };
+    if (start === null || end === null || start >= end) return { name: "Check certificate dates", group: "invalid" };
+    const daysLeft = Math.ceil((end - now) / 86400000);
+    if (now >= end) return { name: "Expired", group: "expired", daysLeft: Math.trunc((end - now) / 86400000) };
+    if (now < start) return { name: "Not yet valid", group: "future", daysLeft };
     const days = (end - now) / 86400000;
-    if (days <= 30) return { name: "Expires within 30 days", group: "soon" };
-    if (days <= 90) return { name: "Expires after 30 days, within 90 days", group: "medium" };
-    return { name: "More than 90 days left", group: "later" };
+    const name = days < 1 ? "Less than 1 day left" : daysLeft + " days left";
+    if (days <= 30) return { name, group: "soon", daysLeft };
+    if (days <= 90) return { name, group: "medium", daysLeft };
+    return { name, group: "later", daysLeft };
+  }
+
+  function reminder(record) {
+    return ["invalid", "expired", "future"].includes(record.expiry.status || record.expiry.group) ||
+      (record.expiry.days_left ?? record.expiry.daysLeft) <= Number(warningDays.value);
+  }
+
+  function snapshotAge() {
+    if (receivedAt === null || receivedWall === null) return Infinity;
+    const elapsed = performance.now() - receivedAt;
+    const wall = Date.now() - receivedWall;
+    return !Number.isFinite(elapsed) || !Number.isFinite(wall) || elapsed < 0 || wall < 0 ? Infinity : Math.max(elapsed, wall);
+  }
+
+  function updateMonitor() {
+    if (checkedAt === null || !displayedGeneration || document.hidden) return;
+    if (snapshotAge() >= 120000) {
+      monitorSummary.textContent = "This list is out of date. Refresh before using its expiry reminders.";
+      monitorSummary.className = "monitor-summary stale";
+      return;
+    }
+    const attention = loadedRecords.filter(reminder).length;
+    monitorSummary.textContent = attention ? attention + " certificate(s) need attention. Plan replacement with the owner or issuer." :
+      "No expiry reminders within " + warningDays.value + " days. This is not a certificate trust check.";
+    monitorSummary.className = attention ? "monitor-summary" : "monitor-summary clear";
   }
 
   function addText(parent, tag, value, className) {
@@ -102,10 +139,13 @@
 
   function render(data) {
     if (!data || !Number.isSafeInteger(data.generation) || data.generation < 1 ||
-        !Array.isArray(data.records) || data.records.length > 500 || data.verification !== "not-performed") {
+        !Array.isArray(data.records) || data.records.length > 500 || data.verification !== "not-performed" ||
+        !data.monitoring || data.monitoring.clock_source !== "server-clock" ||
+        data.monitoring.refresh_after_seconds !== 60 || safeDate(data.monitoring.checked_at) === null) {
       throw new Error("Inventory response was not recognized");
     }
     const records = data.records.slice();
+    const serverNow = safeDate(data.monitoring.checked_at);
     const fingerprints = new Set();
     for (const record of records) {
       if (!record || typeof record.fingerprint !== "string" || record.fingerprint.length > 128 ||
@@ -125,7 +165,16 @@
         throw new Error("Inventory locations were not recognized");
       }
       fingerprints.add(record.fingerprint);
+      const expected = expiryState(record, serverNow);
+      if (!record.expiry || record.expiry.status !== expected.group ||
+          record.expiry.days_left !== expected.daysLeft ||
+          (record.expiry.days_left !== undefined && !Number.isSafeInteger(record.expiry.days_left))) {
+        throw new Error("Expiry response was not recognized; refresh before acting");
+      }
     }
+    checkedAt = serverNow;
+    receivedAt = performance.now();
+    receivedWall = Date.now();
     loadedRecords = records;
     displayedGeneration = data.generation;
     selectedFingerprint = null;
@@ -146,9 +195,11 @@
 
   function draw() {
     if (!displayedGeneration) return;
-    const now = Date.now();
-    clockAsOf.textContent = "Calculated as of this browser’s clock: " + new Date(now).toISOString() +
-      ". Check this device’s time before acting. This page does not alert or renew certificates.";
+    const now = checkedAt;
+    const differs = Math.abs(Date.now() - now) > 300000;
+    clockAsOf.textContent = "Checked at " + new Date(now).toISOString() + " · Rootwell server clock." +
+      (differs ? " Your device and server times differ by over 5 minutes; check both clocks." : "") +
+      " Reminders are page-only; no automatic renewal or live server check.";
     const records = loadedRecords.map(record => ({ ...record, expiry: expiryState(record, now) }));
     const rank = { invalid: 0, expired: 1, soon: 2, medium: 3, future: 4, later: 5 };
     records.sort((a, b) => rank[a.expiry.group] - rank[b.expiry.group] ||
@@ -156,14 +207,12 @@
       a.fingerprint.localeCompare(b.fingerprint));
     list.replaceChildren();
     counts.replaceChildren();
-    const totals = { expired: 0, soon: 0, medium: 0, later: 0, future: 0, invalid: 0 };
     const filter = expiryFilter.value || "all";
     const query = inventorySearch.value.trim().toLocaleLowerCase();
     let shown = 0;
     for (const record of records) {
-      totals[record.expiry.group]++;
       if (filter !== "all" && filter !== record.expiry.group &&
-          !(filter === "attention" && ["invalid", "expired", "soon", "future"].includes(record.expiry.group)) &&
+          !(filter === "attention" && reminder(record)) &&
           !(filter === "missing-owner" && !record.owner) &&
           !(filter === "missing-location" && !record.locations.length)) continue;
       if (query && ![record.subject, record.fingerprint, record.owner, ...record.locations]
@@ -179,14 +228,14 @@
       details.className = "record-details";
       addText(details, "summary", "Details and manage");
       const guidance = {
-        invalid: "Next: check the imported certificate dates and your browser clock; do not use this status as a trust verdict.",
+        invalid: "Next: check the imported certificate dates and server clock; this is not a trust verdict.",
         expired: "Next: identify the owner and deployment, then arrange replacement outside Rootwell; this record is not renewed automatically.",
         soon: "Next: confirm the actual deployment and arrange renewal with its issuer before expiry.",
         medium: "Next: plan renewal with the owner and confirm the real deployment.",
-        future: "Next: check the browser clock and certificate validity start before deployment.",
+        future: "Next: check the server clock and certificate validity start before deployment.",
         later: "Next: keep ownership and location notes current; deployment is not verified."
       };
-      addText(details, "small", guidance[record.expiry.group], "next-action");
+      addText(item, "small", guidance[record.expiry.group], "next-action");
       if (record.imported_at) addText(details,"small","Saved at (server clock): " + record.imported_at);
       addText(details, "small", "The listed servers are your notes; deployment has not been checked.");
       addText(details, "small", "SHA-256: " + record.fingerprint);
@@ -285,20 +334,33 @@
       list.appendChild(item);
     }
     addText(counts, "span", "Total: " + records.length);
-    addText(counts, "span", "Needs attention: " + (totals.invalid + totals.expired + totals.soon + totals.future));
+    addText(counts, "span", "Needs attention: " + loadedRecords.filter(reminder).length);
     const unknownOwners = records.filter(record => !record.owner).length;
     const unknownLocations = records.filter(record => !record.locations.length).length;
     addText(counts, "span", "No owner note: " + unknownOwners);
     addText(counts, "span", "No server note: " + unknownLocations);
     listStatus.textContent = records.length ? shown + " of " + records.length + " saved public certificate(s) shown" :
       "No certificates saved yet. This is not a trust store.";
+    updateMonitor();
   }
 
   async function refresh() {
+    if (refreshing || document.hidden) return false;
+    refreshing = true;
+    automaticPaused = false;
     const serial = ++loadSerial;
+    const controller = new AbortController();
+    refreshController = controller;
+    const deadline = setTimeout(() => controller.abort(), 10000);
     refreshButton.disabled = true;
     displayedGeneration = 0;
     loadedRecords = [];
+    checkedAt = null;
+    receivedAt = null;
+    receivedWall = null;
+    list.replaceChildren();
+    counts.replaceChildren();
+    monitorSummary.textContent = "Checking saved certificate dates…";
     clockAsOf.textContent = "";
     selectedFingerprint = null;
     selectedOwnerFingerprint = null;
@@ -313,23 +375,68 @@
     listStatus.textContent = "Reading encrypted inventory…";
     try {
       const response = await fetch("/api/inventory", { method: "GET", credentials: "same-origin", cache: "no-store",
-        headers: { "X-Rootwell-Request": "1" } });
+        headers: { "X-Rootwell-Request": "1" }, signal: controller.signal });
       if (serial !== loadSerial) return;
       if (!response.ok) {
-        const message = (await response.text()).trim().slice(0, 240);
-        throw new Error(message || "Inventory could not be opened");
+        const messages = {
+          401: "Sign in again to see saved certificates.",
+          403: "Finish setup or reopen this page from your Rootwell installation.",
+          409: "Inventory is not initialized or the installation changed. Check setup before retrying.",
+          501: "Saved inventory requires the supported Linux installation; native Windows storage is not enabled.",
+          503: "Encrypted inventory is unavailable. Check storage and server time before retrying."
+        };
+        throw new Error(messages[response.status] || "Inventory could not be opened; refresh before acting.");
       }
-      render(await response.json());
+      const data = await readBoundedJSON(response, controller.signal);
+      if (serial !== loadSerial || controller.signal.aborted || document.hidden) return false;
+      render(data);
       return true;
     } catch (error) {
       if (serial !== loadSerial) return;
+      displayedGeneration = 0;
+      loadedRecords = [];
+      checkedAt = null;
       list.replaceChildren();
       counts.replaceChildren();
       clockAsOf.textContent = "";
+      automaticPaused = true;
+      monitorSummary.textContent = "Expiry reminders unavailable. Sign in if needed, then refresh. No current result is shown.";
+      monitorSummary.className = "monitor-summary stale";
       listStatus.textContent = error instanceof Error ? error.message : "Inventory could not be opened";
       return false;
     } finally {
-      if (serial === loadSerial) refreshButton.disabled = false;
+      clearTimeout(deadline);
+      controller.abort();
+      if (serial === loadSerial) {
+        refreshButton.disabled = false;
+        refreshing = false;
+        refreshController = null;
+      }
+    }
+  }
+
+  async function readBoundedJSON(response, signal) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Inventory response unavailable");
+    const chunks = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (signal.aborted) throw new Error("Inventory refresh timed out");
+        if (done) break;
+        size += value.byteLength;
+        if (size > 4 * 1024 * 1024) throw new Error("Inventory response exceeds the page limit");
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+      catch { throw new Error("Inventory response was not recognized"); }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
     }
   }
 
@@ -570,6 +677,56 @@
   }
   expiryFilter.addEventListener("change", changeView);
   inventorySearch.addEventListener("input", changeView);
+  warningDays.addEventListener("change", function () {
+    if (!["7", "14", "30", "90"].includes(warningDays.value)) warningDays.value = "30";
+    changeView();
+  });
+
+  function tick() {
+    clearTimeout(timer);
+    if (document.hidden) return;
+    updateMonitor();
+    const editing = saving || associating || editingOwner || changingLocation || deleting ||
+      !locationPanel.hidden || !ownerPanel.hidden || !locationManagePanel.hidden || !deletePanel.hidden ||
+      document.querySelector(".record-details[open]") !== null;
+    if (autoRefresh.checked && !automaticPaused && !refreshing && !editing && snapshotAge() >= 60000) {
+      void refresh();
+    }
+    timer = setTimeout(tick, 15000);
+  }
+  function suspend() {
+    clearTimeout(timer);
+    ++loadSerial;
+    refreshController?.abort();
+    refreshController = null;
+    refreshing = false;
+    refreshButton.disabled = false;
+    displayedGeneration = 0;
+    loadedRecords = [];
+    checkedAt = null;
+    receivedAt = null;
+    receivedWall = null;
+    selectedFingerprint = selectedOwnerFingerprint = selectedManageFingerprint = selectedDeleteFingerprint = null;
+    selectedManageLocations = [];
+    originalOwner = null;
+    list.replaceChildren();
+    counts.replaceChildren();
+    clockAsOf.textContent = "";
+    locationPanel.hidden = ownerPanel.hidden = locationManagePanel.hidden = deletePanel.hidden = true;
+    for (const target of [locationTarget, ownerTarget, locationManageTarget, deleteTarget, locationStatus, ownerStatus, locationManageStatus, deleteStatus]) target.textContent = "";
+    for (const input of [newLocation, newOwner, replacementLocation, deleteFingerprint, ownerInput, locationInput, inventorySearch, fileInput]) input.value = "";
+    oldLocation.replaceChildren();
+    confirmRemove.checked = confirmDelete.checked = false;
+    monitorSummary.textContent = "Monitoring paused while this page is hidden. Refresh on return.";
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) suspend();
+    else { if (!saving && !associating && !editingOwner && !changingLocation && !deleting) void refresh(); tick(); }
+  });
+  window.addEventListener("pagehide", suspend);
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted && !document.hidden) { void refresh(); tick(); }
+  });
   deleteForm.addEventListener("submit", async function (event) {
     event.preventDefault();
     if (deleting || saving || associating || editingOwner || changingLocation || !selectedDeleteFingerprint || !displayedGeneration) return;
@@ -621,4 +778,5 @@
     deletePanel.hidden = true;
   });
   refresh();
+  tick();
 }());
