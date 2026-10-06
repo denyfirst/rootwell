@@ -236,6 +236,35 @@
         later: "Next: keep ownership and location notes current; deployment is not verified."
       };
       addText(item, "small", guidance[record.expiry.group], "next-action");
+      const openForm = document.createElement("form");
+      openForm.method = "post";
+      openForm.action = "/workbench";
+      openForm.className = "workbench-actions";
+      for (const [name, value] of [["fingerprint", record.fingerprint], ["expected_generation", String(displayedGeneration)]]) {
+        const field = document.createElement("input");
+        field.type = "hidden";
+        field.name = name;
+        field.value = value;
+        openForm.appendChild(field);
+      }
+      for (const [tool, label] of [["inspect", "Inspect"], ["verify", "Verify"]]) {
+        const button = document.createElement("button");
+        button.type = "submit";
+        button.name = "tool";
+        button.value = tool;
+        button.textContent = label;
+        button.className = "secondary";
+        openForm.appendChild(button);
+      }
+      const snapshotGeneration = displayedGeneration;
+      openForm.addEventListener("submit", function (event) {
+        if (saving || associating || editingOwner || changingLocation || deleting ||
+            displayedGeneration !== snapshotGeneration || document.hidden) {
+          event.preventDefault();
+          listStatus.textContent = "Finish the pending change, then refresh before opening a saved certificate.";
+        }
+      });
+      item.appendChild(openForm);
       if (record.imported_at) addText(details,"small","Saved at (server clock): " + record.imported_at);
       addText(details, "small", "The listed servers are your notes; deployment has not been checked.");
       addText(details, "small", "SHA-256: " + record.fingerprint);

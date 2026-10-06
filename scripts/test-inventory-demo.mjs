@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import http from "node:http";
 
 const child = spawn(process.execPath, [fileURLToPath(new URL("./inventory-demo.mjs", import.meta.url)), "--fixture-only", "--port", "0"],
   { stdio: ["ignore", "pipe", "pipe"] });
@@ -33,10 +34,26 @@ try {
   assert.equal(result.monitoring.clock_source,"server-clock");
   assert.equal(result.monitoring.refresh_after_seconds,60);
   assert.ok(Number.isFinite(Date.parse(result.monitoring.checked_at)));
-  assert.deepEqual(result.records.map(record => record.expiry.status),["expired","soon","later"]);
+  assert.deepEqual(result.records.slice(0,3).map(record => record.expiry.status),["expired","soon","later"]);
   assert.equal(result.records[1].expiry.days_left,12);
-  assert.equal(result.records.length, 3);
-  assert.ok(result.records.every(record => record.subject.includes("demo-") && !Object.hasOwn(record, "der")));
+  assert.equal(result.records.length, 4);
+  assert.ok(result.records.slice(0,3).every(record => record.subject.includes("demo-")));
+  assert.ok(result.records.every(record => !Object.hasOwn(record,"der")));
+  assert.match(result.records[3].subject,/verify.rootwell.invalid/);
+  const selection=new URLSearchParams({fingerprint:result.records[3].fingerprint,expected_generation:"5",tool:"inspect"});
+  // fetch correctly forces Sec-Fetch-Mode:cors; model a browser navigation
+  // explicitly here. The real form is exercised separately in the browser.
+  const navigation=await new Promise((resolve,reject)=>{
+    const request=http.request(origin+"/workbench",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded",
+      Origin:origin,"Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-Dest":"document"}},response=>{
+      let text=""; response.on("data",chunk=>{text+=chunk;}); response.on("end",()=>resolve({status:response.statusCode,text}));
+    });
+    request.on("error",reject); request.end(selection.toString());
+  });
+  assert.equal(navigation.status,200);
+  assert.match(navigation.text,/rootwell.inventory.workbench.v1/);
+  assert.equal((await fetch(origin+"/workbench")).status,404);
+  assert.equal((await fetch(origin+"/workbench",{method:"POST",body:selection.toString()})).status,403);
   assert.equal((await fetch(origin + "/api/inventory")).status, 404);
   assert.equal((await fetch(origin + "/api/inventory", { method: "POST", body: "never save" })).status, 405);
   assert.equal((await fetch(origin + "/../docs/ENGINEERING.md")).status, 404);

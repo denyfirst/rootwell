@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -17,6 +18,120 @@ import (
 )
 
 const maxInventoryRequest = 22 << 20 // base64-wrapped maximum 16 MiB public input
+
+// Native same-tab navigation accepts only identity, generation and destination,
+// never certificate input. No Workbench network or browser-storage capability.
+func (g *gate) inventoryWorkbenchEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if !signedIn {
+		http.Error(w, "sign in first", http.StatusUnauthorized)
+		return
+	}
+	if s.setup {
+		http.Error(w, "change the setup password first", http.StatusForbidden)
+		return
+	}
+	if runtime.GOOS != "linux" {
+		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
+		return
+	}
+	if !s.inventoryReady {
+		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+		return
+	}
+	// Native forms cannot set the JSON API header. Exact Origin AND browser
+	// navigation metadata are mandatory here; absent metadata fails closed.
+	if r.Header.Get("Origin") != "http://"+g.host || r.Header.Get("Sec-Fetch-Site") != "same-origin" ||
+		r.Header.Get("Sec-Fetch-Mode") != "navigate" || r.Header.Get("Sec-Fetch-Dest") != "document" {
+		http.Error(w, "request origin refused", http.StatusForbidden)
+		return
+	}
+	fingerprint, generation, tool, ok := readWorkbenchSelection(w, r)
+	if !ok {
+		return
+	}
+	records, actual, err := instanceaccess.ReadInventory(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	if err != nil {
+		inventoryError(w, err)
+		return
+	}
+	if actual != generation {
+		http.Error(w, "inventory changed; return to Saved certificates and refresh", http.StatusConflict)
+		return
+	}
+	for _, record := range records {
+		if record.Fingerprint == fingerprint {
+			g.writeInventoryWorkbench(w, record, tool)
+			return
+		}
+	}
+	http.Error(w, "certificate no longer saved; return to Saved certificates and refresh", http.StatusConflict)
+}
+
+func readWorkbenchSelection(w http.ResponseWriter, r *http.Request) (string, uint64, string, bool) {
+	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || media != "application/x-www-form-urlencoded" {
+		http.Error(w, "form body required", http.StatusUnsupportedMediaType)
+		return "", 0, "", false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+	if r.ParseForm() != nil || len(r.PostForm) != 3 || len(r.PostForm["fingerprint"]) != 1 ||
+		len(r.PostForm["expected_generation"]) != 1 || len(r.PostForm["tool"]) != 1 {
+		http.Error(w, "invalid selection", http.StatusBadRequest)
+		return "", 0, "", false
+	}
+	fingerprint, rawGeneration, tool := r.PostForm.Get("fingerprint"), r.PostForm.Get("expected_generation"), r.PostForm.Get("tool")
+	generation, err := strconv.ParseUint(rawGeneration, 10, 64)
+	validFingerprint := len(fingerprint) == 95
+	for i, c := range fingerprint {
+		if i%3 == 2 {
+			validFingerprint = validFingerprint && c == ':'
+		} else {
+			validFingerprint = validFingerprint && (c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
+		}
+	}
+	if err != nil || generation == 0 || generation > 9007199254740991 || strconv.FormatUint(generation, 10) != rawGeneration ||
+		!validFingerprint || (tool != "inspect" && tool != "verify") {
+		http.Error(w, "invalid selection", http.StatusBadRequest)
+		return "", 0, "", false
+	}
+	return fingerprint, generation, tool, true
+}
+
+const inventoryWorkbenchMarker = `<div id="inventory-source" hidden></div>`
+
+func (g *gate) writeInventoryWorkbench(w http.ResponseWriter, record publicinventory.Record, tool string) {
+	f, err := g.assets.Open("index.html")
+	if err != nil {
+		http.Error(w, "workbench unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer f.Close()
+	body, err := io.ReadAll(io.LimitReader(f, (1<<20)+1))
+	if err != nil || len(body) > 1<<20 || bytes.Count(body, []byte(inventoryWorkbenchMarker)) != 1 ||
+		len(record.DER) == 0 || len(record.DER) > 64<<10 {
+		http.Error(w, "workbench unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	// HTML-escaped JSON in inert text, never a script. No owner/location notes,
+	// trust, credential or private-key fields. Browser reparses public identity.
+	payload, err := json.Marshal(struct {
+		Schema      string `json:"schema_version"`
+		Fingerprint string `json:"fingerprint"`
+		DER         []byte `json:"der"`
+		Tool        string `json:"tool"`
+	}{"rootwell.inventory.workbench.v1", record.Fingerprint, record.DER, tool})
+	if err != nil {
+		http.Error(w, "workbench unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	body = bytes.Replace(body, []byte(inventoryWorkbenchMarker), []byte(`<div id="inventory-source" hidden>`+string(payload)+`</div>`), 1)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(body)
+}
 
 type inventoryInput struct {
 	Certificate []byte

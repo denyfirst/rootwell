@@ -151,6 +151,21 @@ Returning authenticates again. There is no new background scheduler, private
 key storage, email/webhook, endpoint scan or automatic renewal. A closed page
 cannot notify the operator. See [ADR 0041](adr/0041-server-clock-inventory-reminders.md).
 
+## Explicit Workbench opening (ADR 0042)
+
+Inventory card Inspect/Verify buttons send only an exact public fingerprint,
+displayed generation and destination via native same-tab POST. This route has
+mandatory same-origin navigation metadata instead of the JSON custom header;
+the ready revision-bound Linux session and complete-image authentication are
+unchanged. Only one public DER enters an inert, no-store Workbench response;
+notes/keys/credentials do not. Workbench consumes it in memory and reparses its
+identity before rendering, without acquiring network or storage capabilities.
+Stale selection, malformed form, missing metadata, anonymous/setup access and
+unsupported platforms release no source. Explicit issuer additions do not
+select trust. Already-open snapshots are local copies, not server-revocable
+objects; browser/OS memory/history erasure is not promised. See
+[ADR 0042](adr/0042-explicit-inventory-workbench-handoff.md).
+
 An operator-controlled filesystem or browser process can still inspect
 plaintext in memory while Rootwell is unlocked. Encryption at rest does not
 protect a fully compromised host. Automatic deletion is not part of the

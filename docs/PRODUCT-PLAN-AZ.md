@@ -358,6 +358,11 @@ deployment üçün müstəqil xarici verification məhsulu olaraq qalır.
 
 **Məqsəd:** əvvəl metadata-nı mərkəzləşdirmək; private key custody-ni yox.
 
+ADR 0042 saxlanmış public sertifikatı kartdan Inspect/Verify-a açır: exact
+snapshot/fingerprint, yalnız public DER, yaddaşdaxili Workbench processing.
+İkinci converter/export yeri və automatic trust yoxdur; issuer faylları açıq
+əlavə oluna bilər, etibarlı root və sayt adı ayrıca tələb olunur.
+
 ADR 0041 mövcud Linux public Inventory-yə server saatı ilə qalan günləri,
 7/14/30/90 günlük səhifədaxili xatırlatmaları, görünən səhifədə məhdud
 yenilənməni və köhnəlmiş nəticə/saat fərqi xəbərdarlığını əlavə edir. Bu,
