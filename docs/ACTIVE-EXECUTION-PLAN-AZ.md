@@ -185,16 +185,21 @@ sərhəd sübut edildikdən sonra keçirik.
 
 Mövcud şifrəli public Inventory üzərində server saatına əsaslanan vahid expiry
 hesablaması, oxunaqlı qalan günlər, 7/14/30/90 günlük tətbiqdaxili xatırlatma
-seçimi və görünən səhifədə məhdud avtomatik yenilənmə hazırlanır. Köhnəlmiş
+seçimi və görünən səhifədə məhdud avtomatik yenilənmə tamamlanıb. Köhnəlmiş
 nəticə, saat fərqi, giriş/şəbəkə xətası aydın göstərilir; yanlış nəticə kartları
 saxlanmır. Bu fonda bildiriş xidməti deyil: səhifə bağlı olanda xəbərdarlıq
 göndərilmir. Preference və axtarış yaddaşda qalır, serverdə key və alert bazası
 yaradılmır. Qəbul meyarları və testlər ADR 0041/C64-dədir.
 
-Sonrakı ayrıca increment: saxlanmış public sertifikatın istifadəçinin klikiylə
-Inspect/Verify-a təhlükəsiz ötürülməsi; URL, browser storage və ya duplicate
-convert/export UI yaratmadan. Bu handoff indiki monitoring increment-inə
-daxil deyil. Müstəqil trust/root yenə istifadəçi tərəfindən seçilməlidir.
+### Saxlanmış sertifikatı açmaq — ADR 0042
+
+Inventory kartında Inspect/Verify düymələri yalnız həmin public sertifikatı
+Workbench-ə açır; URL, application browser storage, popup və ikinci convert/
+export UI yoxdur. Seçilən generation/fingerprint serverdə yoxlanır, DER browser
+nüvəsində yenidən açılır və kimliyi müqayisə edilir. Köhnə/uyğunsuz seçim rədd
+olur. Verify üçün sayt adı və müstəqil trust/root yenə ayrıca seçilir;
+CA-nın verdiyi issuer fayllarını istəyə bağlı əlavə etmək olur. Bu, chain,
+deployment və ya revocation-u avtomatik təsdiqləmir. Qəbul meyarları ADR 0042/C65.
 
 Canlı endpoint discovery, Porch nəticələrinin importu və xarici alert-lər ayrıca
 network/evidence/operational threat model-dən sonra gəlir. ACME, PFX/private

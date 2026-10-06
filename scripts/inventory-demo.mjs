@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import http from "node:http";
+import { X509Certificate } from "node:crypto";
 
 if (process.argv[2] !== "--fixture-only" ||
     (process.argv.length !== 3 && !(process.argv.length === 5 && process.argv[3] === "--port" && /^(0|[1-9]\d{0,4})$/.test(process.argv[4]) && Number(process.argv[4]) <= 65535))) {
@@ -36,10 +37,17 @@ const records = [
     not_before: instant(-30), not_after: instant(180), owner: "Demo operations", location: "demo/haproxy",
     locations: ["demo/haproxy", "demo/fortinet"], import_generation: 4, imported_at: instant(-10) }
 ];
+const demoLeaf = new X509Certificate(readFileSync(new URL("../web/workbench/rootwell-verify-demo-leaf.pem", import.meta.url)));
+records.push({ fingerprint: demoLeaf.fingerprint256, subject: demoLeaf.subject, issuer: demoLeaf.issuer,
+  dns_names: ["verify.rootwell.invalid"], not_before: new Date(demoLeaf.validFrom).toISOString().slice(0,19)+"Z",
+  not_after: new Date(demoLeaf.validTo).toISOString().slice(0,19)+"Z", owner: "Synthetic public certificate",
+  location: "", locations: [], import_generation: 5, imported_at: instant(-1) });
+script = replaceOnce(script, "openForm.appendChild(button);",
+  `button.disabled = record.fingerprint !== ${JSON.stringify(demoLeaf.fingerprint256)}; openForm.appendChild(button);`);
 function fixture() {
   const checkedAt = instant(0);
   const now = Date.parse(checkedAt);
-  return JSON.stringify({ generation: 4, verification: "not-performed",
+  return JSON.stringify({ generation: 5, verification: "not-performed",
     monitoring: { checked_at: checkedAt, clock_source: "server-clock", refresh_after_seconds: 60 },
     records: records.map(record => {
       const seconds = (Date.parse(record.not_after) - now) / 1000;
@@ -52,11 +60,41 @@ const assets = new Map([
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
   ["/inventory.js", ["text/javascript; charset=utf-8", script]]
 ]);
+const workbenchTypes = new Map([
+  ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
+  ...["app.js","wasm-loader.js","wasm_exec.js","theme.js","secret-view.js","private-key.js","private-worker-client.js",
+    "private-key-worker.js","pfx.js","pfx-worker-client.js","pfx-worker.js","csr.js","csr-worker-client.js","csr-worker.js"].map(name=>[name,"text/javascript; charset=utf-8"]),
+  ...["rootwell-demo-certificate.pem","rootwell-demo-bundle.pem","rootwell-verify-demo-leaf.pem","rootwell-verify-demo-intermediate.pem",
+    "rootwell-verify-demo-root.pem","rootwell-verify-demo-ca-files.pem"].map(name=>[name,"application/x-pem-file"])
+]);
+const workbenchHTML = () => readFileSync(new URL("../web/workbench/index.html",import.meta.url),"utf8");
 const server = http.createServer((request, response) => {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("Referrer-Policy", "no-referrer");
-  response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'");
+  response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
+  response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (request.url === "/inventory" ? "'self'" : "'none'") + "; frame-ancestors 'none'");
+  if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if (request.method === "POST" && request.url === "/workbench") {
+    if (request.headers.origin !== "http://"+request.headers.host || request.headers["sec-fetch-site"] !== "same-origin" ||
+        request.headers["sec-fetch-mode"] !== "navigate" || request.headers["sec-fetch-dest"] !== "document" ||
+        request.headers["content-type"] !== "application/x-www-form-urlencoded") { response.writeHead(403).end("Fixture navigation refused"); return; }
+    let body="", refused=false;
+    request.on("data", chunk=>{ body+=chunk.toString(); if(body.length>1024) { refused=true; body=""; } });
+    request.on("end",()=>{
+      const fields=new URLSearchParams(body);
+      if (refused || [...fields].length!==3 || fields.get("fingerprint")!==demoLeaf.fingerprint256 || fields.get("expected_generation")!=="5" ||
+          !["inspect","verify"].includes(fields.get("tool"))) { response.writeHead(400).end("Fixture selection refused"); return; }
+      const payload=JSON.stringify({ schema_version:"rootwell.inventory.workbench.v1", fingerprint:demoLeaf.fingerprint256,
+        der:demoLeaf.raw.toString("base64"),tool:fields.get("tool") });
+      let page=replaceOnce(workbenchHTML(), '<div id="inventory-source" hidden></div>',
+        '<div id="inventory-source" hidden>'+payload+'</div>');
+      // Keep the workspace's two body-level grid children unchanged. The
+      // demo notice belongs inside main, not beside the navigation rail.
+      page=replaceOnce(page, '<main>', '<main><aside class="nonclaim" aria-label="Demo mode"><strong>DEMO — synthetic public certificate only. No authentication or saved user data.</strong></aside>');
+      response.writeHead(200,{"Content-Type":"text/html; charset=utf-8"}).end(page);
+    });
+    return;
+  }
   if (request.method === "GET" && request.url === "/") {
     response.writeHead(302, { Location: "/inventory" }).end();
     return;
@@ -67,6 +105,11 @@ const server = http.createServer((request, response) => {
   }
   const selected = request.method === "GET" ? assets.get(request.url) : null;
   if (selected) response.writeHead(200, { "Content-Type": selected[0] }).end(selected[1]);
+  else if (request.method === "GET" && workbenchTypes.has(request.url.slice(1))) {
+    const name=request.url.slice(1);
+    try { response.writeHead(200,{"Content-Type":workbenchTypes.get(name)}).end(readFileSync(new URL("../web/workbench/"+name,import.meta.url))); }
+    catch { response.writeHead(503).end("Build demo assets first"); }
+  }
   else response.writeHead(request.method === "GET" ? 404 : 405).end("Fixture is read-only");
 });
 server.listen(port, "127.0.0.1", () => {

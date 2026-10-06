@@ -134,6 +134,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/delete":
 		g.inventoryDeleteEndpoint(w, r, s, signedIn)
 		return
+	case "/workbench":
+		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
+		return
 	case "/inventory", "/inventory.js", "/inventory.css":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
@@ -149,6 +152,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		switch r.URL.Path {
 		case "/inventory":
+			w.Header().Set("Referrer-Policy", "same-origin")
+			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'none'", "form-action 'self'", 1))
 			g.authAsset(w, r, "auth/inventory.html", "text/html; charset=utf-8")
 		case "/inventory.js":
 			g.authAsset(w, r, "auth/inventory.js", "text/javascript; charset=utf-8")

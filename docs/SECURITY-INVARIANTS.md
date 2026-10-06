@@ -826,7 +826,7 @@ Guarded by `scripts/test-rootwelld-inventory.mjs`.
 ## C53 — Inventory UI does not export sensitive metadata
 
 The earlier selected-record JSON download is retired from the Inventory UI.
-The page has no record-selection or download path; searching and opening
+The page has no bulk-selection or download path; searching and opening
 details do not transmit inventory notes. Certificate download stays in the
 public-only Workbench flows, and encrypted full backup stays offline. The
 development visual demo uses generated fake records, binds loopback only,
@@ -1104,3 +1104,25 @@ Guarded by `TestObserveExpiryExactBoundariesAndNoTrust`,
 `TestInventoryMonitoringBindsOneServerClockAndNeverMutates`,
 `TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
 `scripts/test-rootwelld-inventory.mjs` and `scripts/test-inventory-demo.mjs`.
+
+## C65 — Saved public handoff is exact, transient, and never implicit trust
+
+Only an authenticated ready Linux same-origin native navigation can open one
+saved public DER in Workbench. Mandatory Origin/fetch metadata, bounded exact
+form fields, whole-image authentication, displayed generation and full
+fingerprint lookup precede release. No query, key, credential, owner/location
+note, new storage, write or session extension is introduced. The bounded
+inert HTML payload is removed and reparsed against its fingerprint before
+rendering. Manual replacement/page exit cancels pending processing and clears
+saved-source state. Workbench still has no upload or persistence capability.
+Guided Verify requires hostname/separate trust, never trusts a saved CA, and
+can accept explicitly added bounded issuer files under unchanged verifier
+policy. Browser/OS copies, already-open local snapshots, compromised code and
+authenticated filesystem rollback remain residual risks (ADR 0042).
+
+Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
+`TestInventoryWorkbenchHTMLContainsOnlySelectedPublicObject`,
+`TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot`,
+`TestWorkbenchSeparatesFileAndNetworkCapabilities`,
+`scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
+and `scripts/test-inventory-demo.mjs`.

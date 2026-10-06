@@ -23,6 +23,7 @@
   <script src="csr.js" defer></script>
 </head>
 <body class="workspace">
+<div id="inventory-source" hidden></div>
   <aside class="rail" aria-label="Primary navigation">
     <div class="rail-identity">
       <a class="wordmark" href="index.html" aria-label="Rootwell home"><span>root</span>well</a>
@@ -490,6 +491,10 @@
             <p>Rootwell requires exactly one end-entity certificate and treats CA certificates as intermediate candidates. Self-signed roots in these files are ignored, not trusted.</p>
           </div>
           <p id="verify-guided-source" class="verify-note" aria-live="polite" hidden></p>
+          <button id="verify-replace-source" class="button button-secondary" type="button" hidden>Choose different certificate files</button>
+          <label id="verify-extra-label" class="verify-note" hidden>Add issuer files if your CA supplied them (optional; not trusted roots)
+            <input id="verify-extra-files" type="file" multiple accept=".pem,.crt,.cer,.der">
+          </label>
           <div id="verify-advanced-inputs" class="verify-inputs" hidden>
             <label>Leaf certificate (one PEM or DER certificate)
               <input id="verify-leaf-file" type="file" accept=".pem,.crt,.cer,.der">

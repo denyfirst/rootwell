@@ -52,6 +52,9 @@
   const verifyAdvancedInputs = document.getElementById("verify-advanced-inputs");
   const verifySourceFiles = document.getElementById("verify-source-files");
   const verifyGuidedSource = document.getElementById("verify-guided-source");
+  const verifyExtraLabel = document.getElementById("verify-extra-label");
+  const verifyExtraFiles = document.getElementById("verify-extra-files");
+  const verifyReplaceSource = document.getElementById("verify-replace-source");
   const verifyLeafFile = document.getElementById("verify-leaf-file");
   const verifyIntermediatesFile = document.getElementById("verify-intermediates-file");
   const verifyTime = document.getElementById("verify-time");
@@ -79,6 +82,27 @@
   let detailGeneration = 0;
   let guidedVerifyFiles = null;
   let guidedVerifyFingerprints = null;
+  let inventoryExpectedFile = null;
+  let pendingInventorySource = null;
+  let invalidInventorySource = false;
+  const inventorySource = document.getElementById("inventory-source");
+  if (inventorySource) {
+    const text = inventorySource.textContent;
+    inventorySource.textContent = "";
+    inventorySource.remove();
+    if (text) {
+      try {
+        if (text.length > 90000) throw new Error();
+        const source = JSON.parse(text);
+        if (!source || Object.keys(source).sort().join(",") !== "der,fingerprint,schema_version,tool" ||
+            source.schema_version !== "rootwell.inventory.workbench.v1" ||
+            typeof source.fingerprint !== "string" || !/^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/.test(source.fingerprint) ||
+            (source.tool !== "inspect" && source.tool !== "verify") || typeof source.der !== "string" ||
+            !source.der.length || source.der.length > 87384 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(source.der)) throw new Error();
+        pendingInventorySource = source;
+      } catch { invalidInventorySource = true; }
+    }
+  }
   const selectedBundleFingerprints = new Set();
   const pendingDownloadURLs = new Set();
   const maxExploreFiles = 8;
@@ -176,6 +200,10 @@
     guidedVerifyFingerprints = null;
     verifyGuidedSource.textContent = "";
     verifyGuidedSource.hidden = true;
+    verifyExtraFiles.value = "";
+    verifyExtraLabel.hidden = true;
+    verifyReplaceSource.hidden = true;
+    verifySimpleInputs.hidden = !verifySimpleMode.checked;
     if (hadGuidedFiles) invalidateVerify();
   }
 
@@ -183,6 +211,10 @@
     input.addEventListener(input === verifyHostname || input === verifyRootPin || input === verifyTime ? "input" : "change", invalidateVerify);
   }
   verifySourceFiles.addEventListener("change", function () {
+    verifyReplaceSource.hidden = true;
+    verifySimpleInputs.hidden = !verifySimpleMode.checked;
+    verifyExtraFiles.value = "";
+    verifyExtraLabel.hidden = true;
     guidedVerifyFiles = null;
     guidedVerifyFingerprints = null;
     verifyGuidedSource.hidden = true;
@@ -190,6 +222,9 @@
   });
   for (const mode of [verifySimpleMode, verifyAdvancedMode]) {
     mode.addEventListener("change", function () {
+      verifyReplaceSource.hidden = true;
+      verifyExtraFiles.value = "";
+      verifyExtraLabel.hidden = true;
       guidedVerifyFiles = null;
       guidedVerifyFingerprints = null;
       verifyGuidedSource.textContent = "";
@@ -201,6 +236,8 @@
   }
 
   function setExploreFiles(files) {
+    pendingInventorySource = null;
+    inventoryExpectedFile = null;
     detailGeneration++;
     clearGuidedVerifyFiles();
     selectedExploreFiles = null;
@@ -292,6 +329,7 @@
   });
 
   function engineUnavailable() {
+    pendingInventorySource = null;
     engineState.textContent = "Unavailable · build assets required";
     exploreStatus.textContent = "Local inspection engine is unavailable";
     verifyStatus.textContent = "Local verification engine is unavailable";
@@ -318,6 +356,8 @@
       exploreStatus.textContent = selectedExploreFiles ? "Ready for local inspection" : "Choose public certificate files to inspect";
       updateExploreControls();
       updateVerifyControls();
+      if (invalidInventorySource) showExploreFailure("The saved certificate could not be opened safely. Return to Saved certificates and try again.");
+      else void openInventorySelection();
     }, engineUnavailable);
   }
 
@@ -752,7 +792,7 @@
     updateExploreControls();
   }
 
-  exploreVerifyButton.addEventListener("click", function () {
+  function guideExploreToVerify() {
     if (!selectedExploreFiles || !currentExploreEntries || exploring || exporting || !engine) return;
     const possibleSiteCertificates = currentExploreEntries.filter(function (entry) { return !entry.certificate.is_ca; }).length;
     verifySourceFiles.value = "";
@@ -764,17 +804,27 @@
     })) : null;
     verifySimpleMode.checked = true;
     verifyAdvancedMode.checked = false;
-    verifySimpleInputs.hidden = false;
+    verifySimpleInputs.hidden = !!guidedVerifyFiles;
     verifyAdvancedInputs.hidden = true;
     invalidateVerify();
     verifyGuidedSource.hidden = false;
+    verifyExtraFiles.value = "";
+    verifyExtraLabel.hidden = !guidedVerifyFiles;
+    verifyReplaceSource.hidden = !guidedVerifyFiles;
     verifyGuidedSource.textContent = guidedVerifyFiles ?
-      "Using " + counted(guidedVerifyFiles.length, "public file", "public files") + " from Inspect. Rootwell will re-read them only when you press Verify locally. Enter the website name and choose a separate trusted root; no root from these files is trusted automatically. Choosing new files below replaces this selection." :
+      (inventoryExpectedFile ? "Using your public certificate from Saved certificates. " : "Using " + counted(guidedVerifyFiles.length, "public file", "public files") + " from Inspect. ") + "Rootwell will re-read these files only when you press Verify locally. Enter the website name and choose a separate trusted root; no root from these files is trusted automatically. Choosing replacement source files clears this selection." :
       "These files do not contain exactly one certificate without the CA flag. Nothing was transferred to Simple Verify. Add the site's public certificate or select a specific leaf in Advanced; never trust a root just because it appeared in the bundle.";
     verifyStatus.textContent = guidedVerifyFiles ?
       "Add a website hostname and separate trust file to verify locally" :
       "Choose one website certificate before verifying";
     selectTool("verify");
+    updateVerifyControls();
+  }
+  exploreVerifyButton.addEventListener("click", guideExploreToVerify);
+  verifyExtraFiles.addEventListener("change", invalidateVerify);
+  verifyReplaceSource.addEventListener("click", function () {
+    clearGuidedVerifyFiles();
+    verifyStatus.textContent = "Choose replacement public certificate files; your trust file stays separate.";
   });
 
   const exportFailureMessages = Object.freeze({
@@ -1273,7 +1323,7 @@
     const hostname = verifyHostname.value.trim();
     const rootPin = verifyRootPin.value;
     const trustFile = verifyTrustFile.files[0];
-    const sourceFiles = simple ? Array.from(guidedVerifyFiles || verifySourceFiles.files) :
+    const sourceFiles = simple ? Array.from(guidedVerifyFiles || verifySourceFiles.files).concat(guidedVerifyFiles ? Array.from(verifyExtraFiles.files || []) : []) :
       [verifyLeafFile.files[0], verifyIntermediatesFile.files && verifyIntermediatesFile.files.length === 1 ? verifyIntermediatesFile.files[0] : null];
     const guidedFingerprints = simple ? guidedVerifyFingerprints : null;
     const timeValue = !simple && verifyTime.value.trim() ? verifyTime.value.trim() : new Date().toISOString();
@@ -1304,7 +1354,7 @@
           return;
         }
         remainingBytes -= bytes.byteLength;
-        if (guidedFingerprints && index < actualFiles.length) {
+        if (guidedFingerprints && index < guidedFingerprints.length) {
           const rawExplore = engine.explore(bytes);
           if (typeof rawExplore !== "string" || rawExplore.length > 4 * 1024 * 1024) {
             showVerifyFailure("Files changed since Inspect. Inspect them again before verifying.");
@@ -1504,6 +1554,11 @@
             showExploreFailure("The local exploration engine returned an invalid response.");
             return;
           }
+          if (inventoryExpectedFile && inventoryExpectedFile.file === file &&
+              (response.result.count !== 1 || response.result.certificates[0].sha256 !== inventoryExpectedFile.fingerprint)) {
+            showExploreFailure("The saved certificate identity did not match. Return to Saved certificates and try again.");
+            return;
+          }
           for (const certificate of response.result.certificates) {
             const previous = fingerprints.get(certificate.sha256);
             if (previous) {
@@ -1565,4 +1620,37 @@
   }
   exploreButton.addEventListener("click", inspectPublicFiles);
   convertOpenButton.addEventListener("click", inspectPublicFiles);
+
+  async function openInventorySelection() {
+    if (!pendingInventorySource || detailGeneration !== 0 || selectedExploreFiles) return;
+    const source = pendingInventorySource;
+    pendingInventorySource = null;
+    let bytes = null;
+    try {
+      bytes = Uint8Array.from(atob(source.der), function (character) { return character.charCodeAt(0); });
+      if (!bytes.length || bytes.length > 65536) throw new Error();
+      const file = new File([bytes], "saved-public-certificate.der", { type: "application/pkix-cert" });
+      setExploreFiles([file]);
+      inventoryExpectedFile = { file, fingerprint: source.fingerprint };
+      const files = selectedExploreFiles;
+      await inspectPublicFiles();
+      if (selectedExploreFiles !== files || !currentExploreEntries) return;
+      exploreSelection.textContent = "Public certificate from Saved certificates · " + formatSize(file.size);
+      if (source.tool === "verify") guideExploreToVerify();
+      else selectTool("inspect");
+    } catch {
+      showExploreFailure("The saved certificate could not be opened safely. Return to Saved certificates and try again.");
+    } finally {
+      if (bytes) bytes.fill(0);
+    }
+  }
+  if (typeof globalThis.addEventListener === "function") {
+    globalThis.addEventListener("pagehide", function () {
+      if (pendingInventorySource || inventoryExpectedFile) {
+        setExploreFiles([]);
+        invalidateVerify();
+        for (const input of [verifySourceFiles, verifyExtraFiles, verifyTrustFile, verifyLeafFile, verifyIntermediatesFile]) input.value = "";
+      }
+    });
+  }
 })();

@@ -7,6 +7,7 @@ const source = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.js", imp
 assert.doesNotMatch(source, /innerHTML|localStorage|sessionStorage|console\./);
 assert.doesNotMatch(source, /createObjectURL|selectedForExport|public-inventory-export/, "Inventory must not offer metadata download");
 const html = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.html", import.meta.url), "utf8");
+assert.match(html, /<meta name="referrer" content="same-origin">/);
 assert.doesNotMatch(html, /Export selected records|preview-export-button|download-export-button/);
 
 class Element {
@@ -131,6 +132,18 @@ const firstDetails = elements.records.children[0].children.find(node => node.cla
 assert.ok(firstDetails.children.some(node => node.textContent.includes("Saved at (server clock)")));
 assert.ok(firstDetails.children.some(node => node.textContent.includes("SHA-256: ab:cd")));
 assert.ok(!elements.records.children[0].children.some(node => node.textContent.includes("SHA-256:")), "fingerprint must not crowd the card");
+const workbenchForm = elements.records.children[0].children.find(node => node.className === "workbench-actions");
+assert.equal(workbenchForm.action,"/workbench");
+assert.equal(workbenchForm.method,"post");
+assert.deepEqual(workbenchForm.children.map(node=>[node.name,node.value]),
+  [["fingerprint","ab:cd"],["expected_generation","2"],["tool","inspect"],["tool","verify"]]);
+let stoppedNavigation=false;
+workbenchForm.listeners.submit({preventDefault(){stoppedNavigation=true;}});
+assert.equal(stoppedNavigation,false,"current explicit form may navigate");
+mockDocument.hidden=true;
+workbenchForm.listeners.submit({preventDefault(){stoppedNavigation=true;}});
+assert.equal(stoppedNavigation,true,"hidden view cannot navigate with retained snapshot");
+mockDocument.hidden=false;
 assert.match(elements["clock-as-of"].textContent, /2026-09-28T00:00:00.000Z.*server clock.*no automatic renewal/);
 
 const addLocation = action(elements.records.children[0], "Add server note");
