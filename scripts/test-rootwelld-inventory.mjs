@@ -32,6 +32,7 @@ ids.push("location-manage-panel", "location-manage-form", "location-manage-targe
 ids.push("clock-as-of", "expiry-filter", "inventory-search");
 ids.push("delete-panel", "delete-form", "delete-target", "delete-fingerprint", "confirm-delete", "delete-button", "delete-cancel", "delete-status");
 ids.push("monitor-summary", "warning-days", "auto-refresh");
+ids.push("preview-button", "import-preview", "preview-summary", "preview-records");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 elements["expiry-filter"].value = "all";
 elements["warning-days"].value = "30";
@@ -71,6 +72,7 @@ const fetchImpl = async (url, options) => {
     if (delayJSON) await delayJSON;
     return new Response(JSON.stringify(monitorResponse(currentResponse)));
   }
+  if (url === "/api/inventory") return new Response(JSON.stringify({ generation: 3, verification: "not-performed", records: [{ fingerprint: "new-public" }] }), { status: 201 });
   if (url === "/api/inventory/delete") {
     if (rejectDelete) return { ok: false, async text() { return "inventory changed; refresh before deletion"; } };
     const body = JSON.parse(options.body);
@@ -118,6 +120,10 @@ vm.runInNewContext(source, {
   performance: { now: () => monotonicNow },
   setTimeout(fn, delay) { const id = ++timerID; timers.set(id,{fn,delay}); return id; }, clearTimeout(id) { timers.delete(id); },
   fetch: fetchImpl, TextEncoder, TextDecoder, AbortController, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
+  rootwellInventoryImport: {
+    async preview(files) { fileReads++; return [{ subject: "New public", sha256: "new-public", source: "File 1", not_after: "2035-01-01T00:00:00Z" }]; },
+    async prepare(files) { fileReads++; return new Uint8Array(await files[0].arrayBuffer()); }
+  },
 }, { filename: "inventory.js" });
 
 await new Promise(resolve => setImmediate(resolve));
@@ -261,8 +267,14 @@ currentResponse = response;
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 1);
 
+const beforePreviewSave = requests.length;
 await elements["inventory-form"].listeners.submit({ preventDefault() {} });
+assert.equal(requests.length, beforePreviewSave, "save without preview must not upload");
+await elements["preview-button"].listeners.click();
 assert.equal(fileReads, 1);
+assert.equal(requests.length, beforePreviewSave, "preview must not upload");
+await elements["inventory-form"].listeners.submit({ preventDefault() {} });
+assert.equal(fileReads, 3);
 const save = requests.find(request => request.options.method === "POST" && request.url === "/api/inventory");
 assert.ok(save);
 assert.equal(save.url, "/api/inventory");
@@ -315,7 +327,7 @@ elements["inventory-search"].value = "MeDiUm";
 elements["inventory-search"].listeners.input();
 assert.deepEqual(elements.records.children.map(node => node.children[0].textContent), ["medium"]);
 assert.equal(requests.length, beforeView, "filter and search must not transmit inventory notes");
-assert.equal(fileReads, 1, "filter and search must not reread selected files");
+assert.equal(fileReads, 3, "filter and search must not reread selected files");
 elements["inventory-search"].value = "";
 elements["inventory-search"].listeners.input();
 assert.equal(elements.records.children.length, 6);
@@ -368,7 +380,7 @@ assert.equal(deletion.options.headers["X-Rootwell-Request"], "1");
 assert.doesNotMatch(deletion.options.body, /certificate|PRIVATE KEY|AQ==/i);
 assert.equal(elements.records.children.length, 0, "deleted record stayed visible");
 assert.match(elements["list-status"].textContent, /Older snapshots may still contain it/);
-assert.equal(fileReads, 1, "deletion must not reread selected files");
+assert.equal(fileReads, 3, "deletion must not reread selected files");
 
 // The production page uses the same server observation for every card. The
 // browser clock never changes certificate classification, only clock warnings.
@@ -414,7 +426,7 @@ runTick();
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(requests.length,beforeTick+1,"visible monitoring did not refresh");
 assert.equal(requests.at(-1).options.method,"GET");
-assert.equal(fileReads,1,"automatic check read a selected file");
+assert.equal(fileReads,3,"automatic check read a selected file");
 elements["auto-refresh"].checked = false;
 monotonicNow += 121000;
 runTick();

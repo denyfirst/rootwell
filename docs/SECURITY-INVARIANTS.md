@@ -1126,3 +1126,21 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `TestWorkbenchSeparatesFileAndNetworkCapabilities`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
+
+## C66 — Bulk preview is local and Save is exact and atomic
+
+Inventory public bulk preview does not upload selected bytes. Save is explicit,
+requires a current successful duplicate-free preview and rereads exact files
+against all ordered fingerprints. Only the reparsed canonical public PEM plus
+shared manual notes enters one existing authenticated atomic append request.
+All-or-nothing duplicate/private/malformed/capacity refusal is unchanged.
+Late/changed/hidden source work cannot initiate POST or restore preview. Saved
+duplicates are explained, not silently skipped. No new trust, formats, private
+custody or outbound destination is granted. After a sent request, an uncertain
+outcome requires refresh, not an assertion that nothing was saved. ADR 0043
+records bounds, advisory snapshot semantics and browser residual risks.
+
+Guarded by `TestInventoryBulkAssetsRemainBehindReadyAccess`,
+`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
+`scripts/test-inventory-bulk.mjs`, `scripts/test-rootwelld-inventory.mjs`
+and `scripts/test-inventory-demo.mjs`.

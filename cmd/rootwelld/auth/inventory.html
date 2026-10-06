@@ -6,6 +6,9 @@
   <meta name="referrer" content="same-origin">
   <title>Saved certificates · Rootwell</title>
   <link rel="stylesheet" href="/inventory.css">
+  <script src="/wasm_exec.js" defer></script>
+  <script src="/inventory-engine.js" defer></script>
+  <script src="/inventory-import.js" defer></script>
   <script src="/inventory.js" defer></script>
 </head>
 <body>
@@ -26,18 +29,24 @@
     </aside>
     <div class="layout">
       <section class="card" aria-labelledby="save-heading">
-        <h2 id="save-heading">Add a certificate</h2>
-        <p>Choose a public .pem, .crt, .cer or .der file. A PEM bundle can contain several certificates. PFX and private keys are not accepted.</p>
+        <h2 id="save-heading">Add certificates</h2>
+        <p>Choose 1–8 public .pem, .crt, .cer or .der files, including PEM bundles. Up to 16 MiB combined and 64 certificates. PFX and private keys are not accepted.</p>
         <form id="inventory-form">
-          <label for="certificate-file">Public certificate file</label>
-          <input id="certificate-file" type="file" accept=".pem,.crt,.cer,.der,application/x-x509-ca-cert" required>
+          <label for="certificate-file">Public certificate files</label>
+          <input id="certificate-file" type="file" accept=".pem,.crt,.cer,.der,application/x-x509-ca-cert" multiple required>
+          <button id="preview-button" class="secondary" type="button">Preview locally</button>
+          <div id="import-preview" hidden>
+            <p id="preview-summary" role="status" aria-live="polite"></p>
+            <ol id="preview-records" aria-label="Certificates found in selected files"></ol>
+            <p>Preview stays in this browser. It does not verify trust. Save sends all listed certificates to your own Rootwell server in one atomic batch.</p>
+          </div>
           <details class="optional-fields"><summary>Add owner or server note (optional)</summary>
             <label for="owner">Who looks after it?</label>
             <input id="owner" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Platform team">
             <label for="location">Where do you use it? <span>(your note; not checked)</span></label>
             <input id="location" type="text" maxlength="128" autocomplete="off" placeholder="e.g. production/nginx">
           </details>
-          <button id="save-button" type="submit">Save to this Rootwell</button>
+          <button id="save-button" type="submit" disabled>Save all to this Rootwell</button>
           <p id="save-status" role="status" aria-live="polite"></p>
         </form>
       </section>

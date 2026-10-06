@@ -358,6 +358,11 @@ deployment üçün müstəqil xarici verification məhsulu olaraq qalır.
 
 **Məqsəd:** əvvəl metadata-nı mərkəzləşdirmək; private key custody-ni yox.
 
+ADR 0043 bir neçə public PEM/DER faylı üçün lokal preview və mövcud atomic
+append yolu ilə tək Save axını əlavə edir. 1–8 fayl, 16 MiB, 64 sertifikat;
+dublikatları açıq göstərir, heç nəyi səssiz atlamır, Save mənbələri/fingerprint-i
+yenidən yoxlayır. Private key/PFX importu, trust və renewal deyil.
+
 ADR 0042 saxlanmış public sertifikatı kartdan Inspect/Verify-a açır: exact
 snapshot/fingerprint, yalnız public DER, yaddaşdaxili Workbench processing.
 İkinci converter/export yeri və automatic trust yoxdur; issuer faylları açıq

@@ -166,6 +166,20 @@ select trust. Already-open snapshots are local copies, not server-revocable
 objects; browser/OS memory/history erasure is not promised. See
 [ADR 0042](adr/0042-explicit-inventory-workbench-handoff.md).
 
+## Local public bulk preview (ADR 0043)
+
+An operator-controlled browser process can inspect public preview bytes.
+ADR 0043 adds 1–8 file local public preview and one exact
+canonical PEM Save via the existing atomic append, not a new import API.
+Private/mixed/malformed files and selected duplicates refuse the entire
+preview; saved duplicates are displayed and block Save. A concurrent duplicate
+is still refused by the server. Preview grants no trust. Selected source
+changes/hidden views clear pending work; aborting after POST cannot roll back
+a commit, so uncertain Save requires refresh. The authenticated Inventory-only
+WASM asset loader sends no selected bytes. Workbench's loader and offline
+capabilities do not change. Windows fixture preview is synthetic/read-only,
+not durable custody; the underlying browser/OS cannot promise memory erasure.
+
 An operator-controlled filesystem or browser process can still inspect
 plaintext in memory while Rootwell is unlocked. Encryption at rest does not
 protect a fully compromised host. Automatic deletion is not part of the
