@@ -86,8 +86,11 @@ const server = http.createServer((request, response) => {
           !["inspect","verify"].includes(fields.get("tool"))) { response.writeHead(400).end("Fixture selection refused"); return; }
       const payload=JSON.stringify({ schema_version:"rootwell.inventory.workbench.v1", fingerprint:demoLeaf.fingerprint256,
         der:demoLeaf.raw.toString("base64"),tool:fields.get("tool") });
-      const page=replaceOnce(workbenchHTML(), '<div id="inventory-source" hidden></div>',
-        '<div id="inventory-source" hidden>'+payload+'</div><aside class="nonclaim"><strong>DEMO — synthetic public certificate only. No authentication or saved user data.</strong></aside>');
+      let page=replaceOnce(workbenchHTML(), '<div id="inventory-source" hidden></div>',
+        '<div id="inventory-source" hidden>'+payload+'</div>');
+      // Keep the workspace's two body-level grid children unchanged. The
+      // demo notice belongs inside main, not beside the navigation rail.
+      page=replaceOnce(page, '<main>', '<main><aside class="nonclaim" aria-label="Demo mode"><strong>DEMO — synthetic public certificate only. No authentication or saved user data.</strong></aside>');
       response.writeHead(200,{"Content-Type":"text/html; charset=utf-8"}).end(page);
     });
     return;

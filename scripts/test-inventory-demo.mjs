@@ -52,6 +52,8 @@ try {
   });
   assert.equal(navigation.status,200);
   assert.match(navigation.text,/rootwell.inventory.workbench.v1/);
+  assert.match(navigation.text, /<main><aside class="nonclaim" aria-label="Demo mode"><strong>DEMO — synthetic public certificate only/);
+  assert.doesNotMatch(navigation.text, /<div id="inventory-source" hidden>[^<]*<\/div><aside/);
   assert.equal((await fetch(origin+"/workbench")).status,404);
   assert.equal((await fetch(origin+"/workbench",{method:"POST",body:selection.toString()})).status,403);
   assert.equal((await fetch(origin + "/api/inventory")).status, 404);
