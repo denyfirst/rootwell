@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"runtime"
+	"time"
 	"unicode/utf8"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
@@ -59,17 +60,18 @@ type inventoryDeleteOutput struct {
 }
 
 type inventoryItem struct {
-	Fingerprint      string   `json:"fingerprint"`
-	Subject          string   `json:"subject"`
-	Issuer           string   `json:"issuer"`
-	DNSNames         []string `json:"dns_names"`
-	NotBefore        string   `json:"not_before"`
-	NotAfter         string   `json:"not_after"`
-	Owner            string   `json:"owner"`
-	Location         string   `json:"location"`
-	Locations        []string `json:"locations"`
-	ImportGeneration uint64   `json:"import_generation"`
-	ImportedAt       string   `json:"imported_at,omitempty"`
+	Fingerprint      string                 `json:"fingerprint"`
+	Subject          string                 `json:"subject"`
+	Issuer           string                 `json:"issuer"`
+	DNSNames         []string               `json:"dns_names"`
+	NotBefore        string                 `json:"not_before"`
+	NotAfter         string                 `json:"not_after"`
+	Owner            string                 `json:"owner"`
+	Location         string                 `json:"location"`
+	Locations        []string               `json:"locations"`
+	ImportGeneration uint64                 `json:"import_generation"`
+	ImportedAt       string                 `json:"imported_at,omitempty"`
+	Expiry           publicinventory.Expiry `json:"expiry"`
 }
 
 func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -107,7 +109,7 @@ func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request,
 		inventoryError(w, err)
 		return
 	}
-	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
+	g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
 }
 
 func readInventoryLocationInput(w http.ResponseWriter, r *http.Request) (inventoryLocationInput, bool) {
@@ -209,7 +211,7 @@ func (g *gate) inventoryLocationChangeEndpoint(w http.ResponseWriter, r *http.Re
 		inventoryError(w, err)
 		return
 	}
-	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
+	g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
 }
 
 func readInventoryLocationChangeInput(w http.ResponseWriter, r *http.Request) (inventoryLocationChangeInput, bool) {
@@ -330,7 +332,7 @@ func (g *gate) inventoryOwnerEndpoint(w http.ResponseWriter, r *http.Request, s 
 		inventoryError(w, err)
 		return
 	}
-	writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
+	g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{updated}, generation)
 }
 
 func readInventoryOwnerInput(w http.ResponseWriter, r *http.Request) (inventoryOwnerInput, bool) {
@@ -506,10 +508,17 @@ func readInventoryDeleteInput(w http.ResponseWriter, r *http.Request) (inventory
 }
 
 type inventoryOutput struct {
-	Generation   uint64          `json:"generation"`
-	Records      []inventoryItem `json:"records"`
-	Verification string          `json:"verification"`
-	Backup       string          `json:"backup"`
+	Generation   uint64              `json:"generation"`
+	Records      []inventoryItem     `json:"records"`
+	Verification string              `json:"verification"`
+	Backup       string              `json:"backup"`
+	Monitoring   inventoryMonitoring `json:"monitoring"`
+}
+
+type inventoryMonitoring struct {
+	CheckedAt           string `json:"checked_at"`
+	ClockSource         string `json:"clock_source"`
+	RefreshAfterSeconds int    `json:"refresh_after_seconds"`
 }
 
 func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -543,7 +552,7 @@ func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			inventoryError(w, err)
 			return
 		}
-		writeInventoryJSON(w, http.StatusOK, records, generation)
+		g.writeInventoryJSON(w, http.StatusOK, records, generation)
 		return
 	}
 	if !g.sameOrigin(r) {
@@ -559,7 +568,7 @@ func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		inventoryError(w, err)
 		return
 	}
-	writeInventoryJSON(w, http.StatusCreated, added, generation)
+	g.writeInventoryJSON(w, http.StatusCreated, added, generation)
 }
 
 func readInventoryInput(w http.ResponseWriter, r *http.Request) (inventoryInput, bool) {
@@ -656,15 +665,21 @@ func inventoryError(w http.ResponseWriter, err error) {
 	}
 }
 
-func writeInventoryJSON(w http.ResponseWriter, status int, records []publicinventory.Record, generation uint64) {
+func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []publicinventory.Record, generation uint64) {
+	now := g.now().UTC().Truncate(time.Second)
+	if now.Year() < 0 || now.Year() > 9999 {
+		http.Error(w, "server clock unavailable; expiry was not calculated", http.StatusServiceUnavailable)
+		return
+	}
 	items := make([]inventoryItem, 0, len(records))
 	for _, r := range records {
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
 			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
-			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt})
+			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, Expiry: publicinventory.ObserveExpiry(r, now)})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(inventoryOutput{Generation: generation, Records: items, Verification: "not-performed",
-		Backup: "Export a new full inventory snapshot after changes; backup is not automatic."})
+		Monitoring: inventoryMonitoring{CheckedAt: now.Format("2006-01-02T15:04:05Z"), ClockSource: "server-clock", RefreshAfterSeconds: 60},
+		Backup:     "Export a new full inventory snapshot after changes; backup is not automatic."})
 }

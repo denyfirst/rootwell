@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-05. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-06. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -107,8 +107,8 @@ olunmamış nəticəyə “verified” demək qadağandır.
 tamamlanıb. Key + CSR wizard üçün ADR 0040, unit/refusal/fuzz, WASM, worker/UI
 və müstəqil Node/OpenSSL interop yoxlamaları əlavə edilib. Windows browserdə
 sintetik yeni RSA key + CSR, mövcud CSR importu və eyni/fərqli sertifikat
-müqayisəsi sınanır; Linux race/cross-platform CI tamamlanmadan bu increment
-bağlanmır. Bu sübut Linux-da faktiki browser sessiyası və ya universal
+müqayisəsi sınanıb; bütün tələb olunan CI yoxlamaları keçib və PR #71 merge
+olunub. Bu sübut Linux-da faktiki browser sessiyası və ya universal
 sertifikat formatı uyğunluğu demək deyil. CLI CSR, geniş vendor/legacy profil,
 vault, issuance və renewal ayrıca qalır.
 
@@ -181,7 +181,22 @@ sərhəd sübut edildikdən sonra keçirik.
    maintenance axınında qalır. Köhnə backup-dan silinmiş data qayıda bildiyinə
    görə “tam silindi” vədi verilməyəcək.
 
-Canlı endpoint discovery, Porch nəticələrinin importu və alert-lər ayrıca
+### Server əsaslı monitoring — ADR 0041
+
+Mövcud şifrəli public Inventory üzərində server saatına əsaslanan vahid expiry
+hesablaması, oxunaqlı qalan günlər, 7/14/30/90 günlük tətbiqdaxili xatırlatma
+seçimi və görünən səhifədə məhdud avtomatik yenilənmə hazırlanır. Köhnəlmiş
+nəticə, saat fərqi, giriş/şəbəkə xətası aydın göstərilir; yanlış nəticə kartları
+saxlanmır. Bu fonda bildiriş xidməti deyil: səhifə bağlı olanda xəbərdarlıq
+göndərilmir. Preference və axtarış yaddaşda qalır, serverdə key və alert bazası
+yaradılmır. Qəbul meyarları və testlər ADR 0041/C64-dədir.
+
+Sonrakı ayrıca increment: saxlanmış public sertifikatın istifadəçinin klikiylə
+Inspect/Verify-a təhlükəsiz ötürülməsi; URL, browser storage və ya duplicate
+convert/export UI yaratmadan. Bu handoff indiki monitoring increment-inə
+daxil deyil. Müstəqil trust/root yenə istifadəçi tərəfindən seçilməlidir.
+
+Canlı endpoint discovery, Porch nəticələrinin importu və xarici alert-lər ayrıca
 network/evidence/operational threat model-dən sonra gəlir. ACME, PFX/private
 key vault, SSH/PGP və agent deployment bu mərhələyə qarışdırılmır.
 

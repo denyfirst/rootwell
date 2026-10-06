@@ -136,6 +136,21 @@ storage and an explicit user-facing loopback API are separate boundaries below.
    boundary, test offsite recovery on actual target infrastructure, and resolve
    the remaining platform and operational risks.
 
+## Server-clock expiry reminders (ADR 0041)
+
+The ready-session inventory read now derives expiry and remaining days from
+one whole-second server-clock instant after authenticating the complete image.
+This supersedes the browser-clock expiry display described above and in ADR
+0026; neither clock is a trust source. Reads do not write inventory or advance
+its generation. The page offers ephemeral 7/14/30/90-day windows, quiet in-app
+reminders, a clock-disagreement warning, and a stale-result warning after two
+minutes. Visible-page reads use a one-minute interval, ten-second deadline and
+streaming 4 MiB response cap. Failure clears records and pauses retries;
+hidden/pagehide views discard metadata, abort reads and reject late results.
+Returning authenticates again. There is no new background scheduler, private
+key storage, email/webhook, endpoint scan or automatic renewal. A closed page
+cannot notify the operator. See [ADR 0041](adr/0041-server-clock-inventory-reminders.md).
+
 An operator-controlled filesystem or browser process can still inspect
 plaintext in memory while Rootwell is unlocked. Encryption at rest does not
 protect a fully compromised host. Automatic deletion is not part of the

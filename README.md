@@ -119,8 +119,13 @@ stores it encrypted. Save is not part of the offline Workbench boundary.
 Before first use, stop the daemon and run `inventory-init` with a separate
 private backup location; after imports, make and verify a new full snapshot.
 The [Linux recovery guide](docs/RECOVERY-AZ.md) gives the exact commands.
-Expiry filters and search are local browser views using the browser clock,
-not a monitoring or renewal service. Owner and location notes are not
+Expiry is now calculated against one Rootwell server-clock observation.
+The page offers quiet 7/14/30/90-day reminders, a stale-result and clock
+disagreement warning, and optional minute-by-minute reads while visible.
+Reminders stop when the page closes; no email, endpoint check or renewal is
+performed. Search and reminder windows stay in browser memory, not stored
+preferences. Server time can also be wrong; see [ADR 0041](docs/adr/0041-server-clock-inventory-reminders.md).
+Owner and location notes are not
 exported through the Inventory UI. On Windows, durable inventory remains
 disabled. For a **fake-data, read-only visual preview only**, run
 `node scripts/inventory-demo.mjs --fixture-only` and open

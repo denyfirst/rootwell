@@ -358,6 +358,12 @@ deployment üçün müstəqil xarici verification məhsulu olaraq qalır.
 
 **Məqsəd:** əvvəl metadata-nı mərkəzləşdirmək; private key custody-ni yox.
 
+ADR 0041 mövcud Linux public Inventory-yə server saatı ilə qalan günləri,
+7/14/30/90 günlük səhifədaxili xatırlatmaları, görünən səhifədə məhdud
+yenilənməni və köhnəlmiş nəticə/saat fərqi xəbərdarlığını əlavə edir. Bu,
+daimi bildiriş xidməti və ya canlı TLS monitoring deyil; bağlı səhifə xəbər
+göndərmir. Preference və axtarış browser yaddaşında qalır, private key saxlanmır.
+
 - manual certificate import
 - public endpoint discovery
 - Porch scan nəticəsindən asset yaratmaq

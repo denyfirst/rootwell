@@ -30,8 +30,11 @@ ids.push("location-manage-panel", "location-manage-form", "location-manage-targe
   "rename-location-button", "remove-location-button", "confirm-remove", "location-manage-cancel", "location-manage-status");
 ids.push("clock-as-of", "expiry-filter", "inventory-search");
 ids.push("delete-panel", "delete-form", "delete-target", "delete-fingerprint", "confirm-delete", "delete-button", "delete-cancel", "delete-status");
+ids.push("monitor-summary", "warning-days", "auto-refresh");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 elements["expiry-filter"].value = "all";
+elements["warning-days"].value = "30";
+elements["auto-refresh"].checked = true;
 const requests = [];
 let fileReads = 0;
 const publicFile = new Uint8Array(Buffer.from("-----BEGIN CERTIFICATE-----\nAQ==\n-----END CERTIFICATE-----\n"));
@@ -49,9 +52,24 @@ let rejectAssociation = false;
 let rejectOwner = false;
 let rejectDelete = false;
 let malformedDeleteResult = false;
+let overrideGET = null;
+let delayJSON = null;
+let serverTime = "2026-09-28T00:00:00Z";
+const monitorResponse = data => ({ ...data, monitoring: { checked_at: serverTime, clock_source: "server-clock", refresh_after_seconds: 60 },
+  records: data.records.map(record => {
+    const start = Date.parse(record.not_before), end = Date.parse(record.not_after), now = Date.parse(serverTime);
+    const seconds = (end - now) / 1000;
+    const invalid = !Number.isFinite(start) || !Number.isFinite(end) || start >= end;
+    const status = invalid ? "invalid" : now >= end ? "expired" : now < start ? "future" : seconds <= 30*86400 ? "soon" : seconds <= 90*86400 ? "medium" : "later";
+    return { ...record, expiry: { status, ...(invalid ? {} : { days_left: seconds > 0 ? Math.ceil(seconds/86400) : Math.trunc(seconds/86400) }) } };
+  }) });
 const fetchImpl = async (url, options) => {
   requests.push({ url, options });
-  if (options.method === "GET") return { ok: true, async json() { return currentResponse; } };
+  if (options.method === "GET") {
+    if (overrideGET) return overrideGET(options);
+    if (delayJSON) await delayJSON;
+    return new Response(JSON.stringify(monitorResponse(currentResponse)));
+  }
   if (url === "/api/inventory/delete") {
     if (rejectDelete) return { ok: false, async text() { return "inventory changed; refresh before deletion"; } };
     const body = JSON.parse(options.body);
@@ -84,10 +102,21 @@ const fetchImpl = async (url, options) => {
   }
   return { ok: true, async json() { return currentResponse; } };
 };
-class FixedDate extends Date { static now() { return Date.parse("2026-09-28T00:00:00Z"); } }
+let wallNow = Date.parse("2026-09-28T00:00:00Z");
+let monotonicNow = 0;
+const timers = new Map();
+let timerID = 0;
+const documentListeners = {}, windowListeners = {};
+let recordDetailsOpen = false;
+const mockDocument = { hidden: false, addEventListener(name, fn) { documentListeners[name] = fn; },
+  querySelector() {return recordDetailsOpen ? {} : null;},
+  getElementById(id) { return elements[id]; }, createElement() { return new Element(); } };
+class FixedDate extends Date { static now() { return wallNow; } }
 vm.runInNewContext(source, {
-  document: { getElementById(id) { return elements[id]; }, createElement() { return new Element(); } },
-  fetch: fetchImpl, TextEncoder, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
+  document: mockDocument, window: { addEventListener(name, fn) { windowListeners[name] = fn; } },
+  performance: { now: () => monotonicNow },
+  setTimeout(fn, delay) { const id = ++timerID; timers.set(id,{fn,delay}); return id; }, clearTimeout(id) { timers.delete(id); },
+  fetch: fetchImpl, TextEncoder, TextDecoder, AbortController, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
 }, { filename: "inventory.js" });
 
 await new Promise(resolve => setImmediate(resolve));
@@ -102,7 +131,7 @@ const firstDetails = elements.records.children[0].children.find(node => node.cla
 assert.ok(firstDetails.children.some(node => node.textContent.includes("Saved at (server clock)")));
 assert.ok(firstDetails.children.some(node => node.textContent.includes("SHA-256: ab:cd")));
 assert.ok(!elements.records.children[0].children.some(node => node.textContent.includes("SHA-256:")), "fingerprint must not crowd the card");
-assert.match(elements["clock-as-of"].textContent, /2026-09-28T00:00:00.000Z.*does not alert or renew/);
+assert.match(elements["clock-as-of"].textContent, /2026-09-28T00:00:00.000Z.*server clock.*no automatic renewal/);
 
 const addLocation = action(elements.records.children[0], "Add server note");
 assert.ok(addLocation);
@@ -257,8 +286,7 @@ assert.deepEqual(elements.records.children.map(node => node.children[0].textCont
 assert.ok(elements.counts.children.some(node => node.textContent === "No owner note: 1"));
 assert.ok(elements.counts.children.some(node => node.textContent === "No server note: 1"));
 assert.ok(elements.counts.children.some(node => node.textContent === "Needs attention: 4"));
-assert.ok(elements.records.children.find(node => node.children[0].textContent === "expired").children
-  .find(node => node.className === "record-details").children.some(node => /not renewed automatically/.test(node.textContent)));
+assert.ok(elements.records.children.find(node => node.children[0].textContent === "expired").children.some(node => /not renewed automatically/.test(node.textContent)));
 const beforeView = requests.length;
 elements["expiry-filter"].value = "attention";
 elements["expiry-filter"].listeners.change();
@@ -282,7 +310,7 @@ assert.equal(requests.length, beforeView, "view changes must remain local");
 currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: "not a date" }] };
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 1);
-assert.match(elements.records.children[0].children[1].textContent, /Invalid date range/);
+assert.match(elements.records.children[0].children[1].textContent, /Check certificate dates/);
 currentResponse = { ...currentResponse, records: [{ ...currentResponse.records[0], not_after: null }] };
 await elements["refresh-button"].listeners.click();
 assert.equal(elements.records.children.length, 0, "malformed date type was rendered");
@@ -329,4 +357,152 @@ assert.equal(elements.records.children.length, 0, "deleted record stayed visible
 assert.match(elements["list-status"].textContent, /Older snapshots may still contain it/);
 assert.equal(fileReads, 1, "deletion must not reread selected files");
 
-console.log("Rootwell simplified public inventory UI and explicit record deletion passed.");
+// The production page uses the same server observation for every card. The
+// browser clock never changes certificate classification, only clock warnings.
+currentResponse = { ...response, generation: 8, records: [
+  makeRecord("seven", "2026-10-05T00:00:00Z"),
+  makeRecord("seven-plus", "2026-10-05T00:00:01Z"),
+  makeRecord("fourteen", "2026-10-12T00:00:00Z"),
+  makeRecord("thirty", "2026-10-28T00:00:00Z"),
+  makeRecord("ninety", "2026-12-27T00:00:00Z"),
+] };
+await elements["refresh-button"].listeners.click();
+assert.match(elements["monitor-summary"].textContent, /^4 certificate/);
+assert.equal(elements.records.children[0].children[1].textContent,"7 days left");
+const beforeThreshold = requests.length;
+elements["warning-days"].value = "7";
+elements["warning-days"].listeners.change();
+assert.match(elements["monitor-summary"].textContent,/^1 certificate/);
+elements["expiry-filter"].value = "attention";
+elements["expiry-filter"].listeners.change();
+assert.deepEqual(elements.records.children.map(node => node.children[0].textContent),["seven"]);
+elements["warning-days"].value = "14";
+elements["warning-days"].listeners.change();
+assert.equal(elements.records.children.length,3);
+elements["warning-days"].value = "90";
+elements["warning-days"].listeners.change();
+assert.equal(elements.records.children.length,5);
+assert.equal(requests.length,beforeThreshold,"reminder selection uploaded preferences");
+wallNow += 365*86400000;
+elements["expiry-filter"].value = "all";
+elements["expiry-filter"].listeners.change();
+assert.equal(elements.records.children[0].children[1].textContent,"7 days left","browser clock controlled expiry");
+assert.match(elements["clock-as-of"].textContent,/times differ by over 5 minutes/);
+assert.match(elements["monitor-summary"].textContent,/out of date/);
+wallNow = Date.parse(serverTime);
+elements["warning-days"].value = "bad";
+elements["warning-days"].listeners.change();
+assert.equal(elements["warning-days"].value,"30");
+
+function runTick() { const entry = [...timers.entries()].find(([,timer]) => timer.delay === 15000); assert.ok(entry); timers.delete(entry[0]); entry[1].fn(); }
+monotonicNow = 61000;
+const beforeTick = requests.length;
+runTick();
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(requests.length,beforeTick+1,"visible monitoring did not refresh");
+assert.equal(requests.at(-1).options.method,"GET");
+assert.equal(fileReads,1,"automatic check read a selected file");
+elements["auto-refresh"].checked = false;
+monotonicNow += 121000;
+runTick();
+assert.equal(requests.length,beforeTick+1,"disabled auto refresh still read inventory");
+assert.match(elements["monitor-summary"].textContent,/out of date/);
+await elements["refresh-button"].listeners.click();
+elements["auto-refresh"].checked = true;
+action(elements.records.children[0],"Change owner").listeners.click();
+monotonicNow += 61000;
+const beforeEditTick = requests.length;
+runTick();
+assert.equal(requests.length,beforeEditTick,"automatic refresh interrupted a correction panel");
+elements["owner-cancel"].listeners.click();
+recordDetailsOpen = true;
+runTick();
+assert.equal(requests.length,beforeEditTick,"automatic refresh interrupted reading expanded details");
+recordDetailsOpen = false;
+
+for (const mutate of [
+  data => { delete data.monitoring; },
+  data => { data.monitoring.clock_source = "browser-clock"; },
+  data => { data.monitoring.checked_at = "2026-02-30T00:00:00Z"; },
+  data => { data.monitoring.refresh_after_seconds = 0; },
+  data => { data.records[0].expiry.status = "later"; },
+  data => { data.records[0].expiry.days_left = 0; },
+  data => { data.records[0].expiry.days_left = null; },
+]) {
+  const data = monitorResponse(currentResponse); mutate(data);
+  overrideGET = () => new Response(JSON.stringify(data));
+  await elements["refresh-button"].listeners.click();
+  assert.equal(elements.records.children.length,0,"malformed monitoring retained cards");
+  assert.match(elements["monitor-summary"].textContent,/unavailable/);
+}
+overrideGET = () => new Response("sign in first",{status:401});
+await elements["refresh-button"].listeners.click();
+monotonicNow += 60000;
+const afterUnauthorized = requests.length;
+runTick();
+assert.equal(requests.length,afterUnauthorized,"failed session caused an automatic retry loop");
+assert.equal(elements.records.children.length,0);
+overrideGET = null;
+await elements["refresh-button"].listeners.click();
+
+// Streaming bound accepts exactly 4 MiB and refuses a single extra byte.
+const json = JSON.stringify(monitorResponse(currentResponse));
+overrideGET = () => new Response(json + " ".repeat(4*1024*1024-Buffer.byteLength(json)));
+await elements["refresh-button"].listeners.click();
+assert.equal(elements.records.children.length,5);
+overrideGET = () => new Response(json + " ".repeat(4*1024*1024-Buffer.byteLength(json)+1));
+await elements["refresh-button"].listeners.click();
+assert.equal(elements.records.children.length,0);
+assert.match(elements["list-status"].textContent,/page limit/);
+overrideGET = () => new Response('{"password":"do-not-echo-invalid-json"');
+await elements["refresh-button"].listeners.click();
+assert.doesNotMatch(elements["list-status"].textContent,/do-not-echo/);
+
+// A hidden or BFCache page clears metadata and cannot accept late responses.
+overrideGET = null;
+let finish;
+delayJSON = new Promise(resolve => {finish=resolve;});
+const pending = elements["refresh-button"].listeners.click();
+mockDocument.hidden = true;
+documentListeners.visibilitychange();
+assert.equal(requests.at(-1).options.signal.aborted,true);
+assert.equal(elements["owner-target"].textContent,"");
+assert.equal(elements["new-owner"].value,"");
+finish(); await pending; delayJSON = null;
+assert.equal(elements.records.children.length,0,"hidden page accepted late response");
+assert.match(elements["monitor-summary"].textContent,/paused/);
+const hiddenRequests = requests.length;
+assert.equal(timers.size,0,"hidden page retained refresh timer");
+mockDocument.hidden = false;
+documentListeners.visibilitychange();
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(requests.length,hiddenRequests+1);
+assert.equal(elements.records.children.length,5);
+windowListeners.pagehide();
+assert.equal(elements.records.children.length,0,"pagehide retained inventory metadata");
+windowListeners.pageshow({persisted:true});
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(elements.records.children.length,5,"BFCache restore did not reauthenticate");
+
+overrideGET = options => new Promise((resolve,reject) => options.signal.addEventListener("abort", () => reject(new Error("timeout"))));
+const timeoutPending = elements["refresh-button"].listeners.click();
+const deadlineEntry = [...timers.entries()].find(([,timer]) => timer.delay === 10000);
+assert.ok(deadlineEntry); deadlineEntry[1].fn(); await timeoutPending;
+assert.equal(elements.records.children.length,0);
+assert.match(elements["monitor-summary"].textContent,/unavailable/);
+windowListeners.pagehide();
+assert.equal(timers.size,0);
+
+// Hiding during an already-started body read also discards late data.
+let finishStream;
+overrideGET = () => new Response(new ReadableStream({ start(controller) { finishStream = () => {
+  controller.enqueue(new TextEncoder().encode(JSON.stringify(monitorResponse(currentResponse)))); controller.close();
+}; } }));
+const lateBody = elements["refresh-button"].listeners.click();
+await new Promise(resolve => setImmediate(resolve));
+mockDocument.hidden = true;
+documentListeners.visibilitychange();
+finishStream(); await lateBody;
+assert.equal(elements.records.children.length,0,"hidden page accepted a late body read");
+assert.match(elements["monitor-summary"].textContent,/paused/);
+console.log("Rootwell inventory, server-clock monitoring, bounded refresh and refusal paths passed.");

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
 )
@@ -164,6 +165,25 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Monitoring rereads authenticate the same image without any storage write.
+	originalClock := g.now
+	observed := originalClock().UTC().Truncate(time.Second)
+	for i := range 3 {
+		instant := observed.Add(time.Duration(i) * time.Second)
+		g.now = func() time.Time { return instant }
+		w := inventoryCall(g, "GET", "/api/inventory", "", readyCookie, "", true)
+		var output inventoryOutput
+		if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Generation != 2 ||
+			output.Monitoring.CheckedAt != instant.Format(time.RFC3339) || output.Monitoring.ClockSource != "server-clock" ||
+			len(output.Records) != 1 || output.Records[0].Expiry.Status == "" || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("authenticated server-clock monitoring failed")
+		}
+		unchanged, readErr := os.ReadFile(inventoryPath)
+		if readErr != nil || !bytes.Equal(encrypted, unchanged) {
+			t.Fatal("monitoring wrote the encrypted image")
+		}
+	}
+	g.now = originalClock
 	encrypted[len(encrypted)/2] ^= 1
 	if err := os.WriteFile(inventoryPath, encrypted, 0o600); err != nil {
 		t.Fatal(err)

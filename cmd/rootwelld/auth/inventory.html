@@ -43,12 +43,19 @@
       </section>
       <section class="card overview" aria-labelledby="overview-heading">
         <h2 id="overview-heading">Saved certificates</h2>
-        <p>Expiry is estimated from this browser’s clock. This is not a live server or trust check.</p>
+        <p>See what needs renewal planning. Dates are checked against your Rootwell server’s clock, not a live server or trust check.</p>
+        <div id="monitor-summary" class="monitor-summary" role="status" aria-live="polite"></div>
         <p id="clock-as-of" class="clock-note"></p>
+        <details class="optional-fields"><summary>Monitoring options</summary>
+          <label for="warning-days">Show renewal reminders within</label>
+          <select id="warning-days"><option value="30">30 days (recommended)</option><option value="14">14 days</option><option value="7">7 days</option><option value="90">90 days</option></select>
+          <label class="confirm-row" for="auto-refresh"><input id="auto-refresh" type="checkbox" checked> Update every minute while this page is visible</label>
+          <p>Reminders appear only on this page. No emails or desktop notifications are sent. This choice lasts only while the page is open. Server time can also be wrong; check it before acting.</p>
+        </details>
         <div id="counts" class="counts" aria-live="polite"></div>
         <div class="filters">
           <label for="expiry-filter">Show certificates</label>
-          <select id="expiry-filter"><option value="all">All certificates</option><option value="attention">Needs attention</option><option value="later">Valid for over 90 days</option><option value="missing-owner">No owner note</option><option value="missing-location">No server note</option></select>
+          <select id="expiry-filter"><option value="all">All certificates</option><option value="attention">Needs attention</option><option value="later">Expires in over 90 days</option><option value="missing-owner">No owner note</option><option value="missing-location">No server note</option></select>
           <label for="inventory-search">Search</label>
           <input id="inventory-search" type="search" autocomplete="off" placeholder="Certificate name, owner or server">
         </div>
