@@ -168,6 +168,9 @@ objects; browser/OS memory/history erasure is not promised. See
 
 ## Local public bulk preview (ADR 0043)
 
+The later lifecycle wave below adds comparison, history and session-bound
+background checks; this earlier bulk increment alone granted none of them.
+
 An operator-controlled browser process can inspect public preview bytes.
 ADR 0043 adds 1–8 file local public preview and one exact
 canonical PEM Save via the existing atomic append, not a new import API.
@@ -188,3 +191,36 @@ entry; snapshots and any external copies remain the operator's responsibility.
 An older, intact ciphertext can be replayed with the same context unless a
 future trusted manifest rejects stale generations. The codec alone is not an
 anti-rollback or recoverability solution.
+
+## Public lifecycle wave (ADR 0044)
+
+This supersedes the ADR 0041 scheduling limitation, not the trust boundary.
+The daemon checks the authenticated image once per minute even with no page
+open, using an existing ready session's memory-held key. It retains no new
+unlock credential, extends no session and writes no inventory. Logout, expiry
+(up to 12 hours), restart, invalid access revision, storage failure and a
+backwards clock clear the RAM-only 30-day attention list. Late reads cannot
+revive a revoked session's result. Stale age/generation/unlock deadline is
+reported separately; this is not reliable unattended 24/7 monitoring or
+external notification. A false host clock remains an operator risk.
+
+Explicit comparison reads one saved public DER at an exact fingerprint and
+generation. A single local PEM/DER candidate up to 96 KiB (DER up to 64 KiB)
+stays in the browser and is parsed by Go WASM. It reports exact certificate,
+SPKI, subject/issuer encoding, DNS/IP/email/URI names and validity differences;
+there is no trust, private-key possession, automatic save or replacement.
+An opened saved snapshot is a local copy, not a live deployment observation.
+Automatic page refresh pauses during comparison; explicit refresh/hidden page
+invalidates the selection. Already exposed browser memory is not revocable.
+
+One encrypted history event is atomically included with each successful
+mutation and retained by full snapshots. Fixed actions, UTC second, generation
+and fingerprints are included; previous notes, DER and credentials are not.
+Whole-image and event authentication precede output. Legacy history is unknown;
+1024 events refuse further writes. There is currently no history archive or
+clear operation: production retention/capacity needs an explicit policy before
+release, not silent truncation. Old binaries reject new history-bearing images;
+do not downgrade after writes. Deleted identities stay in history/backups.
+This is local provenance, not an independent audit log or rollback protection.
+Windows preview displays synthetic history and honestly reports no running
+worker; Linux tests exercise actual durable storage, restore and scheduling.

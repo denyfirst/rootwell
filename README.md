@@ -122,8 +122,17 @@ The [Linux recovery guide](docs/RECOVERY-AZ.md) gives the exact commands.
 Expiry is now calculated against one Rootwell server-clock observation.
 The page offers quiet 7/14/30/90-day reminders, a stale-result and clock
 disagreement warning, and optional minute-by-minute reads while visible.
-Reminders stop when the page closes; no email, endpoint check or renewal is
-performed. Search and reminder windows stay in browser memory, not stored
+The page view stops when closed, but the daemon also performs a fixed 30-day
+background expiry check while an existing ready session remains unlocked
+(up to 12 hours). Logout, expiry, restart or errors pause checks; no password
+is persisted for monitoring. Status and a bounded encrypted change history are
+shown on the page. History is included in full snapshots; 1024 events refuse
+new writes, never silently remove old history. Production retention capacity
+needs a separate policy before release. Do not downgrade after history-bearing
+writes. Compare replacement locally reports key/names/issuer/date differences
+without candidate upload, automatic save or trust. See
+[ADR 0044](docs/adr/0044-public-inventory-lifecycle-wave.md).
+No email, endpoint check or renewal is performed. Search and reminder windows stay in browser memory, not stored
 preferences. Server time can also be wrong; see [ADR 0041](docs/adr/0041-server-clock-inventory-reminders.md).
 Owner and location notes are not
 exported through the Inventory UI. On Windows, durable inventory remains

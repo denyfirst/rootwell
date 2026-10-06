@@ -1144,3 +1144,41 @@ Guarded by `TestInventoryBulkAssetsRemainBehindReadyAccess`,
 `TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
 `scripts/test-inventory-bulk.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
+
+## C67 — Public lifecycle comparison/history and background checks stay scoped
+
+An exact generation/fingerprint ready-session request releases one saved
+public DER, never notes or keys. A single bounded local candidate is reparsed
+and compared in actual Go WASM without upload, save, replacement or trust.
+SAN/key/issuer/date changes remain informational. Changed/hidden/refreshed
+sources and late results fail closed; response sizes and errors are bounded.
+
+Every successful inventory mutation commits one authenticated encrypted event
+in the same complete image; rejected mutations commit neither. Fixed actions,
+UTC seconds, contiguous generations and unique fingerprints are validated
+before any records/events are released. History includes no prior notes, DER
+or credentials. Full snapshot/restore retains it. Legacy history is unknown;
+1024 events refuse additional writes rather than erase old activity. This is
+not an independent audit log or rollback anchor, and downgrade is not supported
+after new writes. Deleted identities remain in history and backups.
+
+The daemon independently checks once per minute using only an existing ready
+session key, with no lifetime extension or persisted monitoring credential.
+The RAM-only 30-day inbox clears on revocation/expiry/revision/storage/clock
+failure; logout during a read cannot publish a late result. Observation age,
+generation and unlock deadline are reported and stale observations are not
+healthy. Closing a page does not stop this worker, but logout, restart or the
+12-hour session limit require another unlock. No external alerts, 24/7 service,
+live discovery, renewal, private custody or Porch change is claimed (ADR 0044).
+
+Guarded by `TestComparisonTracksAllNamesKeyAndDatesWithoutTrust`,
+`TestComparisonRefusesPrivateMixedBundlesAndMalformed`, `FuzzPublicComparison`,
+`TestHistoryIsAtomicEncryptedCompleteAndRetainsDeletionIdentity`,
+`TestHistoryLegacyBoundaryContinuityCapacityAndContext`,
+`TestBackgroundMonitorWithoutBrowserExpiresClearsAndRejectsLateLogout`,
+`TestBackgroundMonitorInvalidRevisionClearsSessionsAndLateResult`,
+`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
+`TestLinuxInventoryDurableImportAndFreshFullRestore`,
+`TestInventoryBulkAssetsRemainBehindReadyAccess`,
+`scripts/test-inventory-lifecycle.mjs`, `scripts/test-rootwelld-inventory.mjs`
+and `scripts/test-inventory-demo.mjs`.

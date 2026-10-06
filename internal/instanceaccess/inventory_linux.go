@@ -83,6 +83,24 @@ func ReadInventory(accessPath string, key, id []byte, expectedRevision [32]byte)
 	return records, generation, err
 }
 
+// ReadInventoryHistory authenticates records and history under the writer lock.
+func ReadInventoryHistory(accessPath string, key, id []byte, revision [32]byte) ([]inventorystore.Event, uint64, error) {
+	var events []inventorystore.Event
+	var generation uint64
+	err := withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, revision); err != nil {
+			return err
+		}
+		image, err := readInventory(filepath.Join(filepath.Dir(accessPath), inventoryName))
+		if err != nil {
+			return err
+		}
+		events, generation, err = inventorystore.History(key, id, image)
+		return err
+	})
+	return events, generation, err
+}
+
 // AppendInventory is an atomic single-file replacement under the installation
 // writer lock. A post-rename error is uncertain and must not be retried blind.
 func AppendInventory(accessPath string, key, id []byte, expectedRevision [32]byte, input []byte, owner, location string) ([]publicinventory.Record, uint64, error) {

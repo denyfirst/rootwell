@@ -24,7 +24,7 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 	if err := g.issueSession(setup, true, revision, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/inventory", "/inventory-import.js", "/inventory-engine.js"} {
+	for _, path := range []string{"/inventory", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js"} {
 		anonymous := call(g, "GET", path, "", nil)
 		if anonymous.Code != http.StatusSeeOther || anonymous.Header().Get("Location") != "/login" {
 			t.Fatal("anonymous access to bulk assets")

@@ -22,7 +22,7 @@ vm.runInNewContext(helperSource, helperContext);
 const helper = helperContext.rootwellInventoryImport;
 const loaderSource=fs.readFileSync("cmd/rootwelld/auth/inventory-engine.js","utf8");
 let assetRequest=null;
-const loader={rootwellExplore:engine.explore,rootwellExport:engine.exportPublic,rootwellExportBundle:engine.exportBundle,rootwellInspectMaxBytes:16*1024*1024,
+const loader={rootwellExplore:engine.explore,rootwellExport:engine.exportPublic,rootwellExportBundle:engine.exportBundle,rootwellCompare,rootwellInspectMaxBytes:16*1024*1024,
   AbortController,setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assetRequest={url,options};return {ok:true};},
   Go:class {constructor(){this.importObject={};}async run(){loader.rootwellWasmReady();}},WebAssembly:{async instantiateStreaming(){return {instance:{}};}}};
 vm.runInNewContext(loaderSource,loader);

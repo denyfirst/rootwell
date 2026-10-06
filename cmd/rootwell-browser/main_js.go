@@ -15,6 +15,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/browserverifiedexport"
 	"github.com/denyfirst/rootwell/internal/browserverify"
 	"github.com/denyfirst/rootwell/internal/limits"
+	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
 func main() {
@@ -46,11 +47,35 @@ func main() {
 	js.Global().Set("rootwellPFXInspect", pfxInspectFunction)
 	js.Global().Set("rootwellPFXOutput", pfxOutputFunction)
 	js.Global().Set("rootwellCSROperate", csrFunction)
+	js.Global().Set("rootwellCompare", js.FuncOf(compareCertificates))
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
 	}
 	select {}
+}
+
+func compareCertificates(_ js.Value, args []js.Value) (response any) {
+	response = publicinventory.CompareJSON(nil, nil)
+	defer func() {
+		if recover() != nil {
+			response = publicinventory.CompareJSON(nil, nil)
+		}
+	}()
+	if len(args) != 2 {
+		return response
+	}
+	a, fa := copyPublicInputLimited(args[0], 96<<10)
+	if fa != inputOK {
+		return response
+	}
+	defer clear(a)
+	b, fb := copyPublicInputLimited(args[1], 96<<10)
+	if fb != inputOK {
+		return response
+	}
+	defer clear(b)
+	return publicinventory.CompareJSON(a, b)
 }
 
 func verifySimple(_ js.Value, arguments []js.Value) (response any) {

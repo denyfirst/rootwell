@@ -9,6 +9,7 @@
   <script src="/wasm_exec.js" defer></script>
   <script src="/inventory-engine.js" defer></script>
   <script src="/inventory-import.js" defer></script>
+  <script src="/inventory-lifecycle.js" defer></script>
   <script src="/inventory.js" defer></script>
 </head>
 <body>
@@ -59,7 +60,7 @@
           <label for="warning-days">Show renewal reminders within</label>
           <select id="warning-days"><option value="30">30 days (recommended)</option><option value="14">14 days</option><option value="7">7 days</option><option value="90">90 days</option></select>
           <label class="confirm-row" for="auto-refresh"><input id="auto-refresh" type="checkbox" checked> Update every minute while this page is visible</label>
-          <p>Reminders appear only on this page. No emails or desktop notifications are sent. This choice lasts only while the page is open. Server time can also be wrong; check it before acting.</p>
+          <p>This filter lasts only while the page is open. Background checks use a fixed 30-day window while a ready session is unlocked. No emails or desktop notifications. Server time can also be wrong.</p>
         </details>
         <div id="counts" class="counts" aria-live="polite"></div>
         <div class="filters">
@@ -131,6 +132,23 @@
       </section>
     </div>
     <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>Changes are not automatically backed up.</p><details><summary>How to make a backup</summary><p>After any change, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An older snapshot may restore records or notes you later deleted.</p></details></aside>
+    <section id="comparison-panel" class="card" aria-labelledby="comparison-heading" hidden>
+      <h2 id="comparison-heading">Compare a replacement certificate</h2><p id="comparison-target"></p>
+      <p>The saved public snapshot is read from your Rootwell. Your candidate stays in this browser. Nothing is replaced or saved; matching names or keys do not prove trust.</p>
+      <label for="comparison-file">New public certificate (.pem, .crt, .cer or .der)</label>
+      <input id="comparison-file" type="file" accept=".pem,.crt,.cer,.der">
+      <button id="comparison-button" type="button">Compare locally</button><button id="comparison-close" type="button" class="secondary">Close comparison</button>
+      <p id="comparison-status" role="status" aria-live="polite"></p><ul id="comparison-result" aria-label="Certificate changes"></ul>
+    </section>
+    <aside class="boundary lifecycle" aria-label="Background checks and history">
+      <strong>Background checks and history</strong><p id="background-status" role="status" aria-live="polite">Loading activity…</p>
+      <p>Closing this page does not stop server checks. Logout, session expiry (up to 12 hours), restart or unavailable storage pauses them. Sign in again to unlock; no password is stored on disk for monitoring.</p>
+      <button id="activity-refresh" type="button" class="secondary">Refresh activity</button>
+      <details><summary>Change history</summary><p id="history-status"></p><ol id="history-events" aria-label="Inventory change history"></ol>
+        <button id="history-previous" type="button" class="secondary">Newer events</button><button id="history-next" type="button" class="secondary">Older events</button>
+        <p>Not an independent audit log. Earlier activity may be unknown. Deleted fingerprints remain here and in older backups. At 1024 events, changes are refused; nothing is silently removed.</p>
+      </details>
+    </aside>
   </main>
 </body>
 </html>
