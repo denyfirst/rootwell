@@ -7,6 +7,10 @@
   const locationInput = document.getElementById("location");
   const saveButton = document.getElementById("save-button");
   const saveStatus = document.getElementById("save-status");
+  const previewButton = document.getElementById("preview-button");
+  const importPreview = document.getElementById("import-preview");
+  const previewSummary = document.getElementById("preview-summary");
+  const previewRecords = document.getElementById("preview-records");
   const refreshButton = document.getElementById("refresh-button");
   const listStatus = document.getElementById("list-status");
   const counts = document.getElementById("counts");
@@ -71,6 +75,78 @@
   let timer = null;
   let refreshing = false;
   let automaticPaused = false;
+  let importSerial = 0;
+  let importFiles = null;
+  let importEntries = null;
+  let previewing = false;
+  let saveController = null;
+
+  function duplicateSaved() {
+    return importEntries?.some(entry => loadedRecords.some(record => record.fingerprint === entry.sha256));
+  }
+  function sameImportFiles(files) {
+    const selected = Array.from(fileInput.files || []);
+    return files.length === selected.length && files.every((file, index) => file === selected[index]);
+  }
+  function updateImportControls() {
+    const busy = saving || associating || editingOwner || changingLocation || deleting;
+    saveButton.disabled = busy || previewing || document.hidden || !displayedGeneration || snapshotAge() >= 120000 ||
+      !importEntries || duplicateSaved() || form.dataset?.readOnly === "true";
+    previewButton.disabled = busy || previewing || document.hidden;
+    fileInput.disabled = saving;
+  }
+  function clearImportPreview(clearFiles = false) {
+    ++importSerial;
+    importFiles = importEntries = null;
+    previewing = false;
+    importPreview.hidden = true;
+    previewRecords.replaceChildren();
+    previewSummary.textContent = "";
+    if (clearFiles) fileInput.value = "";
+    updateImportControls();
+  }
+  fileInput.addEventListener("change", () => { clearImportPreview(); saveStatus.textContent = "Preview these files before saving. Nothing has been uploaded."; });
+  previewButton.addEventListener("click", async function () {
+    if (saving || associating || editingOwner || changingLocation || deleting || previewing || document.hidden) return;
+    clearImportPreview();
+    const serial = importSerial;
+    const files = Array.from(fileInput.files || []);
+    importFiles = files;
+    previewing = true;
+    updateImportControls();
+    saveStatus.textContent = "Reading public files locally — no upload…";
+    const current = () => serial === importSerial && !document.hidden && sameImportFiles(files);
+    const deadline = setTimeout(() => {
+      if (current()) { clearImportPreview(); saveStatus.textContent = "Local preview timed out. Select and preview again; nothing was uploaded."; }
+    }, 20000);
+    try {
+      const entries = await globalThis.rootwellInventoryImport.preview(files, current);
+      if (!current()) return;
+      importEntries = entries;
+      importPreview.hidden = false;
+      let duplicates = 0;
+      for (const entry of entries) {
+        const item = document.createElement("li");
+        const title = document.createElement("strong");
+        title.textContent = entry.subject || "Public certificate";
+        item.appendChild(title);
+        const saved = loadedRecords.some(record => record.fingerprint === entry.sha256);
+        if (saved) duplicates++;
+        const note = document.createElement("small");
+        note.textContent = entry.source + " · Expires: " + entry.not_after.slice(0, 10) + (saved ? " · Already saved — duplicate" : " · New certificate");
+        item.appendChild(note);
+        previewRecords.appendChild(item);
+      }
+      previewSummary.textContent = entries.length + " public certificate(s) found.";
+      saveStatus.textContent = duplicates ? duplicates + " certificate(s) are already saved. Remove their copies from this batch and preview again. Nothing was saved or skipped." :
+        "Ready to save all " + entries.length + " certificate(s). Owner/server notes below apply to every certificate in this batch.";
+    } catch (error) {
+      if (current()) { clearImportPreview(); saveStatus.textContent = error instanceof Error ? error.message : "Local preview failed. Nothing was uploaded."; }
+    } finally {
+      clearTimeout(deadline);
+      if (current()) { previewing = false; updateImportControls(); }
+    }
+  });
 
   function validLabel(value) {
     return encoder.encode(value).length <= 128 && value.trim() === value &&
@@ -376,6 +452,7 @@
   async function refresh() {
     if (refreshing || document.hidden) return false;
     refreshing = true;
+    clearImportPreview();
     automaticPaused = false;
     const serial = ++loadSerial;
     const controller = new AbortController();
@@ -440,6 +517,7 @@
         refreshButton.disabled = false;
         refreshing = false;
         refreshController = null;
+        updateImportControls();
       }
     }
   }
@@ -471,12 +549,13 @@
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
-    if (saving || associating || editingOwner || changingLocation || deleting) return;
-    const file = fileInput.files && fileInput.files[0];
+    if (saving || associating || editingOwner || changingLocation || deleting || previewing || document.hidden || form.dataset?.readOnly === "true") return;
+    const files = importFiles;
+    const entries = importEntries;
     const owner = ownerInput.value;
     const location = locationInput.value;
-    if (!file || file.size < 1 || file.size > (16 << 20)) {
-      saveStatus.textContent = "Choose one public certificate file up to 16 MiB.";
+    if (!files || !entries || !displayedGeneration || snapshotAge() >= 120000 || duplicateSaved()) {
+      saveStatus.textContent = "Refresh saved certificates if needed, then preview a batch without duplicates before saving.";
       return;
     }
     if (!validLabel(owner) || !validLabel(location)) {
@@ -484,32 +563,51 @@
       return;
     }
     saving = true;
-    saveButton.disabled = true;
-    saveStatus.textContent = "Reading the selected file, then sending it only to this Rootwell server…";
+    updateImportControls();
+    const serial = importSerial;
+    const generation = displayedGeneration;
+    const current = () => serial === importSerial && !document.hidden && sameImportFiles(files) && displayedGeneration === generation;
+    const controller = new AbortController();
+    saveController = controller;
+    let posted = false;
+    let confirmed = false;
+    const deadline = setTimeout(() => {
+      controller.abort();
+      clearImportPreview();
+      saveStatus.textContent = posted ? "Save timed out and may have completed. Refresh before another import." : "Local recheck timed out; nothing was uploaded. Preview again.";
+    }, 20000);
+    saveStatus.textContent = "Rechecking the exact preview before sending public certificates to this Rootwell…";
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      if (bytes.length !== file.size) throw new Error("File changed while being read; choose it again.");
+      const expected = entries.map(entry => entry.sha256);
+      const bytes = await globalThis.rootwellInventoryImport.prepare(files, expected, () => current() && !controller.signal.aborted);
       let certificate;
       try { certificate = base64(bytes); } finally { bytes.fill(0); }
+      if (!current() || controller.signal.aborted || snapshotAge() >= 120000 || duplicateSaved()) return;
+      posted = true;
       const response = await fetch("/api/inventory", { method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" },
-        body: JSON.stringify({ certificate, owner, location }) });
-      if (!response.ok) {
-        const message = (await response.text()).trim().slice(0, 240);
-        throw new Error(message || "Public certificate was not saved");
-      }
-      const result = await response.json();
-      if (!result || !Array.isArray(result.records) || result.records.length < 1 || result.verification !== "not-performed") {
+        body: JSON.stringify({ certificate, owner, location }), signal: controller.signal });
+      if (!response.ok) throw new Error("Save was not confirmed. The batch may now conflict with saved records; refresh and preview again before retrying.");
+      const result = await readBoundedJSON(response, controller.signal);
+      if (!current() || controller.signal.aborted) return;
+      if (!result || !Array.isArray(result.records) || result.records.length !== expected.length || result.verification !== "not-performed" ||
+          !result.records.every((record, index) => record.fingerprint === expected[index])) {
         throw new Error("Save outcome could not be confirmed; refresh before retrying.");
       }
       saveStatus.textContent = result.records.length + " public certificate(s) saved. Make a new full inventory snapshot; backup is not automatic.";
-      fileInput.value = "";
+      confirmed = true;
+      clearImportPreview(true);
       await refresh();
     } catch (error) {
-      saveStatus.textContent = error instanceof Error ? error.message : "Save outcome could not be confirmed; refresh before retrying.";
+      if (current()) saveStatus.textContent = posted ? "Save outcome could not be confirmed; it may have completed. Refresh and preview again before retrying." :
+        error instanceof Error ? error.message : "Local recheck failed; nothing was uploaded.";
     } finally {
+      clearTimeout(deadline);
+      controller.abort();
+      saveController = null;
       saving = false;
-      saveButton.disabled = false;
+      if (!current() && posted && !confirmed) saveStatus.textContent = "Save may have completed before the view changed. Refresh before another import.";
+      updateImportControls();
     }
   });
 
@@ -551,7 +649,7 @@
     } finally {
       associating = false;
       locationButton.disabled = false;
-      saveButton.disabled = false;
+      updateImportControls();
       refreshButton.disabled = false;
     }
   });
@@ -603,7 +701,7 @@
     } finally {
       editingOwner = false;
       ownerButton.disabled = false;
-      saveButton.disabled = false;
+      updateImportControls();
       refreshButton.disabled = false;
     }
   });
@@ -670,7 +768,7 @@
       changingLocation = false;
       renameLocationButton.disabled = false;
       removeLocationButton.disabled = false;
-      saveButton.disabled = false;
+      updateImportControls();
       refreshButton.disabled = false;
     }
   }
@@ -715,7 +813,8 @@
     clearTimeout(timer);
     if (document.hidden) return;
     updateMonitor();
-    const editing = saving || associating || editingOwner || changingLocation || deleting ||
+    updateImportControls();
+    const editing = saving || previewing || importFiles !== null || associating || editingOwner || changingLocation || deleting ||
       !locationPanel.hidden || !ownerPanel.hidden || !locationManagePanel.hidden || !deletePanel.hidden ||
       document.querySelector(".record-details[open]") !== null;
     if (autoRefresh.checked && !automaticPaused && !refreshing && !editing && snapshotAge() >= 60000) {
@@ -724,6 +823,9 @@
     timer = setTimeout(tick, 15000);
   }
   function suspend() {
+    if (saving) saveStatus.textContent = "Save may have completed before the view changed. Refresh before another import.";
+    saveController?.abort();
+    clearImportPreview(true);
     clearTimeout(timer);
     ++loadSerial;
     refreshController?.abort();
@@ -747,6 +849,7 @@
     oldLocation.replaceChildren();
     confirmRemove.checked = confirmDelete.checked = false;
     monitorSummary.textContent = "Monitoring paused while this page is hidden. Refresh on return.";
+    updateImportControls();
   }
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) suspend();
@@ -797,7 +900,7 @@
     } finally {
       deleting = false;
       deleteButton.disabled = false;
-      saveButton.disabled = false;
+      updateImportControls();
       refreshButton.disabled = false;
     }
   });

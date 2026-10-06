@@ -137,7 +137,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/inventory", "/inventory.js", "/inventory.css":
+	case "/inventory", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -159,6 +159,10 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/inventory.js", "text/javascript; charset=utf-8")
 		case "/inventory.css":
 			g.authAsset(w, r, "auth/inventory.css", "text/css; charset=utf-8")
+		case "/inventory-import.js":
+			g.authAsset(w, r, "auth/inventory-import.js", "text/javascript; charset=utf-8")
+		case "/inventory-engine.js":
+			g.authAsset(w, r, "auth/inventory-engine.js", "text/javascript; charset=utf-8")
 		}
 		return
 	case "/setup":

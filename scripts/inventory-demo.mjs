@@ -18,8 +18,7 @@ function replaceOnce(source, before, after) {
 }
 let html = asset("inventory.html");
 html = replaceOnce(html, "<main>", `<main><aside class="boundary" aria-label="Demo mode"><strong>DEMO — generated fake records only</strong><p>This is a read-only visual preview on this computer, not your encrypted inventory. Save, editing, and backup are disabled. Never enter a real certificate or secret here.</p></aside>`);
-html = replaceOnce(html, 'id="certificate-file" type="file"', 'id="certificate-file" type="file" disabled');
-html = replaceOnce(html, '<button id="save-button" type="submit">', '<button id="save-button" type="submit" disabled>');
+html = replaceOnce(html, '<form id="inventory-form">', '<form id="inventory-form" data-read-only="true">');
 let script = asset("inventory.js");
 for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
   script = replaceOnce(script, `details.appendChild(${button});`, `${button}.disabled = true; details.appendChild(${button});`);
@@ -58,7 +57,8 @@ function fixture() {
 const assets = new Map([
   ["/inventory", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
-  ["/inventory.js", ["text/javascript; charset=utf-8", script]]
+  ["/inventory.js", ["text/javascript; charset=utf-8", script]],
+  ...["inventory-engine.js", "inventory-import.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
 ]);
 const workbenchTypes = new Map([
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],

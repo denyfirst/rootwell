@@ -23,7 +23,8 @@ try {
   assert.match(html, /DEMO — generated fake records only/);
   assert.match(html, /<h2 id="overview-heading">Saved certificates<\/h2>/);
   assert.doesNotMatch(html, /Export selected records|preview-export-button|download-export-button/);
-  assert.match(html, /id="certificate-file" type="file" disabled/);
+  assert.match(html, /id="certificate-file" type="file"[^>]*multiple/);
+  assert.match(html, /id="inventory-form" data-read-only="true"/);
   assert.match(html, /id="save-button" type="submit" disabled/);
   assert.equal(page.headers.get("cache-control"), "no-store");
   const origin = new URL(address).origin;

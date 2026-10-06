@@ -201,6 +201,16 @@ olur. Verify üçün sayt adı və müstəqil trust/root yenə ayrıca seçilir;
 CA-nın verdiyi issuer fayllarını istəyə bağlı əlavə etmək olur. Bu, chain,
 deployment və ya revocation-u avtomatik təsdiqləmir. Qəbul meyarları ADR 0042/C65.
 
+### Toplu public import — ADR 0043
+
+1–8 public PEM/DER faylını browser-də Preview edib, bütün tapılmış sertifikatları
+bir Save ilə atomik saxlamaq. Dublikatlar açıq bildirilir, heç nə səssiz
+atlanmır; private/mixed/malformed fayl bütün batch-i rədd edir. Save mənbələri
+yenidən oxuyub fingerprint-ləri müqayisə edir; server öz parser/auth/atomic
+append qaydalarını ayrıca tətbiq edir. Preview trust və ya renewal deyil.
+Səhifə bağlı olanda işləyən monitoring və köhnə/yeni sertifikat müqayisəsi
+bu increment-ə daxil deyil. Qəbul meyarları ADR 0043/C66-dadır.
+
 Canlı endpoint discovery, Porch nəticələrinin importu və xarici alert-lər ayrıca
 network/evidence/operational threat model-dən sonra gəlir. ACME, PFX/private
 key vault, SSH/PGP və agent deployment bu mərhələyə qarışdırılmır.

@@ -184,6 +184,35 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 		}
 	}
 	g.now = originalClock
+	// A canonical multi-file UI batch still passes this unchanged API. Both
+	// duplicate and malformed trailing content refuse the entire transaction.
+	fresh, err := os.ReadFile("../../web/workbench/rootwell-verify-demo-leaf.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, batch := range [][]byte{append(bytes.Clone(fresh), cert...), append(bytes.Clone(fresh), []byte("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n")...)} {
+		body, _ := json.Marshal(map[string]any{"certificate": batch})
+		refused := inventoryCall(g, "POST", "/api/inventory", string(body), readyCookie, "http://"+localHost, true)
+		unchanged, readErr := os.ReadFile(inventoryPath)
+		if refused.Code < 400 || readErr != nil || !bytes.Equal(encrypted, unchanged) {
+			t.Fatal("rejected mixed batch partially changed inventory")
+		}
+	}
+	issuer, err := os.ReadFile("../../web/workbench/rootwell-verify-demo-intermediate.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	batchBody, _ := json.Marshal(map[string]any{"certificate": append(bytes.Clone(fresh), issuer...), "owner": "Bulk owner"})
+	batchResult := inventoryCall(g, "POST", "/api/inventory", string(batchBody), readyCookie, "http://"+localHost, true)
+	var batchOutput inventoryOutput
+	if batchResult.Code != http.StatusCreated || json.Unmarshal(batchResult.Body.Bytes(), &batchOutput) != nil ||
+		batchOutput.Generation != 3 || len(batchOutput.Records) != 2 || batchOutput.Records[0].Owner != "Bulk owner" || batchOutput.Records[1].Owner != "Bulk owner" {
+		t.Fatal("atomic public batch did not commit exactly once")
+	}
+	encrypted, err = os.ReadFile(inventoryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	encrypted[len(encrypted)/2] ^= 1
 	if err := os.WriteFile(inventoryPath, encrypted, 0o600); err != nil {
 		t.Fatal(err)

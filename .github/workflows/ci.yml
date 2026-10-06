@@ -166,6 +166,9 @@ jobs:
           node --check web/workbench/worker-browser-smoke.js
           node --check cmd/rootwelld/auth/auth.js
           node --check cmd/rootwelld/auth/inventory.js
+          node --check cmd/rootwelld/auth/inventory-engine.js
+          node --check cmd/rootwelld/auth/inventory-import.js
+          node --check scripts/test-inventory-bulk.mjs
           node --check scripts/test-rootwelld-auth.mjs
           node --check scripts/test-rootwelld-inventory.mjs
           node --check scripts/inventory-demo.mjs
@@ -181,6 +184,7 @@ jobs:
             web/workbench/rootwell-demo-bundle.pem
           node scripts/test-workbench-multifile.mjs
           node scripts/test-inventory-workbench.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
+          node scripts/test-inventory-bulk.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-workbench-private.mjs
           node scripts/test-workbench-secret-view.mjs
           node scripts/test-workbench-private-worker.mjs
