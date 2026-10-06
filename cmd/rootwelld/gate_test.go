@@ -87,6 +87,11 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	if w := call(g, "GET", "/app.js", "", nil); w.Code != http.StatusSeeOther {
 		t.Fatalf("unguarded asset: %d", w.Code)
 	}
+	for _, route := range []string{"/style.css", "/theme.js"} {
+		if w := call(g, "GET", route, "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
+			t.Fatalf("unguarded shared workspace asset %s: %d", route, w.Code)
+		}
+	}
 	if w := call(g, "GET", "/private-key.js", "", nil); w.Code != http.StatusSeeOther {
 		t.Fatalf("unguarded private-key script: %d", w.Code)
 	}
@@ -117,7 +122,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("second setup session: %d", secondLogin.Code)
 	}
 	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/index.html", "/app.js", "/secret-view.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/account"} {
+	for _, route := range []string{"/", "/index.html", "/style.css", "/theme.js", "/app.js", "/secret-view.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/account"} {
 		w := call(g, "GET", route, "", cookie)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
 			t.Fatalf("setup credential reached %s: %d", route, w.Code)

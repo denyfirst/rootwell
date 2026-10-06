@@ -28,6 +28,22 @@ try {
   assert.match(html, /id="save-button" type="submit" disabled/);
   assert.equal(page.headers.get("cache-control"), "no-store");
   const origin = new URL(address).origin;
+  assert.match(html, /href="\/index.html"/);
+  assert.match(html, /href="\/inventory" aria-current="page"/);
+  const home = await fetch(origin + "/index.html");
+  assert.equal(home.status, 200, "Inventory must link back to the real Workbench in the fixture");
+  const homeHTML = await home.text();
+  assert.match(homeHTML, /DEMO — local Workbench with synthetic, read-only Inventory/);
+  assert.match(homeHTML, /class="rail-item" href="\/inventory"/);
+  assert.match(homeHTML, /No certificate uploads/);
+  assert.doesNotMatch(homeHTML, /rootwell\.inventory\.workbench\.v1/, "GET must not hand off any saved certificate");
+  assert.equal((await fetch(origin + "/")).url, origin + "/index.html");
+  for (const asset of ["style.css", "theme.js", "inventory.css"]) {
+    const response = await fetch(origin + "/" + asset); assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  }
+  assert.equal((await fetch(origin + "/index.html", { method: "POST" })).status, 405);
+  assert.equal((await fetch(origin + "/index.html?certificate=unexpected")).status, 404);
   const inventory = await fetch(origin + "/api/inventory", { headers: { "X-Rootwell-Request": "1" } });
   assert.equal(inventory.status, 200);
   const result = await inventory.json();

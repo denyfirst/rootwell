@@ -5,33 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="same-origin">
   <title>Saved certificates · Rootwell</title>
+  <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/inventory.css">
+  <script src="/theme.js"></script>
   <script src="/wasm_exec.js" defer></script>
   <script src="/inventory-engine.js" defer></script>
   <script src="/inventory-import.js" defer></script>
   <script src="/inventory-lifecycle.js" defer></script>
   <script src="/inventory.js" defer></script>
 </head>
-<body>
-  <header class="topbar">
-    <a class="brand" href="/"><span>root</span>well</a>
-    <nav aria-label="Rootwell navigation"><a href="/">Workbench</a><a aria-current="page" href="/inventory">Saved certificates</a><a href="/account">Access</a></nav>
-    <span class="local">Self-hosted · this host</span>
-  </header>
+<body class="workspace inventory-workspace">
+  <aside class="rail" aria-label="Primary navigation">
+    <div class="rail-identity">
+      <a class="wordmark" href="/index.html" aria-label="Rootwell home"><span>root</span>well</a>
+      <span class="rail-tag">Self-host</span>
+    </div>
+    <p class="rail-caption" id="rail-workspace">Workspace</p>
+    <nav class="rail-nav" aria-labelledby="rail-workspace">
+      <a class="rail-item" href="/index.html"><span class="rail-glyph" aria-hidden="true">◇</span>Workbench</a>
+      <a class="rail-item" href="/inventory" aria-current="page"><span class="rail-glyph" aria-hidden="true">◎</span>Inventory<span class="rail-soon">Self-host</span></a>
+      <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Planned</span></span>
+    </nav>
+    <p class="rail-caption" id="rail-security">Security</p>
+    <nav class="rail-nav" aria-labelledby="rail-security">
+      <a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span> Access <span class="rail-soon">Self-host</span></a>
+      <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">▣</span>Vault<span class="rail-soon">Later</span></span>
+      <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">≡</span>Audit log<span class="rail-soon">Later</span></span>
+    </nav>
+    <div class="rail-foot">
+      <div class="local-state"><span aria-hidden="true"></span>Your Rootwell server</div>
+      <button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button>
+    </div>
+  </aside>
+  <div class="workspace-main">
+    <header class="topbar">
+      <p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Inventory</strong></p>
+      <p class="boundary">Public certificates · explicit Save</p>
+    </header>
   <main>
-    <section class="hero">
-      <p class="eyebrow">SAVED CERTIFICATES</p>
-      <h1>Your certificates.<br><span>Expiry at a glance.</span></h1>
-      <p>Keep track of public certificates and when they expire. Rootwell does not renew or check a live server here.</p>
+    <section class="work-heading" aria-labelledby="inventory-title">
+      <div>
+        <p class="eyebrow">Certificate inventory</p>
+        <h1 id="inventory-title">Your certificates.</h1>
+        <p class="lede">See what expires next. Open a saved certificate in Workbench to inspect or verify it.</p>
+      </div>
     </section>
-    <aside class="boundary" aria-label="Storage boundary">
-      <strong>Saved on your Rootwell installation</strong>
-      <p>Only when you press Save, the public certificate goes to your own Rootwell server and is stored encrypted. Do not add PFX or private-key files. No third-party service is contacted.</p>
+    <aside class="storage-note" aria-label="Storage boundary">
+      <strong>Public certificates only · saved encrypted on your Rootwell</strong>
+      <p>Only when you press Save, the public certificate goes to your own server and is stored encrypted. No PFX or private keys. No third-party service is contacted.</p>
     </aside>
     <div class="layout">
-      <section class="card" aria-labelledby="save-heading">
-        <h2 id="save-heading">Add certificates</h2>
-        <p>Choose 1–8 public .pem, .crt, .cer or .der files, including PEM bundles. Up to 16 MiB combined and 64 certificates. PFX and private keys are not accepted.</p>
+      <details class="card import-card">
+        <summary><h2 id="save-heading">Add certificates</h2><span>Choose files, preview, then save</span></summary>
+        <p>Choose public .pem, .crt, .cer or .der files, including PEM bundles. PFX and private keys are not accepted.</p>
+        <p class="file-limits">Up to 8 files, 16 MiB combined and 64 certificates.</p>
         <form id="inventory-form">
           <label for="certificate-file">Public certificate files</label>
           <input id="certificate-file" type="file" accept=".pem,.crt,.cer,.der,application/x-x509-ca-cert" multiple required>
@@ -50,10 +77,10 @@
           <button id="save-button" type="submit" disabled>Save all to this Rootwell</button>
           <p id="save-status" role="status" aria-live="polite"></p>
         </form>
-      </section>
+      </details>
       <section class="card overview" aria-labelledby="overview-heading">
         <h2 id="overview-heading">Saved certificates</h2>
-        <p>See what needs renewal planning. Dates are checked against your Rootwell server’s clock, not a live server or trust check.</p>
+        <p>Expiry uses your Rootwell server’s clock. This is not automatic renewal, a live server check or a trust verdict.</p>
         <div id="monitor-summary" class="monitor-summary" role="status" aria-live="polite"></div>
         <p id="clock-as-of" class="clock-note"></p>
         <details class="optional-fields"><summary>Monitoring options</summary>
@@ -64,10 +91,10 @@
         </details>
         <div id="counts" class="counts" aria-live="polite"></div>
         <div class="filters">
-          <label for="expiry-filter">Show certificates</label>
+          <div><label for="expiry-filter">Show certificates</label>
           <select id="expiry-filter"><option value="all">All certificates</option><option value="attention">Needs attention</option><option value="later">Expires in over 90 days</option><option value="missing-owner">No owner note</option><option value="missing-location">No server note</option></select>
-          <label for="inventory-search">Search</label>
-          <input id="inventory-search" type="search" autocomplete="off" placeholder="Certificate name, owner or server">
+          </div><div><label for="inventory-search">Search</label>
+          <input id="inventory-search" type="search" autocomplete="off" placeholder="Certificate name, owner or server"></div>
         </div>
         <button id="refresh-button" class="secondary" type="button">Refresh list</button>
         <p id="list-status" role="status" aria-live="polite">Loading saved public certificates…</p>
@@ -140,9 +167,9 @@
       <button id="comparison-button" type="button">Compare locally</button><button id="comparison-close" type="button" class="secondary">Close comparison</button>
       <p id="comparison-status" role="status" aria-live="polite"></p><ul id="comparison-result" aria-label="Certificate changes"></ul>
     </section>
-    <aside class="boundary lifecycle" aria-label="Background checks and history">
+    <aside class="storage-note lifecycle" aria-label="Background checks and history">
       <strong>Background checks and history</strong><p id="background-status" role="status" aria-live="polite">Loading activity…</p>
-      <p>Closing this page does not stop server checks. Logout, session expiry (up to 12 hours), restart or unavailable storage pauses them. Sign in again to unlock; no password is stored on disk for monitoring.</p>
+      <details><summary>How background checks work</summary><p>Closing this page does not stop server checks. Logout, session expiry (up to 12 hours), restart or unavailable storage pauses them. Sign in again to unlock; no password is stored on disk for monitoring.</p></details>
       <button id="activity-refresh" type="button" class="secondary">Refresh activity</button>
       <details><summary>Change history</summary><p id="history-status"></p><ol id="history-events" aria-label="Inventory change history"></ol>
         <button id="history-previous" type="button" class="secondary">Newer events</button><button id="history-next" type="button" class="secondary">Older events</button>
@@ -150,5 +177,6 @@
       </details>
     </aside>
   </main>
+  </div>
 </body>
 </html>

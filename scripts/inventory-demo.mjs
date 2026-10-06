@@ -17,7 +17,7 @@ function replaceOnce(source, before, after) {
   return source.replace(before, after);
 }
 let html = asset("inventory.html");
-html = replaceOnce(html, "<main>", `<main><aside class="boundary" aria-label="Demo mode"><strong>DEMO — generated fake records only</strong><p>This is a read-only visual preview on this computer, not your encrypted inventory. Save, editing, and backup are disabled. Never enter a real certificate or secret here.</p></aside>`);
+html = replaceOnce(html, "<main>", `<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — generated fake records only</strong><p>This is a read-only visual preview on this computer, not your encrypted inventory. Save, editing, and backup are disabled. Never enter a real certificate or secret here.</p></aside>`);
 html = replaceOnce(html, '<form id="inventory-form">', '<form id="inventory-form" data-read-only="true">');
 let script = asset("inventory.js");
 for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
@@ -97,7 +97,12 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (request.method === "GET" && request.url === "/") {
-    response.writeHead(302, { Location: "/inventory" }).end();
+    response.writeHead(302, { Location: "/index.html" }).end();
+    return;
+  }
+  if (request.method === "GET" && request.url === "/index.html") {
+    const page = replaceOnce(workbenchHTML(), '<main>', '<main><aside class="nonclaim" aria-label="Demo mode"><strong>DEMO — local Workbench with synthetic, read-only Inventory. No authentication or saved user data.</strong></aside>');
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(page);
     return;
   }
   if (request.method === "GET" && request.url === "/api/inventory" && request.headers["x-rootwell-request"] === "1") {

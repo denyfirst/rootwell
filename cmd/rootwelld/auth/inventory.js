@@ -139,6 +139,7 @@
       }
       previewSummary.textContent = entries.length + " public certificate(s) found.";
       saveStatus.textContent = duplicates ? duplicates + " certificate(s) are already saved. Remove their copies from this batch and preview again. Nothing was saved or skipped." :
+        form.dataset?.readOnly === "true" ? "Local preview complete. This read-only demo cannot save certificates." :
         "Ready to save all " + entries.length + " certificate(s). Owner/server notes below apply to every certificate in this batch.";
     } catch (error) {
       if (current()) { clearImportPreview(); saveStatus.textContent = error instanceof Error ? error.message : "Local preview failed. Nothing was uploaded."; }

@@ -9,6 +9,47 @@ assert.doesNotMatch(source, /createObjectURL|selectedForExport|public-inventory-
 const html = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.html", import.meta.url), "utf8");
 assert.match(html, /<meta name="referrer" content="same-origin">/);
 assert.doesNotMatch(html, /Export selected records|preview-export-button|download-export-button/);
+assert.match(html, /<body class="workspace inventory-workspace">/);
+assert.match(html, /<link rel="stylesheet" href="\/style.css">[\s\S]*<link rel="stylesheet" href="\/inventory.css">/);
+assert.match(html, /<a class="rail-item" href="\/index.html">[\s\S]*?Workbench<\/a>/);
+assert.match(html, /<a class="rail-item" href="\/inventory" aria-current="page">/);
+assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
+assert.match(html, /<details class="card import-card">\s*<summary><h2 id="save-heading">Add certificates<\/h2>/,
+  "adding files must be opt-in and collapsed initially");
+assert.match(html, /<div id="monitor-summary"[^>]*role="status"/);
+assert.match(html, /<strong>Background checks and history<\/strong><p id="background-status"/,
+  "worker failures must not be hidden inside details");
+assert.match(html, /<aside class="storage-note" aria-label="Storage boundary">/,
+  "the narrow-screen Workbench boundary rule must not hide Inventory's upload notice");
+assert.match(html, /Only when you press Save[\s\S]*public certificate[\s\S]*stored encrypted/);
+assert.doesNotMatch(html, /No certificate uploads|src="\/(?:app|private-key|pfx|csr)\.js"/,
+  "shared appearance must not misrepresent Inventory as offline or run Workbench processors");
+assert.match(html, /id="save-button" type="submit" disabled/);
+const inventoryCSS = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.css", import.meta.url), "utf8");
+assert.doesNotMatch(inventoryCSS, /:root|color-scheme:|\.storage-note[^{}]*\{[^}]*display:\s*none/);
+assert.match(inventoryCSS, /\.inventory-workspace \.filters \{ display: grid/);
+
+// The only persisted preference is the existing, non-secret light/dark choice.
+// Shared appearance must not add certificate/notes/session persistence.
+const themeSource = fs.readFileSync(new URL("../web/workbench/theme.js", import.meta.url), "utf8");
+assert.match(html, /<script src="\/theme.js"><\/script>/);
+function themeFixture(stored, broken = false) {
+  const writes = [], listeners = {}, button = { hidden: true, setAttribute() {}, addEventListener(name, fn) { listeners[name] = fn; } };
+  const root = { dataset: {} };
+  const storage = { getItem(key) { assert.equal(key, "rootwell-workbench-theme"); if (broken) throw new Error(); return stored; },
+    setItem(key, value) { assert.equal(key, "rootwell-workbench-theme"); assert.ok(["light", "dark"].includes(value)); if (broken) throw new Error(); stored = value; writes.push([key, value]); } };
+  vm.runInNewContext(themeSource, { document: { documentElement: root, getElementById(id) { assert.equal(id, "theme-toggle"); return button; },
+    addEventListener(name, fn) { assert.equal(name, "DOMContentLoaded"); fn(); } }, window: { localStorage: storage, matchMedia: () => ({ matches: false }) } });
+  return { root, button, writes, click: () => listeners.click() };
+}
+const sharedTheme = themeFixture("dark");
+assert.equal(sharedTheme.root.dataset.theme, "dark");
+assert.equal(sharedTheme.button.hidden, false);
+sharedTheme.click(); assert.deepEqual(sharedTheme.writes, [["rootwell-workbench-theme", "light"]]);
+const malformedTheme = themeFixture("<secret-not-a-theme>");
+assert.equal(malformedTheme.root.dataset.theme, undefined);
+const blockedTheme = themeFixture(null, true); blockedTheme.click();
+assert.equal(blockedTheme.root.dataset.theme, "dark"); assert.equal(blockedTheme.writes.length, 0);
 
 class Element {
   constructor() { this.value = ""; this.textContent = ""; this.children = []; this.listeners = {}; this.disabled = false; this.checked = false; this.files = []; }
