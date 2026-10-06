@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
 //go:embed auth/*
@@ -35,14 +36,19 @@ type session struct {
 }
 
 type gate struct {
-	accessPath string
-	assets     *os.Root
-	host       string
-	now        func() time.Time
-	derive     chan struct{}
-	mu         sync.Mutex
-	sessions   map[[32]byte]session
-	attempts   []time.Time
+	accessPath  string
+	assets      *os.Root
+	host        string
+	now         func() time.Time
+	derive      chan struct{}
+	mu          sync.Mutex
+	sessions    map[[32]byte]session
+	attempts    []time.Time
+	monitorMu   sync.Mutex
+	monitor     monitorObservation
+	monitorStop chan struct{}
+	monitorDone chan struct{}
+	monitorRead func(session) ([]publicinventory.Record, uint64, error)
 }
 
 func newGate(accessPath, assetsDir, host string) (*gate, error) {
@@ -62,6 +68,10 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 }
 
 func (g *gate) Close() error {
+	if g.monitorStop != nil {
+		close(g.monitorStop)
+		<-g.monitorDone
+	}
 	g.mu.Lock()
 	for id := range g.sessions {
 		g.forgetSessionLocked(id)
@@ -122,6 +132,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory":
 		g.inventoryEndpoint(w, r, s, signedIn)
 		return
+	case "/api/inventory/activity", "/api/inventory/comparison-source":
+		g.lifecycleEndpoint(w, r, s, signedIn)
+		return
 	case "/api/inventory/locations":
 		g.inventoryLocationEndpoint(w, r, s, signedIn)
 		return
@@ -137,7 +150,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/inventory", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js":
+	case "/inventory", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -163,6 +176,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/inventory-import.js", "text/javascript; charset=utf-8")
 		case "/inventory-engine.js":
 			g.authAsset(w, r, "auth/inventory-engine.js", "text/javascript; charset=utf-8")
+		case "/inventory-lifecycle.js":
+			g.authAsset(w, r, "auth/inventory-lifecycle.js", "text/javascript; charset=utf-8")
 		}
 		return
 	case "/setup":
@@ -325,6 +340,7 @@ func (g *gate) forgetSessionLocked(id [32]byte) {
 		s.installationID = [16]byte{}
 		g.sessions[id] = s
 		delete(g.sessions, id)
+		g.setMonitor(monitorObservation{Status: "locked"})
 	}
 }
 

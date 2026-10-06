@@ -43,6 +43,7 @@ type manifest struct {
 	InstallationID []byte         `json:"installation_id"`
 	Generation     uint64         `json:"generation"`
 	Records        []sealedRecord `json:"records"`
+	History        []sealedRecord `json:"history,omitempty"`
 }
 
 type envelope struct {
@@ -128,6 +129,9 @@ func Append(key, installationID, image, input []byte, owner, location string) ([
 		added[i].ImportGeneration = m.Generation
 		added[i].ImportedAt = importedAt
 	}
+	if err := addEvent(key, &m, "import", historyIDs(added)); err != nil {
+		return nil, nil, err
+	}
 	result, err := encode(key, m)
 	if err != nil {
 		return nil, nil, err
@@ -167,7 +171,7 @@ func AssociateLocation(key, installationID, image []byte, fingerprint, location 
 	if err != nil {
 		return nil, publicinventory.Record{}, 0, err
 	}
-	result, generation, err := resealRecord(key, installationID, m, index, updated)
+	result, generation, err := resealRecord(key, installationID, m, index, updated, "location-added")
 	if err != nil {
 		return nil, publicinventory.Record{}, 0, err
 	}
@@ -196,7 +200,7 @@ func UpdateOwner(key, installationID, image []byte, fingerprint, owner string, e
 			if err != nil {
 				return nil, publicinventory.Record{}, 0, err
 			}
-			result, generation, err := resealRecord(key, installationID, m, i, updated)
+			result, generation, err := resealRecord(key, installationID, m, i, updated, "owner-changed")
 			if err != nil {
 				return nil, publicinventory.Record{}, 0, err
 			}
@@ -238,7 +242,11 @@ func ChangeLocation(key, installationID, image []byte, fingerprint, oldLabel, ne
 		if err != nil {
 			return nil, publicinventory.Record{}, 0, err
 		}
-		result, generation, err := resealRecord(key, installationID, m, i, updated)
+		eventAction := "location-renamed"
+		if action == LocationRemove {
+			eventAction = "location-removed"
+		}
+		result, generation, err := resealRecord(key, installationID, m, i, updated, eventAction)
 		if err != nil {
 			return nil, publicinventory.Record{}, 0, err
 		}
@@ -268,6 +276,9 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 		}
 		m.Records = append(append([]sealedRecord{}, m.Records[:i]...), m.Records[i+1:]...)
 		m.Generation++
+		if err := addEvent(key, &m, "record-deleted", []string{fingerprint}); err != nil {
+			return nil, 0, err
+		}
 		result, err := encode(key, m)
 		if err != nil {
 			return nil, 0, err
@@ -277,7 +288,7 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 	return nil, 0, ErrNotFound
 }
 
-func resealRecord(key, installationID []byte, m manifest, index int, updated publicinventory.Record) ([]byte, uint64, error) {
+func resealRecord(key, installationID []byte, m manifest, index int, updated publicinventory.Record, action string) ([]byte, uint64, error) {
 	var additional []string
 	if len(updated.Locations) > 1 {
 		additional = updated.Locations[1:]
@@ -296,6 +307,9 @@ func resealRecord(key, installationID []byte, m manifest, index int, updated pub
 		return nil, 0, err
 	}
 	m.Records[index] = sealedRecord{ID: id[:], Generation: m.Generation, Ciphertext: ciphertext}
+	if err := addEvent(key, &m, action, []string{updated.Fingerprint}); err != nil {
+		return nil, 0, err
+	}
 	result, err := encode(key, m)
 	if err != nil {
 		return nil, 0, err
@@ -395,6 +409,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		}
 		record.ImportedAt = p.ImportedAt
 		records = append(records, record)
+	}
+	if _, err := openHistory(key, id, m); err != nil {
+		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {
 		return manifest{}, nil, ErrInvalid

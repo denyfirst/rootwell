@@ -267,6 +267,7 @@
     ownerStatus.textContent = "";
     locationManageStatus.textContent = "";
     draw();
+    void globalThis.rootwellInventoryLifecycle?.refreshActivity();
   }
 
   function draw() {
@@ -275,7 +276,7 @@
     const differs = Math.abs(Date.now() - now) > 300000;
     clockAsOf.textContent = "Checked at " + new Date(now).toISOString() + " · Rootwell server clock." +
       (differs ? " Your device and server times differ by over 5 minutes; check both clocks." : "") +
-      " Reminders are page-only; no automatic renewal or live server check.";
+      " This list is a page snapshot; background status is shown below; no automatic renewal or live server check.";
     const records = loadedRecords.map(record => ({ ...record, expiry: expiryState(record, now) }));
     const rank = { invalid: 0, expired: 1, soon: 2, medium: 3, future: 4, later: 5 };
     records.sort((a, b) => rank[a.expiry.group] - rank[b.expiry.group] ||
@@ -341,6 +342,17 @@
         }
       });
       item.appendChild(openForm);
+      const compareButton = document.createElement("button");
+      compareButton.type = "button";
+      compareButton.className = "secondary";
+      compareButton.textContent = "Compare replacement";
+      compareButton.addEventListener("click", () => {
+        if (!saving && !associating && !editingOwner && !changingLocation && !deleting &&
+            !document.hidden && displayedGeneration === snapshotGeneration && snapshotAge() < 120000) {
+          void globalThis.rootwellInventoryLifecycle?.open(record, snapshotGeneration);
+        }
+      });
+      item.appendChild(compareButton);
       if (record.imported_at) addText(details,"small","Saved at (server clock): " + record.imported_at);
       addText(details, "small", "The listed servers are your notes; deployment has not been checked.");
       addText(details, "small", "SHA-256: " + record.fingerprint);
@@ -452,6 +464,7 @@
   async function refresh() {
     if (refreshing || document.hidden) return false;
     refreshing = true;
+    globalThis.rootwellInventoryLifecycle?.invalidate();
     clearImportPreview();
     automaticPaused = false;
     const serial = ++loadSerial;
@@ -817,12 +830,13 @@
     const editing = saving || previewing || importFiles !== null || associating || editingOwner || changingLocation || deleting ||
       !locationPanel.hidden || !ownerPanel.hidden || !locationManagePanel.hidden || !deletePanel.hidden ||
       document.querySelector(".record-details[open]") !== null;
-    if (autoRefresh.checked && !automaticPaused && !refreshing && !editing && snapshotAge() >= 60000) {
+    if (autoRefresh.checked && !automaticPaused && !refreshing && !editing && !globalThis.rootwellInventoryLifecycle?.isOpen() && snapshotAge() >= 60000) {
       void refresh();
     }
     timer = setTimeout(tick, 15000);
   }
   function suspend() {
+    globalThis.rootwellInventoryLifecycle?.invalidate();
     if (saving) saveStatus.textContent = "Save may have completed before the view changed. Refresh before another import.";
     saveController?.abort();
     clearImportPreview(true);

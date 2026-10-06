@@ -111,6 +111,7 @@ const timers = new Map();
 let timerID = 0;
 const documentListeners = {}, windowListeners = {};
 let recordDetailsOpen = false;
+let comparisonOpen = false;
 const mockDocument = { hidden: false, addEventListener(name, fn) { documentListeners[name] = fn; },
   querySelector() {return recordDetailsOpen ? {} : null;},
   getElementById(id) { return elements[id]; }, createElement() { return new Element(); } };
@@ -120,6 +121,7 @@ vm.runInNewContext(source, {
   performance: { now: () => monotonicNow },
   setTimeout(fn, delay) { const id = ++timerID; timers.set(id,{fn,delay}); return id; }, clearTimeout(id) { timers.delete(id); },
   fetch: fetchImpl, TextEncoder, TextDecoder, AbortController, Uint8Array, Date: FixedDate, btoa: value => Buffer.from(value, "binary").toString("base64"),
+  rootwellInventoryLifecycle: {invalidate(){comparisonOpen=false;},refreshActivity(){},isOpen:()=>comparisonOpen},
   rootwellInventoryImport: {
     async preview(files) { fileReads++; return [{ subject: "New public", sha256: "new-public", source: "File 1", not_after: "2035-01-01T00:00:00Z" }]; },
     async prepare(files) { fileReads++; return new Uint8Array(await files[0].arrayBuffer()); }
@@ -444,6 +446,10 @@ recordDetailsOpen = true;
 runTick();
 assert.equal(requests.length,beforeEditTick,"automatic refresh interrupted reading expanded details");
 recordDetailsOpen = false;
+comparisonOpen = true;
+runTick();
+assert.equal(requests.length,beforeEditTick,"automatic refresh interrupted the comparison panel");
+comparisonOpen = false;
 
 for (const mutate of [
   data => { delete data.monitoring; },

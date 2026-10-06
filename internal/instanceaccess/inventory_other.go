@@ -8,6 +8,9 @@ import (
 )
 
 // Native non-Linux private-store semantics have not yet been reviewed.
+func ReadInventoryHistory(_ string, _, _ []byte, _ [32]byte) ([]inventorystore.Event, uint64, error) {
+	return nil, 0, ErrRecoveryUnsupported
+}
 func InitializeInventory(_, _, _, _ string) error { return ErrRecoveryUnsupported }
 func ReadInventory(_ string, _, _ []byte, _ [32]byte) ([]publicinventory.Record, uint64, error) {
 	return nil, 0, ErrRecoveryUnsupported

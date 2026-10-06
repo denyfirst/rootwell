@@ -191,6 +191,10 @@ saxlanmır. Bu fonda bildiriş xidməti deyil: səhifə bağlı olanda xəbərda
 göndərilmir. Preference və axtarış yaddaşda qalır, serverdə key və alert bazası
 yaradılmır. Qəbul meyarları və testlər ADR 0041/C64-dədir.
 
+ADR 0044-dəki növbəti lifecycle dalğası hazır sessiya açıqkən server fon
+yoxlamasını əlavə edir. 12 saatlıq limit, logout/restart və unlock tələbini
+qoruyur; bu əvvəlki page-only increment-i 24/7 xidmətə çevirmir.
+
 ### Saxlanmış sertifikatı açmaq — ADR 0042
 
 Inventory kartında Inspect/Verify düymələri yalnız həmin public sertifikatı
@@ -214,6 +218,33 @@ bu increment-ə daxil deyil. Qəbul meyarları ADR 0043/C66-dadır.
 Canlı endpoint discovery, Porch nəticələrinin importu və xarici alert-lər ayrıca
 network/evidence/operational threat model-dən sonra gəlir. ACME, PFX/private
 key vault, SSH/PGP və agent deployment bu mərhələyə qarışdırılmır.
+
+## ACME-dən əvvəl public lifecycle dalğası — development implementation hazır
+
+İstifadəçi 2026-10-06-da bu dörd işi birlikdə tamamlamağı təsdiqləyib:
+
+1. Saxlanmış köhnə sertifikatla yeni public sertifikatın lokal müqayisəsi;
+   avtomatik replacement/trust yoxdur.
+2. Mövcud encrypted image və tam backup daxilində məhdud dəyişiklik tarixçəsi;
+   köhnə versiyada edilməyən əməliyyatları uydurmamaq, limitdə yazını rədd etmək.
+3. Daemon-da browser bağlıykən lokal expiry yoxlaması. Mövcud ready sessiyanın
+   12 saatlıq açarı istifadə edilir, müddət uzanmır; logout/restart/expiry və ya
+   storage xətası açıq paused/unavailable vəziyyətidir. Parol diskə yazılmır,
+   email/webhook və 24/7 unattended unlock bu dalğaya daxil deyil.
+4. Public-only inteqrasiya, backup/restore və UI sınağı, sintetik real browser
+   nümayişi, mənfi/sabotage, platform/race və CI qapıları. ACME yalnız bu
+   dalğadan sonra ayrıca qərar və implementation mərhələsidir.
+
+Bu qarşılıqlı bağlı dəyişikliklər bir purpose-specific lifecycle increment-də
+ADR 0044, imzalı PR və ayrıca adversarial self-review ilə yoxlanacaq.
+
+Kod və local unit/refusal/sabotage/WASM/UI sınaqları hazırdır. Linux-da real
+şifrəli saxlanma, browserdən asılı olmayan daemon, history full restore və race
+qapısı CI-də yoxlanır; Windows browser nümayişində real WASM, sintetik read-only
+history və açıq `not-running` statusu var. Merge yalnız bütün tələb olunan
+yoxlamalardan sonra. Müstəqil release auditi, 24/7 unlock və history retention/
+archive siyasəti ayrıca açıqdır. İstifadəçi bu dalğanı gördükdən sonra növbəti
+iş ACME-nin əvvəlcə staging issuance və explicit səlahiyyət sərhədini planlamaqdır.
 
 ## Hər increment üçün dəyişməz qapılar
 

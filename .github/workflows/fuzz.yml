@@ -76,6 +76,8 @@ jobs:
             package: ./internal/pfxinspect
           - target: FuzzInspectCSR
             package: ./internal/csrworkbench
+          - target: FuzzPublicComparison
+            package: ./internal/publicinventory
           - target: FuzzVersionValue
             package: ./internal/version
     steps:

@@ -95,6 +95,10 @@ func TestLinuxInventoryDurableImportAndFreshFullRestore(t *testing.T) {
 	if err := RestoreFullSnapshot(backup, fresh, code, SnapshotRecoveryCode); !errors.Is(err, ErrSnapshotNotEmpty) {
 		t.Fatalf("overwrite accepted: %v", err)
 	}
+	events, historyGen, historyErr := ReadInventoryHistory(fresh, restoredKey, restoredID, restoredRevision)
+	if historyErr != nil || historyGen != 2 || len(events) != 1 || events[0].Action != "import" || events[0].Fingerprints[0] != records[0].Fingerprint {
+		t.Fatal("full restore lost authenticated history")
+	}
 	const next = "a different sufficiently long password"
 	if _, err := RecoverPassword(fresh, code, next); err != nil {
 		t.Fatal(err)

@@ -213,6 +213,50 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	activity := inventoryCall(g, "GET", "/api/inventory/activity", "", readyCookie, "", true)
+	if activity.Code != http.StatusOK || !strings.Contains(activity.Body.String(), "rootwell.inventory.activity.v1") || !strings.Contains(activity.Body.String(), `"action":"import"`) {
+		t.Fatal("authenticated history unavailable")
+	}
+	for _, route := range []string{"/api/inventory/activity", "/api/inventory/comparison-source"} {
+		method := "GET"
+		if strings.HasSuffix(route, "source") {
+			method = "POST"
+		}
+		if inventoryCall(g, method, route, "{}", nil, "http://"+localHost, true).Code != http.StatusUnauthorized || inventoryCall(g, method, route, "{}", readyCookie, "http://evil.invalid", false).Code != http.StatusForbidden {
+			t.Fatal("lifecycle authority bypass")
+		}
+	}
+	selectionBody, _ := json.Marshal(struct {
+		Fingerprint string `json:"fingerprint"`
+		Generation  uint64 `json:"expected_generation"`
+	}{batchOutput.Records[0].Fingerprint, 3})
+	source := inventoryCall(g, "POST", "/api/inventory/comparison-source", string(selectionBody), readyCookie, "http://"+localHost, true)
+	var sourceData struct {
+		Schema      string `json:"schema_version"`
+		Fingerprint string `json:"fingerprint"`
+		Generation  uint64 `json:"generation"`
+		DER         []byte `json:"der"`
+	}
+	if source.Code != http.StatusOK || json.Unmarshal(source.Body.Bytes(), &sourceData) != nil || sourceData.Schema != "rootwell.inventory.comparison-source.v1" || sourceData.Generation != 3 || sourceData.Fingerprint != batchOutput.Records[0].Fingerprint || len(sourceData.DER) == 0 || strings.Contains(source.Body.String(), "Bulk owner") {
+		t.Fatal("exact public comparison snapshot failed or leaked notes")
+	}
+	for _, bad := range []string{strings.Replace(string(selectionBody), `"expected_generation":3`, `"expected_generation":2`, 1), strings.Replace(string(selectionBody), `"expected_generation":3`, `"expected_generation":3,"expected_generation":3`, 1)} {
+		if inventoryCall(g, "POST", "/api/inventory/comparison-source", bad, readyCookie, "http://"+localHost, true).Code < 400 {
+			t.Fatal("stale/duplicate selection accepted")
+		}
+	}
+	g.startMonitor()
+	deadline := time.Now().Add(3 * time.Second)
+	for g.monitorSnapshot(g.now(), 3).Status != "ready" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if g.monitorSnapshot(g.now(), 3).Status != "ready" {
+		t.Fatal("no-browser daemon check did not authenticate inventory")
+	}
+	unchanged, readErr := os.ReadFile(inventoryPath)
+	if readErr != nil || !bytes.Equal(encrypted, unchanged) {
+		t.Fatal("comparison/history/background reads wrote inventory")
+	}
 	encrypted[len(encrypted)/2] ^= 1
 	if err := os.WriteFile(inventoryPath, encrypted, 0o600); err != nil {
 		t.Fatal(err)

@@ -37,6 +37,7 @@ const records = [
     locations: ["demo/haproxy", "demo/fortinet"], import_generation: 4, imported_at: instant(-10) }
 ];
 const demoLeaf = new X509Certificate(readFileSync(new URL("../web/workbench/rootwell-verify-demo-leaf.pem", import.meta.url)));
+script=replaceOnce(script,"item.appendChild(compareButton);",`compareButton.disabled = record.fingerprint !== ${JSON.stringify(demoLeaf.fingerprint256)}; item.appendChild(compareButton);`);
 records.push({ fingerprint: demoLeaf.fingerprint256, subject: demoLeaf.subject, issuer: demoLeaf.issuer,
   dns_names: ["verify.rootwell.invalid"], not_before: new Date(demoLeaf.validFrom).toISOString().slice(0,19)+"Z",
   not_after: new Date(demoLeaf.validTo).toISOString().slice(0,19)+"Z", owner: "Synthetic public certificate",
@@ -58,7 +59,7 @@ const assets = new Map([
   ["/inventory", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
   ["/inventory.js", ["text/javascript; charset=utf-8", script]],
-  ...["inventory-engine.js", "inventory-import.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
+  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
 ]);
 const workbenchTypes = new Map([
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -102,6 +103,16 @@ const server = http.createServer((request, response) => {
   if (request.method === "GET" && request.url === "/api/inventory" && request.headers["x-rootwell-request"] === "1") {
     response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" }).end(fixture());
     return;
+  }
+  if(request.method==="GET"&&request.url==="/api/inventory/activity"&&request.headers["x-rootwell-request"]==="1"){
+    response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.inventory.activity.v1",generation:5,
+      events:[{generation:5,at:records[3].imported_at,action:"import",fingerprints:[demoLeaf.fingerprint256]}],monitoring:{status:"not-running",attention:[]}}));return;
+  }
+  if(request.method==="POST"&&request.url==="/api/inventory/comparison-source"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["sec-fetch-site"]==="cross-site"||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture source refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
+    request.on("end",()=>{if(oversized||body!==JSON.stringify({fingerprint:demoLeaf.fingerprint256,expected_generation:5})){response.writeHead(400).end("Fixture source refused");return;}
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.inventory.comparison-source.v1",fingerprint:demoLeaf.fingerprint256,generation:5,der:demoLeaf.raw.toString("base64")}));});return;
   }
   const selected = request.method === "GET" ? assets.get(request.url) : null;
   if (selected) response.writeHead(200, { "Content-Type": selected[0] }).end(selected[1]);

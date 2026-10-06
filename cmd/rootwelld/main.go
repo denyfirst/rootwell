@@ -125,6 +125,7 @@ func serve(dir, assetsDir string) error {
 		return err
 	}
 	defer gate.Close()
+	gate.startMonitor()
 	server := &http.Server{
 		Addr: "127.0.0.1:4180", Handler: gate,
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,

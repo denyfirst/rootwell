@@ -41,6 +41,19 @@ try {
   assert.ok(result.records.slice(0,3).every(record => record.subject.includes("demo-")));
   assert.ok(result.records.every(record => !Object.hasOwn(record,"der")));
   assert.match(result.records[3].subject,/verify.rootwell.invalid/);
+  const activity=await fetch(origin+"/api/inventory/activity",{headers:{"X-Rootwell-Request":"1"}});
+  assert.equal(activity.status,200);
+  const activityData=await activity.json();assert.equal(activityData.monitoring.status,"not-running","fixture cannot claim a running monitor");
+  assert.equal(activityData.events[0].action,"import");assert.deepEqual(activityData.events[0].fingerprints,[result.records[3].fingerprint]);
+  assert.equal((await fetch(origin+"/api/inventory/activity")).status,404);
+  const compareBody=JSON.stringify({fingerprint:result.records[3].fingerprint,expected_generation:5});
+  const compareHeaders={"Content-Type":"application/json",Origin:origin,"X-Rootwell-Request":"1"};
+  const comparison=await fetch(origin+"/api/inventory/comparison-source",{method:"POST",headers:compareHeaders,body:compareBody});
+  assert.equal(comparison.status,200);assert.equal((await comparison.json()).fingerprint,result.records[3].fingerprint);
+  assert.equal((await fetch(origin+"/api/inventory/comparison-source",{method:"POST",body:compareBody})).status,403);
+  assert.equal((await fetch(origin+"/api/inventory/comparison-source",{method:"POST",headers:compareHeaders,body:compareBody.replace(':5',':4')})).status,400);
+  assert.equal((await fetch(origin+"/api/inventory/comparison-source",{method:"POST",headers:{...compareHeaders,Origin:"http://evil.invalid"},body:compareBody})).status,403);
+  assert.equal((await fetch(origin+"/api/inventory/comparison-source")).status,404);
   const selection=new URLSearchParams({fingerprint:result.records[3].fingerprint,expected_generation:"5",tool:"inspect"});
   // fetch correctly forces Sec-Fetch-Mode:cors; model a browser navigation
   // explicitly here. The real form is exercised separately in the browser.
