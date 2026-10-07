@@ -4,6 +4,30 @@ Date: 2026-10-07. Decision: [ADR 0046](adr/0046-unified-certificate-library.md).
 Single operator, Linux loopback daemon only; not externally audited or ready
 for real-user secret custody. Porch and the offline Workbench remain separate.
 
+ADR 0047 updates this historical matched-only increment. New imports accept
+one primary certificate or related public PEM bundle (16 certificates, 768 KiB;
+JSON 1200 KiB), plus one strict optional key. Check is optional; Save repeats
+validation. Computed mismatch may be retained only with explicit acknowledgement
+as a loose attachment. Malformed/password/CA-key failure still refuses. Included
+issuer signatures are checked, but roots are not trusted, and neither names,
+time, revocation nor deployment is verified. Ambiguous primary selection requires
+an explicit exact fingerprint. Unrelated or ambiguous issuer collections refuse.
+
+A separate `materials` manifest field and purpose-separated encrypted payload
+hold canonical public DER collection, optional PKCS#8 key and mismatch consent.
+No client status, password, filename or raw input is persisted. Every material
+is authenticated/reparsed, constrained to its primary record and its match
+status recomputed before metadata output. Legacy key attachments keep strict
+matched-only validation; duplicate/orphan/cross-context material refuses.
+Old binaries refuse the new field. Atomic note/delete/full backup/restore must
+preserve these semantics. Authenticated complete-image rollback is still possible.
+
+Matching-pair ZIP refuses loose mismatch. Encrypted key-only PEM uses the same
+fresh instance authentication, shared attempt/KDF budgets, exact generation and
+separate output-password policy. Public bundle download includes supplied roots
+without assigning trust. The archive remains unencrypted. No PFX custody,
+plaintext custody export, remote listener, multiuser policy or production claim.
+
 ## Assets and trust
 
 Certificate DER, optional matching private key, key-input password, fresh

@@ -4,7 +4,7 @@ This is a scope boundary, not a promise that every listed operation already
 exists. `planned` means implementation and its security tests are still
 required. Anything not listed is unsupported and must fail explicitly.
 
-## Separate certificate-library custody (ADR 0046)
+## Initial certificate-library custody (ADR 0046; ADR 0047 updates below)
 
 The Linux ready-session library accepts one strict PEM/DER certificate
 (.pem/.crt/.cer/.der, content determines encoding), <=96 KiB encoded /64 KiB
@@ -87,6 +87,19 @@ in an unencrypted ZIP. Existing supported modern keys may sign a CSR without
 being exported. No CLI key-generation or CSR command is claimed.
 
 ## Password handling
+
+ADR 0047 adds offline Inspect certificate/key comparison: one public PEM/DER
+certificate or public PEM bundle (16 certificates / 768 KiB), one supported
+key up to 64 KiB, optional transient existing-key password up to 256 bytes.
+RSA/EC/Ed25519 match is not CA trust. A malformed or wrong-password input
+returns no comparison. It does not save or export a key.
+
+Linux Certificates accepts the same public collection, including up to 8
+related public source files reconstructed by public-only WASM. A valid loose
+mismatched key requires explicit acknowledgement. Public bundle export and
+separate password-encrypted PKCS#8 key-only export are supported; matched-pair
+ZIP refuses mismatch. PFX library custody and plaintext key custody export
+remain unsupported. Legacy single-certificate/matched-key images still open.
 
 Passphrases are never accepted as a command-line value, URL parameter, or
 ordinary environment variable. Interactive TTY input, protected descriptor/

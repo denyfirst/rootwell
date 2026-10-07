@@ -3,14 +3,14 @@
 **Status:** development Workbench, loopback access gate, and Linux-only certificate library
 
 Rootwell is a privacy-first, self-hosted workspace for X.509 certificates and
-their matching private keys. SSH, PGP and interactive SSH/RDP access are outside
+their associated private keys, with explicit match status. SSH, PGP and interactive SSH/RDP access are outside
 the current product scope.
 
 > Your private root of trust.
 
 The first product increments are a local-first Workbench CLI and browser for
 safe public-certificate inspection and verification. An experimental local
-access gate protects the browser. Optional matched leaf-key custody is now a
+access gate protects the browser. Optional certificate/key custody is now a
 separate development capability; automation and remote access remain outside
 this release boundary. This is not audited or production-ready custody.
 
@@ -22,8 +22,9 @@ authenticated encrypted storage, and complete access+inventory backup
 and fresh restore commands. A Linux-only Docker/Compose development profile
 and disposable bind-volume restore drill are documented in the
 [container recovery guide](docs/CONTAINER-RECOVERY-AZ.md). The separate
-certificate-library route stores an optional matching private key together
-with a certificate. The public importer still rejects secrets; neither path
+certificate-library route stores a certificate/bundle and optional private key;
+valid mismatches require explicit acknowledgement and remain loose attachments.
+The public importer still rejects secrets; neither path
 makes trust/deployment claims or automatically backs itself up.
 A listed location is not proof of live deployment. Native Windows storage
 and independent release audit remain open gates;
@@ -31,6 +32,16 @@ see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md) and
 [custody threat model](docs/CERTIFICATE-CUSTODY-THREAT-MODEL.md).
 
 ## Project doctrine
+
+The current development increment adds an optional **Inspect → Check key
+match locally** action and one **Certificates → Add a certificate** flow for
+a certificate/related public bundle plus optional key. Save always checks;
+an unrelated valid key requires explicit acknowledgement and stays labeled
+**does not match**, never a usable pair. Included public bundle and encrypted
+key-only downloads are separate; fresh authentication protects all key exports.
+Multiple unrelated public imports stay under Advanced. See
+[ADR 0047](docs/adr/0047-certificate-material-and-key-match.md) for limits,
+legacy-image behavior and the independent production-audit gate.
 
 - Security is the first requirement, not a later hardening phase.
 - A feature is not complete because it works; it is complete when positive,

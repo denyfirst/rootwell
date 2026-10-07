@@ -301,7 +301,8 @@
       addText(item, "strong", record.subject || "Subject not provided");
       addText(item, "span", record.expiry.name, "state " + record.expiry.group);
       addText(item, "small", "Expires: " + record.not_after.slice(0, 10));
-      addText(item, "small", record.has_private_key === true ? "Matching private key saved" : "Certificate only · no private key saved");
+      addText(item, "small", record.has_private_key === true ? record.key_status === "mismatch" ? "Key does not match · separate attachment only" : record.key_status === "matched" ? "Matching private key saved" : "Key present · match status unavailable" : "Certificate only · no private key saved");
+      if (record.bundle_count > 1) addText(item, "small", record.bundle_count + " included public certificates · not a trust verdict");
       const details = document.createElement("details");
       details.className = "record-details";
       addText(details, "summary", "Details and manage");

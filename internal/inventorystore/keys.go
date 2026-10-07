@@ -78,6 +78,7 @@ func authenticateKeys(key, id []byte, m manifest, records []publicinventory.Reco
 			return ErrInvalid
 		}
 		records[index].HasPrivateKey = true
+		records[index].KeyStatus = "matched"
 	}
 	return nil
 }
@@ -133,7 +134,9 @@ func AppendCertificate(key, id, image, certificate, privateKey, password []byte,
 
 // WithCertificate lends a public certificate and optional key at an exact
 // generation. Secret delivery policy and reauthentication belong to the caller.
-// The callback must not retain the key bytes.
+// The callback must not retain the key bytes. ADR 0047 material may contain a
+// loose mismatched key: consumers MUST require KeyStatus == "matched" before
+// any pair/PFX/CSR/deployment operation; key-only export is separately gated.
 func WithCertificate(key, id, image []byte, fingerprint string, expected uint64, use func(publicinventory.Record, []byte) error) error {
 	m, records, err := decode(key, id, image)
 	if err != nil {
@@ -148,6 +151,17 @@ func WithCertificate(key, id, image []byte, fingerprint string, expected uint64,
 	for _, r := range records {
 		if r.Fingerprint != fingerprint {
 			continue
+		}
+		for _, item := range m.Materials {
+			if !bytes.Equal(item.ID, mID(r.DER)) {
+				continue
+			}
+			material, err := openMaterial(key, id, item)
+			if err != nil {
+				return ErrInvalid
+			}
+			defer clear(material.PrivateKey)
+			return use(r, material.PrivateKey)
 		}
 		for _, item := range m.Keys {
 			if !bytes.Equal(item.ID, mID(r.DER)) {

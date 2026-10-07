@@ -47,39 +47,41 @@
       <div>
         <p class="eyebrow">Your certificate library</p>
         <h1 id="inventory-title">Your certificates.</h1>
-        <p class="lede">Certificates, matching keys and service notes. One place to save them and see what expires next.</p>
+        <p class="lede">Certificates, optional keys and service notes. One place to save them and see what expires next.</p>
       </div>
     </section>
     <aside class="storage-note" aria-label="Storage boundary">
       <strong>Saved encrypted on your own Rootwell</strong>
-      <p>Check sends your selected certificate and optional key to your own server; Save stores them together. No third-party service is contacted. Key contents stay hidden in the list.</p>
+      <p>Check sends your selected certificate and optional key to your own server; bundles are supported too. Save always checks them before storing. No third-party service is contacted. Key contents stay hidden in the list. A matching key does not prove trust.</p>
     </aside>
     <div class="layout">
       <details class="card library-add">
-        <summary><h2>Add a certificate</h2><span>Choose → check → save</span></summary>
+        <summary><h2>Add a certificate</h2><span>Certificate or bundle + optional key</span></summary>
         <form id="certificate-pair-form">
-          <label for="pair-certificate">Certificate <span>(includes its public key)</span></label>
-          <input id="pair-certificate" type="file" accept=".pem,.crt,.cer,.der" required>
+          <label for="pair-certificate">Certificate <span>(includes its public key) — or public PEM bundle</span></label>
+          <input id="pair-certificate" type="file" accept=".pem,.crt,.cer,.der" multiple required>
+          <p>One bundle, or the separate certificate and issuer files for the same chain. Up to 8 files; unrelated certificates belong under Advanced.</p>
           <label for="pair-key">Private key <span>(optional — skip if you do not have it)</span></label>
           <input id="pair-key" type="file" accept=".pem,.key,.der">
           <details id="pair-password-options"><summary>My private key has a password</summary>
             <label for="pair-key-password">Current key password</label>
             <input id="pair-key-password" type="password" maxlength="256" autocomplete="off">
           </details>
-          <button id="pair-check" type="button">Check selected files</button>
+          <button id="pair-check" type="button">Check first (optional)</button>
+          <div id="pair-choice-box" hidden><label for="pair-primary">Which certificate should lead this record?</label><select id="pair-primary"></select><p>More than one certificate could be selected. Choose explicitly, then Check or Save again. All included public certificates are preserved.</p></div>
           <p id="pair-status" role="status" aria-live="polite"></p>
           <section id="pair-preview" class="pair-preview" hidden>
             <strong id="pair-name"></strong><p id="pair-expiry"></p><p id="pair-match"></p>
-            <label for="pair-note">Where is it used? <span>(optional note — you can add it later)</span></label>
-            <input id="pair-note" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Nginx, Exchange, production website">
-            <button id="pair-save" type="submit" disabled>Save certificate</button>
-            <p>Matching keys do not prove certificate trust. Use Verify before relying on it.</p>
           </section>
-          <details class="optional-fields"><summary>Supported files</summary><p>One PEM/DER certificate (.pem, .crt, .cer or .der), with an optional PKCS#8, RSA PKCS#1 or EC SEC1 private key. Password-protected input supports the modern encrypted PKCS#8 profile. PFX is handled in Workbench; use bulk import below for public bundles.</p></details>
+          <label id="pair-mismatch-box" class="confirm-row" hidden><input id="pair-mismatch" type="checkbox"> I understand this key does not match. Save it only as a separate attachment, not a usable certificate/key pair.</label>
+          <label for="pair-note">Where is it used? <span>(optional note — you can add it later)</span></label>
+          <input id="pair-note" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Nginx, Exchange, production website">
+          <button id="pair-save" type="submit" disabled>Save certificate</button>
+          <details class="optional-fields"><summary>Supported files</summary><p>One PEM/DER certificate or related public PEM bundle (up to 16 certificates / 768 KiB), with an optional PKCS#8, RSA PKCS#1 or EC SEC1 key up to 64 KiB. Supported modern encrypted PKCS#8 requires its current password. PFX is handled in Workbench. Included roots are not automatically trusted.</p></details>
         </form>
       </details>
       <details class="card import-card">
-        <summary><h2 id="save-heading">Import a public bundle or several files</h2><span>Optional bulk import</span></summary>
+        <summary><h2 id="save-heading">Advanced</h2><span>Import many unrelated public certificates</span></summary>
         <p>Choose public .pem, .crt, .cer or .der files, including PEM bundles. PFX and private keys are not accepted.</p>
         <p class="file-limits">Up to 8 files, 16 MiB combined and 64 certificates.</p>
         <form id="inventory-form">
@@ -185,7 +187,7 @@
       <h2>Download certificate</h2><p id="download-name"></p>
       <form id="certificate-download-form">
         <label for="download-kind">What do you need?</label>
-        <select id="download-kind"><option value="certificate">Certificate only — PEM</option><option value="pair">Certificate + encrypted private key — ZIP</option></select>
+        <select id="download-kind"><option value="certificate">Certificate only — PEM</option><option value="pair">Matching certificate + encrypted key — ZIP</option><option value="key">Encrypted private key only — PEM</option><option value="bundle">All included public certificates — PEM bundle</option></select>
         <div id="download-private-options" hidden>
           <label for="download-password">Your Rootwell password <span>(confirm it is you)</span></label>
           <input id="download-password" type="password" maxlength="256" autocomplete="off">

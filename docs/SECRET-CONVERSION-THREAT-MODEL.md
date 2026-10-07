@@ -6,6 +6,16 @@
 
 ## Assets and boundaries
 
+ADR 0047 adds a distinct optional Inspect certificate/key comparator. Public
+Inspect/Verify pickers remain public-only; the new secret picker sends bounded
+copies only to the existing one-shot worker, using the same strict decoder and
+key-match core. It returns public fingerprints/status only, not private bytes,
+and has no upload/save/export capability. Source/tool/hidden/closed/deadline
+boundaries discard results and clear owned buffers; worker termination bounds
+parsed-key lifetime. Match is mathematical identity, not trusted issuance.
+Wrong password/malformed input is not mismatch. Runtime/OS/extension copies
+remain residual risks and independent release audit is still required.
+
 Private keys, PFX passwords, extracted keys, and unencrypted working buffers
 are secret. Public certificates may still reveal internal identities. The
 operator supplies local files and a destination to an offline CLI process;

@@ -22,7 +22,7 @@ import (
 var workbenchAssetNames = []string{
 	"index.html", "style.css", "theme.js", "wasm-loader.js", "app.js", "secret-view.js", "private-key.js",
 	"private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "favicon.svg",
-	"csr.js", "csr-worker-client.js", "csr-worker.js",
+	"csr.js", "csr-worker-client.js", "csr-worker.js", "certificate-key-match.js",
 	"rootwell-demo-certificate.pem", "rootwell-demo-bundle.pem",
 	"rootwell-verify-demo-leaf.pem", "rootwell-verify-demo-intermediate.pem",
 	"rootwell-verify-demo-root.pem", "rootwell-verify-demo-ca-files.pem",
@@ -214,7 +214,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 	assets := workbenchAssets(t)
 	application := assets["app.js"]
 	loader := assets["wasm-loader.js"]
-	fileReadingScripts := application + "\n" + assets["secret-view.js"] + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["csr.js"] + "\n" + assets["theme.js"]
+	fileReadingScripts := application + "\n" + assets["secret-view.js"] + "\n" + assets["private-key.js"] + "\n" + assets["pfx.js"] + "\n" + assets["csr.js"] + "\n" + assets["certificate-key-match.js"] + "\n" + assets["theme.js"]
 	for _, forbidden := range []string{
 		"fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon",
 		"serviceWorker", "Worker(", "SharedWorker", "import(",

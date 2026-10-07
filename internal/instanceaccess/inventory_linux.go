@@ -22,6 +22,18 @@ const inventoryName = "inventory.json"
 // AppendCertificate commits public data and optional matched-key attachment
 // together under the existing private writer lock and revision precondition.
 func AppendCertificate(accessPath string, key, id []byte, revision [32]byte, expected uint64, certificate, privateKey, password []byte, owner, location, fingerprint string) (publicinventory.Record, uint64, error) {
+	return appendCertificateImage(accessPath, revision, func(image []byte) ([]byte, publicinventory.Record, uint64, error) {
+		return inventorystore.AppendCertificate(key, id, image, certificate, privateKey, password, owner, location, fingerprint, expected)
+	})
+}
+
+func AppendCertificateMaterial(accessPath string, key, id []byte, revision [32]byte, expected uint64, certificate, privateKey, password []byte, owner, location, fingerprint string, ack bool) (publicinventory.Record, uint64, error) {
+	return appendCertificateImage(accessPath, revision, func(image []byte) ([]byte, publicinventory.Record, uint64, error) {
+		return inventorystore.AppendMaterial(key, id, image, certificate, privateKey, password, owner, location, fingerprint, ack, expected)
+	})
+}
+
+func appendCertificateImage(accessPath string, revision [32]byte, prepare func([]byte) ([]byte, publicinventory.Record, uint64, error)) (publicinventory.Record, uint64, error) {
 	var record publicinventory.Record
 	var generation uint64
 	err := withAccessWriteLock(accessPath, func() error {
@@ -33,7 +45,7 @@ func AppendCertificate(accessPath string, key, id []byte, revision [32]byte, exp
 		if err != nil {
 			return err
 		}
-		next, added, gen, err := inventorystore.AppendCertificate(key, id, image, certificate, privateKey, password, owner, location, fingerprint, expected)
+		next, added, gen, err := prepare(image)
 		if err != nil {
 			return err
 		}
@@ -48,6 +60,8 @@ func AppendCertificate(accessPath string, key, id []byte, revision [32]byte, exp
 
 // WithCertificate holds the access writer lock while lending a generation-
 // bound record. It never returns private bytes to a listing or history caller.
+// Callers must check KeyStatus before using this as a matched pair; material
+// attachments can intentionally contain a loose mismatched key.
 func WithCertificate(accessPath string, key, id []byte, revision [32]byte, expected uint64, fingerprint string, use func(publicinventory.Record, []byte) error) error {
 	return withAccessWriteLock(accessPath, func() error {
 		if err := checkInventoryRevision(accessPath, revision); err != nil {

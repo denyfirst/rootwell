@@ -57,6 +57,11 @@ type Record struct {
 	Locations []string
 	// HasPrivateKey is authenticated custody metadata, never key material.
 	HasPrivateKey bool
+	// KeyStatus is derived from authenticated material: not-added, matched or
+	// mismatch. A mismatch is a loose attachment, never a usable pair.
+	KeyStatus string
+	BundleDER [][]byte
+	IssuerDER [][]byte
 }
 
 // Catalog is an in-memory, single-process draft. Its contents disappear when
@@ -243,6 +248,16 @@ func cloneRecords(records []Record) []Record {
 		out[i].DER = bytes.Clone(record.DER)
 		out[i].DNSNames = append([]string(nil), record.DNSNames...)
 		out[i].Locations = append([]string(nil), record.Locations...)
+		out[i].BundleDER = cloneDER(record.BundleDER)
+		out[i].IssuerDER = cloneDER(record.IssuerDER)
+	}
+	return out
+}
+
+func cloneDER(input [][]byte) [][]byte {
+	out := make([][]byte, len(input))
+	for i := range input {
+		out[i] = bytes.Clone(input[i])
 	}
 	return out
 }

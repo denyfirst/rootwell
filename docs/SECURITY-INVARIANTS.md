@@ -1209,6 +1209,28 @@ rendered. Backups are manual; old images, compromised hosts, runtime copies and
 authenticated rollback remain risks, not erased by this UI simplification.
 This is single-operator development custody, not audited production or RBAC.
 
+ADR 0047 supersedes the preceding matched-only import/export scope: the new
+material attachment holds one selected certificate, its bounded related public
+bundle and optional strictly parsed key. Check is optional in the UI; Save
+always revalidates. A computed mismatch is retained only with explicit sealed
+acknowledgement, not labeled unchecked or matched. Ambiguous selection requires
+an exact supplied fingerprint; issuer signatures are not trust. Material
+authentication recomputes selection/status before any metadata output; note,
+delete and full restore preserve/remove/restore the attachment as a whole.
+Legacy matched-key attachments still require match. Matched-pair downloads
+refuse mismatch; encrypted key-only download has the same fresh-password,
+attempt-limit and strong separate-password gates. Included public bundle export
+does not establish trust. A distinct Inspect secret picker uses a one-shot
+offline worker with no save/export/network capability; malformed/password errors
+are never mismatch results. Public pickers still refuse secret-bearing input.
+
+Additional guards: `TestBundleSelectionMatchMismatchAndIssuerRefusals`,
+`FuzzBundleMatchRefusesMalformedKey`,
+`TestMaterialMismatchAcknowledgementPreservationAndTamper`,
+`TestLinuxMaterialMismatchExportAndBundleFullRestore`,
+`scripts/test-key-match-ui.mjs` and actual key-match Go WASM assertions in
+`scripts/test-browser-csr.mjs`.
+
 Guarded by `TestPrepareCertificatePairsAndRefusals`,
 `TestEncryptedKeyPairRequiresCorrectPassword`,
 `FuzzPrepareRefusesSecretInCertificate`,

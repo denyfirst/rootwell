@@ -176,6 +176,8 @@ type inventoryDeleteOutput struct {
 
 type inventoryItem struct {
 	HasPrivateKey    bool                   `json:"has_private_key"`
+	KeyStatus        string                 `json:"key_status"`
+	BundleCount      int                    `json:"bundle_count"`
 	Fingerprint      string                 `json:"fingerprint"`
 	Subject          string                 `json:"subject"`
 	Issuer           string                 `json:"issuer"`
@@ -791,7 +793,7 @@ func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []p
 	for _, r := range records {
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
 			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
-			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, Expiry: publicinventory.ObserveExpiry(r, now)})
+			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now)})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)

@@ -21,6 +21,7 @@
   <script src="pfx.js" defer></script>
   <script src="csr-worker-client.js" defer></script>
   <script src="csr.js" defer></script>
+  <script src="certificate-key-match.js" defer></script>
 </head>
 <body class="workspace">
 <div id="inventory-source" hidden></div>
@@ -155,7 +156,7 @@
             <div>
               <p class="section-index">Tool 01 / Inspect</p>
               <h2>See what is inside your certificate files</h2>
-              <p>Choose one public certificate, a PEM bundle, or several public files. Rootwell shows each certificate and its detailed fields locally. This is not a trust check; private keys and PFX are not accepted.</p>
+              <p>Choose public certificates or a PEM bundle to see their detailed fields. In the public file picker, private keys and PFX are not accepted. To compare a private key, use the separate optional check below. No trust decision or file upload.</p>
             </div>
             <span class="capability">Read-only · public</span>
           </div>
@@ -170,6 +171,23 @@
             <p class="file-selection" id="explore-file-state" aria-live="polite">No files selected</p>
             <p class="demo-certificate">Need safe inputs? <a href="rootwell-demo-certificate.pem" download>One public certificate</a> or <a href="rootwell-demo-bundle.pem" download>a two-certificate public bundle</a> — no private keys included.</p>
           </div>
+
+          <details class="demo-guide" id="key-match-tools">
+            <summary>Does my private key belong to this certificate?</summary>
+            <p>Select a certificate or public PEM bundle and one private key. This check runs only in this browser; nothing is saved or downloaded. A matching key does not prove certificate trust.</p>
+            <div class="csr-form key-match-fields">
+            <label for="match-certificate">Certificate or public bundle</label>
+            <input id="match-certificate" type="file" accept=".pem,.crt,.cer,.der">
+            <label for="match-key">Private key</label>
+            <input id="match-key" type="file" accept=".pem,.key,.der">
+            <label for="match-password">Current key password (only if encrypted)</label>
+            <input id="match-password" type="password" maxlength="256" autocomplete="off">
+            <button id="match-check" class="button action-button" type="button" disabled>Check key match locally</button>
+            <p id="match-status" role="status" aria-live="polite"></p>
+            <ul id="match-results" aria-label="Certificate and key comparison"></ul>
+            </div>
+            <small>Up to 16 certificates / 768 KiB public input; one key up to 64 KiB. PKCS#8, RSA PKCS#1, EC SEC1, and supported encrypted PKCS#8. Use Convert for PFX.</small>
+          </details>
 
           <details class="demo-guide">
             <summary>Try a safe verification demo (optional)</summary>

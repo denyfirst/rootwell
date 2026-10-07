@@ -1,7 +1,7 @@
 "use strict";
 (function () {
   function run(module, operation, input, certificate, password, option, signal) {
-    if (!(module instanceof WebAssembly.Module) || !["generate", "key", "inspect", "convert", "match"].includes(operation) ||
+    if (!(module instanceof WebAssembly.Module) || !["generate", "key", "inspect", "convert", "match", "certificate-key-match"].includes(operation) ||
         !(input instanceof Uint8Array) || input.length > 64 << 10 || !(certificate instanceof Uint8Array) || certificate.length > 1 << 20 ||
         !(password instanceof Uint8Array) || password.length > 256 || typeof option !== "string" || option.length > 16384 ||
         !signal || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function" || signal.aborted || typeof Worker !== "function") return Promise.reject(new Error("request worker unavailable"));

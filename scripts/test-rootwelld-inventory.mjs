@@ -14,8 +14,8 @@ assert.match(html, /<link rel="stylesheet" href="\/style.css">[\s\S]*<link rel="
 assert.match(html, /<a class="rail-item" href="\/index.html">[\s\S]*?Workbench<\/a>/);
 assert.match(html, /<a class="rail-item" href="\/certificates" aria-current="page">/);
 assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
-assert.match(html, /<details class="card import-card">\s*<summary><h2 id="save-heading">Import a public bundle or several files<\/h2>/,
-  "adding files must be opt-in and collapsed initially");
+assert.match(html, /<details class="card import-card">\s*<summary><h2 id="save-heading">Advanced<\/h2><span>Import many unrelated public certificates/,
+  "bulk importing must stay under collapsed Advanced");
 assert.match(html, /<div id="monitor-summary"[^>]*role="status"/);
 assert.match(html, /<strong>Background checks and history<\/strong><p id="background-status"/,
   "worker failures must not be hidden inside details");
