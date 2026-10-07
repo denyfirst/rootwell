@@ -20,6 +20,9 @@ func TestCertificateRequestModesRejectMalformedAndAmbiguousJSON(t *testing.T) {
 		`{"certificate":[0],"expected_generation":1}`,
 		`{"certificate":"AA==","private_key":null,"expected_generation":1}`,
 		`{"certificate":"AA==","location":null,"expected_generation":1}`,
+		`{"certificate":"AA==","expected_generation":1,"allow_mismatch":true}`,
+		`{"certificate":"AA==","expected_generation":1,"primary_fingerprint":null}`,
+		`{"certificate":"AA==","expected_generation":1,"primary_fingerprint":"bad"}`,
 	} {
 		r := httptest.NewRequest("POST", "http://"+localHost+"/api/certificates/check", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -48,6 +51,8 @@ func TestCertificateRequestBoundsAndDownloadMode(t *testing.T) {
 	for _, body := range []string{
 		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":false}`,
 		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":true,"password":"instance-password","output_password":"` + base64.StdEncoding.EncodeToString([]byte("separate-key-password")) + `"}`,
+		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":false,"key_only":true,"password":"instance-password","output_password":"AA=="}`,
+		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":false,"bundle":true}`,
 	} {
 		r := httptest.NewRequest("POST", "http://"+localHost+"/api/certificates/download", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
@@ -60,6 +65,10 @@ func TestCertificateRequestBoundsAndDownloadMode(t *testing.T) {
 	}
 	for _, body := range []string{
 		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":null}`,
+		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":true,"key_only":true,"password":"instance-password","output_password":"AA=="}`,
+		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":false,"key_only":true}`,
+		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":false,"key_only":null}`,
+		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":true,"bundle":true,"password":"instance-password","output_password":"AA=="}`,
 		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":false,"password":"secret-sentinel"}`,
 		`{"fingerprint":"` + fp + `","expected_generation":1,"pair":true,"password":null,"output_password":"AA=="}`,
 		`{"certificate":"AA==","expected_generation":1,"private_key":"` + base64.StdEncoding.EncodeToString(make([]byte, 64<<10+1)) + `"}`,

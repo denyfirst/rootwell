@@ -22,7 +22,7 @@ assert.equal(first.messages[1].type, "operate");
 assert.deepEqual([...new Uint8Array(first.messages[1].password)], [80]);
 first.onmessage(message({ type: "result", operation: "generate", answer: { ok: true } }));
 assert.equal((await success).ok, true); assert.equal(first.terminated, true); assert.equal(timers.size, 0); assert.equal(secret[0], 80);
-for (const operation of ["key", "inspect", "convert", "match"]) {
+for (const operation of ["key", "inspect", "convert", "match", "certificate-key-match"]) {
   const pending = run(new Module(), operation, source, empty, empty, "", new AbortController().signal);
   const worker = workers.at(-1);
   assert.equal(timers.values().next().value.ms, operation === "key" ? 90000 : 30000);

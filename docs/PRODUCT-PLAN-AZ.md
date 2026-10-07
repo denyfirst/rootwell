@@ -22,6 +22,15 @@ yenidən Rootwell parolu və ayrıca output parolu tələb edir. PFX, key əlav�
 CA signing custody və production audit bu increment-ə daxil deyil.
 Bax: [ADR 0046](adr/0046-unified-certificate-library.md).
 
+**Növbəti sadələşdirmə — ADR 0047:** Inspect-də ayrı lokal cert/key uyğunluğu;
+Certificates-də bir sertifikat və ya public bundle + optional private key.
+Check optional, Save həmişə yoxlayır. Uyğun olmayan açar yalnız ayrıca
+xəbərdarlığı təsdiqləməklə attachment kimi saxlanır; matching-pair əməliyyatında
+işlədilmir, status unchecked deyil, mismatch olur. Ambiguous bundle-da əsas
+sertifikat açıq seçilir. Bulk unrelated public import Advanced altında qalır.
+Encrypted key-only və public bundle download dəstəklənir. Mövcud qeydə sonradan
+açar əlavə etmək, PFX library import və production audit hələ ayrıca mərhələdir.
+
 Bu sənəd məhsulun uzunmüddətli istiqamətini, təhlükəsizlik sərhədlərini və ilk
 icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementasiyaya
 əlavə edilməməli, əvvəl bu plana və uyğun mərhələyə yerləşdirilməlidir.

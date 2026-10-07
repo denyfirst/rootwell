@@ -7,6 +7,15 @@ keçir. Porch repository-si bu işin xaricindədir.
 
 ## Məhsul prinsipi
 
+**Cari UX increment — ADR 0047:** Inspect-də lokal certificate/key match;
+Certificates-də bir sertifikat/bundle və ya eyni chain-in ayrı public faylları
++ optional key + qeyd + Save. Check optionaldır, Save həmişə yoxlayır. Mismatch
+yalnız explicit təsdiqlə ayrı attachment olur; matching pair deyil. Əsas
+sertifikat ambiguous olsa seçilir. Bulk unrelated import Advanced altındadır.
+Public bundle və şifrəli key-only download əlavə olunur; Linux full restore
+bundle, açar və hesablanmış statusu birlikdə saxlamalıdır. Əvvəlki ADR 0046
+matched-only giriş məhdudiyyəti bu qərarla əvəzlənir.
+
 Cari prioritet: **vahid Certificates kitabxanası** (ADR 0046). Certificate seç,
 istəsən private açar seç, uyğunluğu yoxla, istəsən servis qeydi yaz və Save.
 Siyahıda vaxt və key-present vəziyyəti; private download üçün fresh password.

@@ -70,6 +70,8 @@ jobs:
             package: ./internal/keymatch
           - target: FuzzPrepareRefusesSecretInCertificate
             package: ./internal/certificatepair
+          - target: FuzzBundleMatchRefusesMalformedKey
+            package: ./internal/certificatepair
           - target: FuzzInspectPrivateKeyNoSecretEcho
             package: ./internal/browserprivateconvert
           - target: FuzzEncryptedProfileNoPanic

@@ -44,6 +44,14 @@ for (const format of ["pem", "der"]) {
 }
 const currentPassword = encoder.encode("synthetic-current-key-password-2026-4fbd");
 const encrypted = Uint8Array.from(Buffer.from(createPrivateKey(Buffer.from(key)).export({ type: "pkcs8", format: "pem", cipher: "aes-256-cbc", passphrase: Buffer.from(currentPassword) })));
+assert.equal(typeof rootwellCertificateKeyMatch,"function");
+for (const [c,k,p,status] of [[certificate,key,empty,"matched"],[different,key,empty,"mismatch"],[certificate,encrypted,currentPassword,"matched"],[different,encrypted,currentPassword,"mismatch"]]) {
+  const text=rootwellCertificateKeyMatch(c,k,p),result=JSON.parse(text);
+  assert.equal(result.ok,true);assert.equal(result.records[0].key_status,status);assert.equal(result.records.length,1);assert.doesNotMatch(text,/PRIVATE KEY|private_key|password/);
+}
+for (const [c,k,p] of [[certificate,encrypted,empty],[certificate,encrypted,encoder.encode("wrong")],[certificate,encoder.encode("secret-sentinel"),empty],[new Uint8Array(768*1024+1),key,empty],[certificate,new Uint8Array(64*1024+1),empty]]) {
+  const text=rootwellCertificateKeyMatch(c,k,p),result=JSON.parse(text);assert.equal(result.ok,false);assert.equal(result.records,null);assert.doesNotMatch(text,/secret-sentinel/);
+}
 const signed = rootwellCSROperate("key", encrypted, empty, currentPassword, JSON.stringify({ algorithm: "", params, format: "pem" }));
 assert.equal(signed.ok, true); verifyOpenSSL(signed.result.bytes, "pem");
 assert.equal(rootwellCSROperate("key", encrypted, empty, empty, JSON.stringify({ algorithm: "", params, format: "pem" })).ok, false);

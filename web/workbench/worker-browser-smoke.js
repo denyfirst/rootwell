@@ -5,6 +5,7 @@
   let der;
   let password;
   let exported;
+  let certificate;
   let stage = "engine";
   try {
     const engine = await rootwellWorkbenchReady;
@@ -33,12 +34,22 @@
         reopened.result.public_fingerprint !== inspected.result.public_fingerprint) {
       throw new Error("synthetic encrypted import failed");
     }
-    result.textContent = "PASS: browser worker inspected, encrypted, and reopened a generated synthetic key without a download.";
+    stage = "certificate-key-match";
+    // Fixed synthetic PUBLIC asset only; the generated key never enters fetch.
+    const publicAsset = await fetch("rootwell-demo-certificate.pem", { cache: "no-store", redirect: "error" });
+    if (!publicAsset.ok) throw new Error("synthetic public asset unavailable");
+    certificate = new Uint8Array(await publicAsset.arrayBuffer());
+    if (certificate.length > 768 * 1024) throw new Error("synthetic asset too large");
+    const comparison = JSON.parse(await rootwellCSRWorker.run(engine.module, "certificate-key-match", der, certificate,
+      new Uint8Array(), "", new AbortController().signal));
+    if (!comparison.ok || comparison.records?.length !== 1 || comparison.records[0].key_status !== "mismatch") throw new Error("synthetic mismatch failed");
+    result.textContent = "PASS: browser workers inspected, encrypted, reopened and compared a generated synthetic key. The unrelated certificate was correctly reported as a mismatch. No key upload or download.";
   } catch {
     result.textContent = "FAIL: browser worker could not complete the synthetic key test at " + stage + ".";
   } finally {
     if (der) der.fill(0);
     if (password) password.fill(0);
     if (exported) exported.fill(0);
+    if (certificate) certificate.fill(0);
   }
 })();

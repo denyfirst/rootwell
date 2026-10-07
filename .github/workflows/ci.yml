@@ -158,6 +158,8 @@ jobs:
           node --check web/workbench/pfx-worker-client.js
           node --check web/workbench/pfx-worker.js
           node --check web/workbench/csr.js
+          node --check web/workbench/certificate-key-match.js
+          node --check scripts/test-key-match-ui.mjs
           node --check web/workbench/csr-worker-client.js
           node --check web/workbench/csr-worker.js
           node --check scripts/test-workbench-csr-ui.mjs
@@ -202,6 +204,7 @@ jobs:
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-certificate-library.mjs
+          node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
 
       - name: Test with race detector

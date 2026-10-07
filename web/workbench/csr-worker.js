@@ -23,13 +23,13 @@ self.onmessage = function (event) {
   used = true;
   let arrays, output, csr;
   try {
-    if (!["generate", "key", "inspect", "convert", "match"].includes(request.operation) ||
+    if (!["generate", "key", "inspect", "convert", "match", "certificate-key-match"].includes(request.operation) ||
         !(request.input instanceof ArrayBuffer) || !(request.certificate instanceof ArrayBuffer) || !(request.password instanceof ArrayBuffer) ||
         typeof request.option !== "string" || request.option.length > 16384) throw new Error("invalid request");
     arrays = [new Uint8Array(request.input), new Uint8Array(request.certificate), new Uint8Array(request.password)];
     if (arrays.some((bytes, index) => bytes.length > [64 << 10, 1 << 20, 256][index])) throw new Error("invalid request");
-    const answer = self.rootwellCSROperate(request.operation, arrays[0], arrays[1], arrays[2], request.option);
-    if (["inspect", "match"].includes(request.operation)) {
+    const answer = request.operation === "certificate-key-match" ? self.rootwellCertificateKeyMatch(arrays[1], arrays[0], arrays[2]) : self.rootwellCSROperate(request.operation, arrays[0], arrays[1], arrays[2], request.option);
+    if (["inspect", "match", "certificate-key-match"].includes(request.operation)) {
       if (typeof answer !== "string" || answer.length > 32768) throw new Error("invalid response");
     } else {
       output = answer && answer.result && answer.result.bytes;

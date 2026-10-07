@@ -33,6 +33,10 @@ type certificateInput struct {
 	Password       string
 	OutputPassword []byte
 	Pair           bool
+	KeyOnly        bool
+	Bundle         bool
+	Primary        string
+	AllowMismatch  bool
 }
 
 func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -89,14 +93,28 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		inventoryError(w, inventorystore.ErrStaleGeneration)
 		return
 	}
-	record, canonical, err := certificatepair.Prepare(input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location)
+	primary := input.Primary
+	if r.URL.Path == "/api/certificates/save" {
+		primary = input.Fingerprint
+	}
+	record, canonical, err := certificatepair.PrepareBundle(input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, primary)
 	defer clear(canonical)
 	if err != nil {
+		var choice *certificatepair.SelectionRequired
+		if r.URL.Path == "/api/certificates/check" && errors.As(err, &choice) {
+			if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+				http.Error(w, "session no longer available", http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("X-Rootwell-Selection", "required")
+			g.writeInventoryJSON(w, http.StatusOK, choice.Candidates, generation)
+			return
+		}
 		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
 			http.Error(w, "Enter the selected private key's current password, then check again.", http.StatusUnprocessableEntity)
 			return
 		}
-		http.Error(w, "Use one certificate and its matching private key. Check the key password and supported format; CA private keys cannot be saved.", http.StatusBadRequest)
+		http.Error(w, "Select one certificate or a related public bundle and a supported optional key. Check the key password; CA private keys cannot be saved.", http.StatusBadRequest)
 		return
 	}
 	for _, existing := range records {
@@ -119,8 +137,8 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		return
 	}
 	// Prepare is repeated by the store itself; a preview never grants write authority.
-	record, generation, err = instanceaccess.AppendCertificate(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
-		input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, input.Fingerprint)
+	record, generation, err = instanceaccess.AppendCertificateMaterial(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
+		input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, input.Fingerprint, input.AllowMismatch)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -145,7 +163,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
 		return input, false
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 240<<10))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1200<<10))
 	defer clear(body)
 	if err != nil || len(body) == 0 || !utf8.Valid(body) {
 		return bad()
@@ -209,6 +227,35 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 			err = readString(&input.Location)
 		case "fingerprint":
 			err = readString(&input.Fingerprint)
+		case "primary_fingerprint":
+			if download || r.URL.Path != "/api/certificates/check" {
+				return bad()
+			}
+			err = readString(&input.Primary)
+		case "allow_mismatch":
+			if download || r.URL.Path != "/api/certificates/save" {
+				return bad()
+			}
+			var value *bool
+			err = d.Decode(&value)
+			if value == nil {
+				return bad()
+			}
+			input.AllowMismatch = *value
+		case "key_only", "bundle":
+			if !download {
+				return bad()
+			}
+			var value *bool
+			err = d.Decode(&value)
+			if value == nil {
+				return bad()
+			}
+			if name == "key_only" {
+				input.KeyOnly = *value
+			} else {
+				input.Bundle = *value
+			}
 		case "expected_generation":
 			err = d.Decode(&input.Expected)
 		case "password":
@@ -243,11 +290,12 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 	if err != nil || token != json.Delim('}') {
 		return bad()
 	}
-	if _, err := d.Token(); err != io.EOF || !seen["expected_generation"] || input.Expected == 0 || len(input.Certificate) > 96<<10 || len(input.PrivateKey) > 64<<10 || len(input.KeyPassword) > 256 || len(input.OutputPassword) > 256 || len(input.Password) > 256 || !publicinventory.ValidOwner(input.Owner) || (input.Location != "" && publicinventory.ValidateLocation(input.Location) != nil) {
+	if _, err := d.Token(); err != io.EOF || !seen["expected_generation"] || input.Expected == 0 || len(input.Certificate) > certificatepair.MaxBundleBytes || len(input.PrivateKey) > 64<<10 || len(input.KeyPassword) > 256 || len(input.OutputPassword) > 256 || len(input.Password) > 256 || !publicinventory.ValidOwner(input.Owner) || (input.Location != "" && publicinventory.ValidateLocation(input.Location) != nil) || (seen["primary_fingerprint"] && !publicinventory.ValidFingerprint(input.Primary)) {
 		return bad()
 	}
 	if download {
-		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || (!input.Pair && (seen["password"] || seen["output_password"])) || (input.Pair && (input.Password == "" || len(input.OutputPassword) == 0)) {
+		secret := input.Pair || input.KeyOnly
+		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || (input.Pair && input.KeyOnly) || (input.Bundle && secret) || (!secret && (seen["password"] || seen["output_password"])) || (secret && (input.Password == "" || len(input.OutputPassword) == 0)) {
 			return bad()
 		}
 	} else if len(input.Certificate) == 0 || (r.URL.Path == "/api/certificates/save" && !publicinventory.ValidFingerprint(input.Fingerprint)) || (r.URL.Path == "/api/certificates/check" && seen["fingerprint"]) {
@@ -257,7 +305,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 }
 
 func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s session, input certificateInput) {
-	if input.Pair {
+	if input.Pair || input.KeyOnly {
 		if !g.allowAttempt() {
 			w.Header().Set("Retry-After", "60")
 			http.Error(w, "too many attempts; wait one minute", http.StatusTooManyRequests)
@@ -282,12 +330,21 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 	err := instanceaccess.WithCertificate(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, input.Fingerprint,
 		func(record publicinventory.Record, key []byte) error {
 			certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: record.DER})
-			if !input.Pair {
+			if !input.Pair && !input.KeyOnly {
+				if input.Bundle {
+					certificate = certificatepair.PublicPEM(record.BundleDER)
+					if len(certificate) == 0 {
+						certificate = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: record.DER})
+					}
+				}
 				output = certificate
 				return nil
 			}
 			defer clear(certificate)
 			if len(key) == 0 {
+				return certificatepair.ErrInvalid
+			}
+			if input.Pair && record.KeyStatus != "matched" {
 				return certificatepair.ErrInvalid
 			}
 			metadata, err := browserprivateconvert.Inspect(key)
@@ -299,13 +356,23 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 				return err
 			}
 			defer clear(encrypted)
+			if input.KeyOnly {
+				output = bytes.Clone(encrypted)
+				return nil
+			}
 			var archive bytes.Buffer
 			defer func() { clear(archive.Bytes()) }()
 			z := zip.NewWriter(&archive)
 			for _, file := range []struct {
 				name string
 				body []byte
-			}{{"certificate.pem", certificate}, {"private-key.encrypted.pem", encrypted}} {
+			}{{"certificate.pem", certificate}, {"private-key.encrypted.pem", encrypted}, {"included-certificates.pem", certificatepair.PublicPEM(record.BundleDER)}} {
+				if file.name == "included-certificates.pem" && len(record.BundleDER) < 2 {
+					continue
+				}
+				if len(file.body) == 0 {
+					continue
+				}
 				writer, err := z.Create(file.name)
 				if err != nil {
 					return err
@@ -322,7 +389,7 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 		})
 	if err != nil {
 		if errors.Is(err, browserprivateconvert.ErrPassword) || errors.Is(err, certificatepair.ErrInvalid) {
-			http.Error(w, "Key download refused. Use a supported matched key and a separate password of 20–128 non-space ASCII characters.", http.StatusBadRequest)
+			http.Error(w, "Key download refused. Pair export requires a matching key. Use a separate password of 20–128 non-space ASCII characters for key downloads.", http.StatusBadRequest)
 		} else {
 			inventoryError(w, err)
 		}

@@ -45,6 +45,7 @@ type manifest struct {
 	Records        []sealedRecord `json:"records"`
 	History        []sealedRecord `json:"history,omitempty"`
 	Keys           []sealedRecord `json:"keys,omitempty"`
+	Materials      []sealedRecord `json:"materials,omitempty"`
 }
 
 type envelope struct {
@@ -282,6 +283,12 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 				break
 			}
 		}
+		for j, attachment := range m.Materials {
+			if bytes.Equal(attachment.ID, mID(record.DER)) {
+				m.Materials = append(append([]sealedRecord{}, m.Materials[:j]...), m.Materials[j+1:]...)
+				break
+			}
+		}
 		m.Generation++
 		if err := addEvent(key, &m, "record-deleted", []string{fingerprint}); err != nil {
 			return nil, 0, err
@@ -421,6 +428,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if err := authenticateKeys(key, id, m, records); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if err := authenticateMaterials(key, id, m, records); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

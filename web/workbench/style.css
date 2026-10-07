@@ -666,3 +666,6 @@ label[for="private-convert-input-password"] { display: block; margin-top: 0.9rem
 .csr-form input[type="file"]::file-selector-button { margin-right: 0.7rem; padding: 0.55rem 0.75rem; border: 1px solid var(--rule); background: var(--paper-sunk); color: var(--ink); font: inherit; cursor: pointer; }
 #csr-names, #csr-match-differences { overflow-wrap: anywhere; }
 #csr-technical { overflow-wrap: anywhere; white-space: pre-line; }
+.key-match-fields { max-width: 38rem; }
+#match-results { padding-left: 1.1rem; overflow-wrap: anywhere; color: var(--ink-soft); font-size: .8rem; line-height: 1.6; }
+#match-results li { margin: .6rem 0; }
