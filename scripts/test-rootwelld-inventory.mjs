@@ -28,6 +28,8 @@ assert.match(html, /id="save-button" type="submit" disabled/);
 const inventoryCSS = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.css", import.meta.url), "utf8");
 assert.doesNotMatch(inventoryCSS, /:root|color-scheme:|\.storage-note[^{}]*\{[^}]*display:\s*none/);
 assert.match(inventoryCSS, /\.inventory-workspace \.filters \{ display: grid/);
+assert.match(inventoryCSS, /@media \(max-width: 64rem\) \{\s*\.inventory-workspace \.filters \{ grid-template-columns: minmax\(0, 1fr\)/,
+  "filters must stack before the desktop sidebar makes their labels cramped");
 
 // The only persisted preference is the existing, non-secret light/dark choice.
 // Shared appearance must not add certificate/notes/session persistence.

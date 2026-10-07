@@ -55,3 +55,6 @@ notice and private/PFX refusal. Both portable ready-access and Linux durable
 API tests use it. All earlier authentication/storage/negative checks remain.
 The shared Go response gate also detected deliberately broken valid workspace
 markup and a false offline upload claim; both mutations were restored.
+The resumed browser's narrow desktop pane exposed a clipped filter choice;
+filter/search stacking now starts at 64rem, before the shared sidebar's mobile
+breakpoint. Actual browser layout is checked at the default pane width.
