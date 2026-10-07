@@ -55,6 +55,8 @@ type Record struct {
 	// Locations are operator-declared, unverified uses of this certificate.
 	// Location remains the first label for existing inventory consumers.
 	Locations []string
+	// HasPrivateKey is authenticated custody metadata, never key material.
+	HasPrivateKey bool
 }
 
 // Catalog is an in-memory, single-process draft. Its contents disappear when

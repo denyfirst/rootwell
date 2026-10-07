@@ -4,6 +4,22 @@ This is a scope boundary, not a promise that every listed operation already
 exists. `planned` means implementation and its security tests are still
 required. Anything not listed is unsupported and must fail explicitly.
 
+## Separate certificate-library custody (ADR 0046)
+
+The Linux ready-session library accepts one strict PEM/DER certificate
+(.pem/.crt/.cer/.der, content determines encoding), <=96 KiB encoded /64 KiB
+DER, and optionally its matching leaf private key <=64 KiB. Key inputs reuse
+the PKCS#8, RSA PKCS#1, EC SEC1 and bounded encrypted-PKCS#8 profiles below.
+CA private keys and PFX input are refused here; use the separate Workbench PFX
+workflow. A certificate without a key can still be stored.
+
+Library download initially supports certificate PEM or an unencrypted ZIP
+containing certificate PEM and password-encrypted PKCS#8 PEM key. Private
+download needs fresh instance authentication and a separate output password.
+Other formats remain in Workbench Convert; custody does not implicitly reveal
+or export plaintext keys. Native Windows is a read-only synthetic preview.
+SSH/PGP rows below are historical deferred ideas, outside current Rootwell scope.
+
 For a single public browser export, `.crt` and `.cer` are allowed filename
 extensions for either PEM or DER certificate bytes; they are not separate
 encodings. `.pem` is paired only with PEM and `.der` only with DER.

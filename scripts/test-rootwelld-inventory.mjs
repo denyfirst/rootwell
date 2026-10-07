@@ -12,16 +12,16 @@ assert.doesNotMatch(html, /Export selected records|preview-export-button|downloa
 assert.match(html, /<body class="workspace inventory-workspace">/);
 assert.match(html, /<link rel="stylesheet" href="\/style.css">[\s\S]*<link rel="stylesheet" href="\/inventory.css">/);
 assert.match(html, /<a class="rail-item" href="\/index.html">[\s\S]*?Workbench<\/a>/);
-assert.match(html, /<a class="rail-item" href="\/inventory" aria-current="page">/);
+assert.match(html, /<a class="rail-item" href="\/certificates" aria-current="page">/);
 assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
-assert.match(html, /<details class="card import-card">\s*<summary><h2 id="save-heading">Add certificates<\/h2>/,
+assert.match(html, /<details class="card import-card">\s*<summary><h2 id="save-heading">Import a public bundle or several files<\/h2>/,
   "adding files must be opt-in and collapsed initially");
 assert.match(html, /<div id="monitor-summary"[^>]*role="status"/);
 assert.match(html, /<strong>Background checks and history<\/strong><p id="background-status"/,
   "worker failures must not be hidden inside details");
 assert.match(html, /<aside class="storage-note" aria-label="Storage boundary">/,
   "the narrow-screen Workbench boundary rule must not hide Inventory's upload notice");
-assert.match(html, /Only when you press Save[\s\S]*public certificate[\s\S]*stored encrypted/);
+assert.match(html, /Saved encrypted on your own Rootwell[\s\S]*Check sends your selected certificate and optional key/);
 assert.doesNotMatch(html, /No certificate uploads|src="\/(?:app|private-key|pfx|csr)\.js"/,
   "shared appearance must not misrepresent Inventory as offline or run Workbench processors");
 assert.match(html, /id="save-button" type="submit" disabled/);
@@ -178,12 +178,12 @@ assert.equal(requests[0].options.method, "GET");
 assert.equal(requests[0].options.headers["X-Rootwell-Request"], "1");
 assert.equal(elements.records.children.length, 1);
 assert.equal(elements.records.children[0].children[0].textContent, "<untrusted subject>");
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Platform")));
 const firstDetails = elements.records.children[0].children.find(node => node.className === "record-details");
+assert.ok(firstDetails.children.some(node => node.textContent.includes("Owner: Platform")));
 assert.ok(firstDetails.children.some(node => node.textContent.includes("Saved at (server clock)")));
 assert.ok(firstDetails.children.some(node => node.textContent.includes("SHA-256: ab:cd")));
 assert.ok(!elements.records.children[0].children.some(node => node.textContent.includes("SHA-256:")), "fingerprint must not crowd the card");
-const workbenchForm = elements.records.children[0].children.find(node => node.className === "workbench-actions");
+const workbenchForm = firstDetails.children.find(node => node.className === "workbench-actions");
 assert.equal(workbenchForm.action,"/workbench");
 assert.equal(workbenchForm.method,"post");
 assert.deepEqual(workbenchForm.children.map(node=>[node.name,node.value]),
@@ -271,7 +271,7 @@ elements["new-owner"].value = "";
 await elements["owner-form"].listeners.submit({ preventDefault() {} });
 const clearOwner = requests.filter(request => request.url === "/api/inventory/owner").at(-1);
 assert.deepEqual(JSON.parse(clearOwner.options.body), { fingerprint: "ab:cd", owner: "", expected_generation: 4 });
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Owner: Not noted")));
+assert.ok(!action(elements.records.children[0], "Owner: Platform"), "cleared owner must not survive inside details");
 assert.equal(fileReads, 0, "clearing an owner must not reread the certificate");
 
 action(elements.records.children[0], "Change server notes").listeners.click();
@@ -302,7 +302,7 @@ assert.equal(fileReads, 0);
 action(elements.records.children[0], "Change server notes").listeners.click();
 elements["confirm-remove"].checked = true;
 await elements["remove-location-button"].listeners.click();
-assert.ok(elements.records.children[0].children.some(node => node.textContent.includes("Server: Not noted")));
+assert.ok(action(elements.records.children[0], "Service notes: None — add one if useful"));
 assert.equal(action(elements.records.children[0], "Change server notes").disabled, true);
 
 currentResponse = { ...response, records: [{ ...response.records[0], locations: ["production/nginx", "production/nginx"] }] };
@@ -353,10 +353,9 @@ currentResponse = { generation: 8, verification: "not-performed", records: [
 await elements["refresh-button"].listeners.click();
 assert.deepEqual(elements.records.children.map(node => node.children[0].textContent),
   ["invalid", "expired", "soon", "medium", "future", "later"], "priority and exact expiry boundary");
-assert.ok(elements.counts.children.some(node => node.textContent === "No owner note: 1"));
-assert.ok(elements.counts.children.some(node => node.textContent === "No server note: 1"));
+assert.ok(!elements.counts.children.some(node => /No owner|No server/.test(node.textContent)), "optional notes must not look like unfinished tasks");
 assert.ok(elements.counts.children.some(node => node.textContent === "Needs attention: 4"));
-assert.ok(elements.records.children.find(node => node.children[0].textContent === "expired").children.some(node => /not renewed automatically/.test(node.textContent)));
+assert.ok(elements.records.children.find(node => node.children[0].textContent === "expired").children.find(node => node.className === "record-details").children.some(node => /not renewed automatically/.test(node.textContent)));
 const beforeView = requests.length;
 elements["expiry-filter"].value = "attention";
 elements["expiry-filter"].listeners.change();

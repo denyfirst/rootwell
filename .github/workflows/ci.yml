@@ -166,6 +166,8 @@ jobs:
           node --check web/workbench/worker-browser-smoke.js
           node --check cmd/rootwelld/auth/auth.js
           node --check cmd/rootwelld/auth/inventory.js
+          node --check cmd/rootwelld/auth/certificate-library.js
+          node --check scripts/test-certificate-library.mjs
           node --check cmd/rootwelld/auth/inventory-engine.js
           node --check cmd/rootwelld/auth/inventory-import.js
           node --check scripts/test-inventory-bulk.mjs
@@ -199,6 +201,7 @@ jobs:
           node scripts/test-workbench-csr-worker.mjs
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-rootwelld-inventory.mjs
+          node scripts/test-certificate-library.mjs
           node scripts/test-inventory-demo.mjs
 
       - name: Test with race detector

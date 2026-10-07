@@ -12,6 +12,7 @@
   <script src="/inventory-engine.js" defer></script>
   <script src="/inventory-import.js" defer></script>
   <script src="/inventory-lifecycle.js" defer></script>
+  <script src="/certificate-library.js" defer></script>
   <script src="/inventory.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
@@ -23,13 +24,12 @@
     <p class="rail-caption" id="rail-workspace">Workspace</p>
     <nav class="rail-nav" aria-labelledby="rail-workspace">
       <a class="rail-item" href="/index.html"><span class="rail-glyph" aria-hidden="true">◇</span>Workbench</a>
-      <a class="rail-item" href="/inventory" aria-current="page"><span class="rail-glyph" aria-hidden="true">◎</span>Inventory<span class="rail-soon">Self-host</span></a>
+      <a class="rail-item" href="/certificates" aria-current="page"><span class="rail-glyph" aria-hidden="true">◎</span>Certificates</a>
       <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Planned</span></span>
     </nav>
     <p class="rail-caption" id="rail-security">Security</p>
     <nav class="rail-nav" aria-labelledby="rail-security">
       <a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span> Access <span class="rail-soon">Self-host</span></a>
-      <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">▣</span>Vault<span class="rail-soon">Later</span></span>
       <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">≡</span>Audit log<span class="rail-soon">Later</span></span>
     </nav>
     <div class="rail-foot">
@@ -39,24 +39,47 @@
   </aside>
   <div class="workspace-main">
     <header class="topbar">
-      <p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Inventory</strong></p>
-      <p class="boundary">Public certificates · explicit Save</p>
+      <p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Certificates</strong></p>
+      <p class="boundary">Your certificates · your server</p>
     </header>
   <main>
     <section class="work-heading" aria-labelledby="inventory-title">
       <div>
-        <p class="eyebrow">Certificate inventory</p>
+        <p class="eyebrow">Your certificate library</p>
         <h1 id="inventory-title">Your certificates.</h1>
-        <p class="lede">See what expires next. Open a saved certificate in Workbench to inspect or verify it.</p>
+        <p class="lede">Certificates, matching keys and service notes. One place to save them and see what expires next.</p>
       </div>
     </section>
     <aside class="storage-note" aria-label="Storage boundary">
-      <strong>Public certificates only · saved encrypted on your Rootwell</strong>
-      <p>Only when you press Save, the public certificate goes to your own server and is stored encrypted. No PFX or private keys. No third-party service is contacted.</p>
+      <strong>Saved encrypted on your own Rootwell</strong>
+      <p>Check sends your selected certificate and optional key to your own server; Save stores them together. No third-party service is contacted. Key contents stay hidden in the list.</p>
     </aside>
     <div class="layout">
+      <details class="card library-add">
+        <summary><h2>Add a certificate</h2><span>Choose → check → save</span></summary>
+        <form id="certificate-pair-form">
+          <label for="pair-certificate">Certificate <span>(includes its public key)</span></label>
+          <input id="pair-certificate" type="file" accept=".pem,.crt,.cer,.der" required>
+          <label for="pair-key">Private key <span>(optional — skip if you do not have it)</span></label>
+          <input id="pair-key" type="file" accept=".pem,.key,.der">
+          <details id="pair-password-options"><summary>My private key has a password</summary>
+            <label for="pair-key-password">Current key password</label>
+            <input id="pair-key-password" type="password" maxlength="256" autocomplete="off">
+          </details>
+          <button id="pair-check" type="button">Check selected files</button>
+          <p id="pair-status" role="status" aria-live="polite"></p>
+          <section id="pair-preview" class="pair-preview" hidden>
+            <strong id="pair-name"></strong><p id="pair-expiry"></p><p id="pair-match"></p>
+            <label for="pair-note">Where is it used? <span>(optional note — you can add it later)</span></label>
+            <input id="pair-note" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Nginx, Exchange, production website">
+            <button id="pair-save" type="submit" disabled>Save certificate</button>
+            <p>Matching keys do not prove certificate trust. Use Verify before relying on it.</p>
+          </section>
+          <details class="optional-fields"><summary>Supported files</summary><p>One PEM/DER certificate (.pem, .crt, .cer or .der), with an optional PKCS#8, RSA PKCS#1 or EC SEC1 private key. Password-protected input supports the modern encrypted PKCS#8 profile. PFX is handled in Workbench; use bulk import below for public bundles.</p></details>
+        </form>
+      </details>
       <details class="card import-card">
-        <summary><h2 id="save-heading">Add certificates</h2><span>Choose files, preview, then save</span></summary>
+        <summary><h2 id="save-heading">Import a public bundle or several files</h2><span>Optional bulk import</span></summary>
         <p>Choose public .pem, .crt, .cer or .der files, including PEM bundles. PFX and private keys are not accepted.</p>
         <p class="file-limits">Up to 8 files, 16 MiB combined and 64 certificates.</p>
         <form id="inventory-form">
@@ -80,7 +103,7 @@
       </details>
       <section class="card overview" aria-labelledby="overview-heading">
         <h2 id="overview-heading">Saved certificates</h2>
-        <p>Expiry uses your Rootwell server’s clock. This is not automatic renewal, a live server check or a trust verdict.</p>
+        <p>Remaining days update from your server’s clock. Expiry is not a trust check or automatic renewal.</p>
         <div id="monitor-summary" class="monitor-summary" role="status" aria-live="polite"></div>
         <p id="clock-as-of" class="clock-note"></p>
         <details class="optional-fields"><summary>Monitoring options</summary>
@@ -92,7 +115,7 @@
         <div id="counts" class="counts" aria-live="polite"></div>
         <div class="filters">
           <div><label for="expiry-filter">Show certificates</label>
-          <select id="expiry-filter"><option value="all">All certificates</option><option value="attention">Needs attention</option><option value="later">Expires in over 90 days</option><option value="missing-owner">No owner note</option><option value="missing-location">No server note</option></select>
+          <select id="expiry-filter"><option value="all">All certificates</option><option value="attention">Needs attention</option><option value="later">Expires in over 90 days</option></select>
           </div><div><label for="inventory-search">Search</label>
           <input id="inventory-search" type="search" autocomplete="off" placeholder="Certificate name, owner or server"></div>
         </div>
@@ -147,7 +170,7 @@
         <p class="eyebrow">07 / EXPLICIT RECORD DELETION</p>
         <h2 id="delete-heading">Remove from saved list</h2>
         <p id="delete-target"></p>
-        <p>This removes the public certificate and its owner/location notes from the current encrypted inventory only. It does not revoke the certificate or remove it from a server. Older snapshots may restore it; this is not secure erasure. Re-import is possible if you still have the public certificate file.</p>
+        <p>This removes the saved certificate, its attached private key (if any), and notes from the current encrypted library only. It does not revoke the certificate or remove it from a server. Older snapshots may restore them; this is not secure erasure.</p>
         <form id="delete-form">
           <label for="delete-fingerprint">Type the complete SHA-256 fingerprint shown above</label>
           <input id="delete-fingerprint" type="text" autocomplete="off" spellcheck="false" required>
@@ -158,6 +181,24 @@
         </form>
       </section>
     </div>
+    <section id="certificate-download" class="card" hidden>
+      <h2>Download certificate</h2><p id="download-name"></p>
+      <form id="certificate-download-form">
+        <label for="download-kind">What do you need?</label>
+        <select id="download-kind"><option value="certificate">Certificate only — PEM</option><option value="pair">Certificate + encrypted private key — ZIP</option></select>
+        <div id="download-private-options" hidden>
+          <label for="download-password">Your Rootwell password <span>(confirm it is you)</span></label>
+          <input id="download-password" type="password" maxlength="256" autocomplete="off">
+          <label for="download-key-password">New password for the downloaded private key (20–128 non-space ASCII characters)</label>
+          <input id="download-key-password" type="password" maxlength="128" autocomplete="off">
+          <label for="download-key-confirm">Repeat new key password</label>
+          <input id="download-key-confirm" type="password" maxlength="128" autocomplete="off">
+          <p>The key uses encrypted PKCS#8. The ZIP itself is not encrypted. Keep the download and its password safe.</p>
+        </div>
+        <button id="download-go" type="submit">Download</button><button id="download-close" type="button" class="secondary">Cancel</button>
+        <p id="download-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
     <aside class="backup" aria-label="Backup reminder"><strong>Backup is manual</strong><p>Changes are not automatically backed up.</p><details><summary>How to make a backup</summary><p>After any change, stop Rootwell and run <code>rootwelld inventory-snapshot</code> with a new backup filename. Verify and store the snapshot separately from your recovery code. An older snapshot may restore records or notes you later deleted.</p></details></aside>
     <section id="comparison-panel" class="card" aria-labelledby="comparison-heading" hidden>
       <h2 id="comparison-heading">Compare a replacement certificate</h2><p id="comparison-target"></p>

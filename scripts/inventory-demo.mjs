@@ -19,6 +19,7 @@ function replaceOnce(source, before, after) {
 let html = asset("inventory.html");
 html = replaceOnce(html, "<main>", `<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — generated fake records only</strong><p>This is a read-only visual preview on this computer, not your encrypted inventory. Save, editing, and backup are disabled. Never enter a real certificate or secret here.</p></aside>`);
 html = replaceOnce(html, '<form id="inventory-form">', '<form id="inventory-form" data-read-only="true">');
+html = replaceOnce(html, '<form id="certificate-pair-form">', '<form id="certificate-pair-form" data-read-only="true">');
 let script = asset("inventory.js");
 for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
   script = replaceOnce(script, `details.appendChild(${button});`, `${button}.disabled = true; details.appendChild(${button});`);
@@ -37,7 +38,8 @@ const records = [
     locations: ["demo/haproxy", "demo/fortinet"], import_generation: 4, imported_at: instant(-10) }
 ];
 const demoLeaf = new X509Certificate(readFileSync(new URL("../web/workbench/rootwell-verify-demo-leaf.pem", import.meta.url)));
-script=replaceOnce(script,"item.appendChild(compareButton);",`compareButton.disabled = record.fingerprint !== ${JSON.stringify(demoLeaf.fingerprint256)}; item.appendChild(compareButton);`);
+script=replaceOnce(script,"details.appendChild(compareButton);",`compareButton.disabled = record.fingerprint !== ${JSON.stringify(demoLeaf.fingerprint256)}; details.appendChild(compareButton);`);
+script=replaceOnce(script,"item.appendChild(downloadButton);","downloadButton.disabled = true; item.appendChild(downloadButton);");
 records.push({ fingerprint: demoLeaf.fingerprint256, subject: demoLeaf.subject, issuer: demoLeaf.issuer,
   dns_names: ["verify.rootwell.invalid"], not_before: new Date(demoLeaf.validFrom).toISOString().slice(0,19)+"Z",
   not_after: new Date(demoLeaf.validTo).toISOString().slice(0,19)+"Z", owner: "Synthetic public certificate",
@@ -57,9 +59,10 @@ function fixture() {
 }
 const assets = new Map([
   ["/inventory", ["text/html; charset=utf-8", html]],
+  ["/certificates", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
   ["/inventory.js", ["text/javascript; charset=utf-8", script]],
-  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
+  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js", "certificate-library.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
 ]);
 const workbenchTypes = new Map([
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -73,7 +76,7 @@ const server = http.createServer((request, response) => {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
-  response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (request.url === "/inventory" ? "'self'" : "'none'") + "; frame-ancestors 'none'");
+  response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
   if (request.method === "POST" && request.url === "/workbench") {
     if (request.headers.origin !== "http://"+request.headers.host || request.headers["sec-fetch-site"] !== "same-origin" ||

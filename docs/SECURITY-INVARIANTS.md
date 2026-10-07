@@ -1182,3 +1182,39 @@ Guarded by `TestComparisonTracksAllNamesKeyAndDatesWithoutTrust`,
 `TestInventoryBulkAssetsRemainBehindReadyAccess`,
 `scripts/test-inventory-lifecycle.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
+
+## C68 — One certificate library does not collapse the secret boundary
+
+ADR 0046 supersedes earlier no-custody statements only for the separate
+certificate-library API. Offline Workbench/public bulk import still reject
+secret-bearing public input. Ready Linux sessions may explicitly Check/Save
+one certificate and an optional mathematically matching non-CA private key.
+Files, JSON and KDF concurrency are bounded; Save revalidates identity and
+generation. Check is an own-daemon upload and performs no write or trust verdict.
+
+One complete authenticated atomic image contains public record and separately
+AES-GCM-sealed, HKDF-purpose-separated attachment. Every attachment authenticates
+and matches a unique certificate before any list/history output. Public output
+contains key-presence only. Metadata updates preserve the key; deletion removes
+both from current image; full restore retains the pair. Legacy public images
+remain readable; old binaries refuse attachment-bearing images.
+
+Private download requires fresh instance password under the shared attempt
+budget, exact session revision/generation/fingerprint and a final session check.
+Only encrypted PKCS#8 key in an unencrypted ZIP is exposed here; no plaintext
+custody export/reveal. Separate output-password policy is mandatory. Browser
+selections must be checked before Save; changing/hidden/late/uncertain work
+cannot restore authority. Untrusted parser/network/file error text is never
+rendered. Backups are manual; old images, compromised hosts, runtime copies and
+authenticated rollback remain risks, not erased by this UI simplification.
+This is single-operator development custody, not audited production or RBAC.
+
+Guarded by `TestPrepareCertificatePairsAndRefusals`,
+`TestEncryptedKeyPairRequiresCorrectPassword`,
+`FuzzPrepareRefusesSecretInCertificate`,
+`TestCertificateKeyCustodyAtomicityPreservationAndDeletion`,
+`TestAttachmentTamperAndIdentitySwapFailBeforeOutput`,
+`TestCertificateRequestModesRejectMalformedAndAmbiguousJSON`,
+`TestLinuxCertificateLibraryCustodyDownloadAndFullRestore`,
+`scripts/test-certificate-library.mjs`, `scripts/test-rootwelld-inventory.mjs`
+and `scripts/test-inventory-demo.mjs`.

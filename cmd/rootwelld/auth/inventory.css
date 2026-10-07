@@ -71,6 +71,11 @@
 .inventory-workspace .monitor-summary.clear { border-color: var(--rule); }
 .inventory-workspace .monitor-summary.stale { border-color: var(--brand); }
 .inventory-workspace .next-action { display: block; margin-top: .35rem; color: var(--ink-soft); font-size: .85rem; }
+.inventory-workspace .library-add > summary h2 { display: inline; }
+.inventory-workspace .library-add > summary span { color: var(--ink-soft); font-size: .8rem; margin-left: .8rem; }
+.inventory-workspace .pair-preview { margin-top: 1rem; padding: 1rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.inventory-workspace #certificate-download { margin: 1.2rem 0; scroll-margin-top: 1rem; }
+.inventory-workspace #download-private-options { margin: 1rem 0; }
 @media (max-width: 64rem) {
   .inventory-workspace .filters { grid-template-columns: minmax(0, 1fr); gap: .6rem; }
 }

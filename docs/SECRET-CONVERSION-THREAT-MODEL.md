@@ -1,6 +1,6 @@
 # Secret-bearing conversion: pre-implementation threat model
 
-**Status:** Linux offline PFX creation/extraction, bounded browser private-key conversion, and narrow modern browser PFX work implemented for development; vault custody and production audit remain planned
+**Status:** Linux offline PFX creation/extraction, bounded browser private-key conversion, and narrow modern browser PFX work implemented for development; production audit remains required. Optional matched-key library custody has a separate boundary in ADR 0046.
 
 **Date:** 2026-09-29
 
@@ -13,7 +13,9 @@ file contents, filenames, directories, terminal state, and the chosen output
 path are untrusted. Those CLI operations cross no network, browser, server,
 inventory, telemetry, or Porch boundary. A separate browser Convert picker
 accepts strict unencrypted keys and bounded encrypted PKCS#8; a distinct PFX picker uses the modern profile of ADR 0037. Public Inspect/Verify
-and Inventory must keep rejecting secret-bearing imports.
+and the public Inventory importer must keep rejecting secret-bearing imports.
+The explicitly chosen certificate-library picker is a separate own-daemon
+upload/custody capability; see [custody threat model](CERTIFICATE-CUSTODY-THREAT-MODEL.md).
 
 The attacker may supply a malicious container, swap a path before use, race a
 write, watch process arguments or logs, trick the operator into using a weak

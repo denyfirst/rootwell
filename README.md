@@ -1,16 +1,18 @@
 # DenyFirst Rootwell
 
-**Status:** early Workbench, loopback access gate, and Linux-only public inventory
+**Status:** development Workbench, loopback access gate, and Linux-only certificate library
 
-Rootwell is a privacy-first, self-hosted workspace for certificates,
-cryptographic keys, and machine identities.
+Rootwell is a privacy-first, self-hosted workspace for X.509 certificates and
+their matching private keys. SSH, PGP and interactive SSH/RDP access are outside
+the current product scope.
 
 > Your private root of trust.
 
 The first product increments are a local-first Workbench CLI and browser for
 safe public-certificate inspection and verification. An experimental local
-access gate protects the browser; vault, automation, and remote access remain
-outside this release boundary.
+access gate protects the browser. Optional matched leaf-key custody is now a
+separate development capability; automation and remote access remain outside
+this release boundary. This is not audited or production-ready custody.
 
 The Linux-only public-certificate inventory has an explicit self-hosted Save
 page, bounded manual locations for one fingerprint without duplicate DER,
@@ -19,11 +21,14 @@ explicit correction/removal of unverified location notes,
 authenticated encrypted storage, and complete access+inventory backup
 and fresh restore commands. A Linux-only Docker/Compose development profile
 and disposable bind-volume restore drill are documented in the
-[container recovery guide](docs/CONTAINER-RECOVERY-AZ.md). It does not store
-private keys, make trust or deployment claims, or automatically back itself
-up. A listed location is not proof of live deployment. Native Windows storage
+[container recovery guide](docs/CONTAINER-RECOVERY-AZ.md). The separate
+certificate-library route stores an optional matching private key together
+with a certificate. The public importer still rejects secrets; neither path
+makes trust/deployment claims or automatically backs itself up.
+A listed location is not proof of live deployment. Native Windows storage
 and independent release audit remain open gates;
-see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md).
+see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md) and
+[custody threat model](docs/CERTIFICATE-CUSTODY-THREAT-MODEL.md).
 
 ## Project doctrine
 
@@ -38,7 +43,7 @@ see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md).
 ## Plans
 
 - [Product and execution plan](docs/PRODUCT-PLAN-AZ.md)
-- [Expanded platform vision](docs/PLATFORM-VISION-AZ.md)
+- [Historical expanded platform vision](docs/PLATFORM-VISION-AZ.md)
 - [Engineering workflow](docs/ENGINEERING.md)
 - [Workbench threat model](docs/THREAT-MODEL.md)
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
@@ -100,7 +105,8 @@ CSR PEM/DER import/export checks signatures and refuses unknown attributes or
 extensions. Returned-certificate comparison shows key and name differences,
 not CA trust, issuance, revocation, renewal or deployment. See
 [ADR 0040](docs/adr/0040-offline-key-and-csr-workbench.md).
-No key is saved to Inventory/Vault. PFX-key downloads remain encrypted.
+These offline Workbench operations do not save keys to the certificate library.
+PFX-key downloads remain encrypted.
 These paths use the bounded Go core through WebAssembly and never post selected
 bytes to a server API. A selected public certificate can
 be downloaded as PEM or DER with a clearly labeled `.pem`, `.der`, `.crt`, or
@@ -112,8 +118,20 @@ trusted source; without it, the root's identity is not independently confirmed.
 Build and hosting requirements are
 documented in the [browser boundary](web/workbench/README.md).
 
-On an initialized Linux installation, `/inventory` is a **separate**
-authenticated page. Its explicit Save action sends a public certificate or
+On an initialized Linux installation, `/certificates` (legacy `/inventory`
+also works) is a **separate** authenticated page. The simple form selects one
+certificate, optional matching private key, Check, optional service note, Save.
+Check uploads selected files to your own daemon and saves nothing; Save repeats
+validation and commits both objects atomically with the key separately sealed.
+Rows show server-clock expiry and key-presence, not secrets. Private download
+requires your current instance password and a separate key-output password;
+it produces certificate PEM plus encrypted PKCS#8 PEM in an unencrypted ZIP.
+Certificate-only PEM download needs no extra password. Use Workbench Convert
+for other formats. PFX input, adding a key to an existing record, CA private
+custody, plaintext custody export and key reveal are not part of this increment.
+See [ADR 0046](docs/adr/0046-unified-certificate-library.md).
+
+The optional public bulk form's explicit Save action sends a public certificate or
 PEM bundle to that installation's loopback daemon, which parses it again and
 stores it encrypted. Save is not part of the offline Workbench boundary.
 Before first use, stop the daemon and run `inventory-init` with a separate
@@ -138,7 +156,7 @@ Owner and location notes are not
 exported through the Inventory UI. On Windows, durable inventory remains
 disabled. For a **fake-data, read-only visual preview only**, run
 `node scripts/inventory-demo.mjs --fixture-only` and open
-`http://127.0.0.1:4181/inventory`. This fixture has no authentication or
+`http://127.0.0.1:4181/certificates`. This fixture has no authentication or
 encrypted storage and is not a substitute for a Linux inventory test.
 Deleting a saved record requires typing its complete fingerprint and explicit
 confirmation. It changes only the current encrypted inventory; it neither
@@ -313,5 +331,6 @@ revocation, OCSP, CRLs, Certificate Transparency, or the certificate currently
 served by a remote endpoint. See [the TLS verification contract](docs/VERIFY-TLS.md).
 
 Private-key conversion and PFX operations have the separate, bounded boundaries
-described above. Secret custody, automatic renewal and deployment remain future
-work and need their own threat models and tests.
+described above. Optional certificate-library custody has its own development
+threat model and tests; independent release review, automatic renewal and
+deployment remain separate future work.

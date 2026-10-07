@@ -24,7 +24,7 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 	if err := g.issueSession(setup, true, revision, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/inventory", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js"} {
+	for _, path := range []string{"/inventory", "/certificates", "/certificate-library.js", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js"} {
 		anonymous := call(g, "GET", path, "", nil)
 		if anonymous.Code != http.StatusSeeOther || anonymous.Header().Get("Location") != "/login" {
 			t.Fatal("anonymous access to bulk assets")
@@ -44,7 +44,7 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 		if path == "/inventory" && (!strings.Contains(ready.Body.String(), "multiple required") || !strings.Contains(ready.Body.String(), "Preview locally")) {
 			t.Fatal("missing local-preview bulk UI")
 		}
-		if path == "/inventory" {
+		if path == "/inventory" || path == "/certificates" {
 			assertInventoryWorkspace(t, ready)
 		}
 	}
@@ -60,8 +60,9 @@ func assertInventoryWorkspace(t *testing.T, page *httptest.ResponseRecorder) {
 	body := page.Body.String()
 	for _, required := range []string{
 		`class="workspace inventory-workspace"`, `href="/style.css"`,
-		`href="/inventory" aria-current="page"`, `aria-label="Storage boundary"`,
-		"Only when you press Save", "stored encrypted", "No PFX or private keys",
+		`href="/certificates" aria-current="page"`, `aria-label="Storage boundary"`,
+		"Check sends your selected certificate and optional key", "Saved encrypted", "Key contents stay hidden",
+		`id="pair-save" type="submit" disabled`,
 	} {
 		if !strings.Contains(body, required) {
 			t.Fatalf("inventory workspace missing required boundary %q", required)

@@ -44,6 +44,7 @@ type manifest struct {
 	Generation     uint64         `json:"generation"`
 	Records        []sealedRecord `json:"records"`
 	History        []sealedRecord `json:"history,omitempty"`
+	Keys           []sealedRecord `json:"keys,omitempty"`
 }
 
 type envelope struct {
@@ -275,6 +276,12 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 			continue
 		}
 		m.Records = append(append([]sealedRecord{}, m.Records[:i]...), m.Records[i+1:]...)
+		for j, attachment := range m.Keys {
+			if bytes.Equal(attachment.ID, mID(record.DER)) {
+				m.Keys = append(append([]sealedRecord{}, m.Keys[:j]...), m.Keys[j+1:]...)
+				break
+			}
+		}
 		m.Generation++
 		if err := addEvent(key, &m, "record-deleted", []string{fingerprint}); err != nil {
 			return nil, 0, err
@@ -411,6 +418,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		records = append(records, record)
 	}
 	if _, err := openHistory(key, id, m); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if err := authenticateKeys(key, id, m, records); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

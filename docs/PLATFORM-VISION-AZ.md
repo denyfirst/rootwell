@@ -1,6 +1,14 @@
 # DenyFirst Rootwell — geniş platforma vizyonu
 
-**Status:** istiqamət sənədi, v0.1
+**Status:** tarixi istiqamət sənədi, v0.1; 2026-10-07 scope qərarı ilə əvəzlənib.
+
+Hazırkı Rootwell yalnız X.509 certificate lifecycle və uyğun private açarları
+əhatə edir. Aşağıdakı SSH, PGP, browser access, çoxistifadəçili Vault/Signing
+Plane və geniş menyu ideyaları artıq Rootwell implementasiya tapşırığı deyil.
+SSH/RDP ayrıca gələcək məhsul kimi müzakirə olunacaq. İstifadəçi bir Certificates
+kitabxanası görür, daxili custody sərhədi isə ayrıca qorunur. Cari qərar və
+sərhədlər: [məhsul planı](PRODUCT-PLAN-AZ.md),
+[ADR 0046](adr/0046-unified-certificate-library.md).
 
 **Tarix:** 2026-09-21
 **Əhatə:** Workbench, Inventory, Vault, Certificates, SSH Access və PGP

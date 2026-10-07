@@ -3,7 +3,11 @@
 **Status:** Linux-only private-file persistence, complete access+public
 inventory snapshots, and an explicit loopback Inventory UI/API are implemented.
 Native Windows storage is disabled. This boundary is development-only and not
-externally audited. No vault or private-key storage is shipped.
+externally audited. This document describes the public import boundary.
+The separate, explicit certificate-library custody route of ADR 0046 adds
+optional matched leaf keys; it does not make this public importer accept
+secrets. The UI now presents one Certificates library. See
+[certificate custody threat model](CERTIFICATE-CUSTODY-THREAT-MODEL.md).
 
 ## Data and trust boundaries
 

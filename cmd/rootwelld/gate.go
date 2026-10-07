@@ -132,6 +132,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory":
 		g.inventoryEndpoint(w, r, s, signedIn)
 		return
+	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download":
+		g.certificateEndpoint(w, r, s, signedIn)
+		return
 	case "/api/inventory/activity", "/api/inventory/comparison-source":
 		g.lifecycleEndpoint(w, r, s, signedIn)
 		return
@@ -150,7 +153,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/inventory", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/inventory", "/certificates", "/certificate-library.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -164,10 +167,12 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		switch r.URL.Path {
-		case "/inventory":
+		case "/inventory", "/certificates":
 			w.Header().Set("Referrer-Policy", "same-origin")
 			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'none'", "form-action 'self'", 1))
 			g.authAsset(w, r, "auth/inventory.html", "text/html; charset=utf-8")
+		case "/certificate-library.js":
+			g.authAsset(w, r, "auth/certificate-library.js", "text/javascript; charset=utf-8")
 		case "/inventory.js":
 			g.authAsset(w, r, "auth/inventory.js", "text/javascript; charset=utf-8")
 		case "/inventory.css":

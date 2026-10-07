@@ -312,7 +312,7 @@ func TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords(t *testing.T
 		`src="private-worker-client.js" defer`, `src="private-key.js" defer`, `id="private-convert-file"`, `id="private-convert-password" type="password"`,
 		`id="private-convert-confirm" type="password"`, `id="private-convert-download" type="button"`,
 		`id="private-convert-input-password" type="password"`, `id="private-convert-format"`,
-		`id="private-convert-plaintext-confirm" type="checkbox"`, "does not upload or save it to Inventory or Vault",
+		`id="private-convert-plaintext-confirm" type="checkbox"`, "does not upload or save it to your certificate library",
 		"Rootwell cannot set private file permissions for you",
 	} {
 		if !strings.Contains(html, required) {
