@@ -74,7 +74,7 @@ func authenticateMaterials(key, id []byte, m manifest, records []publicinventory
 			}
 			total += len(der)
 		}
-		if total > 512<<10 {
+		if total > certificatepair.MaxBundleDERBytes {
 			clear(p.PrivateKey)
 			return ErrInvalid
 		}

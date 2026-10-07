@@ -15,7 +15,8 @@ Certificates uses one primary certificate or bounded public PEM bundle and
 optional key. Check is optional; Save performs the same server validation.
 Ambiguous primary selection requires an exact fingerprint from the supplied
 collection. Included issuer signatures are checked, not CA trust; unrelated
-and ambiguous issuer paths refuse. Up to 16 certificates / 768 KiB public input,
+and ambiguous issuer paths refuse. Up to 16 certificates / 768 KiB public input
+and 512 KiB aggregate decoded DER (shared preview/storage budget),
 64 KiB key, 256-byte transient existing-key password. No PFX library import.
 The main public picker also accepts up to 8 separate related public files;
 the existing public-only WASM importer reconstructs a bounded PEM collection
@@ -52,7 +53,10 @@ the valid bundle assertion. Removing only the writer's consent guard still
 refused through attachment revalidation; removing both guards caused the
 unacknowledged-store test to fail. UI auto-saving an unacknowledged mismatch
 failed its refusal assertion; suppressing matched direct-Save failed its
-success assertion. All restored tests rerun. These assertions are evidence,
+success assertion. Final self-review aligned aggregate decoded DER limits
+between preview and storage; disabling that budget failed the oversized-input
+test and reducing it to one byte failed the valid-input test. All restored
+tests rerun. These assertions are evidence,
 not a claim that every defect is excluded. Larger per-record collections and
 revalidating up to 500 stored records increase authenticated CPU/memory costs;
 resource/host/runtime/old-snapshot risks require independent release review.

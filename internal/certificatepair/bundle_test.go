@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"errors"
 	"math/big"
 	"testing"
@@ -98,6 +99,38 @@ func TestBundleSelectionMatchMismatchAndIssuerRefusals(t *testing.T) {
 	_, canonical, err = PrepareBundle(leaf, []byte("secret-sentinel-malformed"), nil, "", "", "")
 	if err == nil || len(canonical) != 0 {
 		t.Fatal("malformed key mislabeled mismatch")
+	}
+}
+
+func TestBundleAggregateDERBudget(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal("fixture key failed")
+	}
+	var certificates [][]byte
+	for i := int64(1); i <= 9; i++ {
+		template := &x509.Certificate{SerialNumber: big.NewInt(i), Subject: pkix.Name{CommonName: "large.rootwell.invalid"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), ExtraExtensions: []pkix.Extension{{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 99999, 1}, Value: make([]byte, 60<<10)}}}
+		der, err := x509.CreateCertificate(rand.Reader, template, template, public, private)
+		if err != nil || len(der) > 64<<10 {
+			t.Fatal("fixture certificate failed")
+		}
+		certificates = append(certificates, der)
+	}
+	// Both inputs fit the encoded/file limit. Check must share the storage's
+	// decoded budget, rather than approve a collection Save cannot retain.
+	below := PublicPEM(certificates[:8])
+	above := PublicPEM(certificates)
+	if len(above) > MaxBundleBytes {
+		t.Fatal("fixture exceeds file budget")
+	}
+	if records, err := Analyze(below, nil, nil); err != nil || len(records) != 8 {
+		t.Fatal("within-budget collection refused")
+	}
+	if records, err := Analyze(above, nil, nil); err == nil || len(records) != 0 {
+		t.Fatal("over-budget collection accepted or partial result returned")
+	}
+	if _, canonical, err := PrepareBundle(above, nil, nil, "", "", ""); err == nil || len(canonical) != 0 {
+		t.Fatal("over-budget preparation accepted or partial key returned")
 	}
 }
 

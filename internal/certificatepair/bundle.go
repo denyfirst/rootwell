@@ -13,6 +13,7 @@ import (
 
 const MaxBundleBytes = 768 << 10
 const MaxBundleCertificates = 16
+const MaxBundleDERBytes = 512 << 10
 
 // SelectionRequired contains public candidates only. No candidate is silently
 // discarded, and a preview grants no authority to save.
@@ -38,8 +39,13 @@ func analyze(input, key, password []byte, owner, location string) ([]publicinven
 	if err != nil || len(records) == 0 || len(records) > MaxBundleCertificates {
 		return nil, nil, ErrInvalid
 	}
+	totalDER := 0
 	for i := range records {
+		totalDER += len(records[i].DER)
 		records[i].KeyStatus = "not-added"
+	}
+	if totalDER > MaxBundleDERBytes {
+		return nil, nil, ErrInvalid
 	}
 	if len(key) == 0 {
 		return records, nil, nil
