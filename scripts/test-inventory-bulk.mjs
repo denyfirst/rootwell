@@ -138,6 +138,7 @@ await ui.element("preview-button").listeners.click();
 assert.equal(ui.posts().length,0,"preview has no upload");
 assert.equal(ui.element("preview-records").children.length,2);
 assert.equal(ui.element("save-button").disabled,false);
+assert.match(ui.element("save-status").textContent,/Ready to save all 2/);
 await ui.element("inventory-form").listeners.submit({preventDefault(){}});
 assert.equal(ui.posts().length,1,"one request, not one request per file");
 assert.match(ui.element("save-status").textContent,/2 public.*saved.*backup is not automatic/);
@@ -179,5 +180,7 @@ assert.equal(timed.element("save-button").disabled,true);
 assert.match(timed.element("save-status").textContent,/timed out.*nothing was uploaded/);
 for(const mode of ["conflict","wrong-result"]){const refusal=start();await settle();refusal.choose(inputs);await refusal.element("preview-button").listeners.click();refusal.setMode(mode);await refusal.element("inventory-form").listeners.submit({preventDefault(){}});assert.match(refusal.element("save-status").textContent,/could not be confirmed/);assert.doesNotMatch(refusal.element("save-status").textContent,/certificate\(s\) saved/);}
 const readonly=start();await settle();readonly.element("inventory-form").dataset.readOnly="true";readonly.choose(inputs);await readonly.element("preview-button").listeners.click();assert.equal(readonly.element("save-button").disabled,true);await readonly.element("inventory-form").listeners.submit({preventDefault(){}});assert.equal(readonly.posts().length,0);
+assert.match(readonly.element("save-status").textContent,/read-only demo cannot save/);
+assert.doesNotMatch(readonly.element("save-status").textContent,/Ready to save/);
 console.log("Inventory bulk preview and exact atomic Save with real Go WASM passed.");
 process.exit(0);

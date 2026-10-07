@@ -152,9 +152,7 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if strings.Contains(listed.Body.String(), "PRIVATE KEY") || bytes.Contains(listed.Body.Bytes(), cert) {
 		t.Fatal("API leaked source bytes or key")
 	}
-	if w := inventoryCall(g, "GET", "/inventory", "", readyCookie, "", false); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Saved on your Rootwell installation") {
-		t.Fatal("inventory page unavailable")
-	}
+	assertInventoryWorkspace(t, inventoryCall(g, "GET", "/inventory", "", readyCookie, "", false))
 	for _, asset := range []string{"/inventory.js", "/inventory.css"} {
 		if w := inventoryCall(g, "GET", asset, "", readyCookie, "", false); w.Code != http.StatusOK {
 			t.Fatalf("protected asset %s unavailable: %d", asset, w.Code)
