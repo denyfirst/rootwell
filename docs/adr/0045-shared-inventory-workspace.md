@@ -46,3 +46,12 @@ inviting Save in the fixture and falsely saying real Save is unavailable.
 Residuals: the Windows browser uses synthetic read-only records and history;
 Linux durable/background/restore/race checks run in CI. This visual unification
 does not remove ADR 0044 retention, unlock-lifetime, rollback or audit limits.
+
+The first Linux CI run found an obsolete integration assertion for the old
+storage heading, not a race or storage failure. Replace that copy-specific
+assertion with a shared actual-response check: HTTP 200/no-store, workspace,
+active Inventory navigation, visible storage region, explicit Save/encryption
+notice and private/PFX refusal. Both portable ready-access and Linux durable
+API tests use it. All earlier authentication/storage/negative checks remain.
+The shared Go response gate also detected deliberately broken valid workspace
+markup and a false offline upload claim; both mutations were restored.

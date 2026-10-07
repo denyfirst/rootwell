@@ -44,5 +44,30 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 		if path == "/inventory" && (!strings.Contains(ready.Body.String(), "multiple required") || !strings.Contains(ready.Body.String(), "Preview locally")) {
 			t.Fatal("missing local-preview bulk UI")
 		}
+		if path == "/inventory" {
+			assertInventoryWorkspace(t, ready)
+		}
+	}
+}
+
+// Test the actual authenticated response on every platform, not a mutable
+// marketing heading. The Linux persistence test reuses the same boundary gate.
+func assertInventoryWorkspace(t *testing.T, page *httptest.ResponseRecorder) {
+	t.Helper()
+	if page.Code != http.StatusOK || page.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("inventory workspace unavailable: HTTP %d", page.Code)
+	}
+	body := page.Body.String()
+	for _, required := range []string{
+		`class="workspace inventory-workspace"`, `href="/style.css"`,
+		`href="/inventory" aria-current="page"`, `aria-label="Storage boundary"`,
+		"Only when you press Save", "stored encrypted", "No PFX or private keys",
+	} {
+		if !strings.Contains(body, required) {
+			t.Fatalf("inventory workspace missing required boundary %q", required)
+		}
+	}
+	if strings.Contains(body, "No certificate uploads") {
+		t.Fatal("inventory workspace misrepresented explicit server upload as offline")
 	}
 }
