@@ -68,6 +68,8 @@ jobs:
             package: ./internal/fileinput
           - target: FuzzMatch
             package: ./internal/keymatch
+          - target: FuzzPrepareRefusesSecretInCertificate
+            package: ./internal/certificatepair
           - target: FuzzInspectPrivateKeyNoSecretEcho
             package: ./internal/browserprivateconvert
           - target: FuzzEncryptedProfileNoPanic

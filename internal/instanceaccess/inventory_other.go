@@ -7,6 +7,13 @@ import (
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
+func AppendCertificate(_ string, _, _ []byte, _ [32]byte, _ uint64, _, _, _ []byte, _, _, _ string) (publicinventory.Record, uint64, error) {
+	return publicinventory.Record{}, 0, ErrRecoveryUnsupported
+}
+func WithCertificate(_ string, _, _ []byte, _ [32]byte, _ uint64, _ string, _ func(publicinventory.Record, []byte) error) error {
+	return ErrRecoveryUnsupported
+}
+
 // Native non-Linux private-store semantics have not yet been reviewed.
 func ReadInventoryHistory(_ string, _, _ []byte, _ [32]byte) ([]inventorystore.Event, uint64, error) {
 	return nil, 0, ErrRecoveryUnsupported

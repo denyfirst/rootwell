@@ -29,16 +29,20 @@ try {
   assert.equal(page.headers.get("cache-control"), "no-store");
   const origin = new URL(address).origin;
   assert.match(html, /href="\/index.html"/);
-  assert.match(html, /href="\/inventory" aria-current="page"/);
+  assert.match(html, /href="\/certificates" aria-current="page"/);
+  assert.match(html, /id="certificate-pair-form" data-read-only="true"/);
+  const certificatePage = await fetch(origin + "/certificates");
+  assert.equal(certificatePage.status, 200);
+  assert.match(certificatePage.headers.get("content-security-policy"), /form-action 'self'/);
   const home = await fetch(origin + "/index.html");
   assert.equal(home.status, 200, "Inventory must link back to the real Workbench in the fixture");
   const homeHTML = await home.text();
   assert.match(homeHTML, /DEMO — local Workbench with synthetic, read-only Inventory/);
-  assert.match(homeHTML, /class="rail-item" href="\/inventory"/);
+  assert.match(homeHTML, /class="rail-item" href="\/certificates"/);
   assert.match(homeHTML, /No certificate uploads/);
   assert.doesNotMatch(homeHTML, /rootwell\.inventory\.workbench\.v1/, "GET must not hand off any saved certificate");
   assert.equal((await fetch(origin + "/")).url, origin + "/index.html");
-  for (const asset of ["style.css", "theme.js", "inventory.css"]) {
+  for (const asset of ["style.css", "theme.js", "inventory.css", "certificate-library.js"]) {
     const response = await fetch(origin + "/" + asset); assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
   }
@@ -88,6 +92,9 @@ try {
   assert.equal((await fetch(origin+"/workbench",{method:"POST",body:selection.toString()})).status,403);
   assert.equal((await fetch(origin + "/api/inventory")).status, 404);
   assert.equal((await fetch(origin + "/api/inventory", { method: "POST", body: "never save" })).status, 405);
+  for (const route of ["check", "save", "download"]) {
+    assert.equal((await fetch(origin + "/api/certificates/" + route, {method:"POST",headers:compareHeaders,body:"{}"})).status,405);
+  }
   assert.equal((await fetch(origin + "/../docs/ENGINEERING.md")).status, 404);
   const script = await (await fetch(origin + "/inventory.js")).text();
   assert.match(script, /addButton\.disabled = true/);

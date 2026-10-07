@@ -36,9 +36,9 @@
         <span class="rail-glyph" aria-hidden="true">◇</span>
         Workbench
       </a>
-      <a class="rail-item" href="/inventory" title="Available only after sign-in to the self-hosted Rootwell server">
+      <a class="rail-item" href="/certificates" title="Available only after sign-in to the self-hosted Rootwell server">
         <span class="rail-glyph" aria-hidden="true">◎</span>
-        Inventory
+        Certificates
         <span class="rail-soon">Self-host</span>
       </a>
       <span class="rail-item rail-item-planned" aria-disabled="true">
@@ -51,11 +51,6 @@
     <p class="rail-caption" id="rail-security">Security</p>
     <nav class="rail-nav" aria-labelledby="rail-security">
       <a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span> Access <span class="rail-soon">Self-host</span></a>
-      <span class="rail-item rail-item-planned" aria-disabled="true">
-        <span class="rail-glyph" aria-hidden="true">▣</span>
-        Vault
-        <span class="rail-soon">Later</span>
-      </span>
       <span class="rail-item rail-item-planned" aria-disabled="true">
         <span class="rail-glyph" aria-hidden="true">≡</span>
         Audit log
@@ -283,7 +278,7 @@
           <section class="result" aria-labelledby="private-convert-title">
             <p class="result-kicker">Private key · local conversion</p>
             <h3 id="private-convert-title">Convert a private key</h3>
-            <p>Choose one PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Encrypted PKCS#8 is supported for a limited modern profile. Rootwell checks it locally and does not upload or save it to Inventory or Vault.</p>
+            <p>Choose one PKCS#8, RSA PKCS#1, or EC SEC1 key in PEM or DER. Encrypted PKCS#8 is supported for a limited modern profile. Rootwell checks it locally; conversion does not upload or save it to your certificate library.</p>
             <p class="verify-note">PFX belongs to the separate flow below. Legacy encrypted RSA/EC PEM is unsupported. A password-protected key does not prove its source or integrity. Your browser controls downloads and may keep copies in Downloads or backups; Rootwell cannot set private file permissions for you.</p>
             <div class="file-zone">
               <input class="file-input" type="file" id="private-convert-file" accept=".pem,.key,.der,application/octet-stream">
@@ -383,7 +378,7 @@
             <label for="pfx-create-input-password">Private key password, if protected</label>
             <input id="pfx-create-input-password" type="password" autocomplete="off" maxlength="256" spellcheck="false" aria-describedby="pfx-create-input-help">
             <p id="pfx-create-input-help" class="verify-note">Leave this blank for a key without a password. Protected keys must use the supported encrypted PKCS#8 format. Your key is opened locally; no unprotected file is downloaded.</p>
-            <p class="verify-note">Do not include a self-signed root in the intermediate bundle. This step does not save a key to Vault.</p>
+            <p class="verify-note">Do not include a self-signed root in the intermediate bundle. This step does not save a key to your certificate library.</p>
             <label for="pfx-create-password">New PFX password (20–128 non-space ASCII characters)</label>
             <input id="pfx-create-password" type="password" autocomplete="new-password" maxlength="128" spellcheck="false">
             <label for="pfx-create-confirm">Confirm new PFX password</label>

@@ -229,6 +229,7 @@
           typeof record.subject !== "string" || typeof record.issuer !== "string" ||
           typeof record.not_before !== "string" || typeof record.not_after !== "string" ||
           typeof record.owner !== "string" || typeof record.location !== "string" ||
+          (record.has_private_key !== undefined && typeof record.has_private_key !== "boolean") ||
           !Array.isArray(record.locations) || record.locations.length > 32 ||
           (record.imported_at !== undefined && (typeof record.imported_at !== "string" || safeDate(record.imported_at) === null)) ||
           !Array.isArray(record.dns_names) || record.dns_names.length > 128 ||
@@ -300,8 +301,7 @@
       addText(item, "strong", record.subject || "Subject not provided");
       addText(item, "span", record.expiry.name, "state " + record.expiry.group);
       addText(item, "small", "Expires: " + record.not_after.slice(0, 10));
-      addText(item, "small", "Owner: " + (record.owner || "Not noted") + " · Server: " +
-        (record.locations.length ? record.locations.join(" · ") : "Not noted"));
+      addText(item, "small", record.has_private_key === true ? "Matching private key saved" : "Certificate only · no private key saved");
       const details = document.createElement("details");
       details.className = "record-details";
       addText(details, "summary", "Details and manage");
@@ -313,7 +313,9 @@
         future: "Next: check the server clock and certificate validity start before deployment.",
         later: "Next: keep ownership and location notes current; deployment is not verified."
       };
-      addText(item, "small", guidance[record.expiry.group], "next-action");
+      addText(details, "small", guidance[record.expiry.group], "next-action");
+      addText(details, "small", "Service notes: " + (record.locations.length ? record.locations.join(" · ") : "None — add one if useful"));
+      if (record.owner) addText(details, "small", "Owner: " + record.owner);
       const openForm = document.createElement("form");
       openForm.method = "post";
       openForm.action = "/workbench";
@@ -342,7 +344,7 @@
           listStatus.textContent = "Finish the pending change, then refresh before opening a saved certificate.";
         }
       });
-      item.appendChild(openForm);
+      details.appendChild(openForm);
       const compareButton = document.createElement("button");
       compareButton.type = "button";
       compareButton.className = "secondary";
@@ -353,7 +355,18 @@
           void globalThis.rootwellInventoryLifecycle?.open(record, snapshotGeneration);
         }
       });
-      item.appendChild(compareButton);
+      details.appendChild(compareButton);
+      const downloadButton = document.createElement("button");
+      downloadButton.type = "button";
+      downloadButton.className = "secondary";
+      downloadButton.textContent = "Download";
+      downloadButton.addEventListener("click", () => {
+        if (!saving && !associating && !editingOwner && !changingLocation && !deleting &&
+            !document.hidden && displayedGeneration === snapshotGeneration && snapshotAge() < 120000) {
+          globalThis.rootwellCertificateLibrary?.openDownload(record, snapshotGeneration);
+        }
+      });
+      item.appendChild(downloadButton);
       if (record.imported_at) addText(details,"small","Saved at (server clock): " + record.imported_at);
       addText(details, "small", "The listed servers are your notes; deployment has not been checked.");
       addText(details, "small", "SHA-256: " + record.fingerprint);
@@ -453,10 +466,7 @@
     }
     addText(counts, "span", "Total: " + records.length);
     addText(counts, "span", "Needs attention: " + loadedRecords.filter(reminder).length);
-    const unknownOwners = records.filter(record => !record.owner).length;
-    const unknownLocations = records.filter(record => !record.locations.length).length;
-    addText(counts, "span", "No owner note: " + unknownOwners);
-    addText(counts, "span", "No server note: " + unknownLocations);
+    globalThis.rootwellCertificateLibrary?.snapshot(displayedGeneration);
     listStatus.textContent = records.length ? shown + " of " + records.length + " saved public certificate(s) shown" :
       "No certificates saved yet. This is not a trust store.";
     updateMonitor();
@@ -474,6 +484,7 @@
     const deadline = setTimeout(() => controller.abort(), 10000);
     refreshButton.disabled = true;
     displayedGeneration = 0;
+    globalThis.rootwellCertificateLibrary?.snapshot(0);
     loadedRecords = [];
     checkedAt = null;
     receivedAt = null;
@@ -514,6 +525,7 @@
     } catch (error) {
       if (serial !== loadSerial) return;
       displayedGeneration = 0;
+      globalThis.rootwellCertificateLibrary?.snapshot(0);
       loadedRecords = [];
       checkedAt = null;
       list.replaceChildren();
@@ -828,7 +840,7 @@
     if (document.hidden) return;
     updateMonitor();
     updateImportControls();
-    const editing = saving || previewing || importFiles !== null || associating || editingOwner || changingLocation || deleting ||
+    const editing = saving || previewing || importFiles !== null || associating || editingOwner || changingLocation || deleting || globalThis.rootwellCertificateLibrary?.isEditing() ||
       !locationPanel.hidden || !ownerPanel.hidden || !locationManagePanel.hidden || !deletePanel.hidden ||
       document.querySelector(".record-details[open]") !== null;
     if (autoRefresh.checked && !automaticPaused && !refreshing && !editing && !globalThis.rootwellInventoryLifecycle?.isOpen() && snapshotAge() >= 60000) {
@@ -848,6 +860,7 @@
     refreshing = false;
     refreshButton.disabled = false;
     displayedGeneration = 0;
+    globalThis.rootwellCertificateLibrary?.snapshot(0);
     loadedRecords = [];
     checkedAt = null;
     receivedAt = null;
@@ -886,6 +899,7 @@
     const expectedGeneration = displayedGeneration;
     deleting = true;
     displayedGeneration = 0;
+    globalThis.rootwellCertificateLibrary?.snapshot(0);
     deleteButton.disabled = true;
     saveButton.disabled = true;
     refreshButton.disabled = true;
@@ -906,6 +920,7 @@
       const loaded = await refresh();
       if (!loaded || displayedGeneration !== result.generation || loadedRecords.some(record => record.fingerprint === fingerprint)) {
         displayedGeneration = 0;
+        globalThis.rootwellCertificateLibrary?.snapshot(0);
         listStatus.textContent = "Deletion may have happened, but the current inventory could not be confirmed. Refresh before another change.";
         return;
       }

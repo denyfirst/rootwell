@@ -1,11 +1,24 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-06. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-07. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
 
 ## Məhsul prinsipi
+
+Cari prioritet: **vahid Certificates kitabxanası** (ADR 0046). Certificate seç,
+istəsən private açar seç, uyğunluğu yoxla, istəsən servis qeydi yaz və Save.
+Siyahıda vaxt və key-present vəziyyəti; private download üçün fresh password.
+İnventory/Vault ayrı istifadəçi bölmələri deyil. SSH/PGP/browser remote access
+Rootwell-dən çıxarılıb; əvvəlki plan qeydləri tarixi kontekstdir.
+
+Bu increment-də Linux custody/restore/API və UI refusal testləri, şifrəli pair
+download, public-only compatibility və iki istiqamətli sabotage sübutu tələb
+olunur. Native Windows yalnız read-only preview-dir. Növbəti uyğun mərhələ:
+mövcud sertifikata sonradan açar əlavə etmə və Workbench download formatlarına
+aydın handoff; daha sonra ACME account/challenge threat model. Production və
+müstəqil audit ayrıca release qapısıdır; tamamlanmamış işi hazır saymaq olmaz.
 
 Sertifikat terminlərini bilməyən istifadəçi üç suala cavab almalıdır:
 **Nə yüklədim? Nə hələ sübut olunmayıb? İndi nə etməliyəm?** Sadə görünüş

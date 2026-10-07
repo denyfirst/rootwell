@@ -7,11 +7,20 @@
 **Məhsul adı:** DenyFirst Rootwell
 **Əsas prinsip:** kiçik və yoxlanılan nüvədən başlayıb mərhələli şəkildə tam certificate lifecycle platformasına çevrilmək
 
-Rootwell-in certificate lifecycle-dan daha geniş platforma istiqaməti — Vault,
-SSH key management, qısamüddətli SSH certificate-ləri, browser terminal və PGP
-— [`PLATFORM-VISION-AZ.md`](PLATFORM-VISION-AZ.md) sənədində təsvir olunur. Bu
-geniş vizyon ilk mərhələnin scope-unu dəyişmir: başlanğıc yenə lokal Workbench və
-təhlükəsiz kripto nüvəsidir.
+**2026-10-07 məhsul qərarı:** Rootwell X.509 certificate lifecycle və ona aid
+private açarlara fokuslanır. SSH/PGP və browser SSH/RDP bu məhsulun icra
+planından çıxarılır; gələcək ayrıca məhsul qərarıdır. Əvvəlki geniş
+[`PLATFORM-VISION-AZ.md`](PLATFORM-VISION-AZ.md) yalnız tarixi istiqamətdir.
+
+İstifadəçiyə ayrıca Inventory/Vault seçimi verilmir: bir **Certificates**
+kitabxanası olur. Certificate (public açar daxilindədir), optional uyğun private
+açar, Check, optional servis qeydi və Save. Public metadata ilə secret custody
+daxildə ayrı təhlükəsizlik sərhədləridir. İlk custody Linux loopback daemonunda,
+single-operator development üçündür; public-only bulk import və offline
+Workbench əvvəlki secret refusal sərhədlərini saxlayır. Private pair download
+yenidən Rootwell parolu və ayrıca output parolu tələb edir. PFX, key əlavə etmə,
+CA signing custody və production audit bu increment-ə daxil deyil.
+Bax: [ADR 0046](adr/0046-unified-certificate-library.md).
 
 Bu sənəd məhsulun uzunmüddətli istiqamətini, təhlükəsizlik sərhədlərini və ilk
 icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementasiyaya

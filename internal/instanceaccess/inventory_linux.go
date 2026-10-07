@@ -19,6 +19,48 @@ import (
 
 const inventoryName = "inventory.json"
 
+// AppendCertificate commits public data and optional matched-key attachment
+// together under the existing private writer lock and revision precondition.
+func AppendCertificate(accessPath string, key, id []byte, revision [32]byte, expected uint64, certificate, privateKey, password []byte, owner, location, fingerprint string) (publicinventory.Record, uint64, error) {
+	var record publicinventory.Record
+	var generation uint64
+	err := withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, revision); err != nil {
+			return err
+		}
+		path := filepath.Join(filepath.Dir(accessPath), inventoryName)
+		image, err := readInventory(path)
+		if err != nil {
+			return err
+		}
+		next, added, gen, err := inventorystore.AppendCertificate(key, id, image, certificate, privateKey, password, owner, location, fingerprint, expected)
+		if err != nil {
+			return err
+		}
+		if err := replaceInventory(path, next); err != nil {
+			return err
+		}
+		record, generation = added, gen
+		return nil
+	})
+	return record, generation, err
+}
+
+// WithCertificate holds the access writer lock while lending a generation-
+// bound record. It never returns private bytes to a listing or history caller.
+func WithCertificate(accessPath string, key, id []byte, revision [32]byte, expected uint64, fingerprint string, use func(publicinventory.Record, []byte) error) error {
+	return withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, revision); err != nil {
+			return err
+		}
+		image, err := readInventory(filepath.Join(filepath.Dir(accessPath), inventoryName))
+		if err != nil {
+			return err
+		}
+		return inventorystore.WithCertificate(key, id, image, fingerprint, expected, use)
+	})
+}
+
 // InitializeInventory is an offline, explicit recovery-enrolled ceremony. It
 // creates a full snapshot of the planned empty image before making inventory
 // writable, so a failed backup cannot strand an enabled inventory.
