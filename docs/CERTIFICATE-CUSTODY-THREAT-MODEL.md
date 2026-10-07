@@ -48,7 +48,9 @@ protect against them. This is not end-to-end encryption or multi-user RBAC.
   revision, generation and fingerprint, then fresh session/cancellation checks
   before output. Exported key is password-encrypted PKCS#8 under the previously
   reviewed PBKDF2/AES profile; certificate stays public, ZIP is not encrypted.
-  Output password must differ from instance password and meet existing policy.
+  Output password must differ from instance password and meet the existing
+  encrypted-export policy: 20–128 non-space ASCII characters. Prefer a fresh
+  randomly generated password; length alone is not an entropy guarantee.
   No plaintext secret custody export or key reveal route exists here.
 - Browser work is bounded/timed; changed/hidden/pagehide state aborts requests,
   clears owned bytes/passwords and discards late responses. Cancellation after

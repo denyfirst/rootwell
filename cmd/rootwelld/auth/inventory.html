@@ -189,10 +189,10 @@
         <div id="download-private-options" hidden>
           <label for="download-password">Your Rootwell password <span>(confirm it is you)</span></label>
           <input id="download-password" type="password" maxlength="256" autocomplete="off">
-          <label for="download-key-password">New password for the downloaded private key</label>
-          <input id="download-key-password" type="password" maxlength="256" autocomplete="off">
+          <label for="download-key-password">New password for the downloaded private key (20–128 non-space ASCII characters)</label>
+          <input id="download-key-password" type="password" maxlength="128" autocomplete="off">
           <label for="download-key-confirm">Repeat new key password</label>
-          <input id="download-key-confirm" type="password" maxlength="256" autocomplete="off">
+          <input id="download-key-confirm" type="password" maxlength="128" autocomplete="off">
           <p>The key uses encrypted PKCS#8. The ZIP itself is not encrypted. Keep the download and its password safe.</p>
         </div>
         <button id="download-go" type="submit">Download</button><button id="download-close" type="button" class="secondary">Cancel</button>

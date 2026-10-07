@@ -322,7 +322,7 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 		})
 	if err != nil {
 		if errors.Is(err, browserprivateconvert.ErrPassword) || errors.Is(err, certificatepair.ErrInvalid) {
-			http.Error(w, "Key download refused. Use a supported matched key and a separate password of 12–256 bytes.", http.StatusBadRequest)
+			http.Error(w, "Key download refused. Use a supported matched key and a separate password of 20–128 non-space ASCII characters.", http.StatusBadRequest)
 		} else {
 			inventoryError(w, err)
 		}

@@ -147,6 +147,18 @@ for (const response of [
   await f.byId("certificate-download-form").listeners.submit(event);
   assert.equal(f.downloads.length,0); assert.doesNotMatch(f.byId("download-status").textContent,/secret-sentinel/);
 }
+for (const output of ["x".repeat(19), "x".repeat(129), "with space password value", "x".repeat(20)+"ü"]) {
+  const f=fixture(); f.library.openDownload(f.record,1); f.byId("download-kind").value="pair";
+  f.byId("download-password").value="instance-password"; f.byId("download-key-password").value=output; f.byId("download-key-confirm").value=output;
+  await f.byId("certificate-download-form").listeners.submit(event);
+  assert.equal(f.requests.length,0,"UI accepted a password refused by the encrypted-export core");
+}
+for (const output of ["x".repeat(20), "x".repeat(128)]) {
+  const f=fixture(); f.library.openDownload(f.record,1); f.byId("download-kind").value="pair";
+  f.byId("download-password").value="instance-password"; f.byId("download-key-password").value=output; f.byId("download-key-confirm").value=output;
+  await f.byId("certificate-download-form").listeners.submit(event);
+  assert.equal(f.requests.length,1); assert.equal(f.downloads.length,1,"valid boundary output password refused");
+}
 {
   const f=fixture(); f.library.openDownload(f.record,1); let complete;
   f.override(()=>new Promise(resolve=>{complete=resolve;}));

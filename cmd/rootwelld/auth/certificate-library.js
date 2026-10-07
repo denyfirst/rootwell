@@ -153,8 +153,8 @@
     event.preventDefault();
     if (busy || readOnly || document.hidden || !selected || selected.generation !== generation) return;
     const pair = kind.value === "pair", source = selected;
-    if (pair && (!source.hasPrivateKey || !password.value || encoder.encode(outputPassword.value).length < 12 || encoder.encode(outputPassword.value).length > 256 || outputPassword.value !== confirm.value || outputPassword.value === password.value)) {
-      downloadStatus.textContent = "Confirm your Rootwell password and a separate matching key password of 12–256 bytes."; return;
+    if (pair && (!source.hasPrivateKey || !password.value || !/^[!-~]{20,128}$/.test(outputPassword.value) || outputPassword.value !== confirm.value || outputPassword.value === password.value)) {
+      downloadStatus.textContent = "Confirm your Rootwell password and a separate matching key password of 20–128 non-space ASCII characters."; return;
     }
     const ticket = ++serial; controller = new AbortController(); const ownController = controller;
     busy = true; controls();

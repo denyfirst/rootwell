@@ -45,6 +45,9 @@ is not encrypted. Plaintext-key formats remain in the separately reviewed
 Workbench; there is no hidden plaintext custody export. Download filenames
 are generated, not derived from notes/domains. Passwords are not saved in
 browser storage, URLs, logs, history or the encrypted record.
+The UI and daemon use the same existing output-password policy: 20–128
+non-space ASCII characters, distinct from the instance password. A fresh
+random password is recommended; syntactic acceptance does not prove entropy.
 
 ## UI and evidence gates
 
