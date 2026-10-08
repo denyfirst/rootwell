@@ -75,6 +75,9 @@ func TestContainerVolumeDrill(t *testing.T) {
 		if record, generation, err := ChangeInventoryLocation(data, key, id, revision, 4, added[0].Fingerprint, "test/nginx", "test/primary", inventorystore.LocationRename); err != nil || generation != 5 || record.Location != "test/primary" {
 			t.Fatalf("volume location correction failed: %v", err)
 		}
+		if status, generation, err := PrepareStagingAccount(data, key, id, revision, 5, func() bool { return true }); err != nil || generation != 6 || status.State != "key-prepared" {
+			t.Fatal("container account preparation failed")
+		}
 		if err := ExportFullSnapshot(data, backup, password, code); err != nil {
 			t.Fatal(err)
 		}
@@ -162,12 +165,28 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 		t.Fatal(err)
 	}
 	records, generation, err := ReadInventory(accessPath, key, id, revision)
-	if err != nil || generation != 5 || len(records) != 1 || records[0].Owner != "Security" || records[0].Location != "test/primary" ||
+	if err != nil || generation != 6 || len(records) != 1 || records[0].Owner != "Security" || records[0].Location != "test/primary" ||
 		len(records[0].Locations) != 2 || records[0].Locations[1] != "test/haproxy" || records[0].ImportGeneration != 2 {
 		t.Fatalf("volume inventory did not survive: %v", err)
 	}
 	if ids, snapshotGeneration, err := VerifyFullSnapshot(backupPath, code, SnapshotRecoveryCode); err != nil || snapshotGeneration != generation || !bytes.Equal(ids, id) {
 		t.Fatalf("volume backup did not authenticate: %v", err)
+	}
+	account, accountGen, err := ReadStagingAccount(accessPath, key, id, revision)
+	if err != nil || accountGen != generation || account.State != "key-prepared" {
+		t.Fatal("container restart/restore lost account key")
+	}
+	snapshot, err := readFullSnapshot(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, image, _, err := openFullSnapshot(snapshot, code, SnapshotRecoveryCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backedUp, _, err := inventorystore.ReadStagingAccount(key, id, image)
+	if err != nil || backedUp != account {
+		t.Fatal("container restored a different account key")
 	}
 	if _, _, err := AppendInventory(accessPath, key, id, revision, mustReadDrillCertificate(t), "", ""); !errors.Is(err, publicinventory.ErrDuplicate) {
 		t.Fatalf("restored duplicate was not refused: %v", err)

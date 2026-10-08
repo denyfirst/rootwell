@@ -296,6 +296,12 @@ iş ACME-nin əvvəlcə staging issuance və explicit səlahiyyət sərhədini p
 
 ## Hər increment üçün dəyişməz qapılar
 
+ACME dalğasında ADR 0049 setup, ADR 0050 optional directory connection və
+ADR 0051 lokal şifrəli account-key hazırlığı ayrıdır. Sonuncu fresh parol,
+bir dəfəlik təsdiq, tam backup/bərpa və mövcud açarın qorunmasını təmin edir;
+CA registration/terms/issuance olduğunu iddia etmir. Sonra eyni saxlanmış açar
+ilə staging registration/reconciliation, daha sonra manual DNS-01 order gəlir.
+
 - Dəqiq trust boundary və “nəyi sübut etmir” qeydi.
 - Uğur, rədd, malformed, stale-selection və abuse sınaqları; iki istiqamətli
   qəsdən pozma testi.

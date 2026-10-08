@@ -38,6 +38,21 @@ Live provider access is Linux/Docker-only; native platform verification may
 perform additional OS-managed certificate retrievals, so Windows/macOS refuses
 this capability before DNS. Local syntax/Workbench functionality is unchanged.
 
+## Third increment: local account-key preparation, not registration
+
+ADR 0051 saves one newly generated P-256 staging account key in a distinct
+purpose-separated encrypted field of the complete image. Explicit local status
+and preparation, fresh password, shared attempt/crypto budgets, displayed
+generation, exact access revision and live permission under the writer lock.
+Atomic history, certificate mutation preservation, full backup/restore and
+offline password recovery apply. No key in browser/history/logs; only public
+identity and prepared time. Native Windows/macOS refuses this custody.
+No new outbound capability, CA registration, terms decision, email/domain,
+key import/export/replacement or issuance. An uncertain save is reconciled by
+refreshing the existing key's status, not generating/replacing it. Old binaries
+refuse the new manifest field. Manual backups and complete-image rollback risks
+remain. Preparation grants no authority to the directory-only connector.
+
 ## Sequence and gates
 
 1. Directory-only dependency/transport increment implemented in ADR 0050;

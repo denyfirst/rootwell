@@ -11,8 +11,9 @@ rewraps the unchanged data key and enters `ready`. Leaving setup unfinished
 does not silently activate the installation; the same setup credential may be
 used later to attempt the required change.
 
-Porch's current first-start password appears on daemon stderr and may persist
-in Docker logs. Rootwell's product invariant forbids password material in
+The Porch first-start flow examined when this decision was made displayed its
+password on daemon stderr, which may persist in Docker logs. This is historical
+context, not a claim about Porch's current implementation. Rootwell forbids password material in
 logs. Its `rootwelld init` workflow is interactive on the local host, and the
 runtime does not redisplay or recover the initial password. The loopback web
 gate issues a setup-only session until rotation succeeds, then invalidates

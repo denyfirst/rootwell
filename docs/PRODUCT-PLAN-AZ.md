@@ -426,6 +426,12 @@ ADR 0050 ayrıca optional təsdiqlə bir staging directory GET əlavə edir:
 server IP/DNS görünməsi açıqlanır, domen/key göndərilmir, account/issuance yoxdur.
 Saxta TLS CA sınaqları real public CA inteqrasiyası kimi təqdim edilmir.
 
+ADR 0051 yalnız lokal staging account açarını hazır Rootwell parolu və açıq
+təsdiqlə yaradıb ayrıca şifrəli saxlayır. Sertifikat açarı deyil; CA-da account,
+terms acceptance və issuance hələ yoxdur. Eyni tam backup/history/bərpa yoluna
+daxildir, mövcud açar əvəz olunmur. Növbəti increment həmin açarı staging-də
+ayrıca terms qərarı ilə qeydiyyatdan keçirəcək, sonra manual DNS-01 gələcək.
+
 **Məqsəd:** əvvəl standard protokol ilə yeni certificate almaq.
 
 - ACME account və External Account Binding

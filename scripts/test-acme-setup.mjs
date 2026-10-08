@@ -3,7 +3,12 @@ import fs from "node:fs";
 import vm from "node:vm";
 const source=fs.readFileSync("cmd/rootwelld/auth/acme-setup.js","utf8"),html=fs.readFileSync("cmd/rootwelld/auth/acme.html","utf8");
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|createObjectURL|WebSocket|XMLHttpRequest|sendBeacon/);
-assert.match(html,/No external connection/);assert.doesNotMatch(html,/<input[^>]*type="password"|<script[^>]*https?:|<button[^>]*>.*(?:Issue|Register|Renew)/);
+assert.match(html,/No external connection/);assert.doesNotMatch(html,/<script[^>]*https?:|<button[^>]*>.*(?:Issue|Register|Renew)/);
+// ADR 0051 adds a separate fresh-password custody form; syntax setup still
+// has no secret picker/request field or account-preparation authority.
+const setupForm=html.match(/<form id="acme-form"[\s\S]*?<\/form>/)?.[0];assert.ok(setupForm);
+assert.doesNotMatch(setupForm,/<input[^>]*type="password"|acme-account/);
+assert.doesNotMatch(source,/acme-account-password|\/api\/acme\/account|private_key|terms_agreed/);
 assert.match(html,/<div class="layout">/);assert.match(html,/<form id="acme-form" class="csr-form">/);
 const directory="https://acme-staging-v02.api.letsencrypt.org/directory";
 class Element {constructor(){this.value="";this.textContent="";this.hidden=true;this.disabled=false;this.children=[];this.listeners={};}addEventListener(n,f){this.listeners[n]=f;}replaceChildren(){this.children=[];}appendChild(n){this.children.push(n);}click(){return this.listeners.click?.();}}
