@@ -4,6 +4,7 @@ import vm from "node:vm";
 const source=fs.readFileSync("cmd/rootwelld/auth/acme-setup.js","utf8"),html=fs.readFileSync("cmd/rootwelld/auth/acme.html","utf8");
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|createObjectURL|WebSocket|XMLHttpRequest|sendBeacon/);
 assert.match(html,/No external connection/);assert.doesNotMatch(html,/<input[^>]*type="password"|<script[^>]*https?:|<button[^>]*>.*(?:Issue|Register|Renew)/);
+assert.match(html,/<div class="layout">/);assert.match(html,/<form id="acme-form" class="csr-form">/);
 const directory="https://acme-staging-v02.api.letsencrypt.org/directory";
 class Element {constructor(){this.value="";this.textContent="";this.hidden=true;this.disabled=false;this.children=[];this.listeners={};}addEventListener(n,f){this.listeners[n]=f;}replaceChildren(){this.children=[];}appendChild(n){this.children.push(n);}click(){return this.listeners.click?.();}}
 function fixture(){const elements={},byId=id=>elements[id]??=new Element(),events={},windows={},timers=new Map(),requests=[];let next=null,id=0;
