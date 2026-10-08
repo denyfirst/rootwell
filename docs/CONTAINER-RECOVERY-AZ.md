@@ -8,6 +8,13 @@ hostun `127.0.0.1:4180` ünvanına bağlanır. `network_mode: host` bu loopback
 azaldır. Rootwell-i internetə çıxarmayın; ayrıca TLS/reverse-proxy sərhədi
 review edilməyib.
 
+ACME provider bağlantısı yalnız ayrıca istifadəçi təsdiqi ilə staging directory
+GET-dir. Image normal public CA trust bundle-ni pinned build base-dən alır;
+staging/test issuance kökləri sistemə trusted edilmir. Serving və şəbəkəsiz CI
+trust-drill eyni trust-base istifadə edir. Root yenilənməsi reviewed base-image
+update/rebuild ilə olur; runtime root downloader yoxdur. Maintenance yenə
+tam şəbəkəsizdir. Bu account, issuance və ya production hazır statusu deyil.
+
 ## İlk qurulum
 
 Yalnız özünüzün idarə etdiyiniz Linux hostda **iki fərqli** absolute qovluq

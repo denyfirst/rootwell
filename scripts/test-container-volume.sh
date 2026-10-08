@@ -25,6 +25,23 @@ export ROOTWELL_DATA_DIR="$drill_root/data" ROOTWELL_BACKUP_DIR="$drill_root/bac
 
 docker build --target volume-drill -t rootwell-volume-drill:ci .
 docker build -t rootwell:local .
+docker build --target ca-trust-drill -t rootwell-ca-trust-drill:ci .
+docker run --rm --network none --read-only --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --env ROOTWELL_CA_TRUST_DRILL=1 rootwell-ca-trust-drill:ci \
+  -test.run '^TestStagingContainerSystemTrustWithoutNetwork$' -test.v
+# Availability sabotage in a separate offline process: hide both root sources.
+if trust_failure="$(docker run --rm --network none --read-only --cap-drop ALL \
+  --security-opt no-new-privileges --env ROOTWELL_CA_TRUST_DRILL=1 \
+  --env SSL_CERT_FILE=/missing/rootwell-ca.pem --env SSL_CERT_DIR=/missing/rootwell-certs \
+  rootwell-ca-trust-drill:ci -test.run '^TestStagingContainerSystemTrustWithoutNetwork$' -test.v 2>&1)"; then
+  echo "missing-root sabotage was not detected" >&2
+  exit 1
+fi
+if ! grep -Fq 'serving trust-base has no loadable system roots' <<< "$trust_failure"; then
+  echo "missing-root drill failed for an unexpected reason" >&2
+  exit 1
+fi
 docker compose -f compose.yaml -p rootwell-volume-ci config --quiet
 if [[ "$(docker image inspect --format '{{.Config.User}}' rootwell:local)" != "65532:65532" ]]; then
   echo "production image must default to a non-root user" >&2

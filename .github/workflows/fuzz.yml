@@ -86,6 +86,10 @@ jobs:
             package: ./internal/publicinventory
           - target: FuzzVersionValue
             package: ./internal/version
+          - target: FuzzStagingDirectory
+            package: ./internal/acmestaging
+          - target: FuzzDirectoryConsent
+            package: ./cmd/rootwelld
     steps:
       - name: Check out the default branch
         run: |

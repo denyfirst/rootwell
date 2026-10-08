@@ -48,11 +48,18 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/certificate_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_directory_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
-				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser {
+				allowedDirectoryConnector := filepath.ToSlash(relative) == "internal/acmestaging/directory.go" &&
+					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
+				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
+				}
+				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" ||
+					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" {
+					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/instanceaccess" &&
 					!strings.HasPrefix(filepath.ToSlash(relative), "cmd/rootwelld/") {

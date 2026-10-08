@@ -7,7 +7,16 @@ keçir. Porch repository-si bu işin xaricindədir.
 
 ## Məhsul prinsipi
 
-**Cari increment — ADR 0049:** Automation daxilində şəbəkəsiz ACME staging
+**Cari increment — ADR 0050:** ayrıca explicit təsdiqlə staging directory-yə
+bir təhlükəsiz GET. Domen/key göndərilmir, account/sertifikat yaradılmır, heç nə
+saxlanmır. TLS, DNS/IP pinning, redirect/proxy/retry rəddi, limit/cooldown,
+saxta TLS CA və UI/session refusal sınaqları. Real bağlantı Linux/Docker üçündür;
+native Windows/macOS əlavə OS şəbəkə yoxlaması riski səbəbilə offline preview qalır.
+Növbəti increment: Linux-da
+şifrəli staging account custody + explicit ToS/reauth və qeyri-müəyyən
+registration nəticəsinin təhlükəsiz reconciliation-u; sonra manual DNS issuance.
+
+**Tamamlanan increment — ADR 0049:** Automation daxilində şəbəkəsiz ACME staging
 setup yoxlaması: domenlər + manual DNS/HTTP üsulu. Heç nə saxlanmır, CA-ya
 göndərilmir, account/key/challenge/sertifikat yaradılmır. Sadə UI, strict API,
 sessiya/origin və gecikmiş cavab sərhədləri test olunur. Sonra ayrıca reviewed

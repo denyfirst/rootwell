@@ -21,10 +21,27 @@ identity, backups and future explicit authority. Trust browser/daemon/host;
 untrusted inputs include names, JSON, responses, CA-provided URLs, clocks,
 storage images and stale sessions. Runtime strings/host compromise remain.
 
-## Sequence and gates (future capabilities, not currently implemented)
+## Second increment: optional staging directory connection
 
-1. Review mature ACME client dependency, bounded directory-only staging
-   transport and isolated fake-CA/Pebble tests. Explicit ready-session opt-in
+ADR 0050 adds a separate explicit-consent, ready-session connection check.
+Only one GET to the fixed staging directory; no names, keys, account or terms
+decision. IP/DNS visibility is disclosed. System TLS trust, original SNI,
+public-only bounded DNS with numeric dial pinning, no proxies/redirect/retry,
+8-second deadline, 8 KiB headers, 32 KiB strict JSON, validated known endpoint
+URLs, one in-flight operation and 30-second RAM cooldown. Cancellation and live
+session checks surround network boundaries and result publication; already-sent
+bytes cannot be recalled. Only a fixed reachability summary is returned; no
+CA error/metadata reflection, filesystem write or issuance authority. Unknown
+bounded extension metadata is ignored and never followed. Setup remains offline.
+Tests use an isolated synthetic TLS CA, not the public staging service.
+Live provider access is Linux/Docker-only; native platform verification may
+perform additional OS-managed certificate retrievals, so Windows/macOS refuses
+this capability before DNS. Local syntax/Workbench functionality is unchanged.
+
+## Sequence and gates
+
+1. Directory-only dependency/transport increment implemented in ADR 0050;
+   broader ACME/Pebble protocol testing remains future work. Explicit ready-session opt-in
    must show destination and data sent. No production/custom URL fallback.
    Validate HTTPS URL/host/path/port, every directory/order/authorization/Link
    endpoint and redirect. Reject private/loopback/link-local/metadata addresses,
@@ -63,7 +80,7 @@ storage images and stale sessions. Runtime strings/host compromise remain.
 
 ## Evidence required
 
-Success, malformed/refusal, secret-free errors, no outbound/storage capability,
+Success, malformed/refusal, secret-free errors, no unapproved outbound/storage capability,
 origin/setup/session/host, late/hidden/source-changed UI and two-way sabotage.
 Every future increment must add its own protocol/crypto/permission/recovery
 tests before enabling its capability. Green development CI is not audit.
