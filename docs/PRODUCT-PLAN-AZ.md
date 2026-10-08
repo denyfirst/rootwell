@@ -422,6 +422,10 @@ göndərmir. Preference və axtarış browser yaddaşında qalır, private key s
 yoxlamasıdır. Account/issuance/renewal hələ yoxdur. Sonrakı capability qapıları
 [ACME təhlükəsizlik planında](ACME-THREAT-MODEL.md) ayrıca göstərilir.
 
+ADR 0050 ayrıca optional təsdiqlə bir staging directory GET əlavə edir:
+server IP/DNS görünməsi açıqlanır, domen/key göndərilmir, account/issuance yoxdur.
+Saxta TLS CA sınaqları real public CA inteqrasiyası kimi təqdim edilmir.
+
 **Məqsəd:** əvvəl standard protokol ilə yeni certificate almaq.
 
 - ACME account və External Account Binding

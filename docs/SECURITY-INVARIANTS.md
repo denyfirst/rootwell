@@ -1146,6 +1146,31 @@ Guarded by `TestACMEPlanChecksSyntaxWithoutGrantingCapabilities`,
 `TestACMESetupHasNoOutboundOrPersistenceImports`, `FuzzACMEPlanRequestJSON`
 and `scripts/test-acme-setup.mjs`.
 
+## C71 — Staging directory reachability cannot become enrollment or arbitrary egress
+
+Only a ready, same-origin, explicitly confirmed request can enter the separate
+directory connector. One fixed-host secret-free GET with system TLS/SNI,
+validated public DNS pinned to numeric dialing, no proxy/redirect/retry, bounded
+time/headers/body/parser and global cooldown/concurrency. Known endpoint URLs
+are preflighted, never followed. No account/key/terms/order/storage capability;
+fixed output and errors, no CA metadata reflection. Late invalid sessions or
+contexts cannot publish success. Setup/offline Workbench cannot import the
+connector. Already-sent traffic cannot be recalled after logout; reachability
+does not prove issuance or certificate trust.
+
+Guarded by `TestDirectoryDiscoveryUsesOnePinnedTLSGETWithoutSecrets`,
+`TestDirectoryRefusesPrivateMixedDNSAndRevokedConsentBeforeDial`,
+`TestDirectorySpecialAddressesAreDenied`,
+`TestDirectoryResponseRefusalsNeverRetryOrReflect`,
+`TestDirectoryStrictBoundedParser`,
+`TestDirectoryTransportCannotFollowEndpointsOrSendTwice`,
+`TestDirectoryConsentStrictlyRefusesUnconfirmedOrSecretInput`,
+`TestDirectoryGateRequiresReadyOriginConsentAndThrottlesWithoutStorage`,
+`TestDirectoryGateRejectsSetupAndLateSessionOrContext`,
+`TestDirectoryInFlightLogoutRefusesResultAndConcurrentCheck`,
+`TestWorkbenchHasNoNetworkOrProcessImports`, `FuzzStagingDirectory`,
+`FuzzDirectoryConsent` and `scripts/test-acme-directory.mjs`.
+
 ## C69 — Saved-key attachment never overwrites or silently transfers a secret
 
 ADR 0048 permits only adding a strict key to an authenticated public-only
