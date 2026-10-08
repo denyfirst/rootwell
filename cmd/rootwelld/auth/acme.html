@@ -36,6 +36,7 @@
     <section class="card"><h2>Check provider connection <span>(optional)</span></h2>
       <p>One directory request from your Rootwell server to Let's Encrypt staging. The provider can see your server's network address; your DNS resolver may see the provider hostname. No domains, certificates, keys or account details are sent.</p>
       <p>This only tests the connection. It does not accept provider terms, open an account, request a certificate or enable renewal.</p>
+      <p>Available in Linux or Linux Docker. Native Windows/macOS preview keeps this connection disabled.</p>
       <details><summary>Connection destination</summary><p><code>https://acme-staging-v02.api.letsencrypt.org/directory</code></p></details>
       <label class="confirm-row" for="acme-connect-consent"><input id="acme-connect-consent" type="checkbox" autocomplete="off"> Allow this one staging connection check</label>
       <div class="actions"><button id="acme-connect" type="button" disabled>Check provider connection</button></div>

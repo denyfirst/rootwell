@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -47,10 +48,17 @@ type dependencies struct {
 	tls    *tls.Config
 }
 
+// Available restricts live connections to the reviewed Linux system verifier.
+// Native platform verifiers may perform ambient AIA/root network retrievals.
+func Available() bool { return runtime.GOOS == "linux" }
+
 // Discover permits one staging directory GET after the caller authorizes it.
 // permit must remain valid across DNS, dialing, sending and result publication.
 // Already-sent bytes cannot be recalled if authorization is later revoked.
 func Discover(ctx context.Context, permit func() bool) (Summary, error) {
+	if !Available() {
+		return Summary{}, errRefused
+	}
 	dialer := &net.Dialer{Timeout: 3 * time.Second, KeepAlive: -1}
 	return discover(ctx, permit, dependencies{
 		lookup: net.DefaultResolver.LookupNetIP,

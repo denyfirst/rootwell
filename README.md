@@ -63,7 +63,8 @@ legacy-image behavior and the independent production-audit gate.
 - Automation checks staging setup syntax without external traffic. A separate
   **Check provider connection** action requires explicit consent for one
   staging directory request; no domains/keys are sent, and no account, saved
-  configuration or issuance is created. See the [ACME boundary](docs/ACME-THREAT-MODEL.md),
+  configuration or issuance is created. Live provider access is Linux/Docker-only;
+  native Windows/macOS remains offline preview. See the [ACME boundary](docs/ACME-THREAT-MODEL.md),
   [setup decision](docs/adr/0049-acme-staging-setup-check.md) and
   [directory transport](docs/adr/0050-acme-staging-directory-transport.md).
 - [Product and execution plan](docs/PRODUCT-PLAN-AZ.md)

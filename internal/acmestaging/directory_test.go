@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -304,4 +305,20 @@ func FuzzStagingDirectory(f *testing.F) {
 			}
 		}
 	})
+}
+
+func TestStagingLivePlatformBoundary(t *testing.T) {
+	if Available() != (runtime.GOOS == "linux") {
+		t.Fatal("live platform policy changed")
+	}
+	if runtime.GOOS != "linux" {
+		result, err := Discover(context.Background(), func() bool { t.Error("unsupported platform reached connector authorization"); return false })
+		if err == nil || result.NetworkUsed {
+			t.Fatal("unsupported platform acquired egress")
+		}
+	}
+	// Even a supported build must not look up DNS without authorization.
+	if result, err := Discover(context.Background(), func() bool { return false }); err == nil || result.NetworkUsed {
+		t.Fatal("unapproved live connector used network")
+	}
 }

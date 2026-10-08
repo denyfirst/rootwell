@@ -49,6 +49,15 @@ conservative special-use policy may refuse otherwise usable special addresses
 or a working secondary address; refusal is preferable to authority expansion.
 TLS authorization is rechecked after the handshake before HTTP gets the socket.
 
+Live connections are Linux/Docker-only. Separate self-review found that Go's
+native Windows verifier calls CertGetCertificateChain without cache-only/AIA
+retrieval-disable flags; platform chain building can cause additional ambient
+network access outside this transport. Windows/macOS live connection is refused
+before DNS/cooldown; UI and API say native preview stays offline. Synthetic tests
+use explicit non-system root pools and therefore do not exercise native verifier
+network access. Native platform support requires its own reviewed trust boundary,
+not InsecureSkipVerify, ad-hoc verification, or a hidden environment bypass.
+
 Total deadline 8 seconds; dial 3, TLS and headers 4, headers 8 KiB, body 32 KiB.
 No compression, redirect, non-200 response or retry. Recheck live session/context
 before resolver/dial/TLS completion/response/result. A request already sent
@@ -96,3 +105,5 @@ Sources checked 2026-10-08: [pinned ACME API](https://pkg.go.dev/golang.org/x/cr
 [IPv4 special registry](https://www.iana.org/assignments/iana-ipv4-special-registry/),
 [IPv6 special registry](https://www.iana.org/assignments/iana-ipv6-special-registry/),
 [unimported openpgp advisory](https://pkg.go.dev/vuln/GO-2026-5932).
+Also inspected Go 1.26.7 x509 root_windows.go/root_unix.go/verify.go and
+[Windows chain retrieval flags](https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcertificatechain).

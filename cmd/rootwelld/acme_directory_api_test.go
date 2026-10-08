@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -216,5 +217,16 @@ func TestDirectoryInFlightLogoutRefusesResultAndConcurrentCheck(t *testing.T) {
 	g.mu.Unlock()
 	if busy {
 		t.Fatal("in-flight slot leaked after refusal")
+	}
+}
+
+func TestDirectoryNativePreviewRefusesBeforeCooldownOrConnection(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("native non-Linux refusal is covered on that platform")
+	}
+	g, cookie, _ := readyDirectoryGate(t)
+	w := acmeCall(g, "POST", "/api/acme/directory", directoryConsent, cookie, "http://"+localHost, true)
+	if w.Code != 503 || !strings.Contains(w.Body.String(), "Linux") || g.directoryBusy || !g.directoryLast.IsZero() {
+		t.Fatal("native preview granted connection or consumed slot")
 	}
 }

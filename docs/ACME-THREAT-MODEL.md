@@ -34,6 +34,9 @@ bytes cannot be recalled. Only a fixed reachability summary is returned; no
 CA error/metadata reflection, filesystem write or issuance authority. Unknown
 bounded extension metadata is ignored and never followed. Setup remains offline.
 Tests use an isolated synthetic TLS CA, not the public staging service.
+Live provider access is Linux/Docker-only; native platform verification may
+perform additional OS-managed certificate retrievals, so Windows/macOS refuses
+this capability before DNS. Local syntax/Workbench functionality is unchanged.
 
 ## Sequence and gates
 

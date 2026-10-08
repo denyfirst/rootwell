@@ -1149,7 +1149,8 @@ and `scripts/test-acme-setup.mjs`.
 ## C71 — Staging directory reachability cannot become enrollment or arbitrary egress
 
 Only a ready, same-origin, explicitly confirmed request can enter the separate
-directory connector. One fixed-host secret-free GET with system TLS/SNI,
+Linux/Docker directory connector. Native Windows/macOS refuses before DNS and
+cooldown because platform verification may fetch certificate objects. One fixed-host secret-free GET with system TLS/SNI,
 validated public DNS pinned to numeric dialing, no proxy/redirect/retry, bounded
 time/headers/body/parser and global cooldown/concurrency. Known endpoint URLs
 are preflighted, never followed. No account/key/terms/order/storage capability;
@@ -1168,6 +1169,8 @@ Guarded by `TestDirectoryDiscoveryUsesOnePinnedTLSGETWithoutSecrets`,
 `TestDirectoryGateRequiresReadyOriginConsentAndThrottlesWithoutStorage`,
 `TestDirectoryGateRejectsSetupAndLateSessionOrContext`,
 `TestDirectoryInFlightLogoutRefusesResultAndConcurrentCheck`,
+`TestStagingLivePlatformBoundary`,
+`TestDirectoryNativePreviewRefusesBeforeCooldownOrConnection`,
 `TestWorkbenchHasNoNetworkOrProcessImports`, `FuzzStagingDirectory`,
 `FuzzDirectoryConsent` and `scripts/test-acme-directory.mjs`.
 

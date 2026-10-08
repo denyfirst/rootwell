@@ -33,6 +33,7 @@
       if (current !== generation || controller.signal.aborted || document.hidden) return;
       if (response.status === 429) { status.textContent = "Wait 30 seconds, then confirm again to check the provider."; return; }
       if (response.status === 401 || response.status === 403) { status.textContent = "Sign in again before checking the provider."; return; }
+      if (response.status === 503) { status.textContent = "Provider connections require Linux or Linux Docker. Your native preview stays offline; local certificate tools still work."; return; }
       if (!response.ok || response.headers.get("cache-control") !== "no-store" || !response.body) throw new Error("refused");
       const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal: true });
       let text = "", size = 0;

@@ -10,7 +10,9 @@ keçir. Porch repository-si bu işin xaricindədir.
 **Cari increment — ADR 0050:** ayrıca explicit təsdiqlə staging directory-yə
 bir təhlükəsiz GET. Domen/key göndərilmir, account/sertifikat yaradılmır, heç nə
 saxlanmır. TLS, DNS/IP pinning, redirect/proxy/retry rəddi, limit/cooldown,
-saxta TLS CA və UI/session refusal sınaqları. Növbəti increment: Linux-da
+saxta TLS CA və UI/session refusal sınaqları. Real bağlantı Linux/Docker üçündür;
+native Windows/macOS əlavə OS şəbəkə yoxlaması riski səbəbilə offline preview qalır.
+Növbəti increment: Linux-da
 şifrəli staging account custody + explicit ToS/reauth və qeyri-müəyyən
 registration nəticəsinin təhlükəsiz reconciliation-u; sonra manual DNS issuance.
 

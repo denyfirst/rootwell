@@ -89,6 +89,10 @@ func (g *gate) acmeDirectoryEndpoint(w http.ResponseWriter, r *http.Request, s s
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
+	if g.directoryCheck == nil && !acmestaging.Available() {
+		http.Error(w, "Provider connections require Linux or Linux Docker. Native preview stays offline.", http.StatusServiceUnavailable)
+		return
+	}
 	// Global bounded RAM state: no queue, no growing per-client map, no persistence.
 	g.mu.Lock()
 	now := g.now()
