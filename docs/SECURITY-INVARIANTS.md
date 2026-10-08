@@ -735,6 +735,12 @@ The development Compose service binds the existing daemon to Linux host
 loopback and mounts only its private data directory. Offline maintenance has
 no network and mounts the backup directory only for an interactive ceremony;
 neither password nor recovery code is configured through argv or environment.
+The maintenance service explicitly disables Docker logging with driver `none`
+and no options; TTY alone does not prevent retention of interactive secrets.
+The real-container drill verifies the effective driver and that harmless
+attached usage output is not available through `docker logs` (ADR 0052).
+Serving retains secret-free diagnostics. Custom configs, terminal recording,
+host administrators and previously retained logs remain outside this boundary.
 A disposable CI drill crosses actual container process restarts and separate
 bind mounts, verifies a complete fresh-volume restore, refuses wrong code,
 tampered snapshot, permissive data directory, duplicate import, overwrite,

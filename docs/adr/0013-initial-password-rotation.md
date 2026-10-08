@@ -15,7 +15,9 @@ The Porch first-start flow examined when this decision was made displayed its
 password on daemon stderr, which may persist in Docker logs. This is historical
 context, not a claim about Porch's current implementation. Rootwell forbids password material in
 logs. Its `rootwelld init` workflow is interactive on the local host, and the
-runtime does not redisplay or recover the initial password. The loopback web
+runtime does not redisplay or recover the initial password. Docker maintenance
+also disables the container logging driver explicitly (ADR 0052); an interactive
+TTY alone is not a no-logging guarantee. The loopback web
 gate issues a setup-only session until rotation succeeds, then invalidates
 all sessions and requires a fresh normal sign-in. Production remote access and
 secret custody remain outside this ADR.
