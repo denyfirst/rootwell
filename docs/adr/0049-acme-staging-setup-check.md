@@ -45,6 +45,13 @@ restored, then the intended suites passed.
 DOM/VM tests are not a claim of visual browser QA. Host compromise and runtime
 string retention remain outside guarantees.
 
+Self-review also caught Unicode folding/trimming into ASCII (Kelvin sign/NBSP).
+The UI and core now refuse non-ASCII raw names before normalization; existing
+CSR behavior is unchanged. Four more restored sabotage cases: relaxing the
+core ASCII guard fails the Unicode regression; over-restricting it fails valid
+ASCII syntax; bypassing the UI guard sends a forbidden name and fails; reversing
+it fails the valid UI check. The final PR comment identifies the exact head.
+
 ## Next gates
 
 Follow [ACME threat model](../ACME-THREAT-MODEL.md): reviewed mature client,

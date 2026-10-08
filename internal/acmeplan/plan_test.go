@@ -34,4 +34,9 @@ func TestACMEPlanChecksSyntaxWithoutGrantingCapabilities(t *testing.T) {
 	if _, err := Check(Provider, "http-01", []string{"*.example.com"}); err == nil {
 		t.Fatal("HTTP wildcard accepted")
 	}
+	for _, name := range []string{"\u212a.example.com", "\u00a0example.com", "example.com\u00a0"} {
+		if _, err := Check(Provider, "dns-01", []string{name}); err == nil {
+			t.Fatal("Unicode accepted before case folding/trimming")
+		}
+	}
 }

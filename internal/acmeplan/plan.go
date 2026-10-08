@@ -32,6 +32,15 @@ func Check(provider, challenge string, domains []string) (Plan, error) {
 	if provider != Provider || (challenge != "dns-01" && challenge != "http-01") {
 		return Plan{}, ErrInvalid
 	}
+	// Reject Unicode before case folding: e.g. the Kelvin sign folds to ASCII k.
+	// This setup deliberately does not implement IDNA conversion.
+	for _, name := range domains {
+		for _, char := range name {
+			if char > 127 {
+				return Plan{}, ErrInvalid
+			}
+		}
+	}
 	names, err := csrworkbench.NormalizeDNSNames(domains)
 	if err != nil {
 		return Plan{}, ErrInvalid

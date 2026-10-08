@@ -19,6 +19,7 @@
   form.addEventListener("submit",async event=>{
     event.preventDefault();if(busy||document.hidden)return;
     invalidate();const raw=domains.value, p=provider.value, c=challenge.value;
+    if(/[^\x00-\x7F]/.test(raw)){status.textContent="Use ASCII domain names (Punycode for international domains), one per line.";return;}
     const selected=raw.split(/\r?\n/).map(n=>n.trim().toLowerCase()).filter(Boolean);
     if(raw.length>8192||selected.length<1||selected.length>32||selected.some(n=>n.length>253)||p!=="letsencrypt-staging"||!["dns-01","http-01"].includes(c)){status.textContent="Choose staging and 1–32 domain names, one per line.";return;}
     const ticket=++serial;controller=new AbortController();const own=controller;busy=true;controls();
