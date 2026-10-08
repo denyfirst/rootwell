@@ -119,3 +119,38 @@ func TestACMESetupHasNoOutboundOrPersistenceImports(t *testing.T) {
 		})
 	}
 }
+
+func TestACMEAccountPreparationHasNoOutboundHTTPAuthority(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "cmd/rootwelld/acme_account_api.go"), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{"bytes": true, "encoding/json": true, "errors": true, "io": true, "mime": true, "net/http": true, "runtime": true, "unicode/utf8": true,
+		"github.com/denyfirst/rootwell/internal/acmeplan": true, "github.com/denyfirst/rootwell/internal/instanceaccess": true, "github.com/denyfirst/rootwell/internal/inventorystore": true}
+	for _, imported := range file.Imports {
+		path, err := strconv.Unquote(imported.Path.Value)
+		if err != nil || !allowed[path] || imported.Name != nil {
+			t.Errorf("unreviewed account-preparation import: %s", imported.Path.Value)
+		}
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		s, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		id, ok := s.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if id.Name == "http" && !strings.HasPrefix(s.Sel.Name, "Status") && s.Sel.Name != "Request" && s.Sel.Name != "ResponseWriter" &&
+			s.Sel.Name != "Error" && s.Sel.Name != "MaxBytesReader" && s.Sel.Name != "MethodPost" {
+			t.Errorf("outbound HTTP authority in local preparation: %s", s.Sel.Name)
+		}
+		if id.Name == "acmeplan" && s.Sel.Name != "Provider" {
+			t.Errorf("unreviewed account provider capability: %s", s.Sel.Name)
+		}
+		return true
+	})
+}

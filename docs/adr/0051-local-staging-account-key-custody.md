@@ -78,3 +78,8 @@ Removing the UI consent guard failed `scripts/test-acme-account.mjs` at
 the approved-success request assertion. All four mutations were restored and
 the success/refusal tests rerun. These checks detect those specific defects,
 not every possible security issue. VM/DOM assertions are not visual browser QA.
+
+Adversarial self-review added an explicit import/HTTP-selector capability guard
+to the local account API, rather than relying only on its lack of provider calls.
+This complements the existing architecture and no-network API fixtures; it is
+a regression check, not a runtime sandbox or an independent audit.
