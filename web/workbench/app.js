@@ -97,7 +97,7 @@
         if (!source || Object.keys(source).sort().join(",") !== "der,fingerprint,schema_version,tool" ||
             source.schema_version !== "rootwell.inventory.workbench.v1" ||
             typeof source.fingerprint !== "string" || !/^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/.test(source.fingerprint) ||
-            (source.tool !== "inspect" && source.tool !== "verify") || typeof source.der !== "string" ||
+            (source.tool !== "inspect" && source.tool !== "verify" && source.tool !== "convert") || typeof source.der !== "string" ||
             !source.der.length || source.der.length > 87384 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(source.der)) throw new Error();
         pendingInventorySource = source;
       } catch { invalidInventorySource = true; }
@@ -1637,7 +1637,7 @@
       if (selectedExploreFiles !== files || !currentExploreEntries) return;
       exploreSelection.textContent = "Public certificate from Saved certificates · " + formatSize(file.size);
       if (source.tool === "verify") guideExploreToVerify();
-      else selectTool("inspect");
+      else selectTool(source.tool === "convert" ? "convert" : "inspect");
     } catch {
       showExploreFailure("The saved certificate could not be opened safely. Return to Saved certificates and try again.");
     } finally {

@@ -132,7 +132,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory":
 		g.inventoryEndpoint(w, r, s, signedIn)
 		return
-	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download":
+	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":
 		g.certificateEndpoint(w, r, s, signedIn)
 		return
 	case "/api/inventory/activity", "/api/inventory/comparison-source":
@@ -153,7 +153,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/inventory", "/certificates", "/certificate-library.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -173,6 +173,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/inventory.html", "text/html; charset=utf-8")
 		case "/certificate-library.js":
 			g.authAsset(w, r, "auth/certificate-library.js", "text/javascript; charset=utf-8")
+		case "/saved-key-attachment.js":
+			g.authAsset(w, r, "auth/saved-key-attachment.js", "text/javascript; charset=utf-8")
 		case "/inventory.js":
 			g.authAsset(w, r, "auth/inventory.js", "text/javascript; charset=utf-8")
 		case "/inventory.css":

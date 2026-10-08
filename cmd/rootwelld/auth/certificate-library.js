@@ -27,6 +27,7 @@
     downloadGo.disabled = busy || document.hidden || !selected || selected.generation !== generation || readOnly;
   }
   function invalidate() {
+    globalThis.rootwellSavedKey?.reset();
     serial++;
     controller?.abort(); controller = null; busy = false;
     pending = null; selected = null; preview.hidden = true; download.hidden = true;
@@ -212,8 +213,12 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) boundary(); });
   window.addEventListener("pagehide", boundary);
   globalThis.rootwellCertificateLibrary = Object.freeze({
-    snapshot(value) { if (!Number.isSafeInteger(value) || value < 1) { generation = 0; boundary(); return; } if (generation !== value) invalidate(); generation = value; controls(); },
-    isEditing() { return busy || pending !== null || !download.hidden || Boolean(cert.files?.length) || Boolean(key.files?.length); },
+    snapshot(value) { globalThis.rootwellSavedKey?.snapshot(value); if (!Number.isSafeInteger(value) || value < 1) { generation = 0; boundary(); return; } if (generation !== value) invalidate(); generation = value; controls(); },
+    isEditing() { return busy || pending !== null || !download.hidden || Boolean(cert.files?.length) || Boolean(key.files?.length) || globalThis.rootwellSavedKey?.isEditing() === true; },
+    openAttach(record, gen) {
+      if (busy || document.hidden || readOnly || gen !== generation || !fingerprint(record.fingerprint) || record.has_private_key === true) return;
+      boundary(); globalThis.rootwellSavedKey?.open(record, gen);
+    },
     openDownload(record, gen) {
       if (busy || document.hidden || readOnly || gen !== generation || !fingerprint(record.fingerprint)) return;
       invalidate(); selected = { fingerprint: record.fingerprint, generation: gen, hasPrivateKey: record.has_private_key === true, keyStatus: record.key_status };

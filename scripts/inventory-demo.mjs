@@ -62,7 +62,7 @@ const assets = new Map([
   ["/certificates", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
   ["/inventory.js", ["text/javascript; charset=utf-8", script]],
-  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js", "certificate-library.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
+  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js", "certificate-library.js", "saved-key-attachment.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
 ]);
 const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
@@ -88,7 +88,7 @@ const server = http.createServer((request, response) => {
     request.on("end",()=>{
       const fields=new URLSearchParams(body);
       if (refused || [...fields].length!==3 || fields.get("fingerprint")!==demoLeaf.fingerprint256 || fields.get("expected_generation")!=="5" ||
-          !["inspect","verify"].includes(fields.get("tool"))) { response.writeHead(400).end("Fixture selection refused"); return; }
+          !["inspect","verify","convert"].includes(fields.get("tool"))) { response.writeHead(400).end("Fixture selection refused"); return; }
       const payload=JSON.stringify({ schema_version:"rootwell.inventory.workbench.v1", fingerprint:demoLeaf.fingerprint256,
         der:demoLeaf.raw.toString("base64"),tool:fields.get("tool") });
       let page=replaceOnce(workbenchHTML(), '<div id="inventory-source" hidden></div>',

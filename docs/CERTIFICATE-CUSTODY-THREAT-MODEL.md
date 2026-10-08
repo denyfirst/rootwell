@@ -30,6 +30,18 @@ plaintext custody export, remote listener, multiuser policy or production claim.
 
 ## Assets and trust
 
+ADR 0048 adds only a key to an existing public-only record, never replacement.
+Check/Save accept exact fingerprint/generation and one strict key, not new
+certificate/notes/status. Save uses fresh instance authentication through the
+shared attempt/KDF budget; the locked writer repeats validation and atomically
+retains certificate/bundle/provenance/order/notes with a key-added history event.
+Mismatch consent, legacy key refusal, metadata/deletion/full restore and manual
+backup requirements remain. Lost confirmation after a committed write is
+uncertain, including logout/cancellation. The public Convert handoff transfers
+only selected public DER, not its key/bundle/notes or trust authority. Private
+conversion requires explicit encrypted export and input selection. See
+[ADR 0048](adr/0048-saved-key-attachment-and-convert-handoff.md).
+
 Certificate DER, optional matching private key, key-input password, fresh
 instance password, output password, image key, recovery code, complete backups,
 and internal service notes are sensitive. Public key is part of the selected

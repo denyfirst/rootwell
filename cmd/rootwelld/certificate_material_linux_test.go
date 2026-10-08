@@ -132,11 +132,24 @@ func TestLinuxMaterialMismatchExportAndBundleFullRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request = map[string]any{"certificate": bundle, "private_key": matching, "expected_generation": 2, "fingerprint": r.Fingerprint}
+	request = map[string]any{"certificate": bundle, "expected_generation": 2, "fingerprint": r.Fingerprint}
 	if saved := invoke("/api/certificates/save", request); saved.code != 201 || !bytes.Contains(saved.body, []byte(`"bundle_count":2`)) {
 		t.Fatal("bundle pair save failed")
 	}
-	public := invoke("/api/certificates/download", map[string]any{"fingerprint": r.Fingerprint, "expected_generation": 3, "pair": false, "bundle": true})
+	attachment := map[string]any{"fingerprint": r.Fingerprint, "expected_generation": 3, "private_key": matching}
+	if checked := invoke("/api/certificates/key/check", attachment); checked.code != 200 || !bytes.Contains(checked.body, []byte(`"key_status":"matched"`)) {
+		t.Fatal("saved public bundle key check failed")
+	}
+	attachment["password"] = nextTestPassword
+	if saved := invoke("/api/certificates/key/save", attachment); saved.code != 200 || !bytes.Contains(saved.body, []byte(`"bundle_count":2`)) {
+		t.Fatal("saved public bundle key attachment failed")
+	}
+	delete(attachment, "password")
+	attachment["expected_generation"] = 4
+	if existing := invoke("/api/certificates/key/check", attachment); existing.code != 409 || existing.header.Get("X-Rootwell-Refusal") != "key-already-attached" {
+		t.Fatal("attached key still presented as addable")
+	}
+	public := invoke("/api/certificates/download", map[string]any{"fingerprint": r.Fingerprint, "expected_generation": 4, "pair": false, "bundle": true})
 	if public.code != 200 || bytes.Count(public.body, []byte("BEGIN CERTIFICATE")) != 2 || bytes.Contains(public.body, []byte("PRIVATE KEY")) {
 		t.Fatal("bundle public export lost material or leaked key")
 	}
@@ -162,7 +175,7 @@ func TestLinuxMaterialMismatchExportAndBundleFullRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	records, gen, err := instanceaccess.ReadInventory(freshPath, dataKey, id, revision)
-	if err != nil || gen != 3 || len(records) != 2 || records[0].KeyStatus != "mismatch" || records[1].KeyStatus != "matched" || len(records[1].BundleDER) != 2 {
+	if err != nil || gen != 4 || len(records) != 2 || records[0].KeyStatus != "mismatch" || records[1].KeyStatus != "matched" || len(records[1].BundleDER) != 2 {
 		t.Fatal("full restore changed status or lost bundle/key")
 	}
 }

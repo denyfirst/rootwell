@@ -74,7 +74,7 @@
     } catch {if(current())status.textContent="Comparison refused. Use exactly one supported public certificate; refresh the saved selection if needed. Nothing was saved.";}
     finally {bytes?.fill(0);clearTimeout(deadline);active.abort();if(token===serial){busy=false;button.disabled=!selected;}}
   });
-  const actions=Object.freeze({import:"Certificates added","owner-changed":"Owner note changed","location-added":"Server note added","location-renamed":"Server note renamed","location-removed":"Server note removed","record-deleted":"Inventory record deleted"});
+  const actions=Object.freeze({import:"Certificates added","owner-changed":"Owner note changed","location-added":"Server note added","location-renamed":"Server note renamed","location-removed":"Server note removed","record-deleted":"Inventory record deleted","key-added":"Private key attached"});
   function drawHistory() {
     history.replaceChildren();const first=page*50,visible=events.slice().reverse().slice(first,first+50);
     for(const event of visible){const item=document.createElement("li");item.textContent=actions[event.action]+" · "+event.at+" · "+event.fingerprints.length+" certificate(s)";

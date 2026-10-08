@@ -1127,6 +1127,32 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C69 — Saved-key attachment never overwrites or silently transfers a secret
+
+ADR 0048 permits only adding a strict key to an authenticated public-only
+certificate record under exact generation/fingerprint. Existing legacy/material
+keys refuse replacement. The writer repeats the check and requires explicit
+sealed acknowledgement for mismatch; Save additionally requires fresh instance
+password through the shared attempt/concurrency budget. Certificate, supplied
+bundle, order, import provenance and notes remain intact. Limits refuse with
+no partial image; atomic history/full restore preserve the attachment.
+
+Browser Check is optional, but Save revalidates. File identity/reread digest,
+preview lifetime and generation bind the choice; changed/hidden/cancel/deadline
+state clears owned secrets and discards late output. Transmitted Save may still
+commit; uncertainty is shown, not claimed rollback. Fixed errors prevent raw
+secret reflection. The existing native Convert handoff contains selected public
+DER only and requires actual WASM identity reinspection; key/bundle/notes/trust
+are never auto-transferred. Key/PFX conversion needs explicit encrypted export
+and file selection. No CA/network/production claim follows.
+
+Guarded by `TestAttachKeyPreservesRecordAndRefusesOverwrite`,
+`TestAttachEncryptedKeyAndCapacityRefusals`, `TestKeyAttachmentRequestModesAreStrict`,
+`TestLinuxSavedKeyRequiresFreshAuthenticationAndPreservesRefusedImage`,
+`TestLinuxMaterialMismatchExportAndBundleFullRestore`,
+`TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot`,
+`scripts/test-saved-key-attachment.mjs` and `scripts/test-inventory-workbench.mjs`.
+
 ## C66 — Bulk preview is local and Save is exact and atomic
 
 Inventory public bulk preview does not upload selected bytes. Save is explicit,

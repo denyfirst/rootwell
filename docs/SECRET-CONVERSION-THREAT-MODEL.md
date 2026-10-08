@@ -106,3 +106,9 @@ Returned certificates are compared by canonical public key and literal names;
 copying a public key into a fake certificate is possible, so independent trust
 verification remains mandatory before relying on it. Browser/OS copies and
 download permissions are not controlled by this workbench.
+
+ADR 0048 adds a saved-certificate native POST handoff to this existing Convert
+panel. Its identity/generation-bound payload is public DER only, reparsed by
+actual WASM before use. No automatic private key/bundle/notes handoff, secret
+URL/storage, or new offline Workbench networking capability. Private/PFX use
+still requires explicit separately encrypted key export and file selection.

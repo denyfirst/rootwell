@@ -105,6 +105,12 @@ func TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot(t *testing.T) 
 			}
 		})
 	}
+	form = url.Values{"fingerprint": {saved.Records[1].Fingerprint}, "expected_generation": {"2"}, "tool": {"convert"}}
+	conversion := httptest.NewRecorder()
+	g.ServeHTTP(conversion, request())
+	if conversion.Code != http.StatusOK || !strings.Contains(conversion.Body.String(), `"tool":"convert"`) || strings.Contains(conversion.Body.String(), "private-location") || strings.Contains(conversion.Body.String(), "PRIVATE KEY") {
+		t.Fatal("explicit public Convert handoff failed or included non-public material")
+	}
 	for _, selection := range []url.Values{
 		{"fingerprint": {saved.Records[1].Fingerprint}, "expected_generation": {"1"}, "tool": {"inspect"}},
 		{"fingerprint": {strings.Repeat("00:", 31) + "00"}, "expected_generation": {"2"}, "tool": {"inspect"}},

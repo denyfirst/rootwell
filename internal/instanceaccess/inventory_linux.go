@@ -33,6 +33,30 @@ func AppendCertificateMaterial(accessPath string, key, id []byte, revision [32]b
 	})
 }
 
+func CheckCertificateKey(accessPath string, key, id []byte, revision [32]byte, expected uint64, private, password []byte, fingerprint string) (publicinventory.Record, error) {
+	var record publicinventory.Record
+	err := withAccessWriteLock(accessPath, func() error {
+		if err := checkInventoryRevision(accessPath, revision); err != nil {
+			return err
+		}
+		image, err := readInventory(filepath.Join(filepath.Dir(accessPath), inventoryName))
+		if err != nil {
+			return err
+		}
+		var canonical []byte
+		record, canonical, err = inventorystore.PrepareKeyAttachment(key, id, image, private, password, fingerprint, expected)
+		clear(canonical)
+		return err
+	})
+	return record, err
+}
+
+func AttachCertificateKey(accessPath string, key, id []byte, revision [32]byte, expected uint64, private, password []byte, fingerprint string, ack bool) (publicinventory.Record, uint64, error) {
+	return appendCertificateImage(accessPath, revision, func(image []byte) ([]byte, publicinventory.Record, uint64, error) {
+		return inventorystore.AttachKey(key, id, image, private, password, fingerprint, ack, expected)
+	})
+}
+
 func appendCertificateImage(accessPath string, revision [32]byte, prepare func([]byte) ([]byte, publicinventory.Record, uint64, error)) (publicinventory.Record, uint64, error) {
 	var record publicinventory.Record
 	var generation uint64

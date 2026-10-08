@@ -80,6 +80,10 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		return
 	}
 	defer func() { <-g.derive }()
+	if r.URL.Path == "/api/certificates/key/check" || r.URL.Path == "/api/certificates/key/save" {
+		g.attachCertificateKey(w, r, s, input)
+		return
+	}
 	if r.URL.Path == "/api/certificates/download" {
 		g.downloadCertificate(w, r, s, input)
 		return
@@ -192,6 +196,8 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 		return err
 	}
 	download := r.URL.Path == "/api/certificates/download"
+	attach := r.URL.Path == "/api/certificates/key/check" || r.URL.Path == "/api/certificates/key/save"
+	attachSave := r.URL.Path == "/api/certificates/key/save"
 	for d.More() {
 		token, err := d.Token()
 		name, yes := token.(string)
@@ -201,7 +207,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 		seen[name] = true
 		switch name {
 		case "certificate":
-			if download {
+			if download || attach {
 				return bad()
 			}
 			err = readBytes(&input.Certificate)
@@ -216,12 +222,12 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 			}
 			err = readBytes(&input.KeyPassword)
 		case "owner":
-			if download {
+			if download || attach {
 				return bad()
 			}
 			err = readString(&input.Owner)
 		case "location":
-			if download {
+			if download || attach {
 				return bad()
 			}
 			err = readString(&input.Location)
@@ -233,7 +239,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 			}
 			err = readString(&input.Primary)
 		case "allow_mismatch":
-			if download || r.URL.Path != "/api/certificates/save" {
+			if download || (r.URL.Path != "/api/certificates/save" && !attachSave) {
 				return bad()
 			}
 			var value *bool
@@ -259,7 +265,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 		case "expected_generation":
 			err = d.Decode(&input.Expected)
 		case "password":
-			if !download {
+			if !download && !attachSave {
 				return bad()
 			}
 			err = readString(&input.Password)
@@ -293,7 +299,11 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 	if _, err := d.Token(); err != io.EOF || !seen["expected_generation"] || input.Expected == 0 || len(input.Certificate) > certificatepair.MaxBundleBytes || len(input.PrivateKey) > 64<<10 || len(input.KeyPassword) > 256 || len(input.OutputPassword) > 256 || len(input.Password) > 256 || !publicinventory.ValidOwner(input.Owner) || (input.Location != "" && publicinventory.ValidateLocation(input.Location) != nil) || (seen["primary_fingerprint"] && !publicinventory.ValidFingerprint(input.Primary)) {
 		return bad()
 	}
-	if download {
+	if attach {
+		if !publicinventory.ValidFingerprint(input.Fingerprint) || len(input.PrivateKey) == 0 || (attachSave && input.Password == "") {
+			return bad()
+		}
+	} else if download {
 		secret := input.Pair || input.KeyOnly
 		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || (input.Pair && input.KeyOnly) || (input.Bundle && secret) || (!secret && (seen["password"] || seen["output_password"])) || (secret && (input.Password == "" || len(input.OutputPassword) == 0)) {
 			return bad()
@@ -302,6 +312,65 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 		return bad()
 	}
 	return input, true
+}
+
+func (g *gate) attachCertificateKey(w http.ResponseWriter, r *http.Request, s session, input certificateInput) {
+	save := r.URL.Path == "/api/certificates/key/save"
+	if save {
+		if !g.allowAttempt() {
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, "too many attempts; wait one minute", http.StatusTooManyRequests)
+			return
+		}
+		setup, err := instanceaccess.Authenticate(g.accessPath, input.Password)
+		if err != nil || setup {
+			if errors.Is(err, instanceaccess.ErrWrongPassword) {
+				http.Error(w, "password not accepted", http.StatusUnauthorized)
+			} else {
+				http.Error(w, "authentication unavailable", http.StatusServiceUnavailable)
+			}
+			return
+		}
+	}
+	if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+		http.Error(w, "session no longer available", http.StatusUnauthorized)
+		return
+	}
+	var record publicinventory.Record
+	var err error
+	generation := input.Expected
+	if save {
+		record, generation, err = instanceaccess.AttachCertificateKey(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
+			input.PrivateKey, input.KeyPassword, input.Fingerprint, input.AllowMismatch)
+	} else {
+		record, err = instanceaccess.CheckCertificateKey(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
+			input.PrivateKey, input.KeyPassword, input.Fingerprint)
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, inventorystore.ErrKeyExists):
+			w.Header().Set("X-Rootwell-Refusal", "key-already-attached")
+			http.Error(w, "a key is already attached; no key was replaced", http.StatusConflict)
+		case errors.Is(err, browserprivateconvert.ErrInputPasswordRequired):
+			http.Error(w, "enter the selected key's current password", http.StatusUnprocessableEntity)
+		case errors.Is(err, certificatepair.ErrInvalid):
+			http.Error(w, "key or acknowledgement not accepted; no key was attached", http.StatusBadRequest)
+		default:
+			inventoryError(w, err)
+		}
+		return
+	}
+	if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+		if save {
+			// The atomic write completed, but this session cannot receive confirmation.
+			// Do not classify it as a definitive pre-write authentication refusal.
+			http.Error(w, "save outcome uncertain; sign in and refresh before retrying", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, "session no longer available", http.StatusUnauthorized)
+		}
+		return
+	}
+	g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{record}, generation)
 }
 
 func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s session, input certificateInput) {

@@ -8,6 +8,49 @@ import (
 	"testing"
 )
 
+func TestKeyAttachmentRequestModesAreStrict(t *testing.T) {
+	fp := strings.Repeat("AB:", 31) + "AB"
+	check := `{"fingerprint":"` + fp + `","expected_generation":2,"private_key":"AQ==","key_password":""}`
+	for _, route := range []string{"/api/certificates/key/check", "/api/certificates/key/save"} {
+		valid := check
+		if strings.HasSuffix(route, "save") {
+			valid = strings.TrimSuffix(check, "}") + `,"password":"fresh-instance-password","allow_mismatch":false}`
+		}
+		parse := func(body string) bool {
+			r := httptest.NewRequest("POST", route, strings.NewReader(body))
+			r.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			input, ok := readCertificateInput(w, r)
+			clear(input.PrivateKey)
+			clear(input.KeyPassword)
+			if !ok && strings.Contains(w.Body.String(), "secret-sentinel") {
+				t.Fatal("secret error reflection")
+			}
+			return ok
+		}
+		if !parse(valid) {
+			t.Fatal("valid attachment mode refused")
+		}
+		for _, extra := range []string{`,"certificate":"AQ=="`, `,"owner":"secret-sentinel"`, `,"location":"secret-sentinel"`, `,"primary_fingerprint":"` + fp + `"`, `,"pair":false`, `,"bundle":false`, `,"key_only":true`, `,"output_password":"AQ=="`, `,"private_key":"AQ=="`, `,"fingerprint":"` + fp + `"`} {
+			if parse(strings.TrimSuffix(valid, "}") + extra + "}") {
+				t.Fatal("wrong-mode or duplicate attachment field accepted")
+			}
+		}
+		for _, bad := range []string{strings.Replace(valid, `"private_key":"AQ=="`, `"private_key":""`, 1), strings.Replace(valid, `"private_key":"AQ=="`, `"private_key":null`, 1), strings.Replace(valid, `"expected_generation":2`, `"expected_generation":0`, 1), strings.Replace(valid, fp, "invalid", 1), valid + `{}`} {
+			if parse(bad) {
+				t.Fatal("malformed attachment accepted")
+			}
+		}
+		if strings.HasSuffix(route, "check") {
+			if parse(strings.TrimSuffix(check, "}")+`,"password":"secret-sentinel"}`) || parse(strings.TrimSuffix(check, "}")+`,"allow_mismatch":true}`) {
+				t.Fatal("check accepted save authority")
+			}
+		} else if parse(check) || parse(strings.TrimSuffix(check, "}")+`,"password":""}`) {
+			t.Fatal("save skipped fresh authentication input")
+		}
+	}
+}
+
 func TestCertificateRequestModesRejectMalformedAndAmbiguousJSON(t *testing.T) {
 	for _, body := range []string{
 		`{"certificate":"AA==","expected_generation":1,"private_key":"AA==","private_key":"AA=="}`,
@@ -32,15 +75,21 @@ func TestCertificateRequestModesRejectMalformedAndAmbiguousJSON(t *testing.T) {
 			t.Fatal("ambiguous request accepted or reflected")
 		}
 	}
-	for _, route := range []string{"/api/certificates/check", "/api/certificates/save", "/api/certificates/download"} {
+	for _, route := range []string{"/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save", "/saved-key-attachment.js"} {
 		g, _ := testGate(t)
-		w := call(g, "POST", route, `{}`, nil)
-		if w.Code != http.StatusUnauthorized {
+		method := "POST"
+		anonymous, setupOnly := http.StatusUnauthorized, http.StatusForbidden
+		if route == "/saved-key-attachment.js" {
+			method = "GET"
+			anonymous, setupOnly = http.StatusSeeOther, http.StatusSeeOther
+		}
+		w := call(g, method, route, `{}`, nil)
+		if w.Code != anonymous || (route == "/saved-key-attachment.js" && w.Header().Get("Location") != "/login") {
 			t.Fatal("anonymous custody endpoint opened")
 		}
 		setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
 		cookie := sessionCookie(t, setup)
-		if w := call(g, "POST", route, `{}`, cookie); w.Code != http.StatusForbidden {
+		if w := call(g, method, route, `{}`, cookie); w.Code != setupOnly || (route == "/saved-key-attachment.js" && w.Header().Get("Location") != "/setup") {
 			t.Fatal("setup custody endpoint opened")
 		}
 	}
