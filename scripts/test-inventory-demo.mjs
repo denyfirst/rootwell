@@ -42,7 +42,7 @@ try {
   assert.match(homeHTML, /No certificate uploads/);
   assert.doesNotMatch(homeHTML, /rootwell\.inventory\.workbench\.v1/, "GET must not hand off any saved certificate");
   assert.equal((await fetch(origin + "/")).url, origin + "/index.html");
-  for (const asset of ["style.css", "theme.js", "inventory.css", "certificate-library.js"]) {
+  for (const asset of ["style.css", "theme.js", "inventory.css", "certificate-library.js", "saved-key-attachment.js"]) {
     const response = await fetch(origin + "/" + asset); assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
   }

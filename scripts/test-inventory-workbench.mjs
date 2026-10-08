@@ -87,6 +87,14 @@ const inspect = start(JSON.stringify({...source,tool:"inspect"}));
 await settle();
 assert.equal(inspect.element("inspect-panel").hidden,false);
 assert.equal(inspect.element("explore-result").hidden,false);
+const convert = start(JSON.stringify({...source,tool:"convert"}));
+await settle();
+assert.equal(convert.element("convert-panel").hidden,false,"saved public certificate must open existing Convert");
+assert.equal(convert.element("convert-certificates").children.length,1);
+assert.equal(convert.element("private-convert-file").files.length,0,"handoff must never open a private key");
+assert.equal(convert.element("verify-result").hidden,true,"conversion is not trust");
+convert.events.pagehide();
+assert.equal(convert.element("explore-result").hidden,true);
 const replaced=start(JSON.stringify(source)); await settle();
 replaced.element("verify-replace-source").listeners.click();
 assert.equal(replaced.element("verify-simple-inputs").hidden,false);
@@ -98,7 +106,7 @@ const caView = start(JSON.stringify({...source,fingerprint:ca.fingerprint256,der
 await settle();
 assert.equal(caView.element("verify-button").disabled,true);
 assert.match(caView.element("verify-guided-source").textContent,/Nothing was transferred/);
-for (const bad of ["not JSON", "null", JSON.stringify({...source,owner:"secret"}), JSON.stringify({...source,tool:"convert"}),
+for (const bad of ["not JSON", "null", JSON.stringify({...source,owner:"secret"}), JSON.stringify({...source,tool:"private-convert"}),
   JSON.stringify({...source,fingerprint:"00:".repeat(31)+"00"}), JSON.stringify({...source,der:"%%%"}),
   JSON.stringify({...source,der:Buffer.alloc(65537).toString("base64")}), JSON.stringify({...source,der:Buffer.from("PRIVATE KEY").toString("base64")}),
   JSON.stringify({...source,der:publicCert("root").raw.toString("base64")})]) {

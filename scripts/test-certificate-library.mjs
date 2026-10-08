@@ -21,13 +21,13 @@ class Element {
   replaceChildren() {} appendChild() {}
 }
 const fingerprint=Array.from({length:32},()=>"AB").join(":");
-function fixture(readOnly=false) {
+function fixture(readOnly=false,savedKey=null) {
   const elements={}; const byId=id=>elements[id]??=new Element(id);
   byId("certificate-pair-form").dataset.readOnly=String(readOnly);
   const listeners={}, windowListeners={}, requests=[], downloads=[], timers=new Map(); let timerId=0, next=null;
   const record={fingerprint,subject:"<certificate-name>",not_after:"2027-01-01T00:00:00Z",has_private_key:true,key_status:"matched",bundle_count:1,expiry:{days_left:45}};
   const document={hidden:false,getElementById:byId,addEventListener(e,f){listeners[e]=f;},createElement(){return new Element();},body:{appendChild(el){ downloads.push(el); }}};
-  const context=vm.createContext({document,window:{addEventListener(e,f){windowListeners[e]=f;}},TextEncoder,TextDecoder,Uint8Array,AbortController,Blob,Date,crypto:webcrypto,
+  const context=vm.createContext({document,window:{addEventListener(e,f){windowListeners[e]=f;}},TextEncoder,TextDecoder,Uint8Array,AbortController,Blob,Date,crypto:webcrypto,rootwellSavedKey:savedKey,
     btoa:s=>Buffer.from(s,"binary").toString("base64"),URL:{createObjectURL(){return "blob:fixture";},revokeObjectURL(){}},
     rootwellInventoryImport:{async preview(files,current){ assert.equal(files.length,2);assert.equal(current(),true);return [{sha256:fingerprint}]; },async prepare(files,expected,current){assert.equal(files.length,2);assert.deepEqual([...expected],[fingerprint]);assert.equal(current(),true);return Uint8Array.from([7,8,9]);}},
     setTimeout(fn,ms){ const id=++timerId; timers.set(id,{fn,ms}); return id; },clearTimeout(id){timers.delete(id);},
@@ -50,6 +50,15 @@ function fixture(readOnly=false) {
   return {elements,byId,library,requests,downloads,listeners,windowListeners,document,timers,record,file,get reads(){return reads;},override(fn){next=fn;}};
 }
 const event={preventDefault(){}};
+{
+  const calls=[];let editing=false;
+  const saved={reset(){calls.push("reset");editing=false;},snapshot(g){calls.push(["snapshot",g]);},isEditing(){return editing;},open(record,g){calls.push(["open",record.fingerprint,g]);editing=true;}};
+  const f=fixture(false,saved);calls.length=0;f.library.openAttach({...f.record,has_private_key:false},1);
+  assert.deepEqual(calls,["reset",["open",fingerprint,1]]);assert.equal(f.library.isEditing(),true);
+  f.library.openDownload(f.record,1);assert.equal(editing,false,"Download must clear pending attachment");
+  calls.length=0;f.library.snapshot(2);assert.deepEqual(calls,[["snapshot",2],"reset"]);
+  calls.length=0;f.library.openAttach(f.record,2);f.library.openAttach({...f.record,has_private_key:false},1);assert.equal(calls.length,0,"existing/stale key attachment offered");
+}
 {
   const f=fixture();
   assert.equal(f.byId("pair-save").disabled,false,"Save should not require a manual Check");

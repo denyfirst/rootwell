@@ -13,6 +13,7 @@
   <script src="/inventory-import.js" defer></script>
   <script src="/inventory-lifecycle.js" defer></script>
   <script src="/certificate-library.js" defer></script>
+  <script src="/saved-key-attachment.js" defer></script>
   <script src="/inventory.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
@@ -183,8 +184,25 @@
         </form>
       </section>
     </div>
+    <section id="saved-key-panel" class="card" hidden>
+      <h2>Add a private key</h2><p id="saved-key-name"></p>
+      <p>Your saved certificate, bundle and notes stay unchanged. The selected key goes only to your own Rootwell. An existing key cannot be replaced here.</p>
+      <form id="saved-key-form">
+        <label for="saved-key-file">Private key</label><input id="saved-key-file" type="file" accept=".pem,.key,.der" required>
+        <details><summary>My private key has a password</summary>
+          <label for="saved-key-input-password">Current key password</label><input id="saved-key-input-password" type="password" maxlength="256" autocomplete="off">
+        </details>
+        <button id="saved-key-check" type="button">Check first (optional)</button>
+        <p id="saved-key-status" role="status" aria-live="polite"></p>
+        <label id="saved-key-warning" class="confirm-row" hidden><input id="saved-key-consent" type="checkbox"> I understand this key does not match. Save it only as a separate attachment, not a usable certificate/key pair.</label>
+        <label for="saved-key-auth">Your Rootwell password — confirm before saving</label><input id="saved-key-auth" type="password" maxlength="256" autocomplete="off" required>
+        <button id="saved-key-save" type="submit" disabled>Save private key</button><button id="saved-key-close" type="button" class="secondary">Cancel</button>
+      </form>
+      <p>Up to 64 KiB; PKCS#8, RSA PKCS#1, EC SEC1 or supported encrypted PKCS#8. A match is not certificate trust. Make a new full backup after saving.</p>
+    </section>
     <section id="certificate-download" class="card" hidden>
       <h2>Download certificate</h2><p id="download-name"></p>
+      <p>Need another format? Use <strong>Convert format</strong> under the certificate's Details and manage. Only the public certificate opens in Workbench. For private-key or PFX conversion, download the encrypted key, then explicitly select it in Convert; keys are never opened automatically.</p>
       <form id="certificate-download-form">
         <label for="download-kind">What do you need?</label>
         <select id="download-kind"><option value="certificate">Certificate only — PEM</option><option value="pair">Matching certificate + encrypted key — ZIP</option><option value="key">Encrypted private key only — PEM</option><option value="bundle">All included public certificates — PEM bundle</option></select>

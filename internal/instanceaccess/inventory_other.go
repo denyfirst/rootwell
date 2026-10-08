@@ -13,6 +13,12 @@ func AppendCertificate(_ string, _, _ []byte, _ [32]byte, _ uint64, _, _, _ []by
 func AppendCertificateMaterial(_ string, _, _ []byte, _ [32]byte, _ uint64, _, _, _ []byte, _, _, _ string, _ bool) (publicinventory.Record, uint64, error) {
 	return publicinventory.Record{}, 0, ErrRecoveryUnsupported
 }
+func CheckCertificateKey(_ string, _, _ []byte, _ [32]byte, _ uint64, _, _ []byte, _ string) (publicinventory.Record, error) {
+	return publicinventory.Record{}, ErrRecoveryUnsupported
+}
+func AttachCertificateKey(_ string, _, _ []byte, _ [32]byte, _ uint64, _, _ []byte, _ string, _ bool) (publicinventory.Record, uint64, error) {
+	return publicinventory.Record{}, 0, ErrRecoveryUnsupported
+}
 func WithCertificate(_ string, _, _ []byte, _ [32]byte, _ uint64, _ string, _ func(publicinventory.Record, []byte) error) error {
 	return ErrRecoveryUnsupported
 }

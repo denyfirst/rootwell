@@ -54,7 +54,7 @@ const blockedTheme = themeFixture(null, true); blockedTheme.click();
 assert.equal(blockedTheme.root.dataset.theme, "dark"); assert.equal(blockedTheme.writes.length, 0);
 
 class Element {
-  constructor() { this.value = ""; this.textContent = ""; this.children = []; this.listeners = {}; this.disabled = false; this.checked = false; this.files = []; }
+  constructor() { this.value = ""; this.textContent = ""; this.children = []; this.listeners = {}; this.disabled = false; this.checked = false; this.files = []; this.dataset = {}; }
   addEventListener(name, fn) { this.listeners[name] = fn; }
   appendChild(node) { this.children.push(node); }
   replaceChildren() { this.children = []; }
@@ -76,6 +76,7 @@ ids.push("clock-as-of", "expiry-filter", "inventory-search");
 ids.push("delete-panel", "delete-form", "delete-target", "delete-fingerprint", "confirm-delete", "delete-button", "delete-cancel", "delete-status");
 ids.push("monitor-summary", "warning-days", "auto-refresh");
 ids.push("preview-button", "import-preview", "preview-summary", "preview-records");
+ids.push("certificate-pair-form");
 const elements = Object.fromEntries(ids.map(id => [id, new Element()]));
 elements["expiry-filter"].value = "all";
 elements["warning-days"].value = "30";
@@ -187,7 +188,7 @@ const workbenchForm = firstDetails.children.find(node => node.className === "wor
 assert.equal(workbenchForm.action,"/workbench");
 assert.equal(workbenchForm.method,"post");
 assert.deepEqual(workbenchForm.children.map(node=>[node.name,node.value]),
-  [["fingerprint","ab:cd"],["expected_generation","2"],["tool","inspect"],["tool","verify"]]);
+  [["fingerprint","ab:cd"],["expected_generation","2"],["tool","inspect"],["tool","verify"],["tool","convert"]]);
 let stoppedNavigation=false;
 workbenchForm.listeners.submit({preventDefault(){stoppedNavigation=true;}});
 assert.equal(stoppedNavigation,false,"current explicit form may navigate");

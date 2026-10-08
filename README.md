@@ -33,6 +33,13 @@ see the [inventory threat model](docs/INVENTORY-THREAT-MODEL.md) and
 
 ## Project doctrine
 
+Saved public-only certificates now offer **Add private key** without re-import:
+optional Check, fresh Rootwell password and Save. Existing keys cannot be
+replaced; certificate/bundle/notes stay intact. **Details → Convert format**
+opens only the public certificate in the existing Workbench converter. A
+private key is never automatically handed off; use encrypted key download and
+explicit selection for key/PFX conversion. See [ADR 0048](docs/adr/0048-saved-key-attachment-and-convert-handoff.md).
+
 The current development increment adds an optional **Inspect → Check key
 match locally** action and one **Certificates → Add a certificate** flow for
 a certificate/related public bundle plus optional key. Save always checks;

@@ -328,7 +328,7 @@
         field.value = value;
         openForm.appendChild(field);
       }
-      for (const [tool, label] of [["inspect", "Inspect"], ["verify", "Verify"]]) {
+      for (const [tool, label] of [["inspect", "Inspect"], ["verify", "Verify"], ["convert", "Convert format"]]) {
         const button = document.createElement("button");
         button.type = "submit";
         button.name = "tool";
@@ -368,6 +368,20 @@
         }
       });
       item.appendChild(downloadButton);
+      if (record.has_private_key !== true) {
+        const attachKeyButton = document.createElement("button");
+        attachKeyButton.type = "button";
+        attachKeyButton.className = "secondary";
+        attachKeyButton.textContent = "Add private key";
+        attachKeyButton.disabled = document.getElementById("certificate-pair-form").dataset.readOnly === "true";
+        attachKeyButton.addEventListener("click", () => {
+          if (!saving && !associating && !editingOwner && !changingLocation && !deleting &&
+              !document.hidden && displayedGeneration === snapshotGeneration && snapshotAge() < 120000) {
+            globalThis.rootwellCertificateLibrary?.openAttach(record, snapshotGeneration);
+          }
+        });
+        item.appendChild(attachKeyButton);
+      }
       if (record.imported_at) addText(details,"small","Saved at (server clock): " + record.imported_at);
       addText(details, "small", "The listed servers are your notes; deployment has not been checked.");
       addText(details, "small", "SHA-256: " + record.fingerprint);

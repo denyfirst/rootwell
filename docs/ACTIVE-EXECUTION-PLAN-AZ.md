@@ -1,13 +1,23 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-07. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-08. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
 
 ## Məhsul prinsipi
 
-**Cari UX increment — ADR 0047:** Inspect-də lokal certificate/key match;
+**Cari increment — ADR 0048:** açarsız saxlanmış sertifikata sonradan private
+key əlavə etmək; optional Check, fresh Rootwell parolu və Save. Sertifikat,
+bundle, qeydlər və import tarixi dəyişmir. Mövcud açar əvəz edilmir; mismatch
+yalnız explicit təsdiqlə loose attachment olur. Details → Convert format
+yalnız public sertifikatı mövcud Workbench Convert-ə açır. Secret avtomatik
+ötürülmür; key/PFX üçün şifrəli key download və explicit seçim qalır. Linux
+storage/restore, refusal, UI və sabotage sınaqları + bütün CI/self-review
+qapılarından sonra növbəti iş ACME staging/account/challenge sərhədini
+planlamaqdır; bu increment real CA/domain enrollment etmir.
+
+**Əvvəlki UX increment — ADR 0047:** Inspect-də lokal certificate/key match;
 Certificates-də bir sertifikat/bundle və ya eyni chain-in ayrı public faylları
 + optional key + qeyd + Save. Check optionaldır, Save həmişə yoxlayır. Mismatch
 yalnız explicit təsdiqlə ayrı attachment olur; matching pair deyil. Əsas

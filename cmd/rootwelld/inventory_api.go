@@ -94,7 +94,7 @@ func readWorkbenchSelection(w http.ResponseWriter, r *http.Request) (string, uin
 		}
 	}
 	if err != nil || generation == 0 || generation > 9007199254740991 || strconv.FormatUint(generation, 10) != rawGeneration ||
-		!validFingerprint || (tool != "inspect" && tool != "verify") {
+		!validFingerprint || (tool != "inspect" && tool != "verify" && tool != "convert") {
 		http.Error(w, "invalid selection", http.StatusBadRequest)
 		return "", 0, "", false
 	}

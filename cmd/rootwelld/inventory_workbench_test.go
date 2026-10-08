@@ -16,12 +16,12 @@ import (
 
 func TestWorkbenchSelectionIsExactBoundedAndNonUploading(t *testing.T) {
 	valid := "fingerprint=" + strings.Repeat("AB%3A", 31) + "AB&expected_generation=2&tool=inspect"
-	for _, body := range []string{valid, strings.Replace(valid, "inspect", "verify", 1)} {
+	for _, body := range []string{valid, strings.Replace(valid, "inspect", "verify", 1), strings.Replace(valid, "inspect", "convert", 1)} {
 		r := httptest.NewRequest("POST", "/workbench", strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 		fp, gen, tool, ok := readWorkbenchSelection(w, r)
-		if !ok || fp != strings.Repeat("AB:", 31)+"AB" || gen != 2 || (tool != "inspect" && tool != "verify") {
+		if !ok || fp != strings.Repeat("AB:", 31)+"AB" || gen != 2 || (tool != "inspect" && tool != "verify" && tool != "convert") {
 			t.Fatal("valid explicit selection refused")
 		}
 	}
@@ -29,7 +29,7 @@ func TestWorkbenchSelectionIsExactBoundedAndNonUploading(t *testing.T) {
 		valid + "&tool=verify", valid + "&certificate=secret", valid + "&owner=private-note",
 		strings.Replace(valid, "generation=2", "generation=02", 1), strings.Replace(valid, "generation=2", "generation=0", 1),
 		strings.Replace(valid, "generation=2", "generation=9007199254740992", 1),
-		strings.Replace(valid, "inspect", "convert", 1), strings.ReplaceAll(valid, "AB", "ab"),
+		strings.Replace(valid, "inspect", "private-convert", 1), strings.ReplaceAll(valid, "AB", "ab"),
 		strings.Replace(valid, "AB", "GG", 1), valid + "%ZZ", strings.Repeat("x", 1025),
 		"fingerprint=%FF&expected_generation=2&tool=inspect", "tool=inspect",
 	} {
