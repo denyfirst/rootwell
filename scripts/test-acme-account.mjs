@@ -23,6 +23,7 @@ function fixture() {
     fetch:async(url,options)=>{
       assert.ok(["/api/acme/account/status", "/api/acme/account/prepare"].includes(url));
       assert.equal(options.method,"POST"); assert.equal(options.credentials,"same-origin"); assert.equal(options.cache,"no-store");
+      assert.equal(options.redirect,"error","reauthentication must never follow a redirect");
       assert.equal(options.headers["X-Rootwell-Request"],"1");
       const input=JSON.parse(options.body); requests.push({url,input});
       if(url.endsWith("status")) assert.deepEqual(input,{provider:"letsencrypt-staging"});
@@ -75,3 +76,6 @@ for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},
   f.document.hidden=true;f.events.visibilitychange();assert.equal(f.el("acme-account-identity").textContent,"");assert.equal(f.el("acme-account-details").hidden,true);
 }
 console.log("Account-key UI: explicit local status/preparation, fresh password, no overwrites/storage, strict capabilities and late/uncertain refusal passed.");
+for(const response of [()=>new Response(JSON.stringify(saved),{status:201,headers:{"cache-control":"no-store","content-type":"application/jsonp"}}),()=>reply({...saved,prepared_at:"2019-01-01T00:00:00Z"},201)]) {
+  const f=fixture();await f.refresh();f.approve();f.override(response);await f.prepare();assert.doesNotMatch(f.el("acme-account-status").textContent,/saved encrypted/);
+}

@@ -83,3 +83,8 @@ Adversarial self-review added an explicit import/HTTP-selector capability guard
 to the local account API, rather than relying only on its lack of provider calls.
 This complements the existing architecture and no-network API fixtures; it is
 a regression check, not a runtime sandbox or an independent audit.
+The same self-review tightened browser fetch to refuse redirects explicitly,
+clear its owned serialized request body before awaiting a response, and require
+exact JSON media type and the same prepared-date policy as storage. Redirect
+policy/media/date refusal is covered by the UI regression harness. Already
+copied browser/runtime strings still cannot be reliably erased.

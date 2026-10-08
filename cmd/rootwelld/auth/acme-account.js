@@ -17,7 +17,7 @@
     status.textContent = data.saved ? "Test account key saved encrypted. Make a new complete backup. Not registered with the provider; no certificate can be requested yet." : "No test account key saved. You can prepare one below; it stays on your Rootwell.";
   };
   const read = async (response, current, controller) => {
-    if (!response.ok || response.headers.get("cache-control") !== "no-store" || !response.headers.get("content-type")?.startsWith("application/json") || !response.body) throw new Error();
+    if (!response.ok || response.headers.get("cache-control") !== "no-store" || response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json" || !response.body) throw new Error();
     const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal:true });
     let text = "", size = 0;
     try {
@@ -36,7 +36,8 @@
         !(data.state === "not-prepared" && data.saved === false && data.fingerprint === "" && data.prepared_at === "" ||
           data.state === "key-prepared" && data.saved === true && data.generation >= 2 && fingerprint.test(data.fingerprint) &&
           typeof data.prepared_at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(data.prepared_at) &&
-          Number.isFinite(Date.parse(data.prepared_at)) && new Date(data.prepared_at).toISOString() === data.prepared_at.replace("Z", ".000Z"))) throw new Error();
+          Number.isFinite(Date.parse(data.prepared_at)) && new Date(data.prepared_at).getUTCFullYear() >= 2020 &&
+          new Date(data.prepared_at).toISOString() === data.prepared_at.replace("Z", ".000Z"))) throw new Error();
     return data;
   };
   const run = async prepare => {
@@ -51,11 +52,12 @@
     status.textContent = prepare ? "Preparing an encrypted local key… No provider connection." : "Reading local saved key status…";
     const timer = setTimeout(() => { if (current === generation) { reset(); status.textContent = uncertain; } }, 10000);
     try {
-      const request = {method:"POST", credentials:"same-origin", cache:"no-store", signal:controller.signal,
+      const request = {method:"POST", credentials:"same-origin", cache:"no-store", redirect:"error", signal:controller.signal,
         headers:{"Content-Type":"application/json", "X-Rootwell-Request":"1"}, body:JSON.stringify(input)};
       input.password = "";
-      const response = await fetch(prepare ? "/api/acme/account/prepare" : "/api/acme/account/status", request);
+      const pending = fetch(prepare ? "/api/acme/account/prepare" : "/api/acme/account/status", request);
       request.body = "";
+      const response = await pending;
       if (current !== generation || document.hidden || controller.signal.aborted) return;
       if (response.status === 401 || response.status === 403) { status.textContent = "Password or session not accepted. Sign in if needed, then check saved key status."; return; }
       if (response.status === 429) { status.textContent = "Too many password attempts. Wait one minute, then check status again."; return; }
