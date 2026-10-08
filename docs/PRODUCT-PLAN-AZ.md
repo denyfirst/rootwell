@@ -418,6 +418,10 @@ göndərmir. Preference və axtarış browser yaddaşında qalır, private key s
 
 ### Mərhələ 4 — ACME issuance və renewal
 
+2026-10-08, ADR 0049: ilk increment yalnız şəbəkəsiz staging setup sintaksis
+yoxlamasıdır. Account/issuance/renewal hələ yoxdur. Sonrakı capability qapıları
+[ACME təhlükəsizlik planında](ACME-THREAT-MODEL.md) ayrıca göstərilir.
+
 **Məqsəd:** əvvəl standard protokol ilə yeni certificate almaq.
 
 - ACME account və External Account Binding

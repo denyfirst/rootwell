@@ -170,6 +170,8 @@ jobs:
           node --check cmd/rootwelld/auth/inventory.js
           node --check cmd/rootwelld/auth/certificate-library.js
           node --check cmd/rootwelld/auth/saved-key-attachment.js
+          node --check cmd/rootwelld/auth/acme-setup.js
+          node --check scripts/test-acme-setup.mjs
           node --check scripts/test-saved-key-attachment.mjs
           node --check scripts/test-certificate-library.mjs
           node --check cmd/rootwelld/auth/inventory-engine.js
@@ -207,6 +209,7 @@ jobs:
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-certificate-library.mjs
           node scripts/test-saved-key-attachment.mjs
+          node scripts/test-acme-setup.mjs
           node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
 

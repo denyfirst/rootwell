@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
+  <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script>
+</head>
+<body class="workspace inventory-workspace">
+  <aside class="rail" aria-label="Primary navigation">
+    <div class="rail-identity"><a class="wordmark" href="/index.html" aria-label="Rootwell home"><span>root</span>well</a><span class="rail-tag">Self-host</span></div>
+    <p class="rail-caption" id="rail-workspace">Workspace</p><nav class="rail-nav" aria-labelledby="rail-workspace">
+      <a class="rail-item" href="/index.html"><span class="rail-glyph" aria-hidden="true">◇</span>Workbench</a>
+      <a class="rail-item" href="/certificates"><span class="rail-glyph" aria-hidden="true">◎</span>Certificates</a>
+      <a class="rail-item" href="/automation" aria-current="page"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Setup</span></a>
+    </nav>
+    <p class="rail-caption" id="rail-security">Security</p><nav class="rail-nav" aria-labelledby="rail-security"><a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span>Access</a></nav>
+    <div class="rail-foot"><div class="local-state"><span aria-hidden="true"></span>Your Rootwell server</div><button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button></div>
+  </aside>
+  <div class="workspace-main"><header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Automation</strong></p><p class="boundary">Setup only · no CA connection</p></header>
+  <main>
+    <section class="work-heading"><h1>Plan a test certificate</h1><p>Check your names and how you will prove control of them. This does not request a certificate.</p></section>
+    <aside class="storage-note" aria-label="Setup boundary"><strong>No external connection</strong><p>Check setup sends these names only to your own Rootwell. Nothing is saved. No account, key, DNS change, certificate or renewal is created. Account integration is the next development step.</p></aside>
+    <section class="card"><h2>1. Choose your test setup</h2>
+      <form id="acme-form">
+        <label for="acme-provider">Certificate provider</label><select id="acme-provider"><option value="letsencrypt-staging">Let's Encrypt — staging (test only)</option></select>
+        <label for="acme-domains">Domains you control — one per line</label><textarea id="acme-domains" rows="4" maxlength="8192" autocomplete="off" spellcheck="false" placeholder="example.com&#10;www.example.com" required></textarea>
+        <p>Up to 32 unique ASCII DNS names. No URLs, IP addresses or internal names. Use ASCII names for international domains. Checking syntax does not prove ownership or CA acceptance.</p>
+        <label for="acme-challenge">How will you prove domain control?</label><select id="acme-challenge"><option value="dns-01">Add a DNS TXT record manually — supports wildcards</option><option value="http-01">Place a file on your public website — no wildcards</option></select>
+        <p id="acme-help">You need permission to edit DNS records. No DNS API password is needed for this planned manual flow.</p>
+        <button id="acme-check" type="submit" disabled>Check setup</button><button id="acme-clear" type="button" class="secondary">Clear</button>
+        <p id="acme-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+    <section id="acme-result" class="card" hidden><h2>2. Your setup summary</h2><ul id="acme-names"></ul><p id="acme-method"></p><details><summary>Planned CA endpoint</summary><p id="acme-directory"></p></details><p>Syntax checked only. No account or challenge exists yet. Certificate issuance and automatic renewal are not available in this increment. Staging certificates are for tests, not ordinary browser trust.</p></section>
+    <section class="card"><h2>What comes next?</h2><p>Connect a staging account with explicit approval → prove domain control → request a certificate → save the certificate and its key together in Certificates. Renewal and server deployment have separate safety gates.</p></section>
+  </main></div>
+</body>
+</html>

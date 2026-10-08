@@ -1127,6 +1127,25 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C70 — ACME setup checking grants no network, storage or issuance authority
+
+The fixed staging setup route accepts only bounded strict provider/challenge/
+domains JSON from a ready, current same-origin session. It rejects malformed,
+duplicate/unknown/secret fields, unsupported profiles/proofs/names and HTTP-01
+wildcards. It does not resolve domains, connect to a CA, generate a key/CSR,
+accept terms, save settings or provision challenges. All response execution
+capabilities remain false; syntax success is not ownership or CA eligibility.
+The UI rejects mismatched or capability-granting responses and clears pending
+results on input change, hiding, navigation, deadline and Clear. This regression
+boundary is not a sandbox or independent audit; future network/account work
+requires its own reviewed authority and recovery gates.
+
+Guarded by `TestACMEPlanChecksSyntaxWithoutGrantingCapabilities`,
+`TestACMEPlanJSONIsBoundedStrictAndSecretFree`,
+`TestACMEPlanGateHasNoCAOrPersistenceCapability`,
+`TestACMESetupHasNoOutboundOrPersistenceImports`, `FuzzACMEPlanRequestJSON`
+and `scripts/test-acme-setup.mjs`.
+
 ## C69 — Saved-key attachment never overwrites or silently transfers a secret
 
 ADR 0048 permits only adding a strict key to an authenticated public-only
