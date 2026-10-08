@@ -58,6 +58,16 @@ use explicit non-system root pools and therefore do not exercise native verifier
 network access. Native platform support requires its own reviewed trust boundary,
 not InsecureSkipVerify, ad-hoc verification, or a hidden environment bypass.
 
+Container review also found the prior scratch runtime had no system CA bundle.
+Both serving and isolated trust-drill targets now inherit one trust-base that
+copies the public Debian root bundle from the pinned Go build image. The drill
+has network=none/read-only/non-root/no capabilities and checks that Go loads
+nonempty system roots and still rejects a synthetic CA. No staging issuance
+root or test root enters the serving image. Root-bundle refresh follows reviewed
+base-image updates/rebuilds, not a runtime download or mutable host mount.
+A separate network-free process deliberately hides both root file/directory
+sources and must fail specifically with the missing-system-roots diagnosis.
+
 Total deadline 8 seconds; dial 3, TLS and headers 4, headers 8 KiB, body 32 KiB.
 No compression, redirect, non-200 response or retry. Recheck live session/context
 before resolver/dial/TLS completion/response/result. A request already sent

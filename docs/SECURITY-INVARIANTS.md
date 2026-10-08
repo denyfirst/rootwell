@@ -1171,6 +1171,7 @@ Guarded by `TestDirectoryDiscoveryUsesOnePinnedTLSGETWithoutSecrets`,
 `TestDirectoryInFlightLogoutRefusesResultAndConcurrentCheck`,
 `TestStagingLivePlatformBoundary`,
 `TestDirectoryNativePreviewRefusesBeforeCooldownOrConnection`,
+`TestStagingContainerSystemTrustWithoutNetwork`,
 `TestWorkbenchHasNoNetworkOrProcessImports`, `FuzzStagingDirectory`,
 `FuzzDirectoryConsent` and `scripts/test-acme-directory.mjs`.
 

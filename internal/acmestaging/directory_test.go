@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"os"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -320,5 +321,25 @@ func TestStagingLivePlatformBoundary(t *testing.T) {
 	// Even a supported build must not look up DNS without authorization.
 	if result, err := Discover(context.Background(), func() bool { return false }); err == nil || result.NetworkUsed {
 		t.Fatal("unapproved live connector used network")
+	}
+}
+
+// CI runs this inside the scratch trust-base, sharing the actual serving image's
+// public CA bundle. The container has network=none; DNS/dial below are synthetic.
+func TestStagingContainerSystemTrustWithoutNetwork(t *testing.T) {
+	if os.Getenv("ROOTWELL_CA_TRUST_DRILL") != "1" {
+		t.Skip("isolated container drill only")
+	}
+	if !Available() {
+		t.Fatal("container is not Linux")
+	}
+	roots, err := x509.SystemCertPool()
+	if err != nil || roots == nil || roots.Equal(x509.NewCertPool()) {
+		t.Fatal("serving trust-base has no loadable system roots")
+	}
+	deps, _ := fakeCA(t, func(w http.ResponseWriter, r *http.Request) { t.Error("synthetic CA was unexpectedly system-trusted") })
+	deps.tls.RootCAs = nil // Actual system bundle, not the test root override.
+	if result, err := discover(context.Background(), func() bool { return true }, deps); err == nil || result.NetworkUsed {
+		t.Fatal("synthetic issuer became system-trusted")
 	}
 }
