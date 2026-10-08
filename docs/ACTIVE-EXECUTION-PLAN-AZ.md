@@ -7,7 +7,14 @@ keçir. Porch repository-si bu işin xaricindədir.
 
 ## Məhsul prinsipi
 
-**Cari increment — ADR 0048:** açarsız saxlanmış sertifikata sonradan private
+**Cari increment — ADR 0049:** Automation daxilində şəbəkəsiz ACME staging
+setup yoxlaması: domenlər + manual DNS/HTTP üsulu. Heç nə saxlanmır, CA-ya
+göndərilmir, account/key/challenge/sertifikat yaradılmır. Sadə UI, strict API,
+sessiya/origin və gecikmiş cavab sərhədləri test olunur. Sonra ayrıca reviewed
+client/transport + fake CA, encrypted account və manual DNS issuance mərhələləri
+gəlir; [təhlükəsizlik planı](ACME-THREAT-MODEL.md) həmin qapıları müəyyən edir.
+
+**Tamamlanan increment — ADR 0048:** açarsız saxlanmış sertifikata sonradan private
 key əlavə etmək; optional Check, fresh Rootwell parolu və Save. Sertifikat,
 bundle, qeydlər və import tarixi dəyişmir. Mövcud açar əvəz edilmir; mismatch
 yalnız explicit təsdiqlə loose attachment olur. Details → Convert format

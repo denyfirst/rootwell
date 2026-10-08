@@ -1,6 +1,7 @@
 package architecture
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -46,6 +47,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/gate.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/certificate_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
@@ -67,4 +69,45 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 
 func forbiddenImport(path string) bool {
 	return path == "net" || strings.HasPrefix(path, "net/") || path == "os/exec" || path == "plugin" || path == "unsafe"
+}
+
+// This regression guard is not a sandbox: new ACME capabilities need an
+// explicit boundary review, not an accidental client/storage import.
+func TestACMESetupHasNoOutboundOrPersistenceImports(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	for path, allowed := range map[string]map[string]bool{
+		"internal/acmeplan/plan.go": {"errors": true, "strings": true, "github.com/denyfirst/rootwell/internal/csrworkbench": true},
+		"cmd/rootwelld/acme_api.go": {"bytes": true, "encoding/json": true, "io": true, "mime": true, "net/http": true, "unicode/utf8": true, "github.com/denyfirst/rootwell/internal/acmeplan": true},
+	} {
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, imported := range file.Imports {
+			value, err := strconv.Unquote(imported.Path.Value)
+			if err != nil || !allowed[value] || imported.Name != nil {
+				t.Errorf("unreviewed ACME setup import in %s: %s", path, imported.Path.Value)
+			}
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			selector, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			id, ok := selector.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if id.Name == "http" && !strings.HasPrefix(selector.Sel.Name, "Status") &&
+				selector.Sel.Name != "Error" && selector.Sel.Name != "MaxBytesReader" &&
+				selector.Sel.Name != "Request" && selector.Sel.Name != "ResponseWriter" && selector.Sel.Name != "MethodPost" {
+				t.Errorf("outbound-capable http selector in %s: %s", path, selector.Sel.Name)
+			}
+			if id.Name == "csrworkbench" && selector.Sel.Name != "NormalizeDNSNames" {
+				t.Errorf("key/CSR capability in setup: %s", selector.Sel.Name)
+			}
+			return true
+		})
+	}
 }

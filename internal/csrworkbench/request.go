@@ -444,6 +444,16 @@ func summarize(request *x509.CertificateRequest, format string) (Summary, error)
 	return result, nil
 }
 
+// NormalizeDNSNames shares the offline CSR syntax policy without generating a
+// signer or CSR. It performs no resolution, issuance or ownership verification.
+func NormalizeDNSNames(names []string) ([]string, error) {
+	t, err := template(Params{DNSNames: names})
+	if err != nil {
+		return nil, err
+	}
+	return t.DNSNames, nil
+}
+
 func template(params Params) (*x509.CertificateRequest, error) {
 	if len(params.DNSNames) > 32 || len(params.IPAddresses) > 8 || len(params.DNSNames)+len(params.IPAddresses) == 0 {
 		return nil, ErrNames

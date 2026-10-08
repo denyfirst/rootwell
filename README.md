@@ -60,6 +60,9 @@ legacy-image behavior and the independent production-audit gate.
 
 ## Plans
 
+- Automation currently checks staging setup syntax only: no CA connection,
+  account, saved configuration or issuance. See the [ACME boundary](docs/ACME-THREAT-MODEL.md)
+  and [setup decision](docs/adr/0049-acme-staging-setup-check.md).
 - [Product and execution plan](docs/PRODUCT-PLAN-AZ.md)
 - [Historical expanded platform vision](docs/PLATFORM-VISION-AZ.md)
 - [Engineering workflow](docs/ENGINEERING.md)
