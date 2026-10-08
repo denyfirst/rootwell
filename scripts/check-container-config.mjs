@@ -26,6 +26,12 @@ export function checkContainerConfig(config) {
   requireBoundary(sameTargets(server, ['/data']), 'server.volumes');
   requireBoundary(sameTargets(maintenance, ['/data', '/backup']), 'maintenance.volumes');
   requireBoundary(maintenance.stdin_open === true && maintenance.tty === true, 'maintenance.terminal');
+  const logging = maintenance.logging;
+  const options = logging?.options;
+  requireBoundary(logging?.driver === 'none' &&
+    (options === undefined || (options !== null && typeof options === 'object' &&
+      !Array.isArray(options) && Object.keys(options).length === 0)),
+    'maintenance.logging');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

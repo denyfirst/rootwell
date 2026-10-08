@@ -11,10 +11,25 @@ const valid = {
     rootwell: { ...restricted, network_mode: 'host', volumes: [{ target: '/data' }] },
     maintenance: { ...restricted, network_mode: 'none',
       volumes: [{ target: '/data' }, { target: '/backup' }],
-      stdin_open: true, tty: true },
+      stdin_open: true, tty: true, logging: { driver: 'none' } },
   },
 };
 checkContainerConfig(valid);
+const explicitEmptyLogOptions = structuredClone(valid);
+explicitEmptyLogOptions.services.maintenance.logging.options = {};
+checkContainerConfig(explicitEmptyLogOptions);
+// Serving diagnostics remain available; only interactive maintenance is silent.
+const serverDiagnostics = structuredClone(valid);
+serverDiagnostics.services.rootwell.logging = { driver: 'local' };
+checkContainerConfig(serverDiagnostics);
+
+for (const logging of [undefined, null, false, 'none', [], {}, { driver: 'json-file' },
+  { driver: 'local' }, { driver: 'syslog' }, { driver: 'none', options: { tag: 'unsafe' } },
+  ...[null, false, '', [], 0].map((options) => ({ driver: 'none', options }))]) {
+  const capturedMaintenance = structuredClone(valid);
+  capturedMaintenance.services.maintenance.logging = logging;
+  assert.throws(() => checkContainerConfig(capturedMaintenance), /maintenance\.logging/);
+}
 
 // Acceptance sabotage: expose backups to the serving process.
 const overprivileged = structuredClone(valid);

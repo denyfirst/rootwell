@@ -27,6 +27,10 @@ services:
     pids_limit: 128
     stdin_open: true
     tty: true
+    # Interactive setup/recovery output may contain secrets; a TTY alone does
+    # not prevent Docker's default logging driver from retaining that output.
+    logging:
+      driver: "none"
     volumes:
       - type: bind
         source: ${ROOTWELL_DATA_DIR:?set an absolute private data path}

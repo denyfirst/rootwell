@@ -13,6 +13,9 @@ if [[ "$drill_root" != "${RUNNER_TEMP}/rootwell-volume-"* ]]; then
   exit 1
 fi
 cleanup() {
+  if [[ -n "${maintenance_probe_id:-}" ]]; then
+    docker rm -f "$maintenance_probe_id" >/dev/null 2>&1 || true
+  fi
   docker compose -f compose.yaml -p rootwell-volume-ci down --remove-orphans >/dev/null 2>&1 || true
   rm -rf -- "$drill_root"
 }
@@ -49,6 +52,30 @@ if [[ "$(docker image inspect --format '{{.Config.User}}' rootwell:local)" != "6
 fi
 docker compose -f compose.yaml -p rootwell-volume-ci --profile maintenance config --format json \
   | node scripts/check-container-config.mjs
+
+# Public usage output, never an actual credential. Prove attached output still
+# works while Docker's container log driver cannot retain it. -T prevents a CI
+# terminal requirement; the production maintenance service still requires TTY.
+maintenance_probe_name="rootwell-maintenance-${drill_root##*/}"
+probe_exit=0
+probe_output="$(docker compose -f compose.yaml -p rootwell-volume-ci run \
+  --name "$maintenance_probe_name" --no-deps -T maintenance logging-drill 2>&1)" || probe_exit=$?
+maintenance_probe_id="$(docker inspect --format '{{.Id}}' "$maintenance_probe_name")"
+if [[ "$probe_exit" != 2 ]] || ! grep -Fq 'usage: rootwelld init' <<< "$probe_output"; then
+  echo "maintenance attached public-output probe failed" >&2
+  exit 1
+fi
+if [[ "$(docker inspect --format '{{.HostConfig.LogConfig.Type}}' "$maintenance_probe_id")" != "none" ]]; then
+  echo "maintenance container may retain interactive secrets" >&2
+  exit 1
+fi
+probe_logs="$(docker logs "$maintenance_probe_id" 2>&1)" || true
+if grep -Fq 'usage: rootwelld init' <<< "$probe_logs"; then
+  echo "maintenance output was available through Docker logs" >&2
+  exit 1
+fi
+docker rm "$maintenance_probe_id" >/dev/null
+maintenance_probe_id=''
 
 volume_test() {
   local phase="$1"

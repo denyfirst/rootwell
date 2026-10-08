@@ -38,6 +38,16 @@ servisi dayandırın. Parolu, recovery kodunu və ya private key-i argv, env,
 `.env`, chat, ticket və loga yazmayın. Bütün maintenance əmrləri interaktiv
 TTY tələb edir və şəbəkəsiz konteynerdə işləyir.
 
+Maintenance xidmətində `logging.driver: none` var: interaktiv göstərilən ilkin
+parol/recovery kodu Docker container loglarına yazılmır. Təkcə TTY bunu təmin
+etmir. Serving xidmətinin secretsiz diaqnostik logları açıq qalır. Compose-dan
+kənar `docker run` qurulumunda ayrıca `--log-driver none` seçilməlidir. Bu,
+terminal recording, screenshot, host administratoru və ya dəyişdirilmiş/custom
+Compose konfiqurasiyasına qarşı qoruma deyil. Yeni parametr köhnə konteynerə
+retroaktiv tətbiq edilmir və əvvəlki logları silmir; köhnə qurulumda loga düşmüş
+ola bilən parol/kodu dəyişmək və log nüsxələrini idarə etmək operatorun işidir.
+Yuxarıdakı `run --rm` hər dəfə yenilənmiş konfiqurasiyadan yeni konteyner yaradır.
+
 ```sh
 docker compose stop rootwell
 docker compose run --rm maintenance recovery-enroll /data
@@ -105,5 +115,8 @@ icazəsi açılmış data qovluğunun rəddi və təmiz volume-a bərpanı yoxla
 Server konteynerinə yalnız `/data` mount edildiyini və restore edilmiş
 volume-dan UI-nin açıldığını da yoxlayır. Test parolu və kodu yalnız həmin
 disposable testdə mövcuddur; real istifadəçi volume-u sınağa daxil edilmir.
+Maintenance container-in həqiqi logging driver-i `none` olmalıdır; ayrıca
+secretsiz usage çıxışı attached terminala çatır, amma `docker logs` ilə
+geri oxuna bilmir. Bu probe real parol yaratmır və data dəyişmir.
 Bu sınaq bütün storage/snapshot fault-larını, host compromise-u, offsite
 dayanıqlığını və audit ehtiyacını aradan qaldırmır.
