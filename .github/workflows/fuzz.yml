@@ -90,6 +90,10 @@ jobs:
             package: ./internal/acmestaging
           - target: FuzzDirectoryConsent
             package: ./cmd/rootwelld
+          - target: FuzzStagingAccountRequest
+            package: ./cmd/rootwelld
+          - target: FuzzStagingAccountPayload
+            package: ./internal/inventorystore
     steps:
       - name: Check out the default branch
         run: |

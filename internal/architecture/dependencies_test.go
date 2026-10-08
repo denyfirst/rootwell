@@ -49,6 +49,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/certificate_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_directory_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_account_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"

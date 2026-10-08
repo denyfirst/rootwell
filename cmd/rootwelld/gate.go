@@ -141,6 +141,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/directory":
 		g.acmeDirectoryEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/account/status", "/api/acme/account/prepare":
+		g.acmeAccountEndpoint(w, r, s, signedIn)
+		return
 	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":
 		g.certificateEndpoint(w, r, s, signedIn)
 		return
@@ -162,7 +165,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/acme-setup.js", "/acme-directory.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -182,6 +185,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme-setup.js", "text/javascript; charset=utf-8")
 		case "/acme-directory.js":
 			g.authAsset(w, r, "auth/acme-directory.js", "text/javascript; charset=utf-8")
+		case "/acme-account.js":
+			g.authAsset(w, r, "auth/acme-account.js", "text/javascript; charset=utf-8")
 		case "/inventory", "/certificates":
 			w.Header().Set("Referrer-Policy", "same-origin")
 			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'none'", "form-action 'self'", 1))

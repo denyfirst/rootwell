@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -42,7 +42,20 @@
       <div class="actions"><button id="acme-connect" type="button" disabled>Check provider connection</button></div>
       <p id="acme-connect-status" role="status" aria-live="polite"></p>
     </section>
-    <section class="card"><h2>What comes next?</h2><p>Connect a staging account with explicit approval → prove domain control → request a certificate → save the certificate and its key together in Certificates. Renewal and server deployment have separate safety gates.</p></section>
+    <section class="card"><h2>Prepare your test account key</h2>
+      <p>Rootwell needs a separate key to identify itself to the test provider. It is not your certificate's private key. This step generates and saves it encrypted on your own Rootwell, without contacting the provider or accepting its terms.</p>
+      <p>Linux or Linux Docker only, with the encrypted store and recovery already initialized. The key is included in complete backups, not access-only backups.</p>
+      <div class="actions"><button id="acme-account-refresh" type="button" class="secondary">Check saved key status</button></div>
+      <p id="acme-account-status" role="status" aria-live="polite">Status not checked. Nothing is created automatically.</p>
+      <details id="acme-account-details" hidden><summary>Saved key identity</summary><p id="acme-account-identity"></p></details>
+      <form id="acme-account-form" class="csr-form" hidden>
+        <label for="acme-account-password">Your current Rootwell password</label><input id="acme-account-password" type="password" maxlength="256" autocomplete="off" required>
+        <label class="confirm-row" for="acme-account-consent"><input id="acme-account-consent" type="checkbox" autocomplete="off"> Generate and save one local test account key</label>
+        <button id="acme-account-prepare" type="submit" disabled>Prepare and save key</button>
+        <p>No domains or email are sent. No CA account or certificate is created. An existing key will never be replaced.</p>
+      </form>
+    </section>
+    <section class="card"><h2>What comes next?</h2><p>Register the prepared key with staging after a separate provider-terms decision → prove domain control → request a certificate → save the certificate and its key together in Certificates. Renewal and server deployment have separate safety gates.</p></section>
     </div>
   </main></div>
 </body>

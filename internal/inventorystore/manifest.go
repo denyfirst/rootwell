@@ -46,6 +46,7 @@ type manifest struct {
 	History        []sealedRecord `json:"history,omitempty"`
 	Keys           []sealedRecord `json:"keys,omitempty"`
 	Materials      []sealedRecord `json:"materials,omitempty"`
+	ACMEAccounts   []sealedRecord `json:"acme_accounts,omitempty"`
 }
 
 type envelope struct {
@@ -431,6 +432,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if err := authenticateMaterials(key, id, m, records); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if _, err := accountStatus(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

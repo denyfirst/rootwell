@@ -61,7 +61,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
-	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added":
+	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared":
 	default:
 		return false
 	}

@@ -57,6 +57,36 @@ func TestFullSnapshotPasswordAndCodeRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFullSnapshotRetainsStagingAccountKeyAndHistory(t *testing.T) {
+	body, image, password, code, key, id := fullFixture(t)
+	defer clear(key)
+	next, account, gen, err := inventorystore.PrepareStagingAccount(key, id, image, 2)
+	if err != nil || gen != 3 {
+		t.Fatal("account preparation failed")
+	}
+	snapshot, err := createFullSnapshot(body, next, password, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		credential string
+		method     SnapshotUnlock
+	}{{password, SnapshotPassword}, {code, SnapshotRecoveryCode}} {
+		_, _, restored, generation, err := openFullSnapshot(snapshot, tc.credential, tc.method)
+		if err != nil || generation != 3 || !bytes.Equal(restored, next) {
+			t.Fatal("full snapshot changed account image")
+		}
+		status, _, err := inventorystore.ReadStagingAccount(key, id, restored)
+		if err != nil || status != account {
+			t.Fatal("restored account changed identity")
+		}
+		events, _, err := inventorystore.History(key, id, restored)
+		if err != nil || len(events) != 2 || events[1].Action != "acme-key-prepared" {
+			t.Fatal("snapshot lost account history")
+		}
+	}
+}
+
 func TestFullSnapshotRefusesWrongCredentialsAndIncompletePairs(t *testing.T) {
 	body, image, password, code, key, id := fullFixture(t)
 	for _, tc := range []struct{ password, code string }{{"wrong", code}, {password, "wrong"}} {

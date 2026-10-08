@@ -1175,6 +1175,39 @@ Guarded by `TestDirectoryDiscoveryUsesOnePinnedTLSGETWithoutSecrets`,
 `TestWorkbenchHasNoNetworkOrProcessImports`, `FuzzStagingDirectory`,
 `FuzzDirectoryConsent` and `scripts/test-acme-directory.mjs`.
 
+## C72 — Local staging account-key custody is not CA registration
+
+Only ready same-origin Linux authority, fresh instance password, the shared
+attempt/KDF budget and explicit true confirmation can prepare one P-256 key.
+Exact displayed image generation and access revision are rechecked under the
+writer lock; live permission is checked immediately before atomic replacement.
+No overwrite, secret import/export, account URL, terms acceptance, issuance or
+new network authority. Status grants no write authority. Post-commit loss of
+confirmation requires a status refresh, never a blind new key.
+
+A dedicated HKDF-purpose/AES-GCM entry binds installation, staging identity,
+generation and canonical prepared-only payload. Every complete-image read
+authenticates and validates it before output. Public metadata/history expose
+only identity/time/action, not signer/password. One account event and signer
+commit together; certificate operations preserve it. Full snapshot, recovery
+and container restart/restore retain the same signer. Access-only backups do
+not. Old binaries refuse the new field. Manual backup, compromised hosts,
+runtime copies and authenticated complete-image rollback remain explicit risks.
+
+Guarded by `TestStagingAccountPreparationIsEncryptedAtomicAndPreserved`,
+`TestStagingAccountTamperPurposeAndPayloadRefuseBeforeOutput`,
+`TestStagingAccountPreparationPreservesCertificateKeyCustody`,
+`TestFullSnapshotRetainsStagingAccountKeyAndHistory`,
+`TestNativeStagingAccountStoreRefusesBeforeIOOrPermit`,
+`TestAccountRequestStrictShapesNeverAcceptSecretsOrAuthority`,
+`TestAccountGateReadyOriginAndNativeRefusal`,
+`TestLinuxStagingAccountDurableRefusalsFullRestoreAndRecovery`,
+`TestLinuxStagingAccountDiskFaultAndUncertainCommit`,
+`TestLinuxAccountAPIReauthStaleAndNoReplacement`,
+`TestLinuxAccountRequestLogoutAndCancellationCannotWrite`,
+`TestContainerVolumeDrill`, `FuzzStagingAccountRequest`,
+`FuzzStagingAccountPayload` and `scripts/test-acme-account.mjs`.
+
 ## C69 — Saved-key attachment never overwrites or silently transfers a secret
 
 ADR 0048 permits only adding a strict key to an authenticated public-only
