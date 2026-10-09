@@ -1,6 +1,6 @@
 # ACME staged implementation boundary
 
-Date: 2026-10-08. Single operator, existing loopback access gate. Porch is
+Date: 2026-10-09. Single operator, existing loopback access gate. Porch is
 excluded. Offline Workbench acquires no CA network capability.
 
 ## First increment: setup check, not issuance
