@@ -58,6 +58,10 @@ func registrationProof(t *testing.T, g *gate, cookie *http.Cookie) string {
 func TestLinuxRegistrationReauthPreviewBindingIntentAndReconciliation(t *testing.T) {
 	g, cookie, path, s := preparedRegistrationGate(t)
 	defer clear(s.dataKey[:])
+	// Freeze the gate clock so slow race/KDF runs do not accidentally expire
+	// the shared attempt window while this scenario exercises several refusals.
+	at := g.now()
+	g.now = func() time.Time { return at }
 	before, _ := os.ReadFile(path)
 	proof := registrationProof(t, g, cookie)
 	calls := 0
@@ -105,7 +109,13 @@ func TestLinuxRegistrationReauthPreviewBindingIntentAndReconciliation(t *testing
 		}
 		return apiAccount, false, nil
 	}
-	g.directoryLast = g.now().Add(-time.Minute)
+	// Login, preparation and the three password checks used the five-attempt
+	// budget. Reconciliation must refuse first, then work after a real window.
+	w = accountCall(g, "POST", "/api/acme/registration/reconcile", registrationReconcileInput, cookie, "http://"+localHost, true)
+	if w.Code != 429 || finds != 0 {
+		t.Fatal("reconciliation bypassed the shared attempt window")
+	}
+	at = at.Add(time.Minute + time.Second)
 	w = accountCall(g, "POST", "/api/acme/registration/reconcile", registrationReconcileInput, cookie, "http://"+localHost, true)
 	if w.Code != 200 || finds != 1 || strings.Contains(w.Body.String(), apiAccount) || strings.Contains(w.Body.String(), apiTerms) {
 		t.Fatal("reconciliation failed or released account URL")
