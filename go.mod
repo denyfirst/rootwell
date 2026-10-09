@@ -1,6 +1,6 @@
 module github.com/denyfirst/rootwell
 
-go 1.26.7
+go 1.26.9
 
 require (
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78

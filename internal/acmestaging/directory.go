@@ -1,5 +1,5 @@
-// Package acmestaging is an opt-in, directory-only outbound connector.
-// It cannot create accounts, sign requests, or issue certificates.
+// Package acmestaging provides separate opt-in staging directory and account
+// connectors. The directory-only capability cannot sign or register accounts.
 package acmestaging
 
 import (
@@ -74,6 +74,24 @@ func discover(ctx context.Context, permit func() bool, deps dependencies) (Summa
 	if !allowed() {
 		return Summary{}, errRefused
 	}
+	transport := pinnedTransport(ctx, allowed, deps)
+	defer transport.CloseIdleConnections()
+	guard := &directoryTransport{base: transport, allowed: allowed}
+	client := &acme.Client{
+		DirectoryURL: acmeplan.Directory, UserAgent: "Rootwell-directory-check",
+		HTTPClient:   &http.Client{Transport: guard, CheckRedirect: func(*http.Request, []*http.Request) error { return errRefused }},
+		RetryBackoff: func(int, *http.Request, *http.Response) time.Duration { return 0 },
+	}
+	if _, err := client.Discover(ctx); err != nil || !allowed() {
+		return Summary{}, errRefused
+	}
+	return Summary{Schema: "rootwell.acme.directory.v1", Provider: acmeplan.Provider,
+		Directory: acmeplan.Directory, State: "directory-checked", NetworkUsed: true}, nil
+}
+
+// Shared fixed-host TLS/DNS policy; each capability supplies its own request
+// allowlist and deadline. No caller-controlled endpoint or root override.
+func pinnedTransport(ctx context.Context, allowed func() bool, deps dependencies) *http.Transport {
 	transport := &http.Transport{
 		Proxy: nil, TLSClientConfig: deps.tls,
 		TLSHandshakeTimeout: 4 * time.Second, ResponseHeaderTimeout: 4 * time.Second,
@@ -120,18 +138,7 @@ func discover(ctx context.Context, permit func() bool, deps dependencies) (Summa
 		}
 		return secure, nil
 	}
-	defer transport.CloseIdleConnections()
-	guard := &directoryTransport{base: transport, allowed: allowed}
-	client := &acme.Client{
-		DirectoryURL: acmeplan.Directory, UserAgent: "Rootwell-directory-check",
-		HTTPClient:   &http.Client{Transport: guard, CheckRedirect: func(*http.Request, []*http.Request) error { return errRefused }},
-		RetryBackoff: func(int, *http.Request, *http.Response) time.Duration { return 0 },
-	}
-	if _, err := client.Discover(ctx); err != nil || !allowed() {
-		return Summary{}, errRefused
-	}
-	return Summary{Schema: "rootwell.acme.directory.v1", Provider: acmeplan.Provider,
-		Directory: acmeplan.Directory, State: "directory-checked", NetworkUsed: true}, nil
+	return transport
 }
 
 type directoryTransport struct {

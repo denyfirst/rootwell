@@ -7,7 +7,7 @@ assert.doesNotMatch(source, /innerHTML|localStorage|sessionStorage|console\.|Web
 assert.match(html, /not your certificate's private key/);
 assert.match(html, /without contacting the provider or accepting its terms/);
 assert.match(html, /complete backups, not access-only backups/);
-const empty = {schema_version:"rootwell.acme.account-key.v1", provider:"letsencrypt-staging", generation:1, state:"not-prepared", fingerprint:"", prepared_at:"", saved:false, network_used:false, account_created:false, terms_accepted:false, can_issue:false};
+const empty = {schema_version:"rootwell.acme.account-key.v1", provider:"letsencrypt-staging", generation:1, state:"not-prepared", fingerprint:"", prepared_at:"", saved:false, network_used:false, account_created:false, terms_accepted:false, can_issue:false, registration_state:"not-registered"};
 const saved = {...empty, generation:2, state:"key-prepared", fingerprint:Array(32).fill("AB").join(":"), prepared_at:"2026-10-08T12:00:00Z", saved:true};
 class Element {
   constructor() { this.value=""; this.checked=false; this.disabled=false; this.hidden=false; this.textContent=""; this.listeners={}; }

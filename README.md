@@ -67,6 +67,14 @@ legacy-image behavior and the independent production-audit gate.
   native Windows/macOS remains offline preview. See the [ACME boundary](docs/ACME-THREAT-MODEL.md),
   [setup decision](docs/adr/0049-acme-staging-setup-check.md) and
   [directory transport](docs/adr/0050-acme-staging-directory-transport.md).
+- **Prepare account key** creates only a locally encrypted staging identity.
+  The separate **Register your test account** flow requires a current terms
+  preview, explicit agreement and fresh Rootwell password. Uncertain outcomes
+  stay pending; **Check existing account** reconciles using the same key without
+  creating an account. This is Linux/Docker development-only, not certificate
+  issuance or production readiness. Full backups include the account identity;
+  repeat a manual backup after transitions and do not downgrade. See
+  [staging registration](docs/adr/0053-staging-account-registration.md).
 - [Product and execution plan](docs/PRODUCT-PLAN-AZ.md)
 - [Historical expanded platform vision](docs/PLATFORM-VISION-AZ.md)
 - [Engineering workflow](docs/ENGINEERING.md)

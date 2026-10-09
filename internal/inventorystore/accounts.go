@@ -22,16 +22,18 @@ var ErrAccountExists = errors.New("a staging account key is already prepared")
 
 // AccountStatus is public metadata, never an account signer or enrollment token.
 type AccountStatus struct {
-	State       string `json:"state"`
-	Fingerprint string `json:"fingerprint"`
-	PreparedAt  string `json:"prepared_at"`
+	State        string `json:"state"`
+	Fingerprint  string `json:"fingerprint"`
+	PreparedAt   string `json:"prepared_at"`
+	Registration string `json:"registration_state"`
 }
 
 type accountPayload struct {
-	Provider   string `json:"provider"`
-	State      string `json:"state"`
-	PreparedAt string `json:"prepared_at"`
-	PrivateKey []byte `json:"private_key"`
+	Provider     string               `json:"provider"`
+	State        string               `json:"state"`
+	PreparedAt   string               `json:"prepared_at"`
+	PrivateKey   []byte               `json:"private_key"`
+	Registration *accountRegistration `json:"registration,omitempty"`
 }
 
 func accountID() []byte {
@@ -58,7 +60,7 @@ func ReadStagingAccount(key, id, image []byte) (AccountStatus, uint64, error) {
 
 func accountStatus(key, id []byte, m manifest) (AccountStatus, error) {
 	if len(m.ACMEAccounts) == 0 {
-		return AccountStatus{State: "not-prepared"}, nil
+		return AccountStatus{State: "not-prepared", Registration: "not-registered"}, nil
 	}
 	if len(m.ACMEAccounts) != 1 {
 		return AccountStatus{}, ErrInvalid
@@ -79,7 +81,7 @@ func accountStatus(key, id []byte, m manifest) (AccountStatus, error) {
 	defer clear(plain)
 	var p accountPayload
 	defer func() { clear(p.PrivateKey) }()
-	if !strictJSON(plain, &p) || p.Provider != acmeplan.Provider || p.State != "key-prepared" || len(p.PrivateKey) == 0 || len(p.PrivateKey) > 512 {
+	if !strictJSON(plain, &p) || p.Provider != acmeplan.Provider || p.State != "key-prepared" || len(p.PrivateKey) == 0 || len(p.PrivateKey) > 512 || !validRegistration(p.Registration, p.PreparedAt) {
 		return AccountStatus{}, ErrInvalid
 	}
 	at, err := time.Parse(time.RFC3339, p.PreparedAt)
@@ -109,7 +111,11 @@ func accountStatus(key, id []byte, m manifest) (AccountStatus, error) {
 	for i := range parts {
 		parts[i] = hexID[i*2 : i*2+2]
 	}
-	return AccountStatus{State: p.State, Fingerprint: strings.Join(parts, ":"), PreparedAt: p.PreparedAt}, nil
+	registration := "not-registered"
+	if p.Registration != nil {
+		registration = p.Registration.State
+	}
+	return AccountStatus{State: p.State, Fingerprint: strings.Join(parts, ":"), PreparedAt: p.PreparedAt, Registration: registration}, nil
 }
 
 // PrepareStagingAccount creates one signer, with no network or terms authority.

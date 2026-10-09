@@ -47,6 +47,9 @@ there is no external anti-rollback anchor or reliable runtime zeroization.
 
 ## Next capability gates
 
+The separately authorized registration/reconciliation increment is implemented
+by ADR 0053. The original local preparation boundary below is unchanged.
+
 Registration will reuse this same durable signer, require fresh authentication
 and an explicit current terms decision, bound all nonce/JWS/account URLs and
 responses, and persist uncertain outcomes for same-key reconciliation. An

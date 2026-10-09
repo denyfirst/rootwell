@@ -302,6 +302,11 @@ bir dəfəlik təsdiq, tam backup/bərpa və mövcud açarın qorunmasını təm
 CA registration/terms/issuance olduğunu iddia etmir. Sonra eyni saxlanmış açar
 ilə staging registration/reconciliation, daha sonra manual DNS-01 order gəlir.
 
+ADR 0053 registration/reconciliation increment-i eyni açar, cari terms-link
+preview, fresh parol, durable pending və full restore ilə həyata keçirir.
+Hələ certificate issuance deyil. Növbəti ayrıca increment manual DNS-01 order,
+domain-bound challenge təlimatı və explicit provisioned acknowledgement-dır.
+
 - Dəqiq trust boundary və “nəyi sübut etmir” qeydi.
 - Uğur, rədd, malformed, stale-selection və abuse sınaqları; iki istiqamətli
   qəsdən pozma testi.

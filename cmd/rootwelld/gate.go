@@ -36,22 +36,26 @@ type session struct {
 }
 
 type gate struct {
-	accessPath     string
-	assets         *os.Root
-	host           string
-	now            func() time.Time
-	derive         chan struct{}
-	mu             sync.Mutex
-	sessions       map[[32]byte]session
-	attempts       []time.Time
-	monitorMu      sync.Mutex
-	monitor        monitorObservation
-	monitorStop    chan struct{}
-	monitorDone    chan struct{}
-	monitorRead    func(session) ([]publicinventory.Record, uint64, error)
-	directoryCheck directoryCheck
-	directoryBusy  bool
-	directoryLast  time.Time
+	accessPath          string
+	assets              *os.Root
+	host                string
+	now                 func() time.Time
+	derive              chan struct{}
+	mu                  sync.Mutex
+	sessions            map[[32]byte]session
+	attempts            []time.Time
+	monitorMu           sync.Mutex
+	monitor             monitorObservation
+	monitorStop         chan struct{}
+	monitorDone         chan struct{}
+	monitorRead         func(session) ([]publicinventory.Record, uint64, error)
+	directoryCheck      directoryCheck
+	directoryBusy       bool
+	directoryLast       time.Time
+	registrationPreview *registrationPreview
+	registrationTerms   termsCheck
+	registrationCreate  accountRegister
+	registrationFind    accountFind
 }
 
 func newGate(accessPath, assetsDir, host string) (*gate, error) {
@@ -144,6 +148,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/account/status", "/api/acme/account/prepare":
 		g.acmeAccountEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":
+		g.acmeRegistrationEndpoint(w, r, s, signedIn)
+		return
 	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":
 		g.certificateEndpoint(w, r, s, signedIn)
 		return
@@ -165,7 +172,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -187,6 +194,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme-directory.js", "text/javascript; charset=utf-8")
 		case "/acme-account.js":
 			g.authAsset(w, r, "auth/acme-account.js", "text/javascript; charset=utf-8")
+		case "/acme-registration.js":
+			g.authAsset(w, r, "auth/acme-registration.js", "text/javascript; charset=utf-8")
 		case "/inventory", "/certificates":
 			w.Header().Set("Referrer-Policy", "same-origin")
 			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'none'", "form-action 'self'", 1))
@@ -362,6 +371,9 @@ func (g *gate) revokeSession(w http.ResponseWriter, r *http.Request) {
 // Best-effort erasure of the map-held key. Go may retain copies until GC;
 // this is not a guarantee against a compromised process memory image.
 func (g *gate) forgetSessionLocked(id [32]byte) {
+	if g.registrationPreview != nil && g.registrationPreview.session == id {
+		g.registrationPreview = nil
+	}
 	if s, ok := g.sessions[id]; ok {
 		s.dataKey = [32]byte{}
 		s.installationID = [16]byte{}

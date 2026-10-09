@@ -94,6 +94,10 @@ jobs:
             package: ./cmd/rootwelld
           - target: FuzzStagingAccountPayload
             package: ./internal/inventorystore
+          - target: FuzzStagingRegistrationResponse
+            package: ./internal/acmestaging
+          - target: FuzzStagingRegistrationRequest
+            package: ./cmd/rootwelld
     steps:
       - name: Check out the default branch
         run: |

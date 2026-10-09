@@ -39,6 +39,15 @@ func addEvent(key []byte, m *manifest, action string, ids []string) error {
 	if len(m.History) >= maxHistory {
 		return ErrLimit
 	}
+	// Generic certificate/note writes cannot consume a pending account's last
+	// completion slot. Finishing registration has already changed its state.
+	status, err := accountStatus(key, m.InstallationID, *m)
+	if err != nil {
+		return err
+	}
+	if status.Registration == "registration-pending" && (len(m.History) >= maxHistory-1 || m.Generation >= maxGeneration) {
+		return ErrLimit
+	}
 	event := Event{Generation: m.Generation, At: time.Now().UTC().Format("2006-01-02T15:04:05Z"), Action: action, Fingerprints: ids}
 	if !validEvent(event) {
 		return ErrInvalid
@@ -61,7 +70,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
-	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared":
+	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent":
 	default:
 		return false
 	}

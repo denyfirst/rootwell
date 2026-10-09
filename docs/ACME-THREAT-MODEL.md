@@ -53,7 +53,44 @@ refreshing the existing key's status, not generating/replacing it. Old binaries
 refuse the new manifest field. Manual backups and complete-image rollback risks
 remain. Preparation grants no authority to the directory-only connector.
 
-## Sequence and gates
+## Fourth increment: explicit registration, not issuance
+
+ADR 0053 adds a separate five-minute, single-use current-terms preview bound
+to the ready session, revision, image generation and account fingerprint.
+No automatic connection/terms agreement. Registration needs fresh Rootwell
+authentication and explicit agreement; a fresh directory read must match the
+displayed terms URL before nonce/POST. Only the account public JWK and signed
+terms-agreement request leave the daemon; no domain/email/password/private key.
+The maintained pinned ACME client supplies JWS, never custom signing code.
+
+Encrypted pending intent commits before network authority. The private writer
+lock spans the bounded operation; reserve a history/generation completion slot.
+Failures retain the same key/pending state. Separate fresh-password confirmed
+reconciliation uses onlyReturnExisting with no creation/terms fallback. A
+strictly validated absence permits a new explicit preview/registration later;
+a validated existing account is saved without exposing its account URL.
+Whole-image validation, history, complete backup/restore and offline password
+recovery retain key and registration identity. No account replacement/export.
+
+At most directory GET, nonce HEAD and newAccount POST, to fixed staging paths,
+ten-second total deadline and inherited pinned DNS/TLS/header/body/no-proxy/
+no-redirect/no-retry policy. Strict request JWS and CA JSON preflight strips
+extension/error/Link metadata before the upstream parser. Account/orders URLs
+are validated, never fetched. Terms links are constrained to canonical Let's
+Encrypt document URLs; the operator reads the external document, not Rootwell.
+URL equality is not document-content verification or a legal interpretation.
+One global provider operation, shared fresh-auth budgets and RAM cooldown; an
+approved registration may immediately follow its own preview, not another read.
+
+Tests use only a synthetic isolated TLS CA and verify real JWS. CI also restores
+synthetic registered account metadata across actual container processes; it
+does not register with the public CA. Browser VM tests are not visual QA.
+Native preview remains offline. No order/challenge/issuance/renewal/deployment,
+production enrollment, EAB, custom CA or anti-rollback claim. A lost response,
+post-rename error, old complete backup or already-sent request can still require
+manual same-key reconciliation. Repeat manual full backup after transitions.
+
+## Subsequent capability gates
 
 1. Directory-only dependency/transport increment implemented in ADR 0050;
    broader ACME/Pebble protocol testing remains future work. Explicit ready-session opt-in
