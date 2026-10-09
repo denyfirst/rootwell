@@ -1,18 +1,26 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-08. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-09. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
 
 ## Məhsul prinsipi
 
-**Cari increment — ADR 0050:** ayrıca explicit təsdiqlə staging directory-yə
+**Cari increment — ADR 0053:** eyni şifrəli staging account açarı ilə cari
+terms-link preview, explicit razılıq və fresh paroldan sonra registration.
+Şəbəkədən əvvəl durable pending yazılır; qeyri-müəyyən nəticə yalnız həmin
+açarla ayrıca reconciliation edilir. Certificate order/issuance hələ yoxdur.
+Növbəti increment: manual DNS-01 order, domenə bağlı real TXT təlimatı və
+istifadəçinin qeydi yerləşdirdiyini ayrıca təsdiqləməsi. Production və
+müstəqil audit ayrıca qapıdır; aşağıdakı əvvəlki increment-lər tarixi sıradır.
+
+**Tamamlanan increment — ADR 0050:** ayrıca explicit təsdiqlə staging directory-yə
 bir təhlükəsiz GET. Domen/key göndərilmir, account/sertifikat yaradılmır, heç nə
 saxlanmır. TLS, DNS/IP pinning, redirect/proxy/retry rəddi, limit/cooldown,
 saxta TLS CA və UI/session refusal sınaqları. Real bağlantı Linux/Docker üçündür;
 native Windows/macOS əlavə OS şəbəkə yoxlaması riski səbəbilə offline preview qalır.
-Növbəti increment: Linux-da
+Həmin mərhələnin növbəti işi Linux-da
 şifrəli staging account custody + explicit ToS/reauth və qeyri-müəyyən
 registration nəticəsinin təhlükəsiz reconciliation-u; sonra manual DNS issuance.
 
@@ -42,7 +50,7 @@ Public bundle və şifrəli key-only download əlavə olunur; Linux full restore
 bundle, açar və hesablanmış statusu birlikdə saxlamalıdır. Əvvəlki ADR 0046
 matched-only giriş məhdudiyyəti bu qərarla əvəzlənir.
 
-Cari prioritet: **vahid Certificates kitabxanası** (ADR 0046). Certificate seç,
+Əvvəlki prioritet: **vahid Certificates kitabxanası** (ADR 0046). Certificate seç,
 istəsən private açar seç, uyğunluğu yoxla, istəsən servis qeydi yaz və Save.
 Siyahıda vaxt və key-present vəziyyəti; private download üçün fresh password.
 İnventory/Vault ayrı istifadəçi bölmələri deyil. SSH/PGP/browser remote access
@@ -301,6 +309,11 @@ ADR 0051 lokal şifrəli account-key hazırlığı ayrıdır. Sonuncu fresh paro
 bir dəfəlik təsdiq, tam backup/bərpa və mövcud açarın qorunmasını təmin edir;
 CA registration/terms/issuance olduğunu iddia etmir. Sonra eyni saxlanmış açar
 ilə staging registration/reconciliation, daha sonra manual DNS-01 order gəlir.
+
+ADR 0053 registration/reconciliation increment-i eyni açar, cari terms-link
+preview, fresh parol, durable pending və full restore ilə həyata keçirir.
+Hələ certificate issuance deyil. Növbəti ayrıca increment manual DNS-01 order,
+domain-bound challenge təlimatı və explicit provisioned acknowledgement-dır.
 
 - Dəqiq trust boundary və “nəyi sübut etmir” qeydi.
 - Uğur, rədd, malformed, stale-selection və abuse sınaqları; iki istiqamətli

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -55,7 +55,24 @@
         <p>No domains or email are sent. No CA account or certificate is created. An existing key will never be replaced.</p>
       </form>
     </section>
-    <section class="card"><h2>What comes next?</h2><p>Register the prepared key with staging after a separate provider-terms decision → prove domain control → request a certificate → save the certificate and its key together in Certificates. Renewal and server deployment have separate safety gates.</p></section>
+    <section class="card"><h2>Register your test account</h2>
+      <p>Use the saved key with Let's Encrypt staging. Your Rootwell sends its account public key and a signed request — never the private key, Rootwell password, domains or email. The provider sees your server's network address. This does not request a certificate.</p>
+      <div class="actions"><button id="acme-registration-refresh" type="button" class="secondary">Check saved registration status</button></div>
+      <p id="acme-registration-status" role="status" aria-live="polite">Status not checked. Nothing connects automatically.</p>
+      <div id="acme-registration-controls" hidden>
+        <label class="confirm-row" for="acme-registration-network"><input id="acme-registration-network" type="checkbox" autocomplete="off"> Allow this staging provider operation</label>
+        <button id="acme-registration-preview" type="button" class="secondary" disabled>Show current provider terms</button>
+        <p id="acme-registration-terms" hidden><a id="acme-registration-link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Read the provider terms on Let's Encrypt's website</a>. Rootwell checks the current link; it does not fetch or interpret the document. This opens an external website only if you click it.</p>
+        <form id="acme-registration-form" class="csr-form" hidden>
+          <label id="acme-registration-agreement" class="confirm-row" for="acme-registration-agree"><input id="acme-registration-agree" type="checkbox" autocomplete="off"> I have read and agree to these provider terms for this test registration</label>
+          <label for="acme-registration-password">Your current Rootwell password</label><input id="acme-registration-password" type="password" maxlength="256" autocomplete="off" required>
+          <button id="acme-registration-submit" type="submit" disabled>Register test account</button>
+          <p id="acme-registration-action-help">The saved key will not be replaced. Refresh status after an interrupted request before trying anything else.</p>
+        </form>
+      </div>
+      <p>Linux or Linux Docker only. Make a new complete backup after a saved transition. An uncertain result is checked using the same key, with no automatic registration retry.</p>
+    </section>
+    <section class="card"><h2>What comes next?</h2><p>After test registration: prove domain control → request a certificate → save the certificate and its key together in Certificates. Certificate requests, renewal and server deployment are not enabled yet.</p></section>
     </div>
   </main></div>
 </body>

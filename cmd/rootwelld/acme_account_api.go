@@ -97,6 +97,7 @@ type accountOutput struct {
 	AccountCreated bool   `json:"account_created"`
 	TermsAccepted  bool   `json:"terms_accepted"`
 	CanIssue       bool   `json:"can_issue"`
+	Registration   string `json:"registration_state"`
 }
 
 func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -187,5 +188,6 @@ func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		w.WriteHeader(http.StatusCreated)
 	}
 	_ = json.NewEncoder(w).Encode(accountOutput{Schema: "rootwell.acme.account-key.v1", Provider: acmeplan.Provider, Generation: generation,
-		State: status.State, Fingerprint: status.Fingerprint, PreparedAt: status.PreparedAt, Saved: status.State == "key-prepared"})
+		State: status.State, Fingerprint: status.Fingerprint, PreparedAt: status.PreparedAt, Saved: status.State == "key-prepared", Registration: status.Registration,
+		AccountCreated: status.Registration == "registered", TermsAccepted: status.Registration == "registered"})
 }

@@ -1199,6 +1199,8 @@ commit together; certificate operations preserve it. Full snapshot, recovery
 and container restart/restore retain the same signer. Access-only backups do
 not. Old binaries refuse the new field. Manual backup, compromised hosts,
 runtime copies and authenticated complete-image rollback remain explicit risks.
+ADR 0053/C73 extends that sealed payload with separately authorized registration
+metadata; preparation itself still grants no outbound or signing capability.
 
 Guarded by `TestStagingAccountPreparationIsEncryptedAtomicAndPreserved`,
 `TestStagingAccountTamperPurposeAndPayloadRefuseBeforeOutput`,
@@ -1214,6 +1216,61 @@ Guarded by `TestStagingAccountPreparationIsEncryptedAtomicAndPreserved`,
 `TestLinuxAccountRequestLogoutAndCancellationCannotWrite`,
 `TestContainerVolumeDrill`, `FuzzStagingAccountRequest`,
 `FuzzStagingAccountPayload` and `scripts/test-acme-account.mjs`.
+
+## C73 — Same-key registration cannot become issuance or a blind retry
+
+ADR 0053 adds a separate Linux ready-origin/fetch-metadata staging route.
+An explicit connection preview binds the exact current terms URL, session,
+revision, image generation and SPKI identity for five minutes and one use.
+Fresh Rootwell authentication and explicit agreement are required for creation;
+directory revalidation refuses changed terms before nonce or signed POST.
+Only the public account JWK and mode-specific library-produced ES256 JWS leave
+the daemon. No domains, email, password, private key, EAB or caller URL.
+
+Before outbound registration, purpose-separated encrypted pending intent and
+history commit atomically. Same private writer lock and live permission cover
+the bounded callback and final commit. Failures preserve pending state; only
+separately authenticated/confirmed onlyReturnExisting lookup can reconcile it.
+Validated absence preserves the signer and requires a fresh terms decision.
+Generic writes cannot consume the last completion history/generation slot.
+Whole-image reads validate registration; full snapshots/recovery/container
+restart retain key, account identity and history. URLs/nonces/JWS/signers do
+not appear in browser status or history. Local status is not CA readiness.
+
+The transport permits at most one fixed directory GET, one fixed nonce HEAD
+and one fixed newAccount POST, with ten-second deadline, the existing pinned
+public-only DNS/TLS policy and no proxy/redirect/retry. Strict bounded CA JSON,
+nonce, account/orders URL and outgoing JWS validation strip untrusted metadata.
+Terms documents/account resources/orders are not fetched. Operator-clicked
+terms links are tightly constrained and no-referrer/noopener; URL matching is
+not document hashing or legal interpretation. Registration grants no order,
+challenge, issuance, renewal, deployment, production/custom CA or key export.
+Old backups, already-sent requests, host compromise and runtime copies remain
+risks; manual backups and independent release audit are still needed.
+
+Guarded by `TestRegistrationUsesRealSameKeyJWSAndOnlyThreePinnedRequests`,
+`TestRegistrationTermsMismatchRefusesBeforeNonceAndPOST`,
+`TestRegistrationStrictAbsentReconciliationNeverCreates`,
+`TestRegistrationRefusesMalformedForeignAndUncertainAccountWithoutRetry`,
+`TestRegistrationRefusesUnsafeDirectoryNonceAndLostAuthority`,
+`TestRegistrationParentDeadlineBoundsStalledAccountBody`,
+`TestStagingRegistrationAtomicIntentSameSignerAndCompletion`,
+`TestStagingRegistrationAbsentPreservesKeyAndCertificateMutations`,
+`TestStagingRegistrationPayloadTamperRefusesBeforeAnyOutput`,
+`TestPendingRegistrationReservesHistoryAndGenerationForReconciliation`,
+`TestRegistrationRequestStrictShapesRefuseAuthorityAndPartialSecrets`,
+`TestRegistrationGateRequiresReadyOriginMetadataAndNativeRefusal`,
+`TestLinuxRegistrationReauthPreviewBindingIntentAndReconciliation`,
+`TestLinuxRegistrationProofIsSingleUseSessionGenerationAndTimeBound`,
+`TestLinuxRegistrationBudgetsAndConfirmedCreation`,
+`TestLinuxRegistrationPreviewProviderBusyCooldownAndStoreChange`,
+`TestLinuxRegistrationLogoutAndCancellationLeavePendingNotSuccess`,
+`TestLinuxRegistrationPendingSameKeyRestoreRecoveryAndRefusals`,
+`TestLinuxRegistrationPostRenameUncertaintyKeepsReconciliationIntent`,
+`TestNativeStagingRegistrationRefusesBeforeIOPermitOrSigner`,
+`TestStagingRegistrationHasOnlyReviewedAccountClientMethods`,
+`TestContainerVolumeDrill`, `FuzzStagingRegistrationResponse`,
+`FuzzStagingRegistrationRequest` and `scripts/test-acme-registration.mjs`.
 
 ## C69 — Saved-key attachment never overwrites or silently transfers a secret
 

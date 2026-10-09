@@ -50,16 +50,17 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_directory_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_account_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_registration_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
-				allowedDirectoryConnector := filepath.ToSlash(relative) == "internal/acmestaging/directory.go" &&
+				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go") &&
 					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
-				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" ||
-					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" {
+				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" ||
+					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/instanceaccess" &&
@@ -75,8 +76,40 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 	}
 }
 
+// Local key preparation remains covered separately. Only this new route gains
+// the reviewed staging terms/register/find capability, never orders or URLs.
+func TestStagingRegistrationHasOnlyReviewedAccountClientMethods(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	for path, methods := range map[string]map[string]bool{
+		"internal/acmestaging/directory.go":    {"Discover": true},
+		"internal/acmestaging/registration.go": {"Discover": true, "Register": true, "GetReg": true},
+	} {
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			id, ok := selector.X.(*ast.Ident)
+			if ok && id.Name == "client" && !methods[selector.Sel.Name] {
+				t.Errorf("unreviewed account client operation: %s in %s", selector.Sel.Name, path)
+			}
+			return true
+		})
+	}
+}
+
 func forbiddenImport(path string) bool {
-	return path == "net" || strings.HasPrefix(path, "net/") || path == "os/exec" || path == "plugin" || path == "unsafe"
+	return path == "net" || strings.HasPrefix(path, "net/") || path == "os/exec" || path == "plugin" || path == "unsafe" ||
+		path == "golang.org/x/crypto/openpgp" || strings.HasPrefix(path, "golang.org/x/crypto/openpgp/")
 }
 
 // This regression guard is not a sandbox: new ACME capabilities need an

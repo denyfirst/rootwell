@@ -74,10 +74,10 @@
     } catch {if(current())status.textContent="Comparison refused. Use exactly one supported public certificate; refresh the saved selection if needed. Nothing was saved.";}
     finally {bytes?.fill(0);clearTimeout(deadline);active.abort();if(token===serial){busy=false;button.disabled=!selected;}}
   });
-  const actions=Object.freeze({import:"Certificates added","owner-changed":"Owner note changed","location-added":"Server note added","location-renamed":"Server note renamed","location-removed":"Server note removed","record-deleted":"Inventory record deleted","key-added":"Private key attached","acme-key-prepared":"Test account key prepared"});
+  const actions=Object.freeze({import:"Certificates added","owner-changed":"Owner note changed","location-added":"Server note added","location-renamed":"Server note renamed","location-removed":"Server note removed","record-deleted":"Inventory record deleted","key-added":"Private key attached","acme-key-prepared":"Test account key prepared","acme-registration-started":"Test account registration started","acme-account-registered":"Test account registered","acme-account-absent":"No existing test account found"});
   function drawHistory() {
     history.replaceChildren();const first=page*50,visible=events.slice().reverse().slice(first,first+50);
-    for(const event of visible){const item=document.createElement("li");item.textContent=actions[event.action]+" · "+event.at+" · "+(event.action==="acme-key-prepared"?"Account key":event.fingerprints.length+" certificate(s)");
+    for(const event of visible){const item=document.createElement("li");item.textContent=actions[event.action]+" · "+event.at+" · "+(event.action.startsWith("acme-")?"Account key":event.fingerprints.length+" certificate(s)");
       const details=document.createElement("details"),summary=document.createElement("summary"),ids=document.createElement("small");summary.textContent="Technical identities · generation "+event.generation;ids.textContent=event.fingerprints.join(" · ");details.appendChild(summary);details.appendChild(ids);item.appendChild(details);history.appendChild(item);}
     historyStatus.textContent=events.length?"Showing "+(first+1)+"–"+(first+visible.length)+" of "+events.length+" recorded changes. History starts at generation "+events[0].generation+"; earlier activity is unknown.":"No recorded changes. Earlier versions did not record history.";
     el("history-previous").disabled=page===0;el("history-next").disabled=first+50>=events.length;

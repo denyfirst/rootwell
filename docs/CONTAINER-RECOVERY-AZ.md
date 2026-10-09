@@ -13,7 +13,9 @@ GET-dir. Image normal public CA trust bundle-ni pinned build base-dən alır;
 staging/test issuance kökləri sistemə trusted edilmir. Serving və şəbəkəsiz CI
 trust-drill eyni trust-base istifadə edir. Root yenilənməsi reviewed base-image
 update/rebuild ilə olur; runtime root downloader yoxdur. Maintenance yenə
-tam şəbəkəsizdir. Bu account, issuance və ya production hazır statusu deyil.
+tam şəbəkəsizdir. ADR 0053 ayrıca razılıq və fresh parolla staging account
+qeydiyyatına imkan verir; directory check özü bu səlahiyyəti vermir. Bu issuance
+və ya production hazır statusu deyil.
 
 ## İlk qurulum
 
@@ -63,7 +65,8 @@ boş inventory-ni aktivləşdirməzdən **əvvəl** tam snapshot yaradır. `init
 
 ## Hər dəyişiklikdən sonra backup
 
-Import, manual istifadə yeri, parol və ya recovery kodu dəyişəndən sonra daemonu dayandırın.
+Import, manual istifadə yeri, account key/registration vəziyyəti, parol və ya
+recovery kodu dəyişəndən sonra daemonu dayandırın.
 Yeni, bənzərsiz ad seçin; mövcud backup overwrite edilmir.
 
 ```sh

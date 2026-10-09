@@ -14,7 +14,7 @@
   const render = data => {
     snapshot = data; details.hidden = !data.saved; form.hidden = data.saved;
     identity.textContent = data.saved ? "Public key SHA-256: " + data.fingerprint + " · Prepared: " + data.prepared_at : "";
-    status.textContent = data.saved ? "Test account key saved encrypted. Make a new complete backup. Not registered with the provider; no certificate can be requested yet." : "No test account key saved. You can prepare one below; it stays on your Rootwell.";
+    status.textContent = data.saved ? "Test account key saved encrypted. Make a new complete backup. " + (data.registration_state === "registered" ? "Registered with staging. Certificate requests are not available yet." : data.registration_state === "registration-pending" ? "Registration outcome is pending. Check the existing account below; do not create another key." : "Not registered with the provider; no certificate can be requested yet.") : "No test account key saved. You can prepare one below; it stays on your Rootwell.";
   };
   const read = async (response, current, controller) => {
     if (!response.ok || response.headers.get("cache-control") !== "no-store" || response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json" || !response.body) throw new Error();
@@ -30,10 +30,11 @@
       text += decoder.decode();
     } finally { await reader.cancel(); reader.releaseLock(); }
     const data = JSON.parse(text), fingerprint = /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/;
-    if (!data || Array.isArray(data) || Object.keys(data).length !== 11 || data.schema_version !== "rootwell.acme.account-key.v1" ||
+    if (!data || Array.isArray(data) || Object.keys(data).length !== 12 || data.schema_version !== "rootwell.acme.account-key.v1" ||
         data.provider !== "letsencrypt-staging" || !Number.isSafeInteger(data.generation) || data.generation < 1 || data.generation > 1000000 ||
-        data.network_used !== false || data.account_created !== false || data.terms_accepted !== false || data.can_issue !== false ||
-        !(data.state === "not-prepared" && data.saved === false && data.fingerprint === "" && data.prepared_at === "" ||
+        data.network_used !== false || data.can_issue !== false || !["not-registered", "registration-pending", "registered"].includes(data.registration_state) ||
+        data.account_created !== (data.registration_state === "registered") || data.terms_accepted !== (data.registration_state === "registered") ||
+        !(data.state === "not-prepared" && data.registration_state === "not-registered" && data.saved === false && data.fingerprint === "" && data.prepared_at === "" ||
           data.state === "key-prepared" && data.saved === true && data.generation >= 2 && fingerprint.test(data.fingerprint) &&
           typeof data.prepared_at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(data.prepared_at) &&
           Number.isFinite(Date.parse(data.prepared_at)) && new Date(data.prepared_at).getUTCFullYear() >= 2020 &&

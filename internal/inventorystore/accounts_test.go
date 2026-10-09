@@ -210,6 +210,27 @@ func TestStagingAccountTamperPurposeAndPayloadRefuseBeforeOutput(t *testing.T) {
 func FuzzStagingAccountPayload(f *testing.F) {
 	f.Add([]byte(`{"provider":"production","state":"registered","prepared_at":"bad","private_key":"AAAA"}`))
 	f.Add([]byte("null"))
+	// Reach the real key and all registration branches with synthetic-only seed
+	// material, rather than fuzzing only inputs rejected before private parsing.
+	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		f.Fatal(err)
+	}
+	private, err := x509.MarshalPKCS8PrivateKey(signer)
+	if err != nil {
+		f.Fatal(err)
+	}
+	defer clear(private)
+	for _, registration := range []*accountRegistration{nil,
+		{State: "registration-pending", Terms: registrationTermsFixture, StartedAt: "2026-10-09T00:00:00Z"},
+		{State: "registered", Terms: registrationTermsFixture, StartedAt: "2026-10-09T00:00:00Z", AccountURL: registrationURLFixture, RegisteredAt: "2026-10-09T00:00:00Z"},
+	} {
+		seed, err := json.Marshal(accountPayload{Provider: "letsencrypt-staging", State: "key-prepared", PreparedAt: "2026-10-09T00:00:00Z", PrivateKey: private, Registration: registration})
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(seed)
+	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) > 2048 {
 			t.Skip()

@@ -432,6 +432,14 @@ terms acceptance və issuance hələ yoxdur. Eyni tam backup/history/bərpa yolu
 daxildir, mövcud açar əvəz olunmur. Növbəti increment həmin açarı staging-də
 ayrıca terms qərarı ilə qeydiyyatdan keçirəcək, sonra manual DNS-01 gələcək.
 
+2026-10-09, ADR 0053: eyni saxlanmış açarla staging qeydiyyatı. Cari terms
+linki ayrıca icazə ilə göstərilir; beş dəqiqəlik bir dəfəlik preview, açıq
+razılıq və fresh Rootwell parolu lazımdır. Şifrəli pending qeyd əvvəl yazılır;
+əlaqə/commit bilinməz qalanda yalnız eyni açarla mövcud hesabı yoxlama yolu
+var. Account identity tam backup/bərpaya daxildir, browserə private key/account
+URL çıxmır. Bu real protocol capability-dir, default CI isə yalnız fake TLS CA
+ilədir. Sertifikat almaq, manual DNS-01 order və production qeydiyyatı hələ yoxdur.
+
 **Məqsəd:** əvvəl standard protokol ilə yeni certificate almaq.
 
 - ACME account və External Account Binding

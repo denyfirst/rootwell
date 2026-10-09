@@ -4,6 +4,7 @@ package instanceaccess
 
 import (
 	"bytes"
+	"crypto"
 	"errors"
 	"os"
 	"path/filepath"
@@ -77,6 +78,10 @@ func TestContainerVolumeDrill(t *testing.T) {
 		}
 		if status, generation, err := PrepareStagingAccount(data, key, id, revision, 5, func() bool { return true }); err != nil || generation != 6 || status.State != "key-prepared" {
 			t.Fatal("container account preparation failed")
+		}
+		// Synthetic account metadata only: the container drill stays offline.
+		if status, generation, err := RunStagingRegistration(data, key, id, revision, 6, durableTerms, false, func() bool { return true }, func(crypto.Signer, string) (string, bool, error) { return durableAccount, false, nil }); err != nil || generation != 8 || status.Registration != "registered" {
+			t.Fatal("container registered account state failed")
 		}
 		if err := ExportFullSnapshot(data, backup, password, code); err != nil {
 			t.Fatal(err)
@@ -165,7 +170,7 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 		t.Fatal(err)
 	}
 	records, generation, err := ReadInventory(accessPath, key, id, revision)
-	if err != nil || generation != 6 || len(records) != 1 || records[0].Owner != "Security" || records[0].Location != "test/primary" ||
+	if err != nil || generation != 8 || len(records) != 1 || records[0].Owner != "Security" || records[0].Location != "test/primary" ||
 		len(records[0].Locations) != 2 || records[0].Locations[1] != "test/haproxy" || records[0].ImportGeneration != 2 {
 		t.Fatalf("volume inventory did not survive: %v", err)
 	}
@@ -173,7 +178,7 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 		t.Fatalf("volume backup did not authenticate: %v", err)
 	}
 	account, accountGen, err := ReadStagingAccount(accessPath, key, id, revision)
-	if err != nil || accountGen != generation || account.State != "key-prepared" {
+	if err != nil || accountGen != generation || account.State != "key-prepared" || account.Registration != "registered" {
 		t.Fatal("container restart/restore lost account key")
 	}
 	snapshot, err := readFullSnapshot(backupPath)
