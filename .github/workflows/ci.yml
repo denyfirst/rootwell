@@ -75,6 +75,7 @@ jobs:
   build:
     name: Build and test
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -226,7 +227,9 @@ jobs:
           node scripts/test-inventory-demo.mjs
 
       - name: Test with race detector
-        run: go test -race -shuffle=on -coverprofile=coverage.out ./...
+        # Real password/KDF and recovery tests retain production iterations.
+        # Bound the growing package suite, not each runtime operation's policy.
+        run: go test -race -shuffle=on -timeout=20m -coverprofile=coverage.out ./...
 
       - name: Build
         run: go build -trimpath ./...

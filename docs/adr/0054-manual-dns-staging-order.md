@@ -89,3 +89,10 @@ hidden/timeout refusal. These are not real browser visual QA or independent
 audit. See C75 for named tests. Live staging interoperability, missing-URI
 reconciliation, replacement/expired order policy, history capacity/retention,
 issuance, renewal and production remain separate reviewed work.
+
+The first Linux CI run exhausted Go's default ten-minute whole-package test
+budget while a two-second existing API test was actively performing PBKDF2.
+The growing race suite now has an explicit twenty-minute per-package budget
+and a thirty-minute build-job cap. No test, assertion, production KDF iteration,
+server/network deadline or required check is reduced or skipped. The new signed
+head must pass the complete gate set; the timed-out run is not success evidence.
