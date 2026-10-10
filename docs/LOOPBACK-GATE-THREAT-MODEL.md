@@ -43,6 +43,15 @@ while that lock is held. This is separate from the short access writer lock
 used for password changes. Older/non-cooperating processes and network mounts
 are not covered. Windows serve remains development-only without this lock.
 
+ADR 0055 bounds the access UI's entire request to fifteen seconds, caps the
+streamed login body at 8 KiB and requires its exact setup/ready contract.
+One operation at a time; submitted credentials and hidden/pagehide fields are
+cleared. Timeout, broken/oversized response or late/hidden result cannot imply
+successful sign-in, password change or sign-out. Cancellation is not rollback:
+the server may already have acted. The operator must refresh/check actual state,
+not assume the old password or a revoked session. There is no automatic retry,
+new endpoint, lifetime extension, reliable heap wipe or server policy change.
+
 **Residual boundaries:** HTTP over host loopback is not a remote transport
 security claim. Remote access requires an SSH tunnel to the host loopback or
 future reviewed TLS deployment. Some browsers do not support Secure cookies
