@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-10. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-11. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -18,11 +18,25 @@ Sonrakı manual DNS UI-si Porch-dakı sadə Type / Name / Value və optional kö
 yanaşmasını istifadə edəcək. Porch skan icazəsi ilə ACME təsdiqi eyni deyil:
 yalnız CA order-dən gələn düzgün TXT və CA nəticəsi certificate issuance-a
 əsas ola bilər. DNS provider API inteqrasiyası ayrıca mərhələ olaraq qalır.
-Manual DNS order-in yarımçıq şifrəli hazırlığı bu increment-də merge edilmir.
+Manual DNS hazırlığı PR #85-ə daxil deyildi; ayrıca ADR 0054 increment-i ilə
+tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
-**Cari increment — ADR 0053:** eyni şifrəli staging account açarı ilə cari
+**Cari increment — ADR 0054:** bir staging DNS sifarişi, CA-dan gələn TXT
+təlimatı və ayrıca istifadəçi təsdiqi. Domenlər yalnız açıq razılıq/fresh parol
+ilə staging-ə gedir. Niyyət şəbəkədən əvvəl, sifariş ünvanı cavab gövdəsindən
+əvvəl şifrəli saxlanır; yarımçıq nəticə yalnız eyni sifarişdən davam edir.
+Ünvan alınmayıbsa yeni sifariş/təkrar cəhd bloklanır. Type / Name / Value;
+apex və wildcard üçün eyni adda iki dəyər itmir. İstifadəçinin təsdiqi CA/DNS
+verification deyil. Tam backup/bərpa sifariş və eyni hesab açarını qoruyur.
+Linux/Docker development; testlər fake TLS CA + UI VM-dir, canlı browser QA
+deyil. Növbəti increment CA yoxlamasını başlatmaq, nəticəni təhlükəsiz izləmək,
+sonra yeni certificate key/CSR və verilmiş sertifikatı Certificates-də saxlamaqdır.
+Production/müstəqil audit ayrıca qalır. Yeni/bitmiş sifariş siyasəti və itmiş
+ünvanın reconciliation-u production-dan əvvəl tamamlanmalıdır.
+
+**Tamamlanan increment — ADR 0053:** eyni şifrəli staging account açarı ilə cari
 terms-link preview, explicit razılıq və fresh paroldan sonra registration.
 Şəbəkədən əvvəl durable pending yazılır; qeyri-müəyyən nəticə yalnız həmin
 açarla ayrıca reconciliation edilir. Certificate order/issuance hələ yoxdur.

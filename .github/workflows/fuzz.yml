@@ -98,6 +98,12 @@ jobs:
             package: ./internal/acmestaging
           - target: FuzzStagingRegistrationRequest
             package: ./cmd/rootwelld
+          - target: FuzzManualDNSCAResponse
+            package: ./internal/acmestaging
+          - target: FuzzManualDNSOrderPayload
+            package: ./internal/inventorystore
+          - target: FuzzManualDNSRequest
+            package: ./cmd/rootwelld
     steps:
       - name: Check out the default branch
         run: |

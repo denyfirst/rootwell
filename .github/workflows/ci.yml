@@ -75,6 +75,7 @@ jobs:
   build:
     name: Build and test
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -178,6 +179,8 @@ jobs:
           node --check scripts/test-acme-account.mjs
           node --check cmd/rootwelld/auth/acme-registration.js
           node --check scripts/test-acme-registration.mjs
+          node --check cmd/rootwelld/auth/acme-order.js
+          node --check scripts/test-acme-order.mjs
           node --check scripts/test-saved-key-attachment.mjs
           node --check scripts/test-certificate-library.mjs
           node --check cmd/rootwelld/auth/inventory-engine.js
@@ -219,11 +222,14 @@ jobs:
           node scripts/test-acme-directory.mjs
           node scripts/test-acme-account.mjs
           node scripts/test-acme-registration.mjs
+          node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
 
       - name: Test with race detector
-        run: go test -race -shuffle=on -coverprofile=coverage.out ./...
+        # Real password/KDF and recovery tests retain production iterations.
+        # Bound the growing package suite, not each runtime operation's policy.
+        run: go test -race -shuffle=on -timeout=20m -coverprofile=coverage.out ./...
 
       - name: Build
         run: go build -trimpath ./...

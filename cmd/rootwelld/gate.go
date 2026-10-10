@@ -56,6 +56,7 @@ type gate struct {
 	registrationTerms   termsCheck
 	registrationCreate  accountRegister
 	registrationFind    accountFind
+	orderConnect        orderConnect
 }
 
 func newGate(accessPath, assetsDir, host string) (*gate, error) {
@@ -151,6 +152,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":
 		g.acmeRegistrationEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/order/status", "/api/acme/order/start", "/api/acme/order/resume", "/api/acme/order/ack":
+		g.acmeOrderEndpoint(w, r, s, signedIn)
+		return
 	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":
 		g.certificateEndpoint(w, r, s, signedIn)
 		return
@@ -172,7 +176,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -196,6 +200,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme-account.js", "text/javascript; charset=utf-8")
 		case "/acme-registration.js":
 			g.authAsset(w, r, "auth/acme-registration.js", "text/javascript; charset=utf-8")
+		case "/acme-order.js":
+			g.authAsset(w, r, "auth/acme-order.js", "text/javascript; charset=utf-8")
 		case "/inventory", "/certificates":
 			w.Header().Set("Referrer-Policy", "same-origin")
 			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'none'", "form-action 'self'", 1))

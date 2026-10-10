@@ -442,6 +442,14 @@ ilədir. Sertifikat almaq, manual DNS-01 order və production qeydiyyatı hələ
 
 **Məqsəd:** əvvəl standard protokol ilə yeni certificate almaq.
 
+2026-10-11, ADR 0054: manual DNS staging order və CA-derived TXT hazırlığı.
+Bir sifariş, maksimum 8 domen; fresh parol və domenlərin staging-ə verilməsinə
+açıq razılıq. Şifrəli intent və cavabdan əvvəl URI checkpoint, eyni sifarişdən
+davam, tam backup/bərpa. İstifadəçinin DNS qeydlərini əlavə etdiyi barədə
+təsdiqi yalnız lokal qeyddir, CA verification və issuance deyil. Bitmiş/yeni
+sifariş və itmiş URI üçün reconciliation siyasəti ayrıca açıqdır. Növbəti
+funksiya CA verification, sonra certificate issuance və pair storage olacaq.
+
 - ACME account və External Account Binding
 - HTTP-01 və DNS-01
 - əvvəl məhdud sayda keyfiyyətli DNS provider connector-u

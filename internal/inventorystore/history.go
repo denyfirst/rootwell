@@ -48,6 +48,20 @@ func addEvent(key []byte, m *manifest, action string, ids []string) error {
 	if status.Registration == "registration-pending" && (len(m.History) >= maxHistory-1 || m.Generation >= maxGeneration) {
 		return ErrLimit
 	}
+	order, err := openOrder(key, m.InstallationID, *m)
+	if err != nil {
+		return err
+	}
+	reserve := 0
+	if order.State == "request-pending" {
+		reserve = 2
+	}
+	if order.State == "order-known" {
+		reserve = 1
+	}
+	if reserve > 0 && (len(m.History) >= maxHistory-reserve || m.Generation > maxGeneration-uint64(reserve)) {
+		return ErrLimit
+	}
 	event := Event{Generation: m.Generation, At: time.Now().UTC().Format("2006-01-02T15:04:05Z"), Action: action, Fingerprints: ids}
 	if !validEvent(event) {
 		return ErrInvalid
@@ -70,7 +84,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
-	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent":
+	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged":
 	default:
 		return false
 	}
