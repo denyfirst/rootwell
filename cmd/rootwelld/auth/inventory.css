@@ -46,6 +46,7 @@
 .inventory-workspace #location-manage-target,
 .inventory-workspace #delete-target,
 .inventory-workspace #comparison-target { overflow-wrap: anywhere; }
+.inventory-workspace #acme-order-records { overflow-wrap: anywhere; }
 .inventory-workspace .confirm-row { display: flex; align-items: start; gap: .55rem; font-weight: 400; }
 .inventory-workspace .confirm-row input { width: auto; margin-top: .3rem; }
 .inventory-workspace .filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem; margin-bottom: 1rem; }

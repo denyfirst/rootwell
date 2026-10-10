@@ -1369,6 +1369,48 @@ cancellation cannot undo an already-committed write or promise memory erasure.
 Guarded by `scripts/test-rootwelld-auth.mjs`; existing server-side gates remain
 covered by C32–C34. See ADR 0055. VM assertions are not browser visual QA.
 
+## C75 — Manual DNS instructions cannot recreate an uncertain order or claim verification
+
+Ready same-origin/session/revision and exact generation, fresh password, strict
+bounded JSON, shared auth/crypto/provider budgets precede a single staging order.
+Encrypted intent commits before network; validated account-bound Location commits
+before reading its body. Failure retains state. Continuation only reads the
+same sealed URI with the same registered signer; missing URI blocks creation
+and continuation. Reserve history/generation for checkpoint and instructions.
+Whole-image authentication precedes all output and full snapshots preserve the
+order, account and certificates. Wrong-purpose/corrupt metadata releases nothing.
+
+Maintained client uses only directory, nonce, exact DNS newOrder and empty
+POST-as-GET order/authorization requests, with fixed pinned staging origin,
+bounded requests/body/time and no proxy/redirect/retry/Link/production/Accept/
+finalization. Names, wildcard mapping, challenge tokens/digests and expiry are
+rechecked. Same-name TXT values remain separate; already-valid authorizations
+do not invent records. Local acknowledgement causes no network and never
+claims DNS/CA verification or issuance. Browser authority is explicit, bounded
+and cleared on hidden/source/late/uncertain results. No independent audit,
+live staging/browser QA, rollback anchor or automatic backup claim.
+
+Guarded by `TestManualDNSNamesURLsAndDigestAreBoundedCanonical`,
+`TestManualDNSOrderIntentCheckpointInstructionsAndLocalAcknowledgement`,
+`TestManualDNSOrderCorruptionRefusesAllOutputAndPurposeConfusion`,
+`TestManualDNSOrderReservesCheckpointAndCompletionCapacity`,
+`TestManualDNSOrderPreservesSavedCertificateAndPrivateKey`,
+`TestManualDNSOrderUsesAccountBoundJWSAndPreservesBothTXTValues`,
+`TestManualDNSOrderCheckpointsBeforeStalledOrMalformedBody`,
+`TestManualDNSOrderRefusesUnsafeLocationFailedCheckpointAndAuthzWithoutRetry`,
+`TestManualDNSOrderPreflightAndLateRevocationRefuseAuthority`,
+`TestManualDNSJWSGuardRejectsWritePayloadAndUnapprovedDestination`,
+`TestManualDNSTransportRefusesUnapprovedMethodsPathsAndBudgetBeforeIO`,
+`TestLinuxManualDNSDurableCheckpointSameOrderRestoreAndLocalAcknowledgement`,
+`TestLinuxManualDNSMissingURICannotResumeOrRecreate`,
+`TestLinuxManualDNSCancelledAfterCheckpointKeepsKnownOrder`,
+`TestManualDNSRequestStrictShapesNeverReturnPartialAuthority`,
+`TestManualDNSGateRequiresReadyOriginAndNativeRefusal`,
+`TestLinuxManualDNSAPIReauthCooldownDurableUncertaintyResumeAndAck`,
+`TestLinuxManualDNSAPIRevocationAndUnboundedWriterRefusePublication`,
+`FuzzManualDNSCAResponse`, `FuzzManualDNSOrderPayload`, `FuzzManualDNSRequest`,
+`scripts/test-acme-order.mjs` and the architecture/network guards in C70–C73.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

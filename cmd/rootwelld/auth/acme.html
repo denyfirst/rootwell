@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -72,7 +72,22 @@
       </div>
       <p>Linux or Linux Docker only. Make a new complete backup after a saved transition. An uncertain result is checked using the same key, with no automatic registration retry.</p>
     </section>
-    <section class="card"><h2>What comes next?</h2><p>After test registration: prove domain control → request a certificate → save the certificate and its key together in Certificates. Certificate requests, renewal and server deployment are not enabled yet.</p></section>
+    <section class="card"><h2>Prepare your DNS records</h2>
+      <p>After registering your test account, request the TXT records for domains you control. Add them in your DNS provider's dashboard — no DNS API password is needed.</p>
+      <button id="acme-order-refresh" type="button" class="secondary">Check saved DNS request</button>
+      <p id="acme-order-status" role="status" aria-live="polite">Nothing connects automatically. Check saved status first.</p>
+      <div id="acme-order-records" hidden></div>
+      <form id="acme-order-form" class="csr-form" hidden>
+        <div id="acme-order-names-row"><label for="acme-order-domains">Domains you control — one per line</label><textarea id="acme-order-domains" rows="3" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="example.com&#10;*.example.com"></textarea><p>Up to 8 unique ASCII DNS names, including wildcards. One saved request at a time.</p></div>
+        <label class="confirm-row" for="acme-order-consent"><input id="acme-order-consent" type="checkbox" autocomplete="off"><span id="acme-order-consent-label">I control these domains and allow sending their names to Let's Encrypt staging</span></label>
+        <label for="acme-order-password">Your current Rootwell password</label><input id="acme-order-password" type="password" maxlength="256" autocomplete="off" required>
+        <button id="acme-order-submit" type="submit" disabled>Get DNS records</button>
+      </form>
+      <button id="acme-order-resume-choice" type="button" class="secondary" hidden>Refresh records from the same saved request</button>
+      <details><summary>How do I add these DNS records?</summary><p>Choose type TXT in your DNS provider. Use each Name and Value exactly as shown. Some providers append your domain automatically: enter only the relative name there, such as _acme-challenge. Do not put the name in twice.</p><p>If two records have the same Name, keep both Values; do not overwrite the first one. Do not replace unrelated TXT records. Rootwell does not edit or look up your DNS in this step.</p></details>
+      <p>This prepares records and saves your acknowledgement only. It does not ask the CA to verify DNS, issue a certificate or enable renewal. Staging is test-only. Make a new complete backup after saved changes.</p>
+    </section>
+    <section class="card"><h2>What comes next?</h2><p>After adding DNS records: CA domain verification → issue a test certificate → save the certificate and its key together in Certificates. CA verification, certificate issuance, renewal and server deployment are not enabled yet.</p></section>
     </div>
   </main></div>
 </body>

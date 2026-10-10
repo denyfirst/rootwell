@@ -75,6 +75,16 @@ legacy-image behavior and the independent production-audit gate.
   issuance or production readiness. Full backups include the account identity;
   repeat a manual backup after transitions and do not downgrade. See
   [staging registration](docs/adr/0053-staging-account-registration.md).
+- **Prepare your DNS records** creates one explicit staging order for up to
+  eight domains, displays CA-derived Type / Name / Value instructions and saves
+  your local acknowledgement. Apex/wildcard values at the same name stay separate.
+  Encrypted intent and early order-address checkpoint prevent blind recreation
+  after failure; continuation reads only the same saved order. Missing-address
+  uncertainty blocks continuation/creation pending future reconciliation.
+  Full backup/recovery preserves the request and same account identity.
+  No DNS lookup/edit, CA validation request, certificate issuance or renewal.
+  Linux/Docker development only; tests use a synthetic TLS CA, not live staging.
+  See [manual DNS boundary](docs/adr/0054-manual-dns-staging-order.md).
 - [Product and execution plan](docs/PRODUCT-PLAN-AZ.md)
 - [Historical expanded platform vision](docs/PLATFORM-VISION-AZ.md)
 - [Engineering workflow](docs/ENGINEERING.md)

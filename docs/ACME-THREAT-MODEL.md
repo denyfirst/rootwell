@@ -1,6 +1,6 @@
 # ACME staged implementation boundary
 
-Date: 2026-10-09. Single operator, existing loopback access gate. Porch is
+Date: 2026-10-11. Single operator, existing loopback access gate. Porch is
 excluded. Offline Workbench acquires no CA network capability.
 
 ## First increment: setup check, not issuance
@@ -91,6 +91,34 @@ post-rename error, old complete backup or already-sent request can still require
 manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
+
+ADR 0054 implements only manual DNS order/instructions/local acknowledgement
+from gate 3, not domain validation or issuance. Exact registered KID/key and
+up to eight names; encrypted intent before network and account-bound order URI
+checkpoint before any body read. A failed creation without URI is blocked,
+never reset or automatically recreated. Saved URI continuation is POST-as-GET,
+not a new order. Private writer lock, exact revision/generation, fresh password,
+explicit name disclosure and shared crypto/attempt/provider cooldown apply.
+Fixed pinned staging transport, twenty-second CA budget/nineteen requests,
+strict bounded UTF-8/unique JSON, empty read payloads, exact identifier set,
+authorization/wildcard mapping and canonical DNS challenge digest. No broad
+signer, Accept/finalize/certificate, retries, Link/error reflection, custom CA,
+production or DNS credentials. The 25-second API context and scoped 30-second
+write deadline do not relax the server's general timeouts. Unsupported response
+writers refuse before any mutation. Returned instructions use the earliest
+order/authorization expiry. Two values at one TXT name are never collapsed.
+
+One typed HKDF-separated encrypted order field is part of complete-image
+authentication, fixed history and full backup/recovery. Reserve intent/URI/
+instruction slots before network. Certificate/account keys remain unchanged;
+old binaries refuse the new field. Browser exposes only names/expiry/TXT/state,
+never signer/account/order URLs or provider error data. Explicit local
+acknowledgement is not DNS/CA verification. Hidden/late/source/timeout clears
+authority and requires status refresh; cancellation is not rollback. Fake TLS
+CA and VM tests do not establish live interoperability or visual browser QA.
+No anti-rollback/heap-erasure claim; manual backups and uncertain post-rename
+results remain. Missing-URI reconciliation, expired/new order policy and history
+capacity must be solved in separate increments before production readiness.
 
 1. Directory-only dependency/transport increment implemented in ADR 0050;
    broader ACME/Pebble protocol testing remains future work. Explicit ready-session opt-in

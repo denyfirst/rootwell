@@ -47,6 +47,7 @@ type manifest struct {
 	Keys           []sealedRecord `json:"keys,omitempty"`
 	Materials      []sealedRecord `json:"materials,omitempty"`
 	ACMEAccounts   []sealedRecord `json:"acme_accounts,omitempty"`
+	ACMEOrders     []sealedRecord `json:"acme_orders,omitempty"`
 }
 
 type envelope struct {
@@ -435,6 +436,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if _, err := accountStatus(key, id, m); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if _, err := openOrder(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {
