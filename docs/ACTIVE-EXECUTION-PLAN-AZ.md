@@ -1,9 +1,24 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-09. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-10. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
+
+## Porch-dan uyğunlaşdırılan yanaşmalar — ADR 0055
+
+2026-10-10 istifadəçi Porch-u dəyişmədən oxumağa icazə verdi. Ümumi quruluş,
+DNS təlimatı, giriş UI-si və test/workflow prinsipləri read-only müqayisə edildi;
+bu tam audit deyil. Rootwell giriş/parol dəyişmə/çıxış UI-sində 15 saniyəlik
+tam sorğu limiti, 8 KiB login cavabı, gizlənəndə cancellation və gecikmiş
+nəticənin rəddi əlavə olunur. İlkin parol loga verilmir; məcburi dəyişmə,
+şifrəli custody və offline recovery sərhədləri qorunur.
+
+Sonrakı manual DNS UI-si Porch-dakı sadə Type / Name / Value və optional kömək
+yanaşmasını istifadə edəcək. Porch skan icazəsi ilə ACME təsdiqi eyni deyil:
+yalnız CA order-dən gələn düzgün TXT və CA nəticəsi certificate issuance-a
+əsas ola bilər. DNS provider API inteqrasiyası ayrıca mərhələ olaraq qalır.
+Manual DNS order-in yarımçıq şifrəli hazırlığı bu increment-də merge edilmir.
 
 ## Məhsul prinsipi
 
