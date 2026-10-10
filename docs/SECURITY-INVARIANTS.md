@@ -1354,6 +1354,21 @@ Guarded by `TestComparisonTracksAllNamesKeyAndDatesWithoutTrust`,
 `scripts/test-inventory-lifecycle.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C74 — Access UI cannot claim a timed-out write or navigate on late results
+
+The access client uses one fifteen-second header/body deadline, an 8 KiB
+streamed fatal-UTF-8 login response, exact one-field setup/ready mode and
+confirmed status contracts. Malformed/duplicate/extra/error text never selects
+a destination or appears in diagnostics. One operation at a time; captured
+credentials are removed from fields, hidden/pagehide aborts work, and late
+success cannot restore navigation. Failure releases controls and reports
+uncertainty, never rollback, assumed unchanged password or unconfirmed logout.
+Existing server setup/revision/cookie/auth/crypto budgets remain unchanged;
+cancellation cannot undo an already-committed write or promise memory erasure.
+
+Guarded by `scripts/test-rootwelld-auth.mjs`; existing server-side gates remain
+covered by C32–C34. See ADR 0055. VM assertions are not browser visual QA.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate
