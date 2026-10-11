@@ -22,6 +22,7 @@ import (
 )
 
 type orderConnect func(context.Context, func() bool, crypto.Signer, string, string, []string, func(string) error) (acmeorder.Instructions, error)
+type validationConnect func(context.Context, func() bool, crypto.Signer, string, acmeorder.Instructions, []string, bool) (acmeorder.Validation, error)
 type orderInput struct {
 	Password string
 	Expected uint64
@@ -30,6 +31,9 @@ type orderInput struct {
 
 func readOrderInput(w http.ResponseWriter, r *http.Request, mode string) (orderInput, bool) {
 	bad := func() (orderInput, bool) { return orderInput{}, false }
+	if mode != "status" && mode != "start" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" {
+		return bad()
+	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
 		return bad()
@@ -183,7 +187,7 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
 			return
 		}
-		if (mode == "start" && status.State != "not-started") || (mode == "resume" && (status.State == "not-started" || status.State == "request-pending")) || (mode == "ack" && status.State != "dns-ready") {
+		if (mode == "start" && status.State != "not-started") || (mode == "resume" && status.State != "order-known" && status.State != "dns-ready" && status.State != "dns-acknowledged") || (mode == "ack" && status.State != "dns-ready") || (mode == "validate" && status.State != "dns-acknowledged") || (mode == "refresh" && !acmeorder.ValidationStarted(status.State)) {
 			http.Error(w, "This action is not available for the saved order. Refresh status; do not create another order.", http.StatusConflict)
 			return
 		}
@@ -219,13 +223,23 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 				return
 			}
 			defer func() { g.mu.Lock(); g.directoryBusy = false; g.mu.Unlock() }()
-			connect := g.orderConnect
-			if connect == nil {
-				connect = acmestaging.DNSOrder
+			if mode == "validate" || mode == "refresh" {
+				connect := g.validationConnect
+				if connect == nil {
+					connect = acmestaging.DNSValidation
+				}
+				status, gen, err = instanceaccess.RunStagingValidation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, mode == "refresh", permit, func(signer crypto.Signer, account string, saved acmeorder.Instructions, names []string, refresh bool) (acmeorder.Validation, error) {
+					return connect(r.Context(), permit, signer, account, saved, names, refresh)
+				})
+			} else {
+				connect := g.orderConnect
+				if connect == nil {
+					connect = acmestaging.DNSOrder
+				}
+				status, gen, err = instanceaccess.RunStagingOrder(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, input.Names, mode == "resume", permit, func(signer crypto.Signer, account, order string, names []string, checkpoint func(string) error) (acmeorder.Instructions, error) {
+					return connect(r.Context(), permit, signer, account, order, names, checkpoint)
+				})
 			}
-			status, gen, err = instanceaccess.RunStagingOrder(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, input.Names, mode == "resume", permit, func(signer crypto.Signer, account, order string, names []string, checkpoint func(string) error) (acmeorder.Instructions, error) {
-				return connect(r.Context(), permit, signer, account, order, names, checkpoint)
-			})
 		}
 		if err != nil || !permit() {
 			http.Error(w, "Outcome not confirmed. Refresh saved status. Continue only the saved order; do not create another one. No certificate was issued.", http.StatusServiceUnavailable)
@@ -243,5 +257,5 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		status.Records = []acmeorder.TXT{}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v1", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume", Saved: status.State != "not-started"})
+	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v2", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh", Saved: status.State != "not-started", DomainVerified: status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z")})
 }

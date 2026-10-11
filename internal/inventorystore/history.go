@@ -56,7 +56,7 @@ func addEvent(key []byte, m *manifest, action string, ids []string) error {
 	if order.State == "request-pending" {
 		reserve = 2
 	}
-	if order.State == "order-known" {
+	if order.State == "order-known" || order.State == "validation-pending" {
 		reserve = 1
 	}
 	if reserve > 0 && (len(m.History) >= maxHistory-reserve || m.Generation > maxGeneration-uint64(reserve)) {
@@ -84,7 +84,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
-	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged":
+	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed":
 	default:
 		return false
 	}

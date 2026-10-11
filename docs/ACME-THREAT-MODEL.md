@@ -92,6 +92,23 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0056 separately enables explicit staging DNS validation and read-only
+same-order CA refresh. Before network, encrypt intent and invalidate the prior
+verdict under the writer lock; reserve intent/result capacity. Complete exact
+name/wildcard authorization mapping and recomputed acknowledged TXT/account
+digests precede ANY Accept. Only registered KID, approved pending dns-01 URLs,
+exact {} payload; no new order/finalize/certificate/DNS write. A later explicit
+refresh never repeats Accept, even after partial or unknown completion. No
+automatic polling. Same 20-second CA/25-second API/30-second scoped response/UI
+limits; up to 35 requests, inherited pinned transport and strict JSON policies.
+Ready order AND every valid authorization are required. Failed/pending/unknown
+never become verified; expiry can shorten, not extend. Complete image, fixed
+history and full restore preserve intent/result/account/certificates. v2 public
+contract exposes no internal URI/signer/error. Partial unsent challenges,
+expired/new orders, live staging interoperability, issuer trust for issuance,
+renewal/DNS credentials and independent audit remain reviewed release work.
+VM tests are not browser visual QA, no real CA/DNS testing in this increment.
+
 ADR 0054 implements only manual DNS order/instructions/local acknowledgement
 from gate 3, not domain validation or issuance. Exact registered KID/key and
 up to eight names; encrypted intent before network and account-bound order URI

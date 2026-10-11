@@ -450,6 +450,15 @@ təsdiqi yalnız lokal qeyddir, CA verification və issuance deyil. Bitmiş/yeni
 sifariş və itmiş URI üçün reconciliation siyasəti ayrıca açıqdır. Növbəti
 funksiya CA verification, sonra certificate issuance və pair storage olacaq.
 
+2026-10-11, ADR 0056: explicit CA DNS validation və read-only same-order refresh.
+Niyyət və əvvəlki nəticənin invalidation-u şəbəkədən əvvəl şifrəli saxlanır.
+Bütün pending TXT/account/name uyğunluqları tamamlanmadan Accept yoxdur. Uğur
+yalnız CA-ready + bütün authorization-valid ilədir; Accept cavabı uğur hökmü
+deyil. Natamam cavabdan sonra Accept replay/new order bloklanır. Issuance/pair
+storage, manual renewal və DNS avtomatlaşdırması bu dörd hissəli dalğanın
+sonrakı increment-ləridir; hamısı tamamlanmayıb. DNS adapter-ləri öz instance-də
+provider API-sinə birbaşa qoşulacaq, DenyFirst online vasitəçi olmayacaq.
+
 - ACME account və External Account Binding
 - HTTP-01 və DNS-01
 - əvvəl məhdud sayda keyfiyyətli DNS provider connector-u

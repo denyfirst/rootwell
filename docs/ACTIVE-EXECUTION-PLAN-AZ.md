@@ -23,7 +23,24 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
-**Cari increment — ADR 0054:** bir staging DNS sifarişi, CA-dan gələn TXT
+**Cari dalğa — istifadəçi dörd hissəni təsdiqləyib:** CA domen yoxlaması →
+sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşdırması.
+Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
+əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
+
+**Cari increment — ADR 0056:** eyni sifariş üçün fresh parol və açıq razılıqla
+CA DNS yoxlaması; ayrıca read-only nəticə refresh-i. Hər cəhdin niyyəti əvvəl
+şifrəli saxlanır, əvvəlki uğur nəticəsi səlahiyyət kimi qalmır. Bütün domen və
+acknowledged TXT-lər uyğun gəlmədən heç bir challenge qəbul edilmir. Natamam
+cavabdan sonra Accept təkrarlanmır; yalnız eyni sifariş oxunur. CA-ready və bütün
+authorization-valid nəticələri birlikdə tələb edilir; issuance hələ yoxdur.
+Sonra yeni certificate key/CSR, issuer/trust/time/key/name yoxlamaları və tam
+atomik Certificates saxlanması; daha sonra köhnə cert-i qoruyan manual renewal.
+DNS avtomatlaşdırması ümumi nüvə üzərində provider adapter-lərlə gələcək;
+lego/dependency/provider scope ayrıca review tələb edir. Manual TXT alternativi
+qalır. DenyFirst vasitəçi serveri yoxdur, hər outbound istifadəçinin öz instance-indəndir.
+
+**Tamamlanan increment — ADR 0054:** bir staging DNS sifarişi, CA-dan gələn TXT
 təlimatı və ayrıca istifadəçi təsdiqi. Domenlər yalnız açıq razılıq/fresh parol
 ilə staging-ə gedir. Niyyət şəbəkədən əvvəl, sifariş ünvanı cavab gövdəsindən
 əvvəl şifrəli saxlanır; yarımçıq nəticə yalnız eyni sifarişdən davam edir.

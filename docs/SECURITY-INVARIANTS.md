@@ -1411,6 +1411,46 @@ Guarded by `TestManualDNSNamesURLsAndDigestAreBoundedCanonical`,
 `FuzzManualDNSCAResponse`, `FuzzManualDNSOrderPayload`, `FuzzManualDNSRequest`,
 `scripts/test-acme-order.mjs` and the architecture/network guards in C70–C73.
 
+## C76 — CA DNS validation is explicit, complete and never blindly replayed
+
+ADR 0056 extends C75 only through a separate validation capability. Encrypted
+intent before network, exact ready revision/generation, fresh password, explicit
+consent, scoped deadlines and shared budgets. Read the saved order and complete
+authorization set first, bind every pending TXT digest to the acknowledged
+record/account/name, then permit only exact pending dns-01 URL with {} Accept.
+No new order/finalization/certificate/DNS writes or broad signing capability.
+At most 35 pinned staging requests in twenty seconds, no automatic polling,
+redirect/proxy/retry/Link/error reflection. Unknown results retain durable intent;
+refresh only reads the same order and never repeats Accept. Partial unsent
+challenges require future reviewed recovery rather than an unsafe automatic retry.
+
+Every authorization valid AND order ready are required; pending/invalid/partial
+cannot imply verification. Shorten saved expiry only. All transitions authenticate
+the complete image, preserve other keys/certificates and reserve a result slot.
+Refresh invalidates old success before network. Full restore preserves intent and
+same signer. Expired observations grant no current verification/issuance. v2 UI
+separates local acknowledgement, validation, refresh and no issuance. Late/hidden/
+changed/oversized response cannot revive authority. No real CA/browser/audit claim.
+
+Guarded by `TestValidationVerdictRequiresReadyAndEveryAuthorization`,
+`TestDNSValidationAcceptsOnlyCompleteAcknowledgedScopeAndRefreshNeverWrites`,
+`TestDNSValidationRejectsChangedOrPartialScopeBeforeAnyAccept`,
+`TestDNSValidationMalformedAcceptClosesAuthorityWithoutRetryOrPartialOutput`,
+`TestValidationChallengeParserNeverReflectsErrorsOrFollowsURLs`,
+`TestValidationTransportRestrictsAcceptPayloadDestinationAndBudget`,
+`TestDNSValidationLateRevocationAndCancellationReleaseNoResult`,
+`TestStagingValidationEncryptedIntentTruthPreservationAndNoReplay`,
+`TestStagingValidationRejectsStaleForeignExtendedMalformedAndTamperedResult`,
+`TestStagingValidationReservesCompletionBeforeIO`,
+`TestManualDNSOrderPreservesSavedCertificateAndPrivateKey`,
+`TestLinuxDNSValidationDurableUncertaintyNoReplayRestoreAndRevocation`,
+`TestLinuxDNSValidationAPIExactAuthorityUncertaintyNoReplayAndTruth`,
+`TestNativeDNSValidationRefusesBeforeFileOrCallback`,
+`TestManualDNSRequestStrictShapesNeverReturnPartialAuthority`,
+`TestManualDNSGateRequiresReadyOriginAndNativeRefusal`,
+the expanded `FuzzManualDNSCAResponse`, `FuzzManualDNSOrderPayload`,
+`FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C70–C73 guards.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate
