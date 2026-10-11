@@ -116,6 +116,8 @@ type orderTransport struct {
 	directory, orderRead, failed   bool
 	requests                       int
 	used                           map[string]bool
+	validation                     bool
+	challenges                     map[string]string // populated only after all acknowledged digests match
 }
 
 func (t *orderTransport) RoundTrip(r *http.Request) (response *http.Response, err error) {
@@ -126,7 +128,11 @@ func (t *orderTransport) RoundTrip(r *http.Request) (response *http.Response, er
 			t.failed = true
 		}
 	}()
-	if t.failed || !t.allowed() || t.requests >= 19 || r.Host != host || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+	limit := 19
+	if t.validation {
+		limit = 35
+	}
+	if t.failed || !t.allowed() || t.requests >= limit || r.Host != host || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 		return nil, errRefused
 	}
 	kind := ""
@@ -142,6 +148,8 @@ func (t *orderTransport) RoundTrip(r *http.Request) (response *http.Response, er
 			kind = "order"
 		} else if t.orderRead && slices.Contains(t.authz, destination) {
 			kind = "authorization"
+		} else if t.validation && t.orderRead && t.challenges[destination] != "" {
+			kind = "challenge"
 		} else {
 			return nil, errRefused
 		}
@@ -220,7 +228,16 @@ func (t *orderTransport) RoundTrip(r *http.Request) (response *http.Response, er
 		}
 		t.orderRead = true
 	case "authorization":
-		sanitized, err = readOrderAuthorization(body, t.names)
+		if t.validation {
+			sanitized, err = readValidationAuthorization(body, t.names)
+		} else {
+			sanitized, err = readOrderAuthorization(body, t.names)
+		}
+		if err != nil {
+			return nil, errRefused
+		}
+	case "challenge":
+		sanitized, err = readValidationChallenge(body, r.URL.String(), t.challenges[r.URL.String()])
 		if err != nil {
 			return nil, errRefused
 		}
@@ -293,7 +310,7 @@ func identifier(raw []byte) (orderIdentifier, bool) {
 func (t *orderTransport) readOrder(body []byte) ([]byte, error) {
 	clean, ok := orderFields(body, "status", "expires", "identifiers", "authorizations", "finalize", "certificate", "error", "notBefore", "notAfter")
 	var w orderWire
-	if !ok || json.Unmarshal(clean, &w) != nil || (w.Status != "pending" && w.Status != "ready") || !acmeorder.Time(w.Expires) || w.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") || len(w.Certificate) > 0 || len(w.Error) > 0 || len(w.Identifiers) != len(t.names) || len(w.Authorizations) != len(t.names) || w.Finalize != strings.Replace(t.order, "/acme/order/", "/acme/finalize/", 1) {
+	if !ok || json.Unmarshal(clean, &w) != nil || (w.Status != "pending" && w.Status != "ready" && !(t.validation && w.Status == "invalid")) || !acmeorder.Time(w.Expires) || w.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") || len(w.Certificate) > 0 || (len(w.Error) > 0 && !(t.validation && w.Status == "invalid" && strictObject(w.Error))) || len(w.Identifiers) != len(t.names) || len(w.Authorizations) != len(t.names) || w.Finalize != strings.Replace(t.order, "/acme/order/", "/acme/finalize/", 1) {
 		return nil, errRefused
 	}
 	names := []string{}
@@ -420,6 +437,10 @@ func (t *orderTransport) validJWS(body []byte, destination string, create bool) 
 			if !ok || json.Unmarshal(raw, &exact) != nil || len(exact) != 2 || id.Value != t.names[i] {
 				return false
 			}
+		}
+	} else if t.validation && t.challenges[destination] != "" {
+		if string(payload) != "{}" {
+			return false
 		}
 	} else if len(payload) != 0 {
 		return false

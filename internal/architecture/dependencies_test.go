@@ -55,13 +55,13 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
-				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go" || filepath.ToSlash(relative) == "internal/acmestaging/order.go") &&
+				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go" || filepath.ToSlash(relative) == "internal/acmestaging/order.go" || filepath.ToSlash(relative) == "internal/acmestaging/validation.go") &&
 					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" ||
-					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" {
+					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/instanceaccess" &&
@@ -86,6 +86,7 @@ func TestStagingRegistrationHasOnlyReviewedAccountClientMethods(t *testing.T) {
 		"internal/acmestaging/directory.go":    {"Discover": true},
 		"internal/acmestaging/registration.go": {"Discover": true, "Register": true, "GetReg": true},
 		"internal/acmestaging/order.go":        {"Discover": true, "AuthorizeOrder": true, "GetOrder": true, "GetAuthorization": true, "DNS01ChallengeRecord": true},
+		"internal/acmestaging/validation.go":   {"Discover": true, "GetOrder": true, "GetAuthorization": true, "DNS01ChallengeRecord": true, "Accept": true},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
 		if err != nil {

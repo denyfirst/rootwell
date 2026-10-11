@@ -338,5 +338,9 @@ func FuzzManualDNSCAResponse(f *testing.F) {
 		guard := &orderTransport{order: testOrderURL, names: slices.Clone(testOrderNames)}
 		_, _ = guard.readOrder(body)
 		_, _ = readOrderAuthorization(body, testOrderNames)
+		guard.validation = true
+		_, _ = guard.readOrder(body)
+		_, _ = readValidationAuthorization(body, testOrderNames)
+		_, _ = readValidationChallenge(body, acmeorder.Origin+"/acme/chall/1234/100/abc", testDNSToken)
 	})
 }

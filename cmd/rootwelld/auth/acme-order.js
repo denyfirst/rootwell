@@ -8,7 +8,8 @@
   const domain=value=>typeof value==="string" && value.length<=255 && /^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(value) && value.includes(".") && !value.includes("..");
   const suppliedNames=()=>names.value.split(/\r?\n/).map(n=>n.trim().toLowerCase()).filter(Boolean).sort();
   const usable=()=>snapshot && date(snapshot.expires) && Date.now()<Date.parse(snapshot.expires);
-  const allowedAction=()=>snapshot && (action==="start" ? snapshot.state==="not-started" : action==="ack" ? snapshot.state==="dns-ready" && usable() : ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state));
+  const validationStates=["validation-pending","validation-waiting","validation-failed","domain-verified"];
+  const allowedAction=()=>snapshot && (action==="start" ? snapshot.state==="not-started" : action==="ack" ? snapshot.state==="dns-ready" && usable() : action==="validate" ? snapshot.state==="dns-acknowledged" && usable() : action==="refresh" ? validationStates.includes(snapshot.state) && usable() : ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state));
   const enable=()=>{
     refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;
     submit.disabled=!!active || document.hidden || !allowedAction() || !consent.checked || !password.value || (action==="start" && !suppliedNames().length);
@@ -18,7 +19,7 @@
     generation++;active?.abort();snapshot=null;clearInputs();form.hidden=true;records.hidden=true;records.replaceChildren();resumeChoice.hidden=true;status.textContent=uncertain;enable();
   };
   const valid=(data,mode)=>{
-    if(!data || Array.isArray(data) || Object.keys(data).length!==11 || data.schema_version!=="rootwell.acme.manual-dns.v1" || data.provider!=="letsencrypt-staging" || data.can_issue!==false || data.domain_verified!==false || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged"].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==(mode==="start" || mode==="resume") || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
+    if(!data || Array.isArray(data) || Object.keys(data).length!==11 || data.schema_version!=="rootwell.acme.manual-dns.v2" || data.provider!=="letsencrypt-staging" || data.can_issue!==false || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","resume","validate","refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
     if(data.state==="not-started")return data.domains.length===0 && data.records.length===0 && data.expires==="";
     if(data.domains.length<1 || data.domains.length>8 || !data.domains.every(domain) || new Set(data.domains).size!==data.domains.length || data.domains.some((n,i)=>i>0 && data.domains[i-1]>=n))return false;
     if(data.state==="request-pending" || data.state==="order-known")return data.expires==="" && data.records.length===0;
@@ -26,8 +27,8 @@
   };
   const choose=mode=>{
     action=mode;clearInputs();namesRow.hidden=mode!=="start";
-    label.textContent=mode==="ack"?"I have added every required TXT value shown above. This is my acknowledgement, not CA verification.":mode==="resume"?"Allow reading this same saved request from Let's Encrypt staging — no new request":"I control these domains and allow sending their names to Let's Encrypt staging";
-    submit.textContent=mode==="ack"?"Save my acknowledgement":mode==="resume"?"Refresh the saved DNS request":"Get DNS records";
+    label.textContent=mode==="ack"?"I have added every required TXT value shown above. This is my acknowledgement, not CA verification.":mode==="validate"?"Ask Let's Encrypt staging to check the acknowledged DNS records for this saved request":mode==="refresh"?"Read the CA result for this same request — do not repeat validation or create another request":mode==="resume"?"Allow reading this same saved request from Let's Encrypt staging — no new request":"I control these domains and allow sending their names to Let's Encrypt staging";
+    submit.textContent=mode==="ack"?"Save my acknowledgement":mode==="validate"?"Ask CA to check DNS":mode==="refresh"?"Refresh CA result":mode==="resume"?"Refresh the saved DNS request":"Get DNS records";
     form.hidden=false;enable();
   };
   const render=data=>{
@@ -46,9 +47,13 @@
         for(const line of r.required?["Domain: "+r.domain,"Type: TXT","Name: "+r.name,"Value: "+r.value]:["Domain: "+r.domain,"No TXT required in this response: the CA returned an existing valid authorization."]){const text=document.createElement("p");text.textContent=line;card.append(text);}
         records.append(card);
       }
-      resumeChoice.hidden=false;
+      resumeChoice.hidden=validationStates.includes(data.state);
       if(!usable())status.textContent="These saved instructions have expired. Do not use or acknowledge them. You may read the same request again; no replacement request is created.";
-      else if(data.state==="dns-acknowledged")status.textContent="Your acknowledgement is saved encrypted. DNS has not been checked by Rootwell and CA verification has not been requested. No certificate was issued. Make a new complete backup.";
+      else if(data.state==="dns-acknowledged"){status.textContent="Your acknowledgement is saved encrypted. CA verification has not been requested. No certificate was issued. Allow the CA check below when your DNS records are ready.";choose("validate");}
+      else if(validationStates.includes(data.state)){
+        status.textContent=data.state==="validation-pending"?"The validation outcome is not confirmed. Only read the same request's CA result; validation will not be repeated. Some challenges may not have been sent.":data.state==="validation-failed"?"The CA did not approve this request. Keep your saved state; automatic retry and replacement are blocked. You can refresh the CA result.":data.state==="domain-verified" && data.domain_verified?"The CA confirmed every domain and marked this request ready. No certificate was issued yet. Make a new complete backup.":"CA verification is not yet confirmed complete. Refresh the CA result later; no automatic polling or repeat validation.";
+        choose("refresh");
+      }
       else{status.textContent="Add every required TXT value in your DNS provider, then acknowledge below. If Names repeat, keep both Values. No DNS changes are made by Rootwell.";choose("ack");}
     }
     enable();
@@ -62,12 +67,12 @@
   };
   const run=async mode=>{
     if(active || document.hidden || el("acme-provider").value!=="letsencrypt-staging")return;
-    if(mode==="ack" && !usable()){status.textContent="These instructions have expired. Refresh the saved request; do not acknowledge stale records.";enable();return;}
+    if(["ack","validate","refresh"].includes(mode) && !usable()){status.textContent="This saved request has expired. Check saved status; do not use stale records or verification.";enable();return;}
     if(mode!=="status" && (submit.disabled || !snapshot || !consent.checked || !password.value))return;
-    const expected=snapshot?.generation,original=snapshot?.domains?.slice(),requested=suppliedNames();
+    const expected=snapshot?.generation,original=snapshot?.domains?.slice(),originalRecords=JSON.stringify(snapshot?.records),originalExpiry=snapshot?.expires,requested=suppliedNames();
     const input={provider:"letsencrypt-staging"};if(mode!=="status"){input.confirm=true;input.expected_generation=expected;input.password=password.value;}if(mode==="start")input.domains=requested;
     const current=++generation,controller=new AbortController();active=controller;snapshot=null;clearInputs();records.hidden=true;records.replaceChildren();form.hidden=true;resumeChoice.hidden=true;enable();
-    status.textContent=mode==="status"?"Reading your saved DNS request…":mode==="ack"?"Saving your acknowledgement locally — no provider connection…":"Reading DNS records from staging… The account private key stays on Rootwell.";
+    status.textContent=mode==="status"?"Reading your saved DNS request…":mode==="ack"?"Saving your acknowledgement locally — no provider connection…":mode==="validate"?"Asking staging to check the acknowledged DNS records…":mode==="refresh"?"Reading the same request's CA result — no repeat validation…":"Reading DNS records from staging… The account private key stays on Rootwell.";
     let timer;
     const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error());},30000);});
     try{
@@ -78,14 +83,16 @@
       })();
       const data=await Promise.race([work,deadline]);
       if(current!==generation || document.hidden || controller.signal.aborted)return;
-      if(!valid(data,mode) || mode!=="status" && (data.generation<=expected || data.domains.join("\n")!==(mode==="start"?requested:original).join("\n") || data.state!==(mode==="ack"?"dns-acknowledged":"dns-ready")))throw new Error();
+      const expectedStates=["validate","refresh"].includes(mode)?["validation-waiting","validation-failed","domain-verified"]:[mode==="ack"?"dns-acknowledged":"dns-ready"];
+      if(!valid(data,mode) || mode!=="status" && (data.generation<=expected || data.domains.join("\n")!==(mode==="start"?requested:original).join("\n") || !expectedStates.includes(data.state)))throw new Error();
+      if(["validate","refresh"].includes(mode) && (JSON.stringify(data.records)!==originalRecords || data.expires>originalExpiry))throw new Error();
       render(data);
     }catch{if(current===generation){snapshot=null;status.textContent=uncertain+" Linux or Linux Docker, a ready session and your current password are required. If limited, wait before checking again.";}}
     finally{input.password="";clearTimeout(timer);if(active===controller)active=null;enable();}
   };
   refresh.addEventListener("click",()=>run("status"));
   form.addEventListener("submit",event=>{event.preventDefault();return run(action);});
-  resumeChoice.addEventListener("click",()=>{if(!active && snapshot && snapshot.state!=="not-started" && snapshot.state!=="request-pending"){choose("resume");resumeChoice.hidden=true;}});
+  resumeChoice.addEventListener("click",()=>{if(!active && snapshot && ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state)){choose("resume");resumeChoice.hidden=true;}});
   names.addEventListener("input",()=>{if(active)invalidate();else{clearInputs();enable();}});
   for(const field of [password,consent])field.addEventListener(field===consent?"change":"input",()=>{if(active)invalidate();else enable();});
   el("acme-provider").addEventListener("change",invalidate);el("acme-clear").addEventListener("click",()=>{names.value="";invalidate();});

@@ -22,13 +22,15 @@ type OrderStatus struct {
 }
 
 type orderPayload struct {
-	State       string          `json:"state"`
-	Fingerprint string          `json:"fingerprint"`
-	Started     string          `json:"started"`
-	Domains     []string        `json:"domains"`
-	URL         string          `json:"url,omitempty"`
-	Expires     string          `json:"expires,omitempty"`
-	Records     []acmeorder.TXT `json:"records,omitempty"`
+	State       string                `json:"state"`
+	Fingerprint string                `json:"fingerprint"`
+	Started     string                `json:"started"`
+	Domains     []string              `json:"domains"`
+	URL         string                `json:"url,omitempty"`
+	Expires     string                `json:"expires,omitempty"`
+	Records     []acmeorder.TXT       `json:"records,omitempty"`
+	Validation  *acmeorder.Validation `json:"validation,omitempty"`
+	CheckedAt   string                `json:"checked_at,omitempty"`
 }
 
 func orderID() []byte { sum := sha256.Sum256([]byte("rootwell.acme-staging-order.v1")); return sum[:] }
@@ -73,6 +75,9 @@ func openOrder(key, id []byte, m manifest) (orderPayload, error) {
 	if p.Started < account.Registration.RegisteredAt {
 		return orderPayload{}, ErrInvalid
 	}
+	if !acmeorder.ValidationStarted(p.State) && (p.Validation != nil || p.CheckedAt != "") {
+		return orderPayload{}, ErrInvalid
+	}
 	switch p.State {
 	case "request-pending":
 		if p.URL != "" || p.Expires != "" || len(p.Records) != 0 {
@@ -82,9 +87,17 @@ func openOrder(key, id []byte, m manifest) (orderPayload, error) {
 		if !acmeorder.OrderURL(p.URL, account.Registration.AccountURL) || p.Expires != "" || len(p.Records) != 0 {
 			return orderPayload{}, ErrInvalid
 		}
-	case "dns-ready", "dns-acknowledged":
+	case "dns-ready", "dns-acknowledged", "validation-pending", "validation-waiting", "validation-failed", "domain-verified":
 		if !acmeorder.ValidInstructions(acmeorder.Instructions{URL: p.URL, Expires: p.Expires, Records: p.Records}, account.Registration.AccountURL, p.Domains) || p.Expires <= p.Started {
 			return orderPayload{}, ErrInvalid
+		}
+		if p.State == "validation-pending" && (p.Validation != nil || p.CheckedAt != "") {
+			return orderPayload{}, ErrInvalid
+		}
+		if acmeorder.ValidationStarted(p.State) && p.State != "validation-pending" {
+			if p.Validation == nil || p.Validation.URL != p.URL || p.Validation.Expires != p.Expires || acmeorder.ValidationState(*p.Validation, p.Domains) != p.State || !acmeorder.Time(p.CheckedAt) || p.CheckedAt < p.Started || p.CheckedAt >= p.Expires {
+				return orderPayload{}, ErrInvalid
+			}
 		}
 	default:
 		return orderPayload{}, ErrInvalid
@@ -187,7 +200,7 @@ func UpdateStagingOrder(key, id, image []byte, expected uint64, url string, info
 		p.State = "dns-acknowledged"
 		action = "acme-dns-acknowledged"
 	case info != nil:
-		if url != "" || p.State == "request-pending" || p.URL != info.URL || info.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") {
+		if url != "" || (p.State != "order-known" && p.State != "dns-ready" && p.State != "dns-acknowledged") || p.URL != info.URL || info.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 			return nil, OrderStatus{}, 0, ErrInvalid
 		}
 		p.State = "dns-ready"

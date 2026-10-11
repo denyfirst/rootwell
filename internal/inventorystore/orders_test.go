@@ -268,6 +268,26 @@ func TestManualDNSOrderPreservesSavedCertificateAndPrivateKey(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	image, _, _, err = UpdateStagingOrder(key, id, image, 8, "", nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, _, _, err = BeginStagingValidation(key, id, image, 9, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, _, _, err = FinishStagingValidation(key, id, image, 10, validationFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WithCertificate(key, id, image, fp, 11, func(_ publicinventory.Record, k []byte) error {
+		if !bytes.Equal(k, private) {
+			t.Fatal("validation changed private key")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 	after, _, _ := decode(key, id, image)
 	if !bytes.Equal(before.Materials[0].Ciphertext, after.Materials[0].Ciphertext) || !bytes.Equal(before.Records[0].Ciphertext, after.Records[0].Ciphertext) || !bytes.Equal(before.ACMEAccounts[0].Ciphertext, after.ACMEAccounts[0].Ciphertext) {
 		t.Fatal("order resealed unrelated certificate/account material")
@@ -294,15 +314,29 @@ func FuzzManualDNSOrderPayload(f *testing.F) {
 		f.Fatal(err)
 	}
 	seed := orderPayload{State: "request-pending", Fingerprint: status.Fingerprint, Started: time.Now().UTC().Format("2006-01-02T15:04:05Z"), Domains: []string{"*.example.com", "example.com"}}
-	for _, state := range []string{"request-pending", "order-known", "dns-ready", "dns-acknowledged"} {
+	for _, state := range []string{"request-pending", "order-known", "dns-ready", "dns-acknowledged", "validation-pending", "validation-waiting", "domain-verified", "validation-failed"} {
 		seed.State = state
 		if state != "request-pending" {
 			seed.URL = orderURLFixture
 		}
-		if state == "dns-ready" || state == "dns-acknowledged" {
+		if state == "dns-ready" || state == "dns-acknowledged" || acmeorder.ValidationStarted(state) {
 			info := orderInstructionsFixture()
 			seed.Expires = info.Expires
 			seed.Records = info.Records
+		}
+		if acmeorder.ValidationStarted(state) && state != "validation-pending" {
+			v := acmeorder.Validation{URL: seed.URL, Expires: seed.Expires, OrderStatus: "ready", Statuses: []string{"valid", "valid"}}
+			if state == "validation-waiting" {
+				v.OrderStatus = "pending"
+			}
+			if state == "validation-failed" {
+				v.OrderStatus = "invalid"
+			}
+			seed.Validation = &v
+			seed.CheckedAt = seed.Started
+		} else {
+			seed.Validation = nil
+			seed.CheckedAt = ""
 		}
 		raw, err := json.Marshal(seed)
 		if err != nil {
