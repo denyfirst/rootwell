@@ -13,6 +13,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/acmeorder"
 	"github.com/denyfirst/rootwell/internal/csrworkbench"
+	"github.com/denyfirst/rootwell/internal/keymatch"
 )
 
 var ErrInvalid = errors.New("certificate request could not be safely prepared")
@@ -28,6 +29,7 @@ func Create(names []string) ([]byte, []byte, csrworkbench.Summary, error) {
 	if err != nil {
 		return nil, nil, csrworkbench.Summary{}, ErrInvalid
 	}
+	defer keymatch.ClearParsedKey(signer)
 	private, err := x509.MarshalPKCS8PrivateKey(signer)
 	if err != nil {
 		clear(private)
@@ -53,6 +55,7 @@ func Check(private, csr []byte, names []string) (csrworkbench.Summary, error) {
 		return bad()
 	}
 	parsed, err := x509.ParsePKCS8PrivateKey(private)
+	defer keymatch.ClearParsedKey(parsed)
 	key, ok := parsed.(*ecdsa.PrivateKey)
 	if err != nil || !ok || key.Curve != elliptic.P256() {
 		return bad()

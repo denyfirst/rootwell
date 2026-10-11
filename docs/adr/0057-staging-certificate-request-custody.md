@@ -26,6 +26,9 @@ history slot; future irreversible issuance must reserve completion capacity
 separately before any CA request. Full password/recovery backup and offline
 password recovery preserve the identical key AND CSR. Backup remains manual.
 No external rollback anchor, cryptographic erasure or reliable heap erasure.
+Generated/parsed signers use the existing best-effort ClearParsedKey helper;
+owned PKCS#8 and serialized plaintext buffers are cleared. Runtime/private
+scalar internals and copies are explicitly outside this guarantee.
 An unused request cannot yet be reset/deleted/exported; cleanup and expiry/new
 order policies are separate reviewed release work, not silently promised here.
 
