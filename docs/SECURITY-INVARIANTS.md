@@ -1479,6 +1479,33 @@ Guarded by `TestCertificateRequestExactNamesSeparateKeyAndStrictRefusal`,
 `FuzzCertificateRequestBinding`, `FuzzStagingCertificateRequestPayload`,
 `FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C76 guards.
 
+## C78 — Staging receipt acceptance cannot manufacture trust or widen a CSR
+
+ADR 0058 adds only an offline internal gate, not finalize/issuance/storage/UI.
+The exact bounded prepared P-256 key/CSR and canonical DNS set must match the
+non-CA returned leaf. No extra/duplicate DNS, other SAN types (even types ignored
+by crypto/x509), unknown key-usage bits, missing explicit signature/server usage,
+unhandled critical extensions, algorithm/time/constraint failures or partial
+results. Every bounded ordered response member must participate in the verified
+path. Unknown, reordered, extraneous, duplicate or missing members refuse.
+Trust comes only from four reviewed embedded, hash-checked self-signed staging
+roots; no response/system root fallback, network or automatic root update.
+Optional terminal root must be independently trusted, not merely self-signed.
+Exact canonical wildcard SAN equality uses no synthetic hostname. Standard
+X.509 verifies all SAN constraints and signatures. Result is public/test-only,
+not order ownership, revocation, CT, deployment or ordinary browser trust.
+Caller inputs are unchanged. Network/custody/UI integration and independent
+production audit remain future work; can_issue is still false.
+
+Guarded by `TestStagingReceiptExactBindingIndependentTrustAndNoInputMutation`,
+`TestStagingReceiptRejectsAlteredNamesKeysUsageTimeAndSAN`,
+`TestStagingReceiptRejectsTamperUntrustedExtraneousChainAndResourceAbuse`,
+`TestStagingReceiptEnforcesEveryIssuerPolicyAndNameConstraints`,
+`TestStagingReceiptDirectRootCrossSignedPathAndResponseBudget`,
+`TestStagingRootsExactOfficialAssetsAndNoFallback`,
+`TestStagingReceiptHasNoNetworkStorageOrSigningAuthority` and
+`FuzzStagingCertificateReceipt`; inherited request/policy/architecture tests.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

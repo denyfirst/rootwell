@@ -28,7 +28,16 @@ sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşd�
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0057:** CA-ready və bütün authorization-valid nəticələri
+**Cari increment — ADR 0058:** CA cavabını qəbul edən lokal daxili yoxlama nüvəsi:
+eyni key/CSR və dəqiq domenlər, leaf/usage/time/algorithm və tam ordered chain.
+Trust cavabdan və ya system store-dan deyil, ayrıca reviewed/pinned dörd staging
+root-dan gəlir; test-only qalır. Şəbəkə, finalize, yazma və yeni UI düyməsi yoxdur;
+can_issue false qalır. Bu issuance dalğasının yalnız receipt-validation hissəsidir.
+Sonra durable intent, eyni CSR ilə bounded finalize/same-order reconciliation,
+writer-lock altında təkrar yoxlama, atomik Certificates pair və aydın staging
+etiketi birləşdiriləcək. Manual renewal və DNS avtomatlaşdırması bundan sonradır.
+
+**Tamamlanan increment — ADR 0057:** CA-ready və bütün authorization-valid nəticələri
 təsdiqləndikdən sonra, onların müddəti bitmədən fresh parol və ayrıca razılıqla
 bir yeni P-256 certificate key və
 dəqiq domenlərə bağlı imzalı CSR lokal hazırlanıb şifrəli saxlanır. Təkrar

@@ -92,6 +92,23 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0058 supplies only the offline staging receipt-acceptance component of
+gate 4. Exact prepared key/signed CSR, strict DNS-only SAN set (wildcards
+included), explicit digital-signature/server usage, supported policy/current
+time/critical extensions and complete ordered-path constraints are checked.
+Bounded DER response: 8 certificates, 48 KiB each, 256 KiB total. Four reviewed
+embedded self-signed staging root DER hashes supply independent test-only trust;
+no response/system root fallback or dynamic update. Supplied roots can appear
+only as the exact independently trusted terminal member; every response member
+must be used. No I/O, signer generation, route, write or new UI authority. Fixed
+errors/no partial evidence, unchanged caller buffers. Standard parsers inspect
+even otherwise ignored SAN types/key-usage bits; no custom crypto/ASN.1 encoder.
+Synthetic acceptance tests do not prove live CA interoperability. Public source
+HTTPS/root-hash review is not an independent out-of-band trust ceremony. CA
+intent/finalize/reconciliation, atomic pair transfer/staging provenance and
+full recovery/UI integration still need the next reviewed increment. Staging
+roots never enter system/browser trust; no revocation/CT/deployment/audit claim.
+
 ADR 0057 implements only the local signer/CSR custody part of issuance gate 4.
 Unexpired ready/all-valid saved observation, explicit consent, fresh password,
 exact generation/revision and live permission under the private writer lock.

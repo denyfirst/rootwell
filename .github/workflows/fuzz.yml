@@ -106,6 +106,8 @@ jobs:
             package: ./cmd/rootwelld
           - target: FuzzCertificateRequestBinding
             package: ./internal/acmecertrequest
+          - target: FuzzStagingCertificateReceipt
+            package: ./internal/acmecertificate
           - target: FuzzStagingCertificateRequestPayload
             package: ./internal/inventorystore
     steps:
