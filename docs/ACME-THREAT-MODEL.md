@@ -92,6 +92,25 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0057 implements only the local signer/CSR custody part of issuance gate 4.
+Unexpired ready/all-valid saved observation, explicit consent, fresh password,
+exact generation/revision and live permission under the private writer lock.
+One new P-256 signer, canonical PKCS#8 and signed exact-SAN/empty-subject DER
+CSR; never reuse the account signer. New HKDF-purpose-separated AES-GCM field
+binds installation, generation, account fingerprint, saved order and names.
+Complete-image validation rechecks key/CSR/signature/policy/binding before any
+output. Atomic public history, one remaining slot and nonce-budget checks;
+full password/recovery backup and password recovery preserve identical material.
+Only public prepared time/fingerprint reaches the v3 same-card UI. No CA I/O,
+automatic generation, reset/delete/export/replacement, certificate record or
+issuance authority. Shared auth/crypto budgets and hidden/late/strict-response
+refusal apply. Existing account/order/certificate data is preserved. Native
+platforms refuse before file/callback. No browser visual QA/live CA/audit claim.
+Future finalize must use this exact CSR and reconcile the same order without
+blind replay or client-managed polling; independently configured staging-only
+trust is required before returned certificate/key pair storage. Unused-request
+cleanup, expiry/new order policy, renewal and DNS adapters remain separate work.
+
 ADR 0056 separately enables explicit staging DNS validation and read-only
 same-order CA refresh. Before network, encrypt intent and invalidate the prior
 verdict under the writer lock; reserve intent/result capacity. Complete exact

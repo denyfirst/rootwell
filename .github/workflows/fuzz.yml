@@ -104,6 +104,10 @@ jobs:
             package: ./internal/inventorystore
           - target: FuzzManualDNSRequest
             package: ./cmd/rootwelld
+          - target: FuzzCertificateRequestBinding
+            package: ./internal/acmecertrequest
+          - target: FuzzStagingCertificateRequestPayload
+            package: ./internal/inventorystore
     steps:
       - name: Check out the default branch
         run: |

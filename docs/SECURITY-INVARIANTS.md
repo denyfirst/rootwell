@@ -1451,6 +1451,34 @@ Guarded by `TestValidationVerdictRequiresReadyAndEveryAuthorization`,
 the expanded `FuzzManualDNSCAResponse`, `FuzzManualDNSOrderPayload`,
 `FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C70–C73 guards.
 
+## C77 — Certificate request custody is bound, recoverable and not issuance
+
+ADR 0057 permits one local P-256 key and signed exact-SAN empty-subject DER CSR
+only after unexpired ready/all-valid saved CA verification, fresh password and
+explicit consent. Exact revision/generation/live permission and private writer
+lock surround atomic commit. Capacity is checked before generation; existing
+keys are never replaced or repurposed. Canonical bounded PKCS#8, strict CSR
+signature/policy/SPKI/name checks and purpose-separated authenticated custody
+bind account/order/installation. Whole-image refusal releases no partial output.
+Full password/recovery restore and offline password recovery retain byte-identical
+encrypted key/CSR/account/order. Only public fingerprint/time reaches history/UI.
+v3 schema, expiry, fresh consent and hidden/late/changed/malformed refusal apply.
+No network/finalize/certificate/automatic preparation; can_issue stays false.
+Old binaries refuse the new manifest field, native platforms refuse custody.
+Unused-key cleanup/export/new-order handling and independent audit remain future.
+
+Guarded by `TestCertificateRequestExactNamesSeparateKeyAndStrictRefusal`,
+`TestCertificateRequestPreparationEncryptedBoundAtomicAndPreserved`,
+`TestCertificateRequestRefusesUnverifiedExpiredTamperedAndCrossPurpose`,
+`TestManualDNSOrderPreservesSavedCertificateAndPrivateKey`,
+`TestLinuxCertificateRequestCustodyPermissionAtomicityAndFullRecovery`,
+`TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement`,
+`TestNativeCertificateRequestRefusesBeforeFileOrPermission`,
+`TestManualDNSRequestStrictShapesNeverReturnPartialAuthority`,
+`TestManualDNSGateRequiresReadyOriginAndNativeRefusal`,
+`FuzzCertificateRequestBinding`, `FuzzStagingCertificateRequestPayload`,
+`FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C76 guards.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

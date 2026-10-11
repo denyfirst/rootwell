@@ -85,9 +85,9 @@
       </form>
       <button id="acme-order-resume-choice" type="button" class="secondary" hidden>Refresh records from the same saved request</button>
       <details><summary>How do I add these DNS records?</summary><p>Choose type TXT in your DNS provider. Use each Name and Value exactly as shown. Some providers append your domain automatically: enter only the relative name there, such as _acme-challenge. Do not put the name in twice.</p><p>If two records have the same Name, keep both Values; do not overwrite the first one. Do not replace unrelated TXT records. Rootwell does not edit or look up your DNS in this step.</p></details>
-      <p>Your acknowledgement does not verify DNS. The separate “Ask CA to check DNS” action requests validation; “Refresh CA result” only reads the same request and never repeats validation. No certificate issuance or renewal yet. Staging is test-only. Make a new complete backup after saved changes.</p>
+      <p>Your acknowledgement does not verify DNS. The separate “Ask CA to check DNS” action requests validation; “Refresh CA result” only reads the same request and never repeats validation. After confirmed CA verification, “Prepare certificate key” saves one new P-256 key and signed request locally, encrypted and included in full backup — no CA request, certificate issuance or renewal yet. An existing key is never replaced. Staging is test-only. Make a new complete backup after saved changes.</p>
     </section>
-    <section class="card"><h2>What comes next?</h2><p>After the CA confirms your domains: issue a test certificate → save the certificate and its key together in Certificates → renewal and DNS automation. Certificate issuance, renewal and server deployment are not enabled yet.</p></section>
+    <section class="card"><h2>What comes next?</h2><p>After preparing your certificate key: send its signed request to staging → check the returned certificate → save the certificate and its key together in Certificates → renewal and DNS automation. Certificate issuance, renewal and server deployment are not enabled yet. Prepared requests cannot yet be reset, deleted or exported in this development version.</p></section>
     </div>
   </main></div>
 </body>

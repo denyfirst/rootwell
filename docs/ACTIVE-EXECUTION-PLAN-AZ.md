@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-11. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-12. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -28,7 +28,19 @@ sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşd�
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0056:** eyni sifariş üçün fresh parol və açıq razılıqla
+**Cari increment — ADR 0057:** CA-ready və bütün authorization-valid nəticələri
+təsdiqləndikdən sonra, onların müddəti bitmədən fresh parol və ayrıca razılıqla
+bir yeni P-256 certificate key və
+dəqiq domenlərə bağlı imzalı CSR lokal hazırlanıb şifrəli saxlanır. Təkrar
+klik açarı dəyişmir; tam password/recovery backup və parol bərpası eyni açar
+və CSR-i qoruyur. Eyni Automation kartı, şəbəkə yoxdur, can_issue false qalır.
+Bu issuance dalğasının custody hissəsidir, sertifikat hələ alınmır və
+Certificates-də yeni qeyd yaranmır. Sonra eyni CSR ilə explicit CA finalize,
+qeyri-müəyyən nəticənin eyni sifarişdən reconciliation-u, müstəqil staging trust,
+key/name/time/policy yoxlamaları və atomik pair storage gəlir. UI VM sınağı
+canlı browser QA deyil; production/müstəqil audit ayrıca qalır.
+
+**Tamamlanan increment — ADR 0056:** eyni sifariş üçün fresh parol və açıq razılıqla
 CA DNS yoxlaması; ayrıca read-only nəticə refresh-i. Hər cəhdin niyyəti əvvəl
 şifrəli saxlanır, əvvəlki uğur nəticəsi səlahiyyət kimi qalmır. Bütün domen və
 acknowledged TXT-lər uyğun gəlmədən heç bir challenge qəbul edilmir. Natamam
