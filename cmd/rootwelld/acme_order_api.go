@@ -31,7 +31,7 @@ type orderInput struct {
 
 func readOrderInput(w http.ResponseWriter, r *http.Request, mode string) (orderInput, bool) {
 	bad := func() (orderInput, bool) { return orderInput{}, false }
-	if mode != "status" && mode != "start" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" {
+	if mode != "status" && mode != "start" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" && mode != "prepare-key" {
 		return bad()
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -117,10 +117,11 @@ type orderOutput struct {
 	Provider   string `json:"provider"`
 	Generation uint64 `json:"generation"`
 	inventorystore.OrderStatus
-	Network        bool `json:"network_used"`
-	Saved          bool `json:"saved"`
-	DomainVerified bool `json:"domain_verified"`
-	CanIssue       bool `json:"can_issue"`
+	Network        bool                                    `json:"network_used"`
+	Saved          bool                                    `json:"saved"`
+	DomainVerified bool                                    `json:"domain_verified"`
+	CanIssue       bool                                    `json:"can_issue"`
+	CertificateKey inventorystore.CertificateRequestStatus `json:"certificate_key"`
 }
 
 func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -177,7 +178,7 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
-	status, gen, err := instanceaccess.ReadStagingOrder(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	status, certificateKey, gen, err := instanceaccess.ReadStagingOrderPreparation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -185,6 +186,10 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 	if mode != "status" {
 		if gen != input.Expected {
 			http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
+			return
+		}
+		if mode == "prepare-key" && (status.State != "domain-verified" || certificateKey.Prepared || status.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z")) {
+			http.Error(w, "Confirm unexpired CA verification first; an existing certificate key is never replaced.", http.StatusConflict)
 			return
 		}
 		if (mode == "start" && status.State != "not-started") || (mode == "resume" && status.State != "order-known" && status.State != "dns-ready" && status.State != "dns-acknowledged") || (mode == "ack" && status.State != "dns-ready") || (mode == "validate" && status.State != "dns-acknowledged") || (mode == "refresh" && !acmeorder.ValidationStarted(status.State)) {
@@ -210,7 +215,9 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			http.Error(w, "session no longer available", http.StatusUnauthorized)
 			return
 		}
-		if mode == "ack" {
+		if mode == "prepare-key" {
+			certificateKey, gen, err = instanceaccess.PrepareStagingCertificateRequest(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, permit)
+		} else if mode == "ack" {
 			status, gen, err = instanceaccess.AcknowledgeStagingDNS(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, permit)
 		} else {
 			account, _, accountErr := instanceaccess.ReadStagingAccount(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
@@ -242,10 +249,18 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			}
 		}
 		if err != nil || !permit() {
-			http.Error(w, "Outcome not confirmed. Refresh saved status. Continue only the saved order; do not create another one. No certificate was issued.", http.StatusServiceUnavailable)
+			http.Error(w, "Outcome not confirmed. Refresh saved status. Continue only the saved order and key; do not create replacements. No certificate was issued.", http.StatusServiceUnavailable)
 			return
 		}
 	}
+	// Re-read the preparation from the same final order snapshot. A concurrent
+	// external write cannot produce mixed-generation key/order capability flags.
+	finalOrder, finalKey, finalGen, err := instanceaccess.ReadStagingOrderPreparation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	if err != nil || finalGen != gen {
+		http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
+		return
+	}
+	status, certificateKey = finalOrder, finalKey
 	if !permit() {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
@@ -257,5 +272,5 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		status.Records = []acmeorder.TXT{}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v2", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh", Saved: status.State != "not-started", DomainVerified: status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z")})
+	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v3", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh", Saved: status.State != "not-started", DomainVerified: status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z"), CertificateKey: certificateKey})
 }

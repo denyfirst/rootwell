@@ -84,7 +84,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
-	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed":
+	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed", "acme-certificate-key-prepared":
 	default:
 		return false
 	}

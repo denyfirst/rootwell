@@ -39,15 +39,16 @@ type sealedRecord struct {
 }
 
 type manifest struct {
-	Version        int            `json:"version"`
-	InstallationID []byte         `json:"installation_id"`
-	Generation     uint64         `json:"generation"`
-	Records        []sealedRecord `json:"records"`
-	History        []sealedRecord `json:"history,omitempty"`
-	Keys           []sealedRecord `json:"keys,omitempty"`
-	Materials      []sealedRecord `json:"materials,omitempty"`
-	ACMEAccounts   []sealedRecord `json:"acme_accounts,omitempty"`
-	ACMEOrders     []sealedRecord `json:"acme_orders,omitempty"`
+	Version                 int            `json:"version"`
+	InstallationID          []byte         `json:"installation_id"`
+	Generation              uint64         `json:"generation"`
+	Records                 []sealedRecord `json:"records"`
+	History                 []sealedRecord `json:"history,omitempty"`
+	Keys                    []sealedRecord `json:"keys,omitempty"`
+	Materials               []sealedRecord `json:"materials,omitempty"`
+	ACMEAccounts            []sealedRecord `json:"acme_accounts,omitempty"`
+	ACMEOrders              []sealedRecord `json:"acme_orders,omitempty"`
+	ACMECertificateRequests []sealedRecord `json:"acme_certificate_requests,omitempty"`
 }
 
 type envelope struct {
@@ -439,6 +440,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if _, err := openOrder(key, id, m); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if _, err := certificateRequestStatus(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

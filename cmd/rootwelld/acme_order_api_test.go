@@ -23,7 +23,7 @@ func orderRequest(gen string, start bool) string {
 }
 
 func TestManualDNSRequestStrictShapesNeverReturnPartialAuthority(t *testing.T) {
-	for mode, valid := range map[string]string{"status": orderStatusInput, "start": orderRequest("4", true), "resume": orderRequest("6", false), "ack": orderRequest("7", false), "validate": orderRequest("8", false), "refresh": orderRequest("9", false)} {
+	for mode, valid := range map[string]string{"status": orderStatusInput, "start": orderRequest("4", true), "resume": orderRequest("6", false), "ack": orderRequest("7", false), "validate": orderRequest("8", false), "refresh": orderRequest("9", false), "prepare-key": orderRequest("10", false)} {
 		parse := func(body string, want bool) {
 			t.Helper()
 			r := httptest.NewRequest("POST", "/", strings.NewReader(body))
@@ -38,7 +38,7 @@ func TestManualDNSRequestStrictShapesNeverReturnPartialAuthority(t *testing.T) {
 			parse(bad, false)
 		}
 		if mode != "status" {
-			for _, bad := range []string{strings.Replace(valid, `"confirm":true`, `"confirm":false`, 1), strings.Replace(valid, `"confirm":true`, `"confirm":null`, 1), strings.Replace(valid, `"password":"`+nextTestPassword+`"`, `"password":null`, 1), strings.Replace(valid, `"expected_generation":`, `"Expected_generation":`, 1), strings.Replace(valid, `"expected_generation":`+map[string]string{"start": "4", "resume": "6", "ack": "7", "validate": "8", "refresh": "9"}[mode], `"expected_generation":null`, 1)} {
+			for _, bad := range []string{strings.Replace(valid, `"confirm":true`, `"confirm":false`, 1), strings.Replace(valid, `"confirm":true`, `"confirm":null`, 1), strings.Replace(valid, `"password":"`+nextTestPassword+`"`, `"password":null`, 1), strings.Replace(valid, `"expected_generation":`, `"Expected_generation":`, 1), strings.Replace(valid, `"expected_generation":`+map[string]string{"start": "4", "resume": "6", "ack": "7", "validate": "8", "refresh": "9", "prepare-key": "10"}[mode], `"expected_generation":null`, 1)} {
 				parse(bad, false)
 			}
 		}
@@ -64,7 +64,7 @@ func TestManualDNSGateRequiresReadyOriginAndNativeRefusal(t *testing.T) {
 		return acmeorder.Validation{}, nil
 	}
 	setup := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil))
-	for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh"} {
+	for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh", "prepare-key"} {
 		route := "/api/acme/order/" + mode
 		if w := accountCall(g, "POST", route, orderStatusInput, setup, "http://"+localHost, true); w.Code != 403 {
 			t.Fatal("setup granted order authority")
@@ -87,7 +87,7 @@ func TestManualDNSGateRequiresReadyOriginAndNativeRefusal(t *testing.T) {
 		}
 	}
 	if runtime.GOOS != "linux" {
-		for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh"} {
+		for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh", "prepare-key"} {
 			input := orderRequest("4", mode == "start")
 			if mode == "status" {
 				input = orderStatusInput
@@ -116,7 +116,7 @@ func FuzzManualDNSRequest(f *testing.F) {
 		if len(body) > 4097 {
 			return
 		}
-		for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh"} {
+		for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh", "prepare-key"} {
 			r := httptest.NewRequest("POST", "/", strings.NewReader(string(body)))
 			r.Header.Set("Content-Type", "application/json")
 			input, ok := readOrderInput(httptest.NewRecorder(), r, mode)

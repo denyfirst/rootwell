@@ -280,9 +280,13 @@ func TestManualDNSOrderPreservesSavedCertificateAndPrivateKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WithCertificate(key, id, image, fp, 11, func(_ publicinventory.Record, k []byte) error {
+	image, _, _, err = PrepareStagingCertificateRequest(key, id, image, 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WithCertificate(key, id, image, fp, 12, func(_ publicinventory.Record, k []byte) error {
 		if !bytes.Equal(k, private) {
-			t.Fatal("validation changed private key")
+			t.Fatal("validation/request preparation changed private key")
 		}
 		return nil
 	}); err != nil {

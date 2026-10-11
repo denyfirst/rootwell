@@ -153,7 +153,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":
 		g.acmeRegistrationEndpoint(w, r, s, signedIn)
 		return
-	case "/api/acme/order/status", "/api/acme/order/start", "/api/acme/order/resume", "/api/acme/order/ack", "/api/acme/order/validate", "/api/acme/order/refresh":
+	case "/api/acme/order/status", "/api/acme/order/start", "/api/acme/order/resume", "/api/acme/order/ack", "/api/acme/order/validate", "/api/acme/order/refresh", "/api/acme/order/prepare-key":
 		g.acmeOrderEndpoint(w, r, s, signedIn)
 		return
 	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":

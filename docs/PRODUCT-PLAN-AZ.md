@@ -44,6 +44,14 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
+**2026-10-12 cari icra — ADR 0057:** issuance mərhələsinin ilk lokal custody
+hissəsi: CA tərəfindən hazır/təsdiqlənmiş və bitməmiş eyni sifariş üçün yeni
+certificate key və exact-SAN CSR; fresh parol/razılıq, purpose-separated şifrəli
+saxlanma, bir dəfə yaratma və tam backup/bərpa. Bu CA-ya göndərmə, verilmiş
+sertifikat, renewal və DNS avtomatlaşdırması deyil. Növbəti increment eyni
+açar/CSR ilə bounded finalize/reconciliation və müstəqil staging trust əsasında
+yoxlanmış certificate/private pair-in atomik Certificates saxlanmasıdır.
+
 Rootwell şirkətlərin və texniki istifadəçilərin certificate və kriptoqrafik
 aktivlərini təhlükəsiz şəkildə görməsi, yoxlaması, yaratması, yeniləməsi,
 yerləşdirməsi və ləğv etməsi üçün self-hosted platforma olacaq.
