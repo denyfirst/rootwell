@@ -48,7 +48,7 @@
         records.append(card);
       }
       resumeChoice.hidden=validationStates.includes(data.state);
-      if(!usable())status.textContent="These saved instructions have expired. Do not use or acknowledge them. You may read the same request again; no replacement request is created.";
+      if(!usable())status.textContent=validationStates.includes(data.state)?"This saved CA check has expired. It no longer confirms domain verification. Keep your saved state and backup; CA refresh and replacement are unavailable in this development version.":"These saved instructions have expired. Do not use or acknowledge them. You may read the same request again; no replacement request is created.";
       else if(data.state==="dns-acknowledged"){status.textContent="Your acknowledgement is saved encrypted. CA verification has not been requested. No certificate was issued. Allow the CA check below when your DNS records are ready.";choose("validate");}
       else if(validationStates.includes(data.state)){
         status.textContent=data.state==="validation-pending"?"The validation outcome is not confirmed. Only read the same request's CA result; validation will not be repeated. Some challenges may not have been sent.":data.state==="validation-failed"?"The CA did not approve this request. Keep your saved state; automatic retry and replacement are blocked. You can refresh the CA result.":data.state==="domain-verified" && data.domain_verified?"The CA confirmed every domain and marked this request ready. No certificate was issued yet. Make a new complete backup.":"CA verification is not yet confirmed complete. Refresh the CA result later; no automatic polling or repeat validation.";

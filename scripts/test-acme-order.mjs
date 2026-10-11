@@ -54,6 +54,9 @@ function fixture(initial=empty){
 for(const state of ["validation-pending","validation-waiting","validation-failed","domain-verified"]){
   const f=fixture({...ready,generation:10,state,domain_verified:state==="domain-verified"});await f.refresh();assert.equal(f.el("acme-order-resume-choice").hidden,true);
   f.el("acme-order-resume-choice").listeners.click();assert.match(f.el("acme-order-submit").textContent,/Refresh CA/);f.approve();await f.submit();assert.equal(f.requests[1].url,"/api/acme/order/refresh","never repeats Accept after intent");
+  const expired=fixture({...ready,generation:10,state,expires:"2020-01-01T00:00:00Z",domain_verified:false});await expired.refresh();
+  assert.equal(expired.el("acme-order-form").hidden,true);assert.equal(expired.el("acme-order-resume-choice").hidden,true);assert.match(expired.el("acme-order-status").textContent,/expired.*no longer confirms.*unavailable/);
+  expired.el("acme-order-resume-choice").listeners.click();expired.approve();await expired.submit();assert.equal(expired.requests.length,1,"expired CA observation grants no connector authority");
 }
 for(const result of [{...waiting,domain_verified:true},{...verified,domains:["evil.example.com","example.com"]},{...verified,generation:8},{...verified,can_issue:true},{...verified,state:"dns-ready"},{...verified,records:[{...verified.records[0],value:"C".repeat(42)+"A"},verified.records[1]]},{...verified,expires:"9999-01-01T00:00:00Z"}]){
   const f=fixture(acknowledged);await f.refresh();f.approve();f.override(()=>reply(result));await f.submit();assert.equal(f.el("acme-order-records").hidden,true);assert.match(f.el("acme-order-status").textContent,/not confirmed/);
