@@ -96,8 +96,11 @@ ADR 0058 supplies only the offline staging receipt-acceptance component of
 gate 4. Exact prepared key/signed CSR, strict DNS-only SAN set (wildcards
 included), explicit digital-signature/server usage, supported policy/current
 time/critical extensions and complete ordered-path constraints are checked.
-Bounded DER response: 8 certificates, 48 KiB each, 256 KiB total. Four reviewed
-embedded self-signed staging root DER hashes supply independent test-only trust;
+Bounded DER response: 8 certificates, 48 KiB each, 256 KiB total.
+RSA response keys are additionally capped at 8192 bits before signature/path
+arithmetic; small DER can still contain a huge modulus. Existing floors remain.
+Four reviewed embedded self-signed staging root DER hashes supply independent
+test-only trust;
 no response/system root fallback or dynamic update. Supplied roots can appear
 only as the exact independently trusted terminal member; every response member
 must be used. No I/O, signer generation, route, write or new UI authority. Fixed

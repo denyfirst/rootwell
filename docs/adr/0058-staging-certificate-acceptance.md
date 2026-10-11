@@ -20,6 +20,12 @@ root, and every supplied certificate must participate in that exact path.
 
 Limits: 1–8 DER certificates, each <=48 KiB, total <=256 KiB; independent roots
 <=32 KiB, <=4 certificates; inherited bounded key/CSR and canonical name policy.
+RSA public keys on response/path members have an explicit 8192-bit ceiling,
+checked before any response signature/path arithmetic. The inherited algorithm
+policy provides a floor, not an upper work-factor bound; small DER alone cannot
+bound RSA arithmetic. Public-only synthetic huge-modulus fixtures isolate this
+ceiling without generating costly oversized private keys, alongside a real
+RSA-issuer/P-256-leaf success case. Existing policy is not weakened.
 Recheck key/CSR signature and exact SAN/SPKI binding, non-CA leaf, explicit
 UTC evaluation year 2000–9999, current time,
 explicit digital-signature and TLS-server usage, no signing/unknown usages,
@@ -78,3 +84,16 @@ that CreateCertificate truncates unknown KU bits, so the negative fixture now
 uses a standard ASN.1 BIT STRING extension and the checker inspects those bits.
 The not-CA issuer fixture also clears CA-only path-length settings; a fixture
 construction failure is not counted as security refusal evidence.
+
+Final diff review found the missing explicit RSA work ceiling; a follow-up
+adds it before signature verification, with the new boundary test. Additional
+actual two-direction sabotage, restored: replacing the RSA ceiling with >0
+made TestStagingReceiptCapsRSAIssuerWorkBeforeSignatureVerification fail "RSA
+work ceiling failed before path verification"; accepting only zero-size RSA
+made its real normal RSA-issuer success case fail "normal RSA issuer refused".
+After restoration, all local full/pinned gates were repeated and passed,
+including Linux/macOS cross-vet and Linux-target gosec. Final receipt coverage
+is 95.0%; a fresh twenty-second/two-worker fuzz run passed 205887 executions.
+govulncheck repeated the same no-affected-code/one-unused-module result. Manual
+DNS UI VM regression was repeated, not visual QA. The final head requires fresh
+CI gates and a superseding self-review; earlier-head checks cannot authorize it.

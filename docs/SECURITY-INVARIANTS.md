@@ -1490,6 +1490,8 @@ results. Every bounded ordered response member must participate in the verified
 path. Unknown, reordered, extraneous, duplicate or missing members refuse.
 Trust comes only from four reviewed embedded, hash-checked self-signed staging
 roots; no response/system root fallback, network or automatic root update.
+RSA response keys above 8192 bits refuse before signature/path arithmetic;
+bounded DER size alone is not a work-factor bound. Existing key floors remain.
 Optional terminal root must be independently trusted, not merely self-signed.
 Exact canonical wildcard SAN equality uses no synthetic hostname. Standard
 X.509 verifies all SAN constraints and signatures. Result is public/test-only,
@@ -1502,6 +1504,7 @@ Guarded by `TestStagingReceiptExactBindingIndependentTrustAndNoInputMutation`,
 `TestStagingReceiptRejectsTamperUntrustedExtraneousChainAndResourceAbuse`,
 `TestStagingReceiptEnforcesEveryIssuerPolicyAndNameConstraints`,
 `TestStagingReceiptDirectRootCrossSignedPathAndResponseBudget`,
+`TestStagingReceiptCapsRSAIssuerWorkBeforeSignatureVerification`,
 `TestStagingRootsExactOfficialAssetsAndNoFallback`,
 `TestStagingReceiptHasNoNetworkStorageOrSigningAuthority` and
 `FuzzStagingCertificateReceipt`; inherited request/policy/architecture tests.

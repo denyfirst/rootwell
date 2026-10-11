@@ -5,6 +5,7 @@ package acmecertificate
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
@@ -75,7 +76,7 @@ func check(private, csr []byte, names []string, response [][]byte, at time.Time,
 	current := at.UTC()
 	pool := x509.NewCertPool()
 	for _, root := range roots {
-		if root == nil || !root.NotBefore.Before(root.NotAfter) || len(root.UnhandledCriticalExtensions) != 0 || certverify.CheckCertificatePolicy(root) != nil || !root.BasicConstraintsValid || !root.IsCA || root.KeyUsage&x509.KeyUsageCertSign == 0 || !bytes.Equal(root.RawSubject, root.RawIssuer) || root.CheckSignatureFrom(root) != nil {
+		if root == nil || !root.NotBefore.Before(root.NotAfter) || len(root.UnhandledCriticalExtensions) != 0 || certverify.CheckCertificatePolicy(root) != nil || !boundedPublicKey(root) || !root.BasicConstraintsValid || !root.IsCA || root.KeyUsage&x509.KeyUsageCertSign == 0 || !bytes.Equal(root.RawSubject, root.RawIssuer) || root.CheckSignatureFrom(root) != nil {
 			return bad()
 		}
 		pool.AddCert(root)
@@ -133,7 +134,17 @@ func check(private, csr []byte, names []string, response [][]byte, at time.Time,
 
 func validMember(c *x509.Certificate, at time.Time) bool {
 	return c != nil && c.NotBefore.Before(c.NotAfter) && !at.Before(c.NotBefore) && at.Before(c.NotAfter) &&
-		len(c.UnhandledCriticalExtensions) == 0 && certverify.CheckCertificatePolicy(c) == nil
+		len(c.UnhandledCriticalExtensions) == 0 && certverify.CheckCertificatePolicy(c) == nil && boundedPublicKey(c)
+}
+
+// A small DER body can hold an enormous RSA modulus. Refuse before ANY
+// response-member signature/path verification, not after modular arithmetic.
+// Existing policy supplies the key floor/curve checks; this is a work ceiling.
+func boundedPublicKey(c *x509.Certificate) bool {
+	if key, ok := c.PublicKey.(*rsa.PublicKey); ok {
+		return key != nil && key.N != nil && key.N.BitLen() <= 8192
+	}
+	return true
 }
 
 func explicitLeafKeyUsage(c *x509.Certificate) bool {

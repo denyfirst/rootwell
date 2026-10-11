@@ -194,7 +194,7 @@ func TestACMEAccountPreparationHasNoOutboundHTTPAuthority(t *testing.T) {
 func TestStagingReceiptHasNoNetworkStorageOrSigningAuthority(t *testing.T) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	allowed := map[string]bool{"bytes": true, "crypto/sha256": true, "crypto/x509": true,
+	allowed := map[string]bool{"bytes": true, "crypto/rsa": true, "crypto/sha256": true, "crypto/x509": true,
 		"embed": true, "encoding/asn1": true, "encoding/hex": true, "errors": true, "slices": true, "strings": true, "time": true,
 		"github.com/denyfirst/rootwell/internal/acmecertrequest": true,
 		"github.com/denyfirst/rootwell/internal/certinspect":     true, "github.com/denyfirst/rootwell/internal/certverify": true}

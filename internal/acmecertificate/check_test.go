@@ -2,9 +2,11 @@ package acmecertificate
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -82,7 +84,7 @@ func generateKey(t testing.TB) *ecdsa.PrivateKey {
 	return k
 }
 
-func issue(t testing.TB, template, parent *x509.Certificate, public any, signer *ecdsa.PrivateKey) *x509.Certificate {
+func issue(t testing.TB, template, parent *x509.Certificate, public any, signer crypto.Signer) *x509.Certificate {
 	t.Helper()
 	der, err := x509.CreateCertificate(rand.Reader, template, parent, public, signer)
 	if err != nil {
@@ -424,6 +426,34 @@ func TestStagingReceiptDirectRootCrossSignedPathAndResponseBudget(t *testing.T) 
 			assertRefused(t, out, err)
 		} else if err != nil || len(out.ChainFingerprints) != 8 {
 			t.Fatal("valid bounded longest path refused")
+		}
+	}
+}
+
+func TestStagingReceiptCapsRSAIssuerWorkBeforeSignatureVerification(t *testing.T) {
+	f := fixture(t, []string{"example.com"})
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keymatch.ClearParsedKey(key)
+	parent := issue(t, f.issuer, f.root, key.Public(), f.rootKey)
+	leaf := issue(t, &f.leafTemplate, parent, f.key.Public(), key)
+	if _, err := check(f.private, f.csr, f.names, [][]byte{leaf.Raw, parent.Raw}, f.at, []*x509.Certificate{f.root}); err != nil {
+		t.Fatal("normal RSA issuer refused")
+	}
+	// Public-only fabricated moduli are cheap fixtures, not huge key generation.
+	// These valid signed certificates are small and meet the inherited key floor;
+	// ONLY the new receipt work-factor ceiling refuses the oversized public key.
+	for _, bits := range []int{2048, 4096, 8192, 8193, 65536} {
+		modulus := new(big.Int).SetBit(new(big.Int), bits-1, 1)
+		modulus.SetBit(modulus, 0, 1)
+		c := issue(t, f.issuer, f.root, &rsa.PublicKey{N: modulus, E: 65537}, f.rootKey)
+		if len(c.Raw) > maxCertificateBytes || certverify.CheckCertificatePolicy(c) != nil || c.CheckSignatureFrom(f.root) != nil {
+			t.Fatal("fixture does not isolate RSA ceiling")
+		}
+		if validMember(c, f.at) != (bits <= 8192) {
+			t.Fatal("RSA work ceiling failed before path verification")
 		}
 	}
 }
