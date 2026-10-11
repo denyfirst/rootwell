@@ -190,3 +190,57 @@ func TestACMEAccountPreparationHasNoOutboundHTTPAuthority(t *testing.T) {
 		return true
 	})
 }
+
+func TestStagingReceiptHasNoNetworkStorageOrSigningAuthority(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	allowed := map[string]bool{"bytes": true, "crypto/rsa": true, "crypto/sha256": true, "crypto/x509": true,
+		"embed": true, "encoding/asn1": true, "encoding/hex": true, "errors": true, "slices": true, "strings": true, "time": true,
+		"github.com/denyfirst/rootwell/internal/acmecertrequest": true,
+		"github.com/denyfirst/rootwell/internal/certinspect":     true, "github.com/denyfirst/rootwell/internal/certverify": true}
+	for _, path := range []string{"internal/acmecertificate/check.go", "internal/acmecertificate/trust.go"} {
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, imported := range file.Imports {
+			value, err := strconv.Unquote(imported.Path.Value)
+			if err != nil || !allowed[value] || (imported.Name != nil && !(value == "embed" && imported.Name.Name == "_")) {
+				t.Errorf("unreviewed receipt import in %s: %s", path, imported.Path.Value)
+			}
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			s, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			id, ok := s.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			switch id.Name {
+			case "acmecertrequest":
+				if s.Sel.Name != "Check" {
+					t.Errorf("receipt gained key generation/signing: %s", s.Sel.Name)
+				}
+			case "x509":
+				if s.Sel.Name != "ParseCertificateRequest" && s.Sel.Name != "NewCertPool" {
+					t.Errorf("unreviewed X.509 receipt operation: %s", s.Sel.Name)
+				}
+			case "certverify":
+				if s.Sel.Name != "CheckCertificatePolicy" && s.Sel.Name != "ParseTrustAnchors" {
+					t.Errorf("unreviewed receipt trust operation: %s", s.Sel.Name)
+				}
+			case "asn1":
+				if s.Sel.Name != "Unmarshal" {
+					t.Errorf("receipt gained ASN.1 generation: %s", s.Sel.Name)
+				}
+			}
+			return true
+		})
+	}
+}

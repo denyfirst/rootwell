@@ -44,7 +44,14 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-12 cari icra — ADR 0057:** issuance mərhələsinin ilk lokal custody
+**2026-10-12 cari icra — ADR 0058:** verilmiş test sertifikatının qəbul nüvəsi.
+Eyni key/CSR, exact SAN, müddət/TLS istifadəsi/algorithm və ordered issuer path
+yoxlanır; ayrıca pinned staging trust var, cavab root-u avtomatik trust olmur.
+Bu daxili offline kod və sınaqdır, yeni UI/CA finalize/pair storage deyil.
+Onların bounded eyni-sifariş network/custody inteqrasiyası növbəti increment-dir;
+can_issue false, issuance dalğası hələ tamamlanmayıb.
+
+**2026-10-12 tamamlanan increment — ADR 0057:** issuance mərhələsinin ilk lokal custody
 hissəsi: CA tərəfindən hazır/təsdiqlənmiş və bitməmiş eyni sifariş üçün yeni
 certificate key və exact-SAN CSR; fresh parol/razılıq, purpose-separated şifrəli
 saxlanma, bir dəfə yaratma və tam backup/bərpa. Bu CA-ya göndərmə, verilmiş

@@ -27,6 +27,8 @@ go.work.sum
 !/web/workbench/rootwell-verify-demo-intermediate.pem
 !/web/workbench/rootwell-verify-demo-root.pem
 !/web/workbench/rootwell-verify-demo-ca-files.pem
+# Public-only, fingerprint-pinned staging trust asset; never private keys.
+!/internal/acmecertificate/staging-roots.pem
 *.key
 *.p12
 *.pfx
