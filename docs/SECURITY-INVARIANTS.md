@@ -1539,6 +1539,40 @@ Guarded by `TestStagingReceiptExactBindingIndependentTrustAndNoInputMutation`,
 `TestStagingReceiptHasNoNetworkStorageOrSigningAuthority` and
 `FuzzStagingCertificateReceipt`; inherited request/policy/architecture tests.
 
+## C80 — Durable issuance intent cannot mint a second first attempt
+
+ADR 0060 binds one encrypted intent to exact account/order/prepared key/CSR/names
+and installation/purpose/generation/time, authenticated with the entire image.
+The Linux private writer must install intent before its trusted callback.
+Opaque exact-image leases are consumed once, including copied/concurrent handles.
+Reopened/restored intent permits only same-order reads, never finalize replay.
+Failures return no partial status or provider text and retain durable uncertainty.
+No observation can claim issued/valid/received or create a pair. Preserve final
+generation/history/record/byte completion capacity; domain-validation mutation
+cannot invalidate an existing intent. Full restore/password recovery preserves
+the exact account key, prepared private key and CSR. Native custody refuses
+before callback/file/permission. No live route/connector wiring or can_issue gain.
+
+Historical non-issued observations are not current authority. Read-only refresh
+does not mutate intent and remains possible at the last completion slot; saving
+an observation can still refuse. Trusted callback/host compromise, whole old
+pre-intent rollback, heap/scalar erasure, completed pair/provenance, cleanup/new
+order policy and future fresh-auth/consent/budgets remain outside this increment.
+
+Guarded by `TestIssuanceIntentExactScopeEncryptionAndSingleUseReadOnlyRecovery`,
+`TestIssuanceAttemptConcurrentCopiesPermitOnlyOneCallback`,
+`TestIssuanceNonIssuedObservationsNeverGrantFirstAttempt`,
+`TestIssuanceIntentWholeImageTamperScopePurposeAndNoPartialOutput`,
+`TestIssuancePreflightStaleExpiryClockAndLeaseImageBinding`,
+`TestIssuanceReservesCompletionAndReadOnlySurvivesLastSlot`,
+`TestIssuanceHistoryAndRecordCompletionReservations`,
+`TestIssuanceByteBudgetBoundary`,
+`TestLinuxIssuanceIntentCommitBeforeCallbackNoReplayAndFullRecovery`,
+`TestLinuxIssuanceRevocationAfterIntentRetainsUncertainty`,
+`TestLinuxIssuanceFirstObservationAndRefusal`,
+`TestIssuanceIntentHasNoLiveRouteOrNetworkWiring`, `FuzzStagingIssuancePayload`
+and native refusal/history VM tests. Two-direction sabotage: ADR 0060.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

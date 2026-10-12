@@ -62,6 +62,11 @@ func addEvent(key []byte, m *manifest, action string, ids []string) error {
 	if reserve > 0 && (len(m.History) >= maxHistory-reserve || m.Generation > maxGeneration-uint64(reserve)) {
 		return ErrLimit
 	}
+	// Non-issued observations and ordinary writes cannot consume the reserved
+	// final pair slot, record slot or nonce generation after irreversible intent.
+	if len(m.ACMEIssuances) != 0 && (len(m.History) >= maxHistory-1 || m.Generation >= maxGeneration || len(m.Records) >= maxRecords) {
+		return ErrLimit
+	}
 	event := Event{Generation: m.Generation, At: time.Now().UTC().Format("2006-01-02T15:04:05Z"), Action: action, Fingerprints: ids}
 	if !validEvent(event) {
 		return ErrInvalid
@@ -84,7 +89,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
-	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed", "acme-certificate-key-prepared":
+	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed", "acme-certificate-key-prepared", "acme-issuance-started", "acme-issuance-observed":
 	default:
 		return false
 	}

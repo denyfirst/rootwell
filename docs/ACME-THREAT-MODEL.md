@@ -92,6 +92,22 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0060 implements only durable issuance intent/lease and the Linux custody
+writer seam, not a network entry. Exact account/order/prepared key/CSR/names,
+installation/purpose/generation/time authenticate before any public result.
+Commit intent under the private lock before borrowing secrets; consume the
+opaque image-bound lease once, even across copied handles. Lost/uncertain
+results, reopen and full recovery permit only same-order reads. No first-attempt
+replay, key regeneration or fabricated issued/valid observation. Historical
+non-issued observations grant no authority; read-only refresh does not consume
+another intent slot. Keep a final generation/history/record and 1 MiB headroom
+reserved for future pair completion. Domain-validation mutation is blocked.
+Full backup/password recovery preserves the exact keys/CSR and intent. Native
+platforms refuse this custody. Trusted callbacks/host compromise, complete old
+pre-intent rollback and reliable heap/scalar erasure are outside the guarantee.
+Receipt/pair transfer/provenance, reservation release, fresh-auth/consent/budgets
+and live/UI integration remain separate required work. No can_issue increase.
+
 ADR 0059 adds a separately constrained internal certificate protocol component,
 not a live export/route. Exact prepared key/signed CSR policy before I/O; ready
 same-account order and complete all-valid exact-name authorization mapping

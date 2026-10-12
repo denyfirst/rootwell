@@ -17,6 +17,9 @@ func BeginStagingValidation(key, id, image []byte, expected uint64, refresh bool
 	if expected == 0 || expected != m.Generation {
 		return nil, OrderStatus{}, 0, ErrStaleGeneration
 	}
+	if len(m.ACMEIssuances) != 0 {
+		return nil, OrderStatus{}, 0, ErrInvalid
+	}
 	p, err := openOrder(key, id, m)
 	if err != nil || (!refresh && p.State != "dns-acknowledged") || (refresh && !acmeorder.ValidationStarted(p.State)) || p.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 		return nil, OrderStatus{}, 0, ErrInvalid

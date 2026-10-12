@@ -39,40 +39,56 @@ func certificateRequestKey(key, id []byte) ([]byte, error) {
 }
 
 func certificateRequestStatus(key, id []byte, m manifest) (CertificateRequestStatus, error) {
+	p, status, err := openCertificateRequest(key, id, m)
+	clear(p.PrivateKey)
+	return status, err
+}
+
+// Owned private bytes are cleared by the caller on success, here on refusal.
+func openCertificateRequest(key, id []byte, m manifest) (certificateRequestPayload, CertificateRequestStatus, error) {
+	bad := func() (certificateRequestPayload, CertificateRequestStatus, error) {
+		return certificateRequestPayload{}, CertificateRequestStatus{}, ErrInvalid
+	}
 	if len(m.ACMECertificateRequests) == 0 {
-		return CertificateRequestStatus{}, nil
+		return certificateRequestPayload{}, CertificateRequestStatus{}, nil
 	}
 	if len(m.ACMECertificateRequests) != 1 {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
 	item := m.ACMECertificateRequests[0]
 	if !bytes.Equal(item.ID, certificateRequestID()) || item.Generation < 4 || item.Generation > m.Generation || len(item.Ciphertext) == 0 || len(item.Ciphertext) > 8192 {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
 	k, err := certificateRequestKey(key, id)
 	if err != nil {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
 	defer clear(k)
 	plain, err := inventoryseal.Open(k, attachmentContext(id, item), item.Ciphertext)
 	if err != nil {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
 	defer clear(plain)
 	var p certificateRequestPayload
-	defer func() { clear(p.PrivateKey) }()
+	valid := false
+	defer func() {
+		if !valid {
+			clear(p.PrivateKey)
+		}
+	}()
 	if !strictJSON(plain, &p) || p.State != "key-prepared" || !acmeorder.Time(p.PreparedAt) {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
 	order, err := openOrder(key, id, m)
 	if err != nil || !acmeorder.ValidationStarted(order.State) || order.URL != p.Order || !slices.Equal(p.Names, order.Domains) || p.AccountFingerprint != order.Fingerprint || p.PreparedAt < order.Started || p.PreparedAt >= order.Expires {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
 	summary, err := acmecertrequest.Check(p.PrivateKey, p.CSR, p.Names)
 	if err != nil || summary.PublicFingerprint == p.AccountFingerprint {
-		return CertificateRequestStatus{}, ErrInvalid
+		return bad()
 	}
-	return CertificateRequestStatus{Prepared: true, Fingerprint: summary.PublicFingerprint, PreparedAt: p.PreparedAt}, nil
+	valid = true
+	return p, CertificateRequestStatus{Prepared: true, Fingerprint: summary.PublicFingerprint, PreparedAt: p.PreparedAt}, nil
 }
 
 func ReadStagingCertificateRequest(key, id, image []byte) (CertificateRequestStatus, uint64, error) {
