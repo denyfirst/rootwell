@@ -99,7 +99,7 @@ func certificateOrder(parent context.Context, permit func() bool, deps dependenc
 	} else {
 		var certURL string
 		der, certURL, err = client.CreateOrderCert(ctx, guard.finalize(), csr, true)
-		if guard.processing && err != nil && allowed() {
+		if guard.processing && err != nil && allowed() && guard.expires > time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 			// The library's automatic WaitOrder is stopped BEFORE even its nonce
 			// request. A checked processing observation is not issuance success.
 			return certificateObservation{State: acme.StatusProcessing}, nil

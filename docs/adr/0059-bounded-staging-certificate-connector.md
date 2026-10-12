@@ -106,3 +106,9 @@ passed; no sabotage retained. An attempted two-hunk patch in reverse line order
 failed to apply and is not behavior evidence. The initial malformed-first-PEM
 test exposed standard decoder garbage-skipping; first-envelope isolation plus
 the nested-BEGIN refusal fixed it and the restored refusal tests passed.
+
+Separate final-diff review added an explicit earliest-expiry recheck when
+publishing a processing observation, matching receipt publication. Expired
+processing/valid finalize-response tests refuse without polling or receipt.
+The follow-up final head needs fresh exact-head CI and superseding self-review;
+earlier-head checks cannot authorize it.

@@ -39,6 +39,14 @@ func certificateOrderReply(state string) string {
 	return body
 }
 
+func expiredCertificateOrderReply(state string) string {
+	var fields map[string]any
+	_ = json.Unmarshal([]byte(certificateOrderReply(state)), &fields)
+	fields["expires"] = "2020-01-01T00:00:00Z"
+	body, _ := json.Marshal(fields)
+	return string(body)
+}
+
 func certificateFixture(t *testing.T) (private, csr, der, publicPEM []byte) {
 	t.Helper()
 	private, csr, _, err := acmecertrequest.Create(testOrderNames)
@@ -259,6 +267,7 @@ func TestCertificateConnectorFinalizationFailureNeverRetriesOrReturnsPartialRece
 	}
 	for _, body := range []string{
 		certificateOrderReply("ready"), certificateOrderReply("invalid"),
+		expiredCertificateOrderReply("processing"), expiredCertificateOrderReply("valid"),
 		strings.Replace(certificateOrderReply("valid"), testCertificateURL, "http://127.0.0.1/secret", 1),
 		strings.Replace(certificateOrderReply("valid"), testAuthURL, acmeorder.Origin+"/acme/authz/9999", 1),
 		strings.Replace(certificateOrderReply("valid"), `"certificate":`, `"Certificate":`, 1),
