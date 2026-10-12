@@ -44,10 +44,18 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-12 cari icra — ADR 0059:** bounded eyni-sifariş finalize/fetch komponenti;
+**2026-10-12 cari icra — ADR 0060:** şifrəli issuance niyyəti, exact-image
+bir dəfəlik lease, Linux-da callback-dən əvvəl atomik commit və eyni sifarişin
+yalnız oxunaraq bərpası. Key/CSR dəyişmir; tam backup/parol bərpası niyyəti qoruyur.
+Completion üçün saxlanma limitlərində ehtiyat ayrılır. Hələ real CA çağırışı,
+pair storage və issuance UI yoxdur, can_issue false qalır. Sonra receipt-in
+təkrar yoxlanması, atomik pair və test-only provenance; daha sonra sadə live
+UI inteqrasiyası, manual renewal və DNS adapter-ləri gəlir.
+
+**2026-10-12 tamamlanan increment — ADR 0059:** bounded eyni-sifariş finalize/fetch komponenti;
 exact CSR və bütün authorization-lar, bir finalize, yalnız oxuyan reconciliation,
 processing-də gizli polling rəddi, strict public PEM. Yalnız daxili test edilmiş
-komponentdir: live endpoint, durable intent, atomik pair və UI hələ yoxdur.
+komponentdir: live endpoint, atomik pair və UI hələ yoxdur. Intent ADR 0060-dadır.
 can_issue false qalır. Sonra bunlar receipt nüvəsi/full recovery ilə bağlanır;
 tam issuance, manual renewal və DNS adapter-ləri bitmiş sayılmır.
 

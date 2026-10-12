@@ -28,11 +28,20 @@ sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşd�
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0059:** eyni saved sifariş və exact CSR üçün bounded ACME
+**Cari increment — ADR 0060:** şifrəli issuance niyyəti və bir dəfəlik daxili
+səlahiyyət. Linux writer-lock altında niyyət callback-dən əvvəl atomik yazılır;
+yarımçıq nəticə, restart və tam bərpa eyni key/CSR/sifariş üçün yalnız oxuma
+imkanı saxlayır. Sonrakı sertifikat üçün history/generation/record/byte ehtiyatı
+qorunur. Hələ live CA çağırışı, yeni issuance düyməsi və atomik pair yoxdur;
+can_issue false qalır. Növbəti increment receipt-in lock altında təkrar yoxlanması,
+atomik Certificates pair və immutable test-only provenance; sonra fresh parol/
+razılıqla sadə UI inteqrasiyası. Tam issuance və sonrakı renewal/DNS hazır deyil.
+
+**Tamamlanan increment — ADR 0059:** eyni saved sifariş və exact CSR üçün bounded ACME
 finalize/fetch protocol komponenti. Bir finalize, read-only reconciliation,
 processing-də avtomatik polling-in I/O-dan əvvəl rəddi, strict public PEM və
 sabit limitlər fake TLS CA ilə sınanır. Hələ daxili/unexported komponentdir;
-live route, durable issuance intent, atomik pair və UI inteqrasiyası yoxdur.
+live route, atomik pair və UI inteqrasiyası yoxdur. Durable intent ADR 0060-dadır.
 can_issue false qalır. Sonra intent/locked lease, receipt recheck, atomik pair,
 test-only provenance, full recovery və sadə UI birlikdə bağlanmalıdır. Issuance
 dalğası, manual renewal və DNS avtomatlaşdırması tamamlanmış sayılmır.

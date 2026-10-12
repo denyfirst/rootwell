@@ -49,6 +49,7 @@ type manifest struct {
 	ACMEAccounts            []sealedRecord `json:"acme_accounts,omitempty"`
 	ACMEOrders              []sealedRecord `json:"acme_orders,omitempty"`
 	ACMECertificateRequests []sealedRecord `json:"acme_certificate_requests,omitempty"`
+	ACMEIssuances           []sealedRecord `json:"acme_issuances,omitempty"`
 }
 
 type envelope struct {
@@ -353,6 +354,9 @@ func encode(key []byte, m manifest) ([]byte, error) {
 	if err != nil || len(result) > maxImage {
 		return nil, ErrLimit
 	}
+	if len(m.ACMEIssuances) != 0 && len(result) > maxImage-issuanceByteReserve {
+		return nil, ErrLimit
+	}
 	return result, nil
 }
 
@@ -372,6 +376,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 	}
 	var m manifest
 	if !strictJSON(outer.Body, &m) || m.Version != 1 || !bytes.Equal(m.InstallationID, id) || m.Generation == 0 || m.Generation > maxGeneration || len(m.Records) > maxRecords || m.Records == nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if len(m.ACMEIssuances) != 0 && len(image) > maxImage-issuanceByteReserve {
 		return manifest{}, nil, ErrInvalid
 	}
 	var catalog publicinventory.Catalog
@@ -443,6 +450,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if _, err := certificateRequestStatus(key, id, m); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if _, err := openIssuance(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

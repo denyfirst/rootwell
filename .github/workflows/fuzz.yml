@@ -112,6 +112,8 @@ jobs:
             package: ./internal/acmestaging
           - target: FuzzStagingCertificateRequestPayload
             package: ./internal/inventorystore
+          - target: FuzzStagingIssuancePayload
+            package: ./internal/inventorystore
     steps:
       - name: Check out the default branch
         run: |
