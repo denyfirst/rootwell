@@ -114,6 +114,8 @@ jobs:
             package: ./internal/inventorystore
           - target: FuzzStagingIssuancePayload
             package: ./internal/inventorystore
+          - target: FuzzStagingCompletionPayload
+            package: ./internal/inventorystore
     steps:
       - name: Check out the default branch
         run: |

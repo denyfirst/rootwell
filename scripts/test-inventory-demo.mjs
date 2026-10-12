@@ -61,6 +61,9 @@ try {
   assert.ok(result.records.slice(0,3).every(record => record.subject.includes("demo-")));
   assert.ok(result.records.every(record => !Object.hasOwn(record,"der")));
   assert.match(result.records[3].subject,/verify.rootwell.invalid/);
+  assert.equal(result.records[3].staging_origin.test_only,true);
+  assert.equal(result.records[3].staging_origin.provider,"letsencrypt-staging");
+  assert.equal(result.records[3].staging_origin.verified_at,result.records[3].imported_at);
   const activity=await fetch(origin+"/api/inventory/activity",{headers:{"X-Rootwell-Request":"1"}});
   assert.equal(activity.status,200);
   const activityData=await activity.json();assert.equal(activityData.monitoring.status,"not-running","fixture cannot claim a running monitor");

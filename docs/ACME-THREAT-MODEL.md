@@ -92,6 +92,23 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0061 adds internal atomic completion and historical saved-state UI, NOT live
+connector wiring or can_issue. Repeat fixed independent staging Check under the
+writer boundary; exact saved key/CSR/names/order/account/expiry/generation.
+Move the same private bytes into matched material; keep only public CSR/scope
+in the prepared request. One leaf/material/provenance/history image, no overwrite
+or duplicate. Use the reserved final slots and release reservations on completion.
+Full decode revalidates all links before public output. Historical authenticated
+origin is NOT current issuer trust; list/restore must remain usable after expiry
+or trust changes. Delete current pair/CSR but retain a no-replay public tombstone.
+V4 order/key/issuance status is one snapshot; old DNS/key actions stop before
+provider work once issuance started. Test-only UI and fake read-only browser demo
+do not establish live CA interoperability. Production entry rejects the synthetic
+custody fixture. Live fetch/lease/receipt/commit/fresh-auth/consent/budgets and
+interactive issuance, oversized/duplicate/expired receipt policy, retention,
+renewal/DNS and independent audit remain. Existing material-size limit may refuse
+otherwise accepted protocol chains. No heap erasure or anti-rollback guarantee.
+
 ADR 0060 implements only durable issuance intent/lease and the Linux custody
 writer seam, not a network entry. Exact account/order/prepared key/CSR/names,
 installation/purpose/generation/time authenticate before any public result.
@@ -118,8 +135,9 @@ pinned transport, 20-second/23-request maximum, expiry/permission checks,
 strict JWS/JSON/PEM and stripped metadata apply. Five public certificates max
 (upstream ceiling), 48 KiB each/256 KiB DER/352 KiB wire. DER remains untrusted;
 ADR 0058 acceptance still required before any future atomic custody write.
-No durable issuance intent, pair transfer/provenance, API/UI or live CA contact
-yet. The architecture blocks wiring/export before those boundaries are reviewed.
+This protocol component alone has no durable intent, pair or API/UI authority;
+ADR 0060/0061 add those internal custody/status boundaries separately. No live
+certificate CA contact yet; architecture still blocks connector wiring/export.
 Full issuance/recovery/UI integration, renewal/DNS and production audit remain.
 
 ADR 0058 supplies only the offline staging receipt-acceptance component of

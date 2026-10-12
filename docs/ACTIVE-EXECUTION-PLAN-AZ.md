@@ -28,7 +28,17 @@ sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşd�
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0060:** şifrəli issuance niyyəti və bir dəfəlik daxili
+**Cari increment — ADR 0061:** verilmiş staging sertifikatını pinned qəbul
+nüvəsində yenidən yoxlayıb eyni private açarla atomik Certificates saxlamaq.
+Açar hazırlıq qeydindən matched material-a keçir; immutable test-only mənbə,
+metadata/export/deletion və tam bərpa sərhədi var. V4 status/UI pending, saved və
+deleted vəziyyətlərini ayırır, test-only kartı real browser-də read-only saxta
+nümunədə göstərilir. Hələ canlı connector/lease/fetch/commit inteqrasiyası və
+issuance düyməsi yoxdur, can_issue false qalır. Növbəti increment həmin tam
+axını fresh parol/razılıq/provider budget və sadə interactive UI ilə bağlamaqdır.
+Tam issuance, manual renewal və DNS adapter-ləri bitmiş sayılmır.
+
+**Tamamlanan increment — ADR 0060:** şifrəli issuance niyyəti və bir dəfəlik daxili
 səlahiyyət. Linux writer-lock altında niyyət callback-dən əvvəl atomik yazılır;
 yarımçıq nəticə, restart və tam bərpa eyni key/CSR/sifariş üçün yalnız oxuma
 imkanı saxlayır. Sonrakı sertifikat üçün history/generation/record/byte ehtiyatı

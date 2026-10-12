@@ -122,6 +122,7 @@ type orderOutput struct {
 	DomainVerified bool                                    `json:"domain_verified"`
 	CanIssue       bool                                    `json:"can_issue"`
 	CertificateKey inventorystore.CertificateRequestStatus `json:"certificate_key"`
+	Issuance       inventorystore.IssuanceStatus           `json:"issuance"`
 }
 
 func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -178,12 +179,16 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
-	status, certificateKey, gen, err := instanceaccess.ReadStagingOrderPreparation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	status, certificateKey, issuance, gen, err := instanceaccess.ReadStagingOrderLifecycle(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
 	if err != nil {
 		inventoryError(w, err)
 		return
 	}
 	if mode != "status" {
+		if issuance.State != "not-started" {
+			http.Error(w, "Issuance already started. Read saved status; do not repeat DNS validation or prepare another key.", http.StatusConflict)
+			return
+		}
 		if gen != input.Expected {
 			http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
 			return
@@ -255,12 +260,13 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 	}
 	// Re-read the preparation from the same final order snapshot. A concurrent
 	// external write cannot produce mixed-generation key/order capability flags.
-	finalOrder, finalKey, finalGen, err := instanceaccess.ReadStagingOrderPreparation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	finalOrder, finalKey, finalIssuance, finalGen, err := instanceaccess.ReadStagingOrderLifecycle(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
 	if err != nil || finalGen != gen {
 		http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
 		return
 	}
 	status, certificateKey = finalOrder, finalKey
+	issuance = finalIssuance
 	if !permit() {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
@@ -272,5 +278,5 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		status.Records = []acmeorder.TXT{}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v3", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh", Saved: status.State != "not-started", DomainVerified: status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z"), CertificateKey: certificateKey})
+	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v4", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh", Saved: status.State != "not-started", DomainVerified: status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z"), CertificateKey: certificateKey, Issuance: issuance})
 }

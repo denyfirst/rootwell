@@ -5,7 +5,7 @@ const source=fs.readFileSync("cmd/rootwelld/auth/acme-order.js","utf8"),html=fs.
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|WebSocket|XMLHttpRequest|sendBeacon|clipboard/);
 assert.match(html,/keep both Values/);assert.match(html,/Your acknowledgement does not verify DNS/);
 const domains=["*.example.com","example.com"],expiry=new Date(Date.now()+3600000).toISOString().replace(/\.\d{3}Z$/,"Z");
-const empty={schema_version:"rootwell.acme.manual-dns.v3",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""}};
+const empty={schema_version:"rootwell.acme.manual-dns.v4",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:""}};
 const pending={...empty,generation:5,state:"request-pending",domains,saved:true};
 const known={...pending,generation:6,state:"order-known"};
 const ready={...known,generation:7,state:"dns-ready",expires:expiry,records:domains.map((domain,i)=>({domain,name:"_acme-challenge.example.com",value:(i?"B":"A").repeat(42)+"A",required:true}))};
@@ -102,4 +102,16 @@ for(const bad of [{...ready,certificate_key:prepared.certificate_key},{...verifi
 {
   const f=fixture(verified);await f.refresh();f.approve();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const work=f.submit();while(!release)await new Promise(resolve=>setImmediate(resolve));f.document.hidden=true;f.events.visibilitychange();release(reply(prepared));await work;assert.equal(f.el("acme-order-submit").disabled,true);assert.equal(f.el("acme-order-records").hidden,true);
 }
-console.log("Manual DNS UI: explicit consent/password, CA validation/read-only refresh, one local certificate key, no automatic creation/replacement/issuance, strict schema, expiry and bounded late/uncertain refusal passed (VM, not visual QA).");
+const startedAt=prepared.certificate_key.prepared_at;
+for(const [state,observation] of [["issuance-pending",""],["not-issued","ready"],["awaiting-certificate","processing"],["issuance-failed","invalid"],["certificate-saved","saved"],["saved-certificate-deleted","saved"]]) {
+  const initial={...prepared,generation:14,issuance:{state,started_at:startedAt,checked_at:observation?startedAt:"",observation},certificate_key:state==="saved-certificate-deleted"?empty.certificate_key:prepared.certificate_key};
+  const f=fixture(initial);await f.refresh();assert.equal(f.el("acme-order-form").hidden,true);f.approve();await f.submit();assert.equal(f.requests.length,1,"issuance status cannot repeat old DNS/key actions");
+  if(state==="certificate-saved") {assert.match(f.el("acme-order-status").textContent,/saved in Certificates.*test-only/);assert.equal(f.el("acme-order-records").children[0].href,"/certificates");}
+  else if(state==="saved-certificate-deleted") assert.match(f.el("acme-order-status").textContent,/removed.*stays closed/);
+  else assert.match(f.el("acme-order-status").textContent,/no certificate is saved yet/);
+  assert.doesNotMatch(f.el("acme-order-status").textContent,/No certificate has been requested or issued/);
+}
+for(const issuance of [{state:"certificate-saved",started_at:startedAt,checked_at:startedAt,observation:"valid"},{state:"production-trusted",started_at:startedAt,checked_at:startedAt,observation:"saved"},{state:"certificate-saved",started_at:startedAt,checked_at:"2026-02-30T00:00:00Z",observation:"saved"},{state:"not-started",started_at:"",checked_at:"",observation:"",private_key:"sentinel"}]) {
+  const f=fixture({...prepared,issuance});await f.refresh();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.doesNotMatch(f.el("acme-order-status").textContent,/sentinel/);f.approve();await f.submit();assert.equal(f.requests.length,1);
+}
+console.log("Manual DNS v4 UI: bounded consent/password, closed issuance/saved/deleted states, no automatic creation/replacement/issuance, strict schema and late/uncertain refusal passed (VM, not visual QA).");

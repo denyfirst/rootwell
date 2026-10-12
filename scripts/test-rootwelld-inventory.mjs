@@ -579,4 +579,21 @@ documentListeners.visibilitychange();
 finishStream(); await lateBody;
 assert.equal(elements.records.children.length,0,"hidden page accepted a late body read");
 assert.match(elements["monitor-summary"].textContent,/paused/);
-console.log("Rootwell inventory, server-clock monitoring, bounded refresh and refusal paths passed.");
+// Test-only custody provenance is historical, not production/browser trust.
+mockDocument.hidden = false; overrideGET = null;
+const stagingOrigin = {test_only:true,provider:"letsencrypt-staging",verified_at:response.records[0].imported_at,root_fingerprint:"AA:".repeat(31)+"AA"};
+const stagingRecord = {...response.records[0],fingerprint:"BB:".repeat(31)+"BB",has_private_key:true,key_status:"matched",staging_origin:stagingOrigin};
+currentResponse = {...response,records:[stagingRecord]};
+await elements["refresh-button"].listeners.click();
+assert.equal(elements.records.children.length,1);
+const item = elements.records.children[0];
+assert.ok(item.children.some(child=>/Test certificate.*not for production/.test(child.textContent)));
+const stagingDetails = item.children.find(child=>child.className==="record-details");
+assert.ok(stagingDetails.children.some(child=>/not ordinary browser trust, revocation or deployment/.test(child.textContent)));
+for (const forged of [{...stagingOrigin,test_only:false},{...stagingOrigin,provider:"production"},{...stagingOrigin,root_fingerprint:"<script>"},{...stagingOrigin,verified_at:"2020-01-01T00:00:00Z"},{...stagingOrigin,private_key:"do-not-echo"},null]) {
+  currentResponse = {...response,records:[{...stagingRecord,staging_origin:forged}]};
+  await elements["refresh-button"].listeners.click();assert.equal(elements.records.children.length,0,"forged provenance returned partial inventory");
+  assert.doesNotMatch(elements["list-status"].textContent,/script|do-not-echo/);
+}
+windowListeners.pagehide();
+console.log("Rootwell inventory, test-only provenance, server-clock monitoring, bounded refresh and refusal paths passed.");

@@ -44,7 +44,15 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-12 cari icra — ADR 0060:** şifrəli issuance niyyəti, exact-image
+**2026-10-12 cari icra — ADR 0061:** daxili atomik staging pair completion:
+real pinned receipt yoxlaması, eyni açarın Certificates material-a keçirilməsi,
+immutable test-only mənbə, qeydlər/export/deletion və tam bərpa. Sadə V4 status
+və Certificates kartı saved/test-only vəziyyətini düzgün göstərir. Browser-də
+göstərilən read-only saxta nümunədir, real CA axını deyil. Növbəti iş connector,
+lease, receipt və commit-i fresh parol/razılıqla interactive UI-yə bağlamaqdır.
+can_issue false qalır; tam issuance, renewal və DNS hələ tamamlanmayıb.
+
+**2026-10-12 tamamlanan increment — ADR 0060:** şifrəli issuance niyyəti, exact-image
 bir dəfəlik lease, Linux-da callback-dən əvvəl atomik commit və eyni sifarişin
 yalnız oxunaraq bərpası. Key/CSR dəyişmir; tam backup/parol bərpası niyyəti qoruyur.
 Completion üçün saxlanma limitlərində ehtiyat ayrılır. Hələ real CA çağırışı,
