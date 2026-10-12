@@ -44,7 +44,14 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-12 cari icra — ADR 0058:** verilmiş test sertifikatının qəbul nüvəsi.
+**2026-10-12 cari icra — ADR 0059:** bounded eyni-sifariş finalize/fetch komponenti;
+exact CSR və bütün authorization-lar, bir finalize, yalnız oxuyan reconciliation,
+processing-də gizli polling rəddi, strict public PEM. Yalnız daxili test edilmiş
+komponentdir: live endpoint, durable intent, atomik pair və UI hələ yoxdur.
+can_issue false qalır. Sonra bunlar receipt nüvəsi/full recovery ilə bağlanır;
+tam issuance, manual renewal və DNS adapter-ləri bitmiş sayılmır.
+
+**2026-10-12 tamamlanan increment — ADR 0058:** verilmiş test sertifikatının qəbul nüvəsi.
 Eyni key/CSR, exact SAN, müddət/TLS istifadəsi/algorithm və ordered issuer path
 yoxlanır; ayrıca pinned staging trust var, cavab root-u avtomatik trust olmur.
 Bu daxili offline kod və sınaqdır, yeni UI/CA finalize/pair storage deyil.

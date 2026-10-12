@@ -92,6 +92,20 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0059 adds a separately constrained internal certificate protocol component,
+not a live export/route. Exact prepared key/signed CSR policy before I/O; ready
+same-account order and complete all-valid exact-name authorization mapping
+before one finalize. Read-only same-order reconciliation cannot finalize.
+Processing stops even the library's automatic nonce/poll before outbound I/O;
+lost/error responses give fixed refusal and no replay/partial receipt. Existing
+pinned transport, 20-second/23-request maximum, expiry/permission checks,
+strict JWS/JSON/PEM and stripped metadata apply. Five public certificates max
+(upstream ceiling), 48 KiB each/256 KiB DER/352 KiB wire. DER remains untrusted;
+ADR 0058 acceptance still required before any future atomic custody write.
+No durable issuance intent, pair transfer/provenance, API/UI or live CA contact
+yet. The architecture blocks wiring/export before those boundaries are reviewed.
+Full issuance/recovery/UI integration, renewal/DNS and production audit remain.
+
 ADR 0058 supplies only the offline staging receipt-acceptance component of
 gate 4. Exact prepared key/signed CSR, strict DNS-only SAN set (wildcards
 included), explicit digital-signature/server usage, supported policy/current

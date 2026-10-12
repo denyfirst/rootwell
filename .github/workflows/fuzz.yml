@@ -108,6 +108,8 @@ jobs:
             package: ./internal/acmecertrequest
           - target: FuzzStagingCertificateReceipt
             package: ./internal/acmecertificate
+          - target: FuzzCertificateCAResponse
+            package: ./internal/acmestaging
           - target: FuzzStagingCertificateRequestPayload
             package: ./internal/inventorystore
     steps:

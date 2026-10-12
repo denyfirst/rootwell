@@ -55,13 +55,13 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
-				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go" || filepath.ToSlash(relative) == "internal/acmestaging/order.go" || filepath.ToSlash(relative) == "internal/acmestaging/validation.go") &&
+				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go" || filepath.ToSlash(relative) == "internal/acmestaging/order.go" || filepath.ToSlash(relative) == "internal/acmestaging/validation.go" || filepath.ToSlash(relative) == "internal/acmestaging/certificate.go") &&
 					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" ||
-					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" {
+					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" && filepath.ToSlash(relative) != "internal/acmestaging/certificate.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/instanceaccess" &&
@@ -87,6 +87,7 @@ func TestStagingRegistrationHasOnlyReviewedAccountClientMethods(t *testing.T) {
 		"internal/acmestaging/registration.go": {"Discover": true, "Register": true, "GetReg": true},
 		"internal/acmestaging/order.go":        {"Discover": true, "AuthorizeOrder": true, "GetOrder": true, "GetAuthorization": true, "DNS01ChallengeRecord": true},
 		"internal/acmestaging/validation.go":   {"Discover": true, "GetOrder": true, "GetAuthorization": true, "DNS01ChallengeRecord": true, "Accept": true},
+		"internal/acmestaging/certificate.go":  {"Discover": true, "GetOrder": true, "GetAuthorization": true, "CreateOrderCert": true, "FetchCert": true},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
 		if err != nil {
@@ -113,6 +114,45 @@ func TestStagingRegistrationHasOnlyReviewedAccountClientMethods(t *testing.T) {
 func forbiddenImport(path string) bool {
 	return path == "net" || strings.HasPrefix(path, "net/") || path == "os/exec" || path == "plugin" || path == "unsafe" ||
 		path == "golang.org/x/crypto/openpgp" || strings.HasPrefix(path, "golang.org/x/crypto/openpgp/")
+}
+
+func TestCertificateConnectorNotWiredBeforeDurableCustody(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		connector := filepath.ToSlash(relative) == "internal/acmestaging/certificate.go"
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if ok && connector && fn.Recv == nil && fn.Name.IsExported() {
+				t.Errorf("live exported certificate capability before custody integration: %s", fn.Name.Name)
+			}
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			id, ok := n.(*ast.Ident)
+			if ok && !connector && (id.Name == "certificateOrder" || id.Name == "certificateTransport") {
+				t.Errorf("certificate connector wired outside reviewed boundary: %s", relative)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // This regression guard is not a sandbox: new ACME capabilities need an

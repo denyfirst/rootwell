@@ -28,7 +28,16 @@ sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşd�
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0058:** CA cavabını qəbul edən lokal daxili yoxlama nüvəsi:
+**Cari increment — ADR 0059:** eyni saved sifariş və exact CSR üçün bounded ACME
+finalize/fetch protocol komponenti. Bir finalize, read-only reconciliation,
+processing-də avtomatik polling-in I/O-dan əvvəl rəddi, strict public PEM və
+sabit limitlər fake TLS CA ilə sınanır. Hələ daxili/unexported komponentdir;
+live route, durable issuance intent, atomik pair və UI inteqrasiyası yoxdur.
+can_issue false qalır. Sonra intent/locked lease, receipt recheck, atomik pair,
+test-only provenance, full recovery və sadə UI birlikdə bağlanmalıdır. Issuance
+dalğası, manual renewal və DNS avtomatlaşdırması tamamlanmış sayılmır.
+
+**Tamamlanan increment — ADR 0058:** CA cavabını qəbul edən lokal daxili yoxlama nüvəsi:
 eyni key/CSR və dəqiq domenlər, leaf/usage/time/algorithm və tam ordered chain.
 Trust cavabdan və ya system store-dan deyil, ayrıca reviewed/pinned dörd staging
 root-dan gəlir; test-only qalır. Şəbəkə, finalize, yazma və yeni UI düyməsi yoxdur;
