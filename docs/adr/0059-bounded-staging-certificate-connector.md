@@ -112,3 +112,19 @@ publishing a processing observation, matching receipt publication. Expired
 processing/valid finalize-response tests refuse without polling or receipt.
 The follow-up final head needs fresh exact-head CI and superseding self-review;
 earlier-head checks cannot authorize it.
+
+Final-head container CI found a genuine packaging failure, not an infrastructure
+flake: the acmestaging test binary now links the receipt checker, whose embedded
+public staging-roots.pem was excluded by .dockerignore. Add only the exact
+internal/acmecertificate/staging-roots.pem exception AFTER the general PEM deny;
+all other PEM/secret exclusions remain. Container configuration regression tests
+require default deny, exact post-deny asset inclusion and only the reviewed
+public PEM exception set. Real Docker build/volume/trust-drill CI must pass on
+the new head. Staging roots are not copied into the system CA trust bundle.
+
+Packaging sabotage was actually run and restored in both directions: deleting
+the exact root exception failed "Public staging trust needs its exact final
+build-context exception"; adding broad !internal/** failed "An unreviewed/broad
+build-context inclusion is not permitted". The regression freezes all reviewed
+source/public input negations, not merely PEM filenames. Restored Node checks
+passed; no sabotage or weakened deny rule remains.

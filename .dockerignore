@@ -26,6 +26,8 @@
 !web/workbench/rootwell-verify-demo-intermediate.pem
 !web/workbench/rootwell-verify-demo-ca-files.pem
 **/*.pem
+# Exact public-only embedded staging roots; never private/operator PEM files.
+!internal/acmecertificate/staging-roots.pem
 !web/workbench/rootwell-demo-certificate.pem
 !web/workbench/rootwell-demo-bundle.pem
 !web/workbench/rootwell-verify-demo-root.pem
