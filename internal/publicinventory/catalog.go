@@ -62,6 +62,16 @@ type Record struct {
 	KeyStatus string
 	BundleDER [][]byte
 	IssuerDER [][]byte
+	// StagingOrigin is authenticated historical acceptance, never deployment,
+	// revocation or ordinary browser trust. It is not operator-editable.
+	StagingOrigin *StagingOrigin
+}
+
+type StagingOrigin struct {
+	TestOnly        bool   `json:"test_only"`
+	Provider        string `json:"provider"`
+	VerifiedAt      string `json:"verified_at"`
+	RootFingerprint string `json:"root_fingerprint"`
 }
 
 // Catalog is an in-memory, single-process draft. Its contents disappear when
@@ -250,6 +260,10 @@ func cloneRecords(records []Record) []Record {
 		out[i].Locations = append([]string(nil), record.Locations...)
 		out[i].BundleDER = cloneDER(record.BundleDER)
 		out[i].IssuerDER = cloneDER(record.IssuerDER)
+		if record.StagingOrigin != nil {
+			origin := *record.StagingOrigin
+			out[i].StagingOrigin = &origin
+		}
 	}
 	return out
 }

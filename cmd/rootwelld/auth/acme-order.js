@@ -9,7 +9,7 @@
   const suppliedNames=()=>names.value.split(/\r?\n/).map(n=>n.trim().toLowerCase()).filter(Boolean).sort();
   const usable=()=>snapshot && date(snapshot.expires) && Date.now()<Date.parse(snapshot.expires);
   const validationStates=["validation-pending","validation-waiting","validation-failed","domain-verified"];
-  const allowedAction=()=>snapshot && (action==="start" ? snapshot.state==="not-started" : action==="ack" ? snapshot.state==="dns-ready" && usable() : action==="validate" ? snapshot.state==="dns-acknowledged" && usable() : action==="prepare-key" ? snapshot.state==="domain-verified" && snapshot.domain_verified && !snapshot.certificate_key.prepared && usable() : action==="refresh" ? validationStates.includes(snapshot.state) && usable() : ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state));
+  const allowedAction=()=>snapshot && snapshot.issuance.state==="not-started" && (action==="start" ? snapshot.state==="not-started" : action==="ack" ? snapshot.state==="dns-ready" && usable() : action==="validate" ? snapshot.state==="dns-acknowledged" && usable() : action==="prepare-key" ? snapshot.state==="domain-verified" && snapshot.domain_verified && !snapshot.certificate_key.prepared && usable() : action==="refresh" ? validationStates.includes(snapshot.state) && usable() : ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state));
   const enable=()=>{
     refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;
     submit.disabled=!!active || document.hidden || !allowedAction() || !consent.checked || !password.value || (action==="start" && !suppliedNames().length);
@@ -19,8 +19,18 @@
     generation++;active?.abort();snapshot=null;clearInputs();form.hidden=true;records.hidden=true;records.replaceChildren();resumeChoice.hidden=true;status.textContent=uncertain;enable();
   };
   const valid=(data,mode)=>{
-    if(!data || Array.isArray(data) || Object.keys(data).length!==12 || data.schema_version!=="rootwell.acme.manual-dns.v3" || data.provider!=="letsencrypt-staging" || data.can_issue!==false || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","resume","validate","refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
+    if(!data || Array.isArray(data) || Object.keys(data).length!==13 || data.schema_version!=="rootwell.acme.manual-dns.v4" || data.provider!=="letsencrypt-staging" || data.can_issue!==false || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","resume","validate","refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
     const key=data.certificate_key;
+    const issuance=data.issuance;
+    if(!issuance || Array.isArray(issuance) || Object.keys(issuance).sort().join(",")!=="checked_at,observation,started_at,state" || !["not-started","issuance-pending","not-issued","awaiting-certificate","issuance-failed","certificate-saved","saved-certificate-deleted"].includes(issuance.state))return false;
+    if(issuance.state==="not-started") {if(issuance.started_at!=="" || issuance.checked_at!=="" || issuance.observation!=="")return false;}
+    else {
+      if(data.state!=="domain-verified" || !date(issuance.started_at))return false;
+      if(issuance.state==="issuance-pending") {if(issuance.checked_at!=="" || issuance.observation!=="")return false;}
+      else if(!date(issuance.checked_at) || issuance.checked_at<issuance.started_at || issuance.checked_at>=data.expires ||
+        !({"not-issued":["pending","ready"],"awaiting-certificate":["processing"],"issuance-failed":["invalid"],"certificate-saved":["saved"],"saved-certificate-deleted":["saved"]}[issuance.state]?.includes(issuance.observation)))return false;
+      if(!key || key.prepared!==(issuance.state!=="saved-certificate-deleted"))return false;
+    }
     if(!key || Array.isArray(key) || Object.keys(key).length!==3 || typeof key.prepared!=="boolean" || (key.prepared ? !validationStates.includes(data.state) || !date(key.prepared_at) || typeof key.fingerprint!=="string" || !/^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/.test(key.fingerprint) : key.fingerprint!=="" || key.prepared_at!==""))return false;
     if(data.state==="not-started")return data.domains.length===0 && data.records.length===0 && data.expires==="";
     if(data.domains.length<1 || data.domains.length>8 || !data.domains.every(domain) || new Set(data.domains).size!==data.domains.length || data.domains.some((n,i)=>i>0 && data.domains[i-1]>=n))return false;
@@ -35,6 +45,11 @@
   };
   const render=data=>{
     snapshot=data;clearInputs();records.replaceChildren();records.hidden=true;resumeChoice.hidden=true;form.hidden=true;
+    if(data.issuance.state!=="not-started") {
+      status.textContent=data.issuance.state==="certificate-saved"?"Your test certificate and matching private key are saved in Certificates. This is test-only, not production trust or deployment. Make a new full backup.":data.issuance.state==="saved-certificate-deleted"?"The saved test certificate and key were removed from this store. This request stays closed; it will not create another key or certificate.":"Your certificate request has started, but no certificate is saved yet. Do not repeat DNS validation, prepare another key or resend this request. Check saved status; same-request CA reconciliation will be connected in the next step.";
+      if(data.issuance.state==="certificate-saved") {const link=document.createElement("a");link.href="/certificates";link.textContent="Open Certificates";records.append(link);records.hidden=false;}
+      enable();return;
+    }
     if(data.state==="not-started"){
       status.textContent="No saved DNS request. Register your test account above first, then enter the domains you control. This contacts staging and saves one request.";choose("start");
     }else if(data.state==="request-pending"){

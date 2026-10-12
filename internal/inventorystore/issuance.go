@@ -32,15 +32,16 @@ type IssuanceStatus struct {
 }
 
 type issuancePayload struct {
-	StartedAt          string   `json:"started_at"`
-	StartedGeneration  uint64   `json:"started_generation"`
-	AccountFingerprint string   `json:"account_fingerprint"`
-	KeyFingerprint     string   `json:"key_fingerprint"`
-	RequestFingerprint string   `json:"request_fingerprint"`
-	Order              string   `json:"order"`
-	Names              []string `json:"names"`
-	CheckedAt          string   `json:"checked_at,omitempty"`
-	Observation        string   `json:"observation,omitempty"`
+	StartedAt          string              `json:"started_at"`
+	StartedGeneration  uint64              `json:"started_generation"`
+	AccountFingerprint string              `json:"account_fingerprint"`
+	KeyFingerprint     string              `json:"key_fingerprint"`
+	RequestFingerprint string              `json:"request_fingerprint"`
+	Order              string              `json:"order"`
+	Names              []string            `json:"names"`
+	CheckedAt          string              `json:"checked_at,omitempty"`
+	Observation        string              `json:"observation,omitempty"`
+	Completion         *issuanceCompletion `json:"completion,omitempty"`
 }
 
 // IssuanceAttempt is a process-local, single-use lease, not a serialized field.
@@ -79,7 +80,7 @@ func openIssuance(key, id []byte, m manifest) (issuancePayload, error) {
 	if len(m.ACMEIssuances) == 0 {
 		return issuancePayload{}, nil
 	}
-	if len(m.ACMEIssuances) != 1 || len(m.ACMECertificateRequests) != 1 || len(m.Records) >= maxRecords || len(m.History) >= maxHistory || m.Generation >= maxGeneration {
+	if len(m.ACMEIssuances) != 1 {
 		return bad()
 	}
 	item := m.ACMEIssuances[0]
@@ -97,13 +98,22 @@ func openIssuance(key, id []byte, m manifest) (issuancePayload, error) {
 	}
 	defer clear(plain)
 	var p issuancePayload
-	if !strictJSON(plain, &p) || !acmeorder.Time(p.StartedAt) || p.StartedGeneration <= m.ACMECertificateRequests[0].Generation || p.StartedGeneration > item.Generation {
+	if !strictJSON(plain, &p) || !acmeorder.Time(p.StartedAt) || p.StartedGeneration > item.Generation {
+		return bad()
+	}
+	if p.Completion != nil {
+		if validateCompletion(key, id, m, p, item.Generation) != nil {
+			return bad()
+		}
+		return p, nil
+	}
+	if len(m.ACMECertificateRequests) != 1 || len(m.Records) >= maxRecords || len(m.History) >= maxHistory || m.Generation >= maxGeneration || p.StartedGeneration <= m.ACMECertificateRequests[0].Generation {
 		return bad()
 	}
 	request, status, err := openCertificateRequest(key, id, m)
 	defer clear(request.PrivateKey)
 	order, orderErr := openOrder(key, id, m)
-	if err != nil || orderErr != nil || !status.Prepared || order.State != "domain-verified" || p.StartedAt < status.PreparedAt || p.StartedAt < order.CheckedAt || p.StartedAt >= order.Expires || p.AccountFingerprint != order.Fingerprint || p.Order != order.URL || !slices.Equal(p.Names, order.Domains) || p.KeyFingerprint != status.Fingerprint || p.RequestFingerprint != csrFingerprint(request.CSR) {
+	if err != nil || orderErr != nil || request.State != "key-prepared" || !status.Prepared || order.State != "domain-verified" || p.StartedAt < status.PreparedAt || p.StartedAt < order.CheckedAt || p.StartedAt >= order.Expires || p.AccountFingerprint != order.Fingerprint || p.Order != order.URL || !slices.Equal(p.Names, order.Domains) || p.KeyFingerprint != status.Fingerprint || p.RequestFingerprint != csrFingerprint(request.CSR) {
 		return bad()
 	}
 	if p.Observation == "" {
@@ -117,6 +127,13 @@ func openIssuance(key, id []byte, m manifest) (issuancePayload, error) {
 }
 
 func publicIssuance(p issuancePayload) IssuanceStatus {
+	if p.Completion != nil {
+		state := "certificate-saved"
+		if p.Completion.DeletedAt != "" {
+			state = "saved-certificate-deleted"
+		}
+		return IssuanceStatus{State: state, StartedAt: p.StartedAt, CheckedAt: p.Completion.SavedAt, Observation: "saved"}
+	}
 	state := "not-started"
 	if p.StartedAt != "" {
 		state = "issuance-pending"
@@ -201,7 +218,7 @@ func beginStagingIssuanceAt(key, id, image []byte, expected uint64, refresh bool
 	order, orderErr := openOrder(key, id, m)
 	now := at.UTC().Format("2006-01-02T15:04:05Z")
 	p, intentErr := openIssuance(key, id, m)
-	if err != nil || orderErr != nil || intentErr != nil || !status.Prepared || order.State != "domain-verified" || !acmeorder.Time(now) || now < status.PreparedAt || now < order.CheckedAt || now >= order.Expires || p.CheckedAt > now || p.StartedAt > now {
+	if err != nil || orderErr != nil || intentErr != nil || p.Completion != nil || !status.Prepared || order.State != "domain-verified" || !acmeorder.Time(now) || now < status.PreparedAt || now < order.CheckedAt || now >= order.Expires || p.CheckedAt > now || p.StartedAt > now {
 		return bad(ErrInvalid)
 	}
 	if refresh {
@@ -238,7 +255,7 @@ func WithStagingIssuance(key, id, image []byte, expected uint64, attempt *Issuan
 	p, err := openIssuance(key, id, m)
 	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	order, orderErr := openOrder(key, id, m)
-	if err != nil || orderErr != nil || p.StartedAt == "" || use == nil || attempt == nil || attempt.lease == nil || attempt.lease.generation != expected || attempt.lease.imageHash != sha256.Sum256(image) || !acmeorder.Time(now) || p.StartedAt > now || p.CheckedAt > now || order.Expires <= now || attempt.lease.used.Swap(true) {
+	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || use == nil || attempt == nil || attempt.lease == nil || attempt.lease.generation != expected || attempt.lease.imageHash != sha256.Sum256(image) || !acmeorder.Time(now) || p.StartedAt > now || p.CheckedAt > now || order.Expires <= now || attempt.lease.used.Swap(true) {
 		return ErrInvalid
 	}
 	request, _, err := openCertificateRequest(key, id, m)
@@ -277,7 +294,7 @@ func ObserveStagingIssuance(key, id, image []byte, expected uint64, observation 
 	p, err := openIssuance(key, id, m)
 	order, orderErr := openOrder(key, id, m)
 	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	if err != nil || orderErr != nil || p.StartedAt == "" || !acmeorder.Time(now) || now < p.StartedAt || now < p.CheckedAt || now >= order.Expires || !slices.Contains([]string{"pending", "ready", "processing", "invalid"}, observation) {
+	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || !acmeorder.Time(now) || now < p.StartedAt || now < p.CheckedAt || now >= order.Expires || !slices.Contains([]string{"pending", "ready", "processing", "invalid"}, observation) {
 		return nil, IssuanceStatus{}, 0, ErrInvalid
 	}
 	p.CheckedAt, p.Observation = now, observation

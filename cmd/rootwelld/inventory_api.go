@@ -175,21 +175,22 @@ type inventoryDeleteOutput struct {
 }
 
 type inventoryItem struct {
-	HasPrivateKey    bool                   `json:"has_private_key"`
-	KeyStatus        string                 `json:"key_status"`
-	BundleCount      int                    `json:"bundle_count"`
-	Fingerprint      string                 `json:"fingerprint"`
-	Subject          string                 `json:"subject"`
-	Issuer           string                 `json:"issuer"`
-	DNSNames         []string               `json:"dns_names"`
-	NotBefore        string                 `json:"not_before"`
-	NotAfter         string                 `json:"not_after"`
-	Owner            string                 `json:"owner"`
-	Location         string                 `json:"location"`
-	Locations        []string               `json:"locations"`
-	ImportGeneration uint64                 `json:"import_generation"`
-	ImportedAt       string                 `json:"imported_at,omitempty"`
-	Expiry           publicinventory.Expiry `json:"expiry"`
+	HasPrivateKey    bool                           `json:"has_private_key"`
+	KeyStatus        string                         `json:"key_status"`
+	BundleCount      int                            `json:"bundle_count"`
+	Fingerprint      string                         `json:"fingerprint"`
+	Subject          string                         `json:"subject"`
+	Issuer           string                         `json:"issuer"`
+	DNSNames         []string                       `json:"dns_names"`
+	NotBefore        string                         `json:"not_before"`
+	NotAfter         string                         `json:"not_after"`
+	Owner            string                         `json:"owner"`
+	Location         string                         `json:"location"`
+	Locations        []string                       `json:"locations"`
+	ImportGeneration uint64                         `json:"import_generation"`
+	ImportedAt       string                         `json:"imported_at,omitempty"`
+	Expiry           publicinventory.Expiry         `json:"expiry"`
+	StagingOrigin    *publicinventory.StagingOrigin `json:"staging_origin,omitempty"`
 }
 
 func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -793,7 +794,7 @@ func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []p
 	for _, r := range records {
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
 			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
-			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now)})
+			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now), StagingOrigin: r.StagingOrigin})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)

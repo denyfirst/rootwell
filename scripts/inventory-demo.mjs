@@ -21,6 +21,7 @@ html = replaceOnce(html, "<main>", `<main><aside class="storage-note" aria-label
 html = replaceOnce(html, '<form id="inventory-form">', '<form id="inventory-form" data-read-only="true">');
 html = replaceOnce(html, '<form id="certificate-pair-form">', '<form id="certificate-pair-form" data-read-only="true">');
 let script = asset("inventory.js");
+script=replaceOnce(script,'addText(item, "strong", record.subject || "Subject not provided");','addText(item, "strong", record.subject || "Subject not provided"); if (record.staging_origin) addText(item, "small", "DEMO · status example only, not a real CA receipt");');
 for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
   script = replaceOnce(script, `details.appendChild(${button});`, `${button}.disabled = true; details.appendChild(${button});`);
 }
@@ -43,7 +44,11 @@ script=replaceOnce(script,"item.appendChild(downloadButton);","downloadButton.di
 records.push({ fingerprint: demoLeaf.fingerprint256, subject: demoLeaf.subject, issuer: demoLeaf.issuer,
   dns_names: ["verify.rootwell.invalid"], not_before: new Date(demoLeaf.validFrom).toISOString().slice(0,19)+"Z",
   not_after: new Date(demoLeaf.validTo).toISOString().slice(0,19)+"Z", owner: "Synthetic public certificate",
-  location: "", locations: [], import_generation: 5, imported_at: instant(-1) });
+  location: "", locations: [], import_generation: 5, imported_at: instant(-1), has_private_key:true,key_status:"matched",
+  staging_origin:{test_only:true,provider:"letsencrypt-staging",verified_at:instant(-1),root_fingerprint:new X509Certificate(readFileSync(new URL("../web/workbench/rootwell-verify-demo-root.pem",import.meta.url))).fingerprint256} });
+// All statuses above are fake read-only UI examples, including the key/origin.
+// The public demo certificate was NOT issued by Let's Encrypt staging.
+records[3].staging_origin.verified_at=records[3].imported_at;
 script = replaceOnce(script, "openForm.appendChild(button);",
   `button.disabled = record.fingerprint !== ${JSON.stringify(demoLeaf.fingerprint256)}; openForm.appendChild(button);`);
 function fixture() {

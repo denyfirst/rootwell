@@ -243,6 +243,15 @@
         throw new Error("Inventory locations were not recognized");
       }
       fingerprints.add(record.fingerprint);
+      if (record.staging_origin !== undefined) {
+        const origin = record.staging_origin, fingerprint = /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/;
+        if (!origin || Object.keys(origin).sort().join(",") !== "provider,root_fingerprint,test_only,verified_at" || origin.test_only !== true || origin.provider !== "letsencrypt-staging" ||
+            !fingerprint.test(origin.root_fingerprint) || !fingerprint.test(record.fingerprint) || typeof origin.verified_at !== "string" ||
+            !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(origin.verified_at) || safeDate(origin.verified_at) === null ||
+            new Date(origin.verified_at).toISOString().slice(0,19)+"Z" !== origin.verified_at || origin.verified_at !== record.imported_at || record.has_private_key !== true || record.key_status !== "matched") {
+          throw new Error("Test certificate status was not recognized");
+        }
+      }
       const expected = expiryState(record, serverNow);
       if (!record.expiry || record.expiry.status !== expected.group ||
           record.expiry.days_left !== expected.daysLeft ||
@@ -299,6 +308,7 @@
       shown++;
       const item = document.createElement("li");
       addText(item, "strong", record.subject || "Subject not provided");
+      if (record.staging_origin) addText(item, "small", "Test certificate · not for production", "next-action");
       addText(item, "span", record.expiry.name, "state " + record.expiry.group);
       addText(item, "small", "Expires: " + record.not_after.slice(0, 10));
       addText(item, "small", record.has_private_key === true ? record.key_status === "mismatch" ? "Key does not match · separate attachment only" : record.key_status === "matched" ? "Matching private key saved" : "Key present · match status unavailable" : "Certificate only · no private key saved");
@@ -317,6 +327,11 @@
       addText(details, "small", guidance[record.expiry.group], "next-action");
       addText(details, "small", "Service notes: " + (record.locations.length ? record.locations.join(" · ") : "None — add one if useful"));
       if (record.owner) addText(details, "small", "Owner: " + record.owner);
+      if (record.staging_origin) {
+        addText(details, "small", "Accepted from Let's Encrypt staging at " + record.staging_origin.verified_at + " (server clock). Matching key saved.");
+        addText(details, "small", "Test-only issuer path checked at that time. This is not ordinary browser trust, revocation or deployment verification.");
+        addText(details, "small", "Recorded staging root SHA-256: " + record.staging_origin.root_fingerprint);
+      }
       const openForm = document.createElement("form");
       openForm.method = "post";
       openForm.action = "/workbench";

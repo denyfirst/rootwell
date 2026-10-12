@@ -1539,6 +1539,35 @@ Guarded by `TestStagingReceiptExactBindingIndependentTrustAndNoInputMutation`,
 `TestStagingReceiptHasNoNetworkStorageOrSigningAuthority` and
 `FuzzStagingCertificateReceipt`; inherited request/policy/architecture tests.
 
+## C81 — Atomic completion preserves the exact key and test-only origin
+
+ADR 0061's production entry repeats real fixed pinned receipt acceptance for the
+exact pending key/CSR/names/time/generation. No supplied key/trust/result or live
+route. A single complete image moves private bytes out of preparation into a
+matched certificate material and saves one leaf/public CSR tombstone/test-only
+historical provenance/history. Account/order and existing records stay unchanged;
+duplicate/oversize/stale/expired/malformed input never partially saves. The final
+reserved history/generation slot is usable and completion releases reservations.
+Full image authentication checks every link before public output. Origin is not
+current trust/revocation/deployment. Notes/export preserve it; delete removes
+current pair/CSR but keeps a closed no-replay tombstone. Old complete backups
+retain old keys. No key regeneration, completion replay or new read-only lease.
+V4 single-snapshot status blocks old DNS/key actions BEFORE provider work once
+issuance starts; strict UI differentiates pending/saved/deleted and test-only.
+No can_issue gain. Synthetic custody success seam is unexported; real production
+entry rejects its issuer. Linux full-restore fixtures are runtime-only/private.
+
+Guarded by `TestCompletionAtomicMoveProvenanceNotesExportDeleteAndNoReplay`,
+`TestCompletionWholeImageTamperRefusesBeforePublicOutput`,
+`TestCompletionRefusalsAndReservedFinalGenerationHistorySlot`,
+`TestLinuxCompletionRefusesUntrustedReceiptRevisionPermissionAndStaleGeneration`,
+`TestLinuxCompletedSyntheticPairFullRestorePasswordRecoveryAndDeletion`,
+`TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement`,
+`FuzzStagingCompletionPayload`, inherited receipt/intent/architecture/native tests
+and v4/library/history/real-WASM/demo UI scripts. Actual sabotage: ADR 0061.
+Separate live integration/consent/budgets, renewal/DNS, retention/new-order policy
+and independent production audit remain required; host/rollback/heap risks persist.
+
 ## C80 — Durable issuance intent cannot mint a second first attempt
 
 ADR 0060 binds one encrypted intent to exact account/order/prepared key/CSR/names

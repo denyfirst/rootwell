@@ -21,13 +21,15 @@ type CertificateRequestStatus struct {
 }
 
 type certificateRequestPayload struct {
-	State              string   `json:"state"`
-	PreparedAt         string   `json:"prepared_at"`
-	AccountFingerprint string   `json:"account_fingerprint"`
-	Order              string   `json:"order"`
-	Names              []string `json:"names"`
-	PrivateKey         []byte   `json:"private_key"`
-	CSR                []byte   `json:"csr"`
+	State                  string   `json:"state"`
+	PreparedAt             string   `json:"prepared_at"`
+	AccountFingerprint     string   `json:"account_fingerprint"`
+	Order                  string   `json:"order"`
+	Names                  []string `json:"names"`
+	PrivateKey             []byte   `json:"private_key"`
+	CSR                    []byte   `json:"csr"`
+	CertificateFingerprint string   `json:"certificate_fingerprint,omitempty"`
+	PreparedGeneration     uint64   `json:"prepared_generation,omitempty"`
 }
 
 func certificateRequestID() []byte {
@@ -76,14 +78,28 @@ func openCertificateRequest(key, id []byte, m manifest) (certificateRequestPaylo
 			clear(p.PrivateKey)
 		}
 	}()
-	if !strictJSON(plain, &p) || p.State != "key-prepared" || !acmeorder.Time(p.PreparedAt) {
+	if !strictJSON(plain, &p) || (p.State != "key-prepared" && p.State != "key-transferred") || !acmeorder.Time(p.PreparedAt) {
 		return bad()
 	}
 	order, err := openOrder(key, id, m)
 	if err != nil || !acmeorder.ValidationStarted(order.State) || order.URL != p.Order || !slices.Equal(p.Names, order.Domains) || p.AccountFingerprint != order.Fingerprint || p.PreparedAt < order.Started || p.PreparedAt >= order.Expires {
 		return bad()
 	}
-	summary, err := acmecertrequest.Check(p.PrivateKey, p.CSR, p.Names)
+	private := p.PrivateKey
+	if p.State == "key-transferred" {
+		if len(m.ACMEIssuances) != 1 || len(private) != 0 || p.PreparedGeneration < 4 || p.PreparedGeneration >= item.Generation {
+			return bad()
+		}
+		material, materialErr := completionMaterial(key, id, m, p.CertificateFingerprint)
+		if materialErr != nil {
+			return bad()
+		}
+		private = material.PrivateKey
+		defer clear(private)
+	} else if p.CertificateFingerprint != "" || p.PreparedGeneration != 0 {
+		return bad()
+	}
+	summary, err := acmecertrequest.Check(private, p.CSR, p.Names)
 	if err != nil || summary.PublicFingerprint == p.AccountFingerprint {
 		return bad()
 	}
@@ -119,7 +135,7 @@ func prepareStagingCertificateRequestAt(key, id, image []byte, expected uint64, 
 	}
 	order, err := openOrder(key, id, m)
 	now := at.UTC().Format("2006-01-02T15:04:05Z")
-	if err != nil || !acmeorder.Time(now) || order.State != "domain-verified" || order.Expires <= now || order.CheckedAt > now || len(m.ACMECertificateRequests) != 0 {
+	if err != nil || !acmeorder.Time(now) || order.State != "domain-verified" || order.Expires <= now || order.CheckedAt > now || len(m.ACMECertificateRequests) != 0 || len(m.ACMEIssuances) != 0 {
 		return nil, CertificateRequestStatus{}, 0, ErrInvalid
 	}
 	if m.Generation >= maxGeneration || len(m.History) >= maxHistory {

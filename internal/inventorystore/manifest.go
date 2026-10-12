@@ -294,6 +294,9 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 			}
 		}
 		m.Generation++
+		if err := deleteCompletion(key, installationID, &m, fingerprint); err != nil {
+			return nil, 0, err
+		}
 		if err := addEvent(key, &m, "record-deleted", []string{fingerprint}); err != nil {
 			return nil, 0, err
 		}
@@ -354,7 +357,7 @@ func encode(key []byte, m manifest) ([]byte, error) {
 	if err != nil || len(result) > maxImage {
 		return nil, ErrLimit
 	}
-	if len(m.ACMEIssuances) != 0 && len(result) > maxImage-issuanceByteReserve {
+	if pendingIssuance(key, m.InstallationID, m) && len(result) > maxImage-issuanceByteReserve {
 		return nil, ErrLimit
 	}
 	return result, nil
@@ -378,7 +381,7 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 	if !strictJSON(outer.Body, &m) || m.Version != 1 || !bytes.Equal(m.InstallationID, id) || m.Generation == 0 || m.Generation > maxGeneration || len(m.Records) > maxRecords || m.Records == nil {
 		return manifest{}, nil, ErrInvalid
 	}
-	if len(m.ACMEIssuances) != 0 && len(image) > maxImage-issuanceByteReserve {
+	if pendingIssuance(key, id, m) && len(image) > maxImage-issuanceByteReserve {
 		return manifest{}, nil, ErrInvalid
 	}
 	var catalog publicinventory.Catalog
@@ -452,8 +455,16 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 	if _, err := certificateRequestStatus(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
-	if _, err := openIssuance(key, id, m); err != nil {
+	issuance, err := openIssuance(key, id, m)
+	if err != nil {
 		return manifest{}, nil, ErrInvalid
+	}
+	if c := issuance.Completion; c != nil && c.DeletedAt == "" {
+		for i := range records {
+			if records[i].Fingerprint == c.Fingerprint {
+				records[i].StagingOrigin = &publicinventory.StagingOrigin{TestOnly: true, Provider: "letsencrypt-staging", VerifiedAt: c.SavedAt, RootFingerprint: c.ChainFingerprints[len(c.ChainFingerprints)-1]}
+			}
+		}
 	}
 	if m.Generation == math.MaxUint64 {
 		return manifest{}, nil, ErrInvalid

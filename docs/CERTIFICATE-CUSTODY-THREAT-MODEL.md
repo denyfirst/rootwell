@@ -30,6 +30,22 @@ plaintext custody export, remote listener, multiuser policy or production claim.
 
 ## Assets and trust
 
+ADR 0061 adds ONLY internal checked staging pair completion. No ordinary input
+can supply origin, a trust root/result or the prepared key. Fixed receipt Check
+before atomic writer-locked commit; exact saved CSR/key/name/order scope, time,
+generation and test-only path. Move key from preparation into matched encrypted
+material, one leaf record, public transfer tombstone, historical provenance and
+history. Metadata/export preserve origin; deletion removes current pair/CSR and
+keeps a no-replay public tombstone. Complete image checks all bindings before any
+public output. Origin is authenticated acceptance-at-time, not current trust or
+deployment; restore/list do not perform new issuer verification. Future network
+integration must supply only the exact saved-order receipt under its scoped lease.
+No live connector/issuance UI enabled. Runtime-only synthetic restore fixtures
+do not override production roots; the real entry rejects their issuer. Staging
+roots remain outside system trust; native custody remains unsupported. Old backups,
+host compromise, runtime copies, retention/expiry/new-order policy and material
+size limits remain. See [ADR 0061](adr/0061-atomic-staging-certificate-completion.md).
+
 ADR 0048 adds only a key to an existing public-only record, never replacement.
 Check/Save accept exact fingerprint/generation and one strict key, not new
 certificate/notes/status. Save uses fresh instance authentication through the

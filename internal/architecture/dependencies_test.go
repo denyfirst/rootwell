@@ -158,8 +158,8 @@ func TestCertificateConnectorNotWiredBeforeDurableCustody(t *testing.T) {
 func TestIssuanceIntentHasNoLiveRouteOrNetworkWiring(t *testing.T) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	allowed := map[string]bool{"internal/inventorystore/issuance.go": true, "internal/instanceaccess/acme_issuance_linux.go": true, "internal/instanceaccess/acme_issuance_other.go": true}
-	names := map[string]bool{"RunStagingIssuance": true, "WithStagingIssuance": true, "BeginStagingIssuance": true, "ObserveStagingIssuance": true}
+	allowed := map[string]bool{"internal/inventorystore/issuance.go": true, "internal/inventorystore/completion.go": true, "internal/instanceaccess/acme_completion_linux.go": true, "internal/instanceaccess/acme_completion_other.go": true, "internal/instanceaccess/acme_issuance_linux.go": true, "internal/instanceaccess/acme_issuance_other.go": true}
+	names := map[string]bool{"RunStagingIssuance": true, "WithStagingIssuance": true, "BeginStagingIssuance": true, "ObserveStagingIssuance": true, "FinishStagingIssuance": true, "finishStagingIssuance": true, "CompleteStagingIssuance": true}
 	for _, directory := range []string{"cmd", "internal"} {
 		err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/acmeorder"
+	"github.com/denyfirst/rootwell/internal/instanceaccess"
 )
 
 func TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement(t *testing.T) {
@@ -76,7 +77,7 @@ func TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement(t *te
 	// Provider cooldown is still active: local preparation must not use its gate.
 	w = orderCall(g, "prepare-key", orderRequest("10", false), cookie)
 	var output orderOutput
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v3" || !output.CertificateKey.Prepared || output.Generation != 11 || !output.DomainVerified || output.Network || output.CanIssue || calls != 2 {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v4" || output.Issuance.State != "not-started" || !output.CertificateKey.Prepared || output.Generation != 11 || !output.DomainVerified || output.Network || output.CanIssue || calls != 2 {
 		t.Fatalf("local preparation refused/truth wrong: %d", w.Code)
 	}
 	for _, secret := range []string{apiAccount, apiDNS().URL, "private_key", "csr", "sentinel"} {
@@ -96,5 +97,25 @@ func TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement(t *te
 	w = orderCall(g, "status", orderStatusInput, cookie)
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.CertificateKey != prepared || output.Generation != 11 || output.Network || output.CanIssue || calls != 2 {
 		t.Fatal("status lost custody or gained network/issuance authority")
+	}
+	if _, _, err := instanceaccess.RunStagingIssuance(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, 11, false, func() bool { return true }, func(crypto.Signer, string, string, string, []string, []byte, []byte, bool) (string, error) {
+		return "processing", nil
+	}); err != nil {
+		t.Fatal("fixture issuance intent refused")
+	}
+	w = orderCall(g, "status", orderStatusInput, cookie)
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Issuance.State != "awaiting-certificate" || output.Generation != 13 || output.Network || output.CanIssue || output.CertificateKey != prepared {
+		t.Fatal("v4 status lost issuance intent or granted authority")
+	}
+	durable, _ = os.ReadFile(path)
+	for _, mode := range []string{"prepare-key", "refresh", "validate", "ack", "resume", "start"} {
+		w = orderCall(g, mode, orderRequest("13", mode == "start"), cookie)
+		if w.Code != 409 || calls != 2 {
+			t.Fatal("old DNS/key action crossed issuance boundary")
+		}
+	}
+	after, _ = os.ReadFile(path)
+	if !bytes.Equal(durable, after) {
+		t.Fatal("blocked old action changed issuance intent")
 	}
 }

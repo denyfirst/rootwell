@@ -21,4 +21,8 @@ func TestNativeIssuanceRefusesBeforeFilePermissionAndCallback(t *testing.T) {
 	if !errors.Is(err, ErrRecoveryUnsupported) || s.State != "" || g != 0 {
 		t.Fatal("native issuance read obtained custody")
 	}
+	s, g, err = CompleteStagingIssuance("nonexistent-rootwell-completion", nil, nil, [32]byte{}, 1, nil, func() bool { called = true; return true })
+	if !errors.Is(err, ErrRecoveryUnsupported) || s.State != "" || g != 0 || called {
+		t.Fatal("native completion obtained custody")
+	}
 }
