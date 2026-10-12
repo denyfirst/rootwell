@@ -28,6 +28,10 @@ try {
   assert.match(html, /id="save-button" type="submit" disabled/);
   assert.equal(page.headers.get("cache-control"), "no-store");
   const origin = new URL(address).origin;
+  const automation=await fetch(origin+"/automation");assert.equal(automation.status,200);assert.match(await automation.text(),/DEMO — fake prepared request, no CA connection or private key/);
+  const automationScript=await fetch(origin+"/acme-order.js");assert.equal(automationScript.status,200);assert.match(await automationScript.text(),/consent.disabled=true; password.disabled=true/);
+  const demoStatus=await fetch(origin+"/api/acme/order/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"letsencrypt-staging"})});assert.equal(demoStatus.status,200);const demoRequest=await demoStatus.json();assert.equal(demoRequest.schema_version,"rootwell.acme.manual-dns.v5");assert.equal(demoRequest.can_issue,true);assert.equal(demoRequest.network_used,false);
+  for(const mode of ["issue","certificate-refresh","prepare-key","start","validate"])assert.equal((await fetch(origin+"/api/acme/order/"+mode,{method:"POST"})).status,405,"demo cannot execute an operation");
   assert.match(html, /href="\/index.html"/);
   assert.match(html, /href="\/certificates" aria-current="page"/);
   assert.match(html, /id="certificate-pair-form" data-read-only="true"/);

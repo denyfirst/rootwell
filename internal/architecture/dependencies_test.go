@@ -60,7 +60,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
-				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" ||
+				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
 					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" && filepath.ToSlash(relative) != "internal/acmestaging/certificate.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
@@ -116,7 +116,7 @@ func forbiddenImport(path string) bool {
 		path == "golang.org/x/crypto/openpgp" || strings.HasPrefix(path, "golang.org/x/crypto/openpgp/")
 }
 
-func TestCertificateConnectorNotWiredBeforeDurableCustody(t *testing.T) {
+func TestCertificateConnectorFixedStagingBoundary(t *testing.T) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -137,7 +137,7 @@ func TestCertificateConnectorNotWiredBeforeDurableCustody(t *testing.T) {
 		connector := filepath.ToSlash(relative) == "internal/acmestaging/certificate.go"
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
-			if ok && connector && fn.Recv == nil && fn.Name.IsExported() {
+			if ok && connector && fn.Recv == nil && fn.Name.IsExported() && fn.Name.Name != "Certificate" {
 				t.Errorf("live exported certificate capability before custody integration: %s", fn.Name.Name)
 			}
 		}
@@ -145,6 +145,11 @@ func TestCertificateConnectorNotWiredBeforeDurableCustody(t *testing.T) {
 			id, ok := n.(*ast.Ident)
 			if ok && !connector && (id.Name == "certificateOrder" || id.Name == "certificateTransport") {
 				t.Errorf("certificate connector wired outside reviewed boundary: %s", relative)
+			}
+			if selector, ok := n.(*ast.SelectorExpr); ok && selector.Sel.Name == "Certificate" {
+				if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Name == "acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" {
+					t.Errorf("certificate transport outside fresh-auth route: %s", relative)
+				}
 			}
 			return true
 		})
@@ -155,11 +160,16 @@ func TestCertificateConnectorNotWiredBeforeDurableCustody(t *testing.T) {
 	}
 }
 
-func TestIssuanceIntentHasNoLiveRouteOrNetworkWiring(t *testing.T) {
+func TestIssuanceExecutionReviewedBoundaries(t *testing.T) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 	allowed := map[string]bool{"internal/inventorystore/issuance.go": true, "internal/inventorystore/completion.go": true, "internal/instanceaccess/acme_completion_linux.go": true, "internal/instanceaccess/acme_completion_other.go": true, "internal/instanceaccess/acme_issuance_linux.go": true, "internal/instanceaccess/acme_issuance_other.go": true}
+	allowed["internal/instanceaccess/acme_certificate_linux.go"] = true
+	allowed["internal/instanceaccess/acme_certificate_other.go"] = true
+	allowed["cmd/rootwelld/acme_order_api.go"] = true
 	names := map[string]bool{"RunStagingIssuance": true, "WithStagingIssuance": true, "BeginStagingIssuance": true, "ObserveStagingIssuance": true, "FinishStagingIssuance": true, "finishStagingIssuance": true, "CompleteStagingIssuance": true}
+	names["RunStagingCertificate"], names["runStagingCertificate"] = true, true
+	names["ConstrainStagingIssuance"] = true
 	for _, directory := range []string{"cmd", "internal"} {
 		err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -177,10 +187,10 @@ func TestIssuanceIntentHasNoLiveRouteOrNetworkWiring(t *testing.T) {
 				return err
 			}
 			relative = filepath.ToSlash(relative)
-			if allowed[relative] {
+			if allowed[relative] && relative != "cmd/rootwelld/acme_order_api.go" {
 				for _, imp := range file.Imports {
 					p, err := strconv.Unquote(imp.Path.Value)
-					if err != nil || forbiddenImport(p) || p == "github.com/denyfirst/rootwell/internal/acmestaging" || p == "golang.org/x/crypto/acme" {
+					if err != nil || forbiddenImport(p) || (p == "github.com/denyfirst/rootwell/internal/acmestaging" && relative != "internal/instanceaccess/acme_certificate_linux.go" && relative != "internal/instanceaccess/acme_certificate_other.go") || p == "golang.org/x/crypto/acme" {
 						t.Errorf("live network authority in intent custody: %s", relative)
 					}
 				}
@@ -190,6 +200,15 @@ func TestIssuanceIntentHasNoLiveRouteOrNetworkWiring(t *testing.T) {
 				if ok && names[id.Name] && !allowed[relative] {
 					t.Errorf("intent execution wired before pair/receipt/UI review: %s", relative)
 				}
+				if ok && names[id.Name] && relative == "cmd/rootwelld/acme_order_api.go" && id.Name != "RunStagingCertificate" {
+					t.Errorf("route bypasses the locked transaction: %s", id.Name)
+				}
+				if ok && id.Name == "runStagingCertificate" && relative != "internal/instanceaccess/acme_certificate_linux.go" {
+					t.Errorf("runtime receipt checker override: %s", relative)
+				}
+				if ok && id.Name == "finishStagingIssuance" && relative != "internal/inventorystore/completion.go" {
+					t.Errorf("runtime pinned trust override: %s", relative)
+				}
 				return true
 			})
 			return nil
@@ -197,6 +216,45 @@ func TestIssuanceIntentHasNoLiveRouteOrNetworkWiring(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestCertificateTransactionProductionCompletionIsFixed(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	path := filepath.Join(filepath.Dir(current), "..", "instanceaccess", "acme_certificate_linux.go")
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "RunStagingCertificate" {
+			continue
+		}
+		if len(fn.Body.List) != 1 {
+			t.Fatal("production transaction must only forward to fixed acceptance")
+		}
+		ret, ok := fn.Body.List[0].(*ast.ReturnStmt)
+		if !ok || len(ret.Results) != 1 {
+			t.Fatal("completion authority changed")
+		}
+		call, ok := ret.Results[0].(*ast.CallExpr)
+		if !ok || len(call.Args) != 9 {
+			t.Fatal("completion authority changed")
+		}
+		selector, ok := call.Args[8].(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != "FinishStagingIssuance" {
+			t.Fatal("production checker not fixed")
+		}
+		pkg, ok := selector.X.(*ast.Ident)
+		if !ok || pkg.Name != "inventorystore" {
+			t.Fatal("production checker not fixed")
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("fixed production transaction missing")
 	}
 }
 

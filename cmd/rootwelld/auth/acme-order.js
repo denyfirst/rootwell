@@ -3,13 +3,13 @@
   const el=id=>document.getElementById(id), refresh=el("acme-order-refresh"), status=el("acme-order-status"), form=el("acme-order-form"), names=el("acme-order-domains");
   const namesRow=el("acme-order-names-row"), consent=el("acme-order-consent"), label=el("acme-order-consent-label"), password=el("acme-order-password"), submit=el("acme-order-submit"), records=el("acme-order-records"), resumeChoice=el("acme-order-resume-choice");
   let snapshot=null, active=null, generation=0, action="start";
-  const uncertain="Outcome not confirmed. Check saved DNS request first. Do not create another request; continue only the saved one.";
+  const uncertain="Outcome not confirmed. Check saved request first. A sent request cannot be undone. Do not resend it or create another request; only read the same saved result.";
   const date=value=>typeof value==="string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).getUTCFullYear()>=2020 && new Date(value).toISOString()===value.replace("Z",".000Z");
   const domain=value=>typeof value==="string" && value.length<=255 && /^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(value) && value.includes(".") && !value.includes("..");
   const suppliedNames=()=>names.value.split(/\r?\n/).map(n=>n.trim().toLowerCase()).filter(Boolean).sort();
-  const usable=()=>snapshot && date(snapshot.expires) && Date.now()<Date.parse(snapshot.expires);
+  const usable=()=>snapshot && date(snapshot.expires) && Date.now()<Date.parse(snapshot.expires) && (!snapshot.issuance.expires || date(snapshot.issuance.expires) && Date.now()<Date.parse(snapshot.issuance.expires));
   const validationStates=["validation-pending","validation-waiting","validation-failed","domain-verified"];
-  const allowedAction=()=>snapshot && snapshot.issuance.state==="not-started" && (action==="start" ? snapshot.state==="not-started" : action==="ack" ? snapshot.state==="dns-ready" && usable() : action==="validate" ? snapshot.state==="dns-acknowledged" && usable() : action==="prepare-key" ? snapshot.state==="domain-verified" && snapshot.domain_verified && !snapshot.certificate_key.prepared && usable() : action==="refresh" ? validationStates.includes(snapshot.state) && usable() : ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state));
+  const allowedAction=()=>snapshot && (action==="certificate-refresh" ? ["issuance-pending","not-issued","awaiting-certificate","issuance-failed"].includes(snapshot.issuance.state) && usable() : snapshot.issuance.state==="not-started" && (action==="issue" ? snapshot.can_issue && usable() : action==="start" ? snapshot.state==="not-started" : action==="ack" ? snapshot.state==="dns-ready" && usable() : action==="validate" ? snapshot.state==="dns-acknowledged" && usable() : action==="prepare-key" ? snapshot.state==="domain-verified" && snapshot.domain_verified && !snapshot.certificate_key.prepared && usable() : action==="refresh" ? validationStates.includes(snapshot.state) && usable() : ["order-known","dns-ready","dns-acknowledged"].includes(snapshot.state)));
   const enable=()=>{
     refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;
     submit.disabled=!!active || document.hidden || !allowedAction() || !consent.checked || !password.value || (action==="start" && !suppliedNames().length);
@@ -19,19 +19,21 @@
     generation++;active?.abort();snapshot=null;clearInputs();form.hidden=true;records.hidden=true;records.replaceChildren();resumeChoice.hidden=true;status.textContent=uncertain;enable();
   };
   const valid=(data,mode)=>{
-    if(!data || Array.isArray(data) || Object.keys(data).length!==13 || data.schema_version!=="rootwell.acme.manual-dns.v4" || data.provider!=="letsencrypt-staging" || data.can_issue!==false || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","resume","validate","refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
+    if(!data || Array.isArray(data) || Object.keys(data).length!==13 || data.schema_version!=="rootwell.acme.manual-dns.v5" || data.provider!=="letsencrypt-staging" || typeof data.can_issue!=="boolean" || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","resume","validate","refresh","issue","certificate-refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
     const key=data.certificate_key;
     const issuance=data.issuance;
-    if(!issuance || Array.isArray(issuance) || Object.keys(issuance).sort().join(",")!=="checked_at,observation,started_at,state" || !["not-started","issuance-pending","not-issued","awaiting-certificate","issuance-failed","certificate-saved","saved-certificate-deleted"].includes(issuance.state))return false;
-    if(issuance.state==="not-started") {if(issuance.started_at!=="" || issuance.checked_at!=="" || issuance.observation!=="")return false;}
+    if(!issuance || Array.isArray(issuance) || Object.keys(issuance).sort().join(",")!=="checked_at,expires,observation,started_at,state" || !["not-started","issuance-pending","not-issued","awaiting-certificate","issuance-failed","certificate-saved","saved-certificate-deleted"].includes(issuance.state))return false;
+    if(issuance.state==="not-started") {if(issuance.started_at!=="" || issuance.checked_at!=="" || issuance.observation!=="" || issuance.expires!=="")return false;}
     else {
-      if(data.state!=="domain-verified" || !date(issuance.started_at))return false;
+      if(data.state!=="domain-verified" || !date(issuance.started_at) || !date(issuance.expires) || issuance.expires>data.expires || issuance.expires<=issuance.started_at)return false;
       if(issuance.state==="issuance-pending") {if(issuance.checked_at!=="" || issuance.observation!=="")return false;}
-      else if(!date(issuance.checked_at) || issuance.checked_at<issuance.started_at || issuance.checked_at>=data.expires ||
+      else if(!date(issuance.checked_at) || issuance.checked_at<issuance.started_at || issuance.checked_at>=issuance.expires ||
         !({"not-issued":["pending","ready"],"awaiting-certificate":["processing"],"issuance-failed":["invalid"],"certificate-saved":["saved"],"saved-certificate-deleted":["saved"]}[issuance.state]?.includes(issuance.observation)))return false;
       if(!key || key.prepared!==(issuance.state!=="saved-certificate-deleted"))return false;
     }
     if(!key || Array.isArray(key) || Object.keys(key).length!==3 || typeof key.prepared!=="boolean" || (key.prepared ? !validationStates.includes(data.state) || !date(key.prepared_at) || typeof key.fingerprint!=="string" || !/^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/.test(key.fingerprint) : key.fingerprint!=="" || key.prepared_at!==""))return false;
+    if(data.can_issue!==(data.domain_verified && key.prepared && issuance.state==="not-started"))return false;
+    if(issuance.state!=="not-started" && key.prepared && issuance.started_at<key.prepared_at)return false;
     if(data.state==="not-started")return data.domains.length===0 && data.records.length===0 && data.expires==="";
     if(data.domains.length<1 || data.domains.length>8 || !data.domains.every(domain) || new Set(data.domains).size!==data.domains.length || data.domains.some((n,i)=>i>0 && data.domains[i-1]>=n))return false;
     if(data.state==="request-pending" || data.state==="order-known")return data.expires==="" && data.records.length===0;
@@ -39,15 +41,19 @@
   };
   const choose=mode=>{
     action=mode;clearInputs();namesRow.hidden=mode!=="start";
-    label.textContent=mode==="prepare-key"?"Create and save one certificate key and signed request for these domains on my Rootwell — no CA connection or certificate yet":mode==="ack"?"I have added every required TXT value shown above. This is my acknowledgement, not CA verification.":mode==="validate"?"Ask Let's Encrypt staging to check the acknowledged DNS records for this saved request":mode==="refresh"?"Read the CA result for this same request — do not repeat validation or create another request":mode==="resume"?"Allow reading this same saved request from Let's Encrypt staging — no new request":"I control these domains and allow sending their names to Let's Encrypt staging";
-    submit.textContent=mode==="prepare-key"?"Prepare certificate key":mode==="ack"?"Save my acknowledgement":mode==="validate"?"Ask CA to check DNS":mode==="refresh"?"Refresh CA result":mode==="resume"?"Refresh the saved DNS request":"Get DNS records";
+    label.textContent=mode==="issue"?"Send the saved signed request for "+snapshot.domains.join(", ")+" to Let's Encrypt staging once; check and save the test certificate with its same private key on my Rootwell. The private key stays here.":mode==="certificate-refresh"?"Read the certificate result for "+snapshot.domains.join(", ")+" from the same staging request; never resend or create another request. Save only a checked matching test certificate.":mode==="prepare-key"?"Create and save one certificate key and signed request for these domains on my Rootwell — no CA connection or certificate yet":mode==="ack"?"I have added every required TXT value shown above. This is my acknowledgement, not CA verification.":mode==="validate"?"Ask Let's Encrypt staging to check the acknowledged DNS records for this saved request":mode==="refresh"?"Read the CA result for this same request — do not repeat validation or create another request":mode==="resume"?"Allow reading this same saved request from Let's Encrypt staging — no new request":"I control these domains and allow sending their names to Let's Encrypt staging";
+    submit.textContent=mode==="issue"?"Get test certificate":mode==="certificate-refresh"?"Check certificate result":mode==="prepare-key"?"Prepare certificate key":mode==="ack"?"Save my acknowledgement":mode==="validate"?"Ask CA to check DNS":mode==="refresh"?"Refresh CA result":mode==="resume"?"Refresh the saved DNS request":"Get DNS records";
     form.hidden=false;enable();
   };
   const render=data=>{
     snapshot=data;clearInputs();records.replaceChildren();records.hidden=true;resumeChoice.hidden=true;form.hidden=true;
     if(data.issuance.state!=="not-started") {
-      status.textContent=data.issuance.state==="certificate-saved"?"Your test certificate and matching private key are saved in Certificates. This is test-only, not production trust or deployment. Make a new full backup.":data.issuance.state==="saved-certificate-deleted"?"The saved test certificate and key were removed from this store. This request stays closed; it will not create another key or certificate.":"Your certificate request has started, but no certificate is saved yet. Do not repeat DNS validation, prepare another key or resend this request. Check saved status; same-request CA reconciliation will be connected in the next step.";
+      status.textContent=data.issuance.state==="certificate-saved"?"Your test certificate and matching private key are saved in Certificates. This is test-only, not production trust or deployment. Make a new full backup.":data.issuance.state==="saved-certificate-deleted"?"The saved test certificate and key were removed from this store. This request stays closed; it will not create another key or certificate.":"Your certificate request has started, but no certificate is saved yet. Do not repeat DNS validation, prepare another key or resend this request. Check certificate result to read only the same request; nothing polls automatically.";
       if(data.issuance.state==="certificate-saved") {const link=document.createElement("a");link.href="/certificates";link.textContent="Open Certificates";records.append(link);records.hidden=false;}
+      else if(data.issuance.state!=="saved-certificate-deleted") {
+        if(usable())choose("certificate-refresh");
+        else status.textContent+=" This saved request has expired; reading and replacement are blocked in this development version.";
+      }
       enable();return;
     }
     if(data.state==="not-started"){
@@ -59,7 +65,7 @@
     }else{
       records.hidden=false;
       const heading=document.createElement("p");heading.textContent="Domains: "+data.domains.join(", ")+" · Use before "+data.expires;records.append(heading);
-      for(const r of data.records){
+      for(const r of data.certificate_key.prepared?[]:data.records){
         const card=document.createElement("div");card.className="storage-note";
         for(const line of r.required?["Domain: "+r.domain,"Type: TXT","Name: "+r.name,"Value: "+r.value]:["Domain: "+r.domain,"No TXT required in this response: the CA returned an existing valid authorization."]){const text=document.createElement("p");text.textContent=line;card.append(text);}
         records.append(card);
@@ -69,8 +75,8 @@
       else if(data.state==="dns-acknowledged"){status.textContent="Your acknowledgement is saved encrypted. CA verification has not been requested. No certificate was issued. Allow the CA check below when your DNS records are ready.";choose("validate");}
       else if(validationStates.includes(data.state)){
         status.textContent=data.state==="validation-pending"?"The validation outcome is not confirmed. Only read the same request's CA result; validation will not be repeated. Some challenges may not have been sent.":data.state==="validation-failed"?"The CA did not approve this request. Keep your saved state; automatic retry and replacement are blocked. You can refresh the CA result.":data.state==="domain-verified" && data.domain_verified?"The CA confirmed every domain and marked this request ready. No certificate was issued yet. Make a new complete backup.":"CA verification is not yet confirmed complete. Refresh the CA result later; no automatic polling or repeat validation.";
-        if(data.certificate_key.prepared){status.textContent+=" Your certificate key and signed request are saved encrypted. No certificate has been requested or issued. Keep the same key and make a new complete backup.";}
-        choose(data.state==="domain-verified" && data.domain_verified && !data.certificate_key.prepared?"prepare-key":"refresh");
+        if(data.certificate_key.prepared){status.textContent="Your domains are confirmed and your certificate key and signed request are saved encrypted. Next: get your test certificate. The private key stays on Rootwell; no certificate has been requested or issued yet.";}
+        choose(data.can_issue?"issue":data.state==="domain-verified" && data.domain_verified && !data.certificate_key.prepared?"prepare-key":"refresh");
       }
       else{status.textContent="Add every required TXT value in your DNS provider, then acknowledge below. If Names repeat, keep both Values. No DNS changes are made by Rootwell.";choose("ack");}
     }
@@ -85,12 +91,12 @@
   };
   const run=async mode=>{
     if(active || document.hidden || el("acme-provider").value!=="letsencrypt-staging")return;
-    if(["ack","validate","refresh","prepare-key"].includes(mode) && !usable()){status.textContent="This saved request has expired. Check saved status; do not use stale records or verification.";enable();return;}
+    if(["ack","validate","refresh","prepare-key","issue","certificate-refresh"].includes(mode) && !usable()){status.textContent="This saved request has expired. Check saved status; do not use stale records or verification.";enable();return;}
     if(mode!=="status" && (submit.disabled || !snapshot || !consent.checked || !password.value))return;
-    const expected=snapshot?.generation,original=snapshot?.domains?.slice(),originalRecords=JSON.stringify(snapshot?.records),originalExpiry=snapshot?.expires,originalKey=JSON.stringify(snapshot?.certificate_key),requested=suppliedNames();
+    const expected=snapshot?.generation,original=snapshot?.domains?.slice(),originalRecords=JSON.stringify(snapshot?.records),originalExpiry=snapshot?.expires,originalKey=JSON.stringify(snapshot?.certificate_key),originalIssuance=snapshot?.issuance,requested=suppliedNames();
     const input={provider:"letsencrypt-staging"};if(mode!=="status"){input.confirm=true;input.expected_generation=expected;input.password=password.value;}if(mode==="start")input.domains=requested;
     const current=++generation,controller=new AbortController();active=controller;snapshot=null;clearInputs();records.hidden=true;records.replaceChildren();form.hidden=true;resumeChoice.hidden=true;enable();
-    status.textContent=mode==="prepare-key"?"Preparing and saving your certificate key locally — no provider connection…":mode==="status"?"Reading your saved DNS request…":mode==="ack"?"Saving your acknowledgement locally — no provider connection…":mode==="validate"?"Asking staging to check the acknowledged DNS records…":mode==="refresh"?"Reading the same request's CA result — no repeat validation…":"Reading DNS records from staging… The account private key stays on Rootwell.";
+    status.textContent=mode==="issue"?"Requesting your test certificate once, then checking it before saving… The private key stays on Rootwell.":mode==="certificate-refresh"?"Reading the same certificate result — no resend, new request or automatic polling…":mode==="prepare-key"?"Preparing and saving your certificate key locally — no provider connection…":mode==="status"?"Reading your saved DNS request…":mode==="ack"?"Saving your acknowledgement locally — no provider connection…":mode==="validate"?"Asking staging to check the acknowledged DNS records…":mode==="refresh"?"Reading the same request's CA result — no repeat validation…":"Reading DNS records from staging… The account private key stays on Rootwell.";
     let timer;
     const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error());},30000);});
     try{
@@ -101,10 +107,13 @@
       })();
       const data=await Promise.race([work,deadline]);
       if(current!==generation || document.hidden || controller.signal.aborted)return;
-      const expectedStates=mode==="prepare-key"?["domain-verified"]:["validate","refresh"].includes(mode)?["validation-waiting","validation-failed","domain-verified"]:[mode==="ack"?"dns-acknowledged":"dns-ready"];
+      const certificateMode=["issue","certificate-refresh"].includes(mode);
+      const expectedStates=certificateMode || mode==="prepare-key"?["domain-verified"]:["validate","refresh"].includes(mode)?["validation-waiting","validation-failed","domain-verified"]:[mode==="ack"?"dns-acknowledged":"dns-ready"];
       if(!valid(data,mode) || mode!=="status" && (data.generation<=expected || data.domains.join("\n")!==(mode==="start"?requested:original).join("\n") || !expectedStates.includes(data.state)))throw new Error();
       if(["validate","refresh"].includes(mode) && (JSON.stringify(data.records)!==originalRecords || data.expires>originalExpiry))throw new Error();
       if(mode==="prepare-key" && (!data.certificate_key.prepared || !data.domain_verified || JSON.stringify(data.records)!==originalRecords || data.expires!==originalExpiry || data.generation!==expected+1))throw new Error();
+      if(certificateMode && (JSON.stringify(data.records)!==originalRecords || data.expires!==originalExpiry || !data.domain_verified || !["awaiting-certificate","certificate-saved",...(mode==="certificate-refresh"?["not-issued","issuance-failed"]:[])].includes(data.issuance.state) || data.generation!==expected+(mode==="issue"?2:1)))throw new Error();
+      if(mode==="certificate-refresh" && (data.issuance.started_at!==originalIssuance.started_at || data.issuance.expires>originalIssuance.expires))throw new Error();
       if(mode!=="status" && mode!=="prepare-key" && JSON.stringify(data.certificate_key)!==originalKey)throw new Error();
       render(data);
     }catch{if(current===generation){snapshot=null;status.textContent=uncertain+" Linux or Linux Docker, a ready session and your current password are required. If limited, wait before checking again.";}}

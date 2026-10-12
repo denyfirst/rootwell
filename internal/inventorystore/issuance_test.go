@@ -33,6 +33,53 @@ func issuanceFixture(t *testing.T) (key, id, image []byte) {
 	return key, id, image
 }
 
+func TestIssuanceDeadlineOnlyNarrowsAndSurvivesReopen(t *testing.T) {
+	key, id, image := issuanceFixture(t)
+	defer clear(key)
+	image, _, _, gen, err := BeginStagingIssuance(key, id, image, 11, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().UTC().Add(time.Minute).Format("2006-01-02T15:04:05Z")
+	bounded, err := ConstrainStagingIssuance(key, id, image, gen, deadline)
+	if err != nil {
+		t.Fatal("shortened expiry refused")
+	}
+	s, g, err := ReadStagingIssuance(key, id, bounded)
+	if err != nil || g != 12 || s.Expires != deadline {
+		t.Fatal("deadline not authenticated")
+	}
+	for _, bad := range []string{"", "2020-01-01T00:00:00Z", "9999-01-01T00:00:00Z", time.Now().UTC().Add(2 * time.Minute).Format("2006-01-02T15:04:05Z")} {
+		if next, err := ConstrainStagingIssuance(key, id, bounded, 12, bad); err == nil || next != nil {
+			t.Fatal("deadline extended or malformed constraint accepted")
+		}
+	}
+	next, s, g, err := ObserveStagingIssuance(key, id, bounded, 12, "processing")
+	if err != nil || g != 13 || s.Expires != deadline {
+		t.Fatal("observation lost narrowed deadline")
+	}
+	_, attempt, _, _, err := BeginStagingIssuance(key, id, next, 13, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WithStagingIssuance(key, id, next, 13, attempt, func(_ crypto.Signer, _, _, expires string, _ []string, _, _ []byte, readOnly bool) error {
+		if !readOnly || expires != deadline {
+			t.Fatal("reopened lease extended provider expiry")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	at, _ := time.Parse("2006-01-02T15:04:05Z", deadline)
+	if _, attempt, s, g, err := beginStagingIssuanceAt(key, id, next, 13, true, at); err == nil || attempt != nil || s.State != "" || g != 0 {
+		t.Fatal("expired narrowed authority reacquired")
+	}
+	// Historical observation is still readable after expiry, not authorization.
+	if _, _, err := ReadStagingIssuance(key, id, next); err != nil {
+		t.Fatal("expiry made authenticated custody unreadable")
+	}
+}
+
 func TestIssuanceIntentExactScopeEncryptionAndSingleUseReadOnlyRecovery(t *testing.T) {
 	key, id, image := issuanceFixture(t)
 	before, _, _ := decode(key, id, image)

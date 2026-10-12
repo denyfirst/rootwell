@@ -5,14 +5,16 @@ const source=fs.readFileSync("cmd/rootwelld/auth/acme-order.js","utf8"),html=fs.
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|WebSocket|XMLHttpRequest|sendBeacon|clipboard/);
 assert.match(html,/keep both Values/);assert.match(html,/Your acknowledgement does not verify DNS/);
 const domains=["*.example.com","example.com"],expiry=new Date(Date.now()+3600000).toISOString().replace(/\.\d{3}Z$/,"Z");
-const empty={schema_version:"rootwell.acme.manual-dns.v4",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:""}};
+const empty={schema_version:"rootwell.acme.manual-dns.v5",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""}};
 const pending={...empty,generation:5,state:"request-pending",domains,saved:true};
 const known={...pending,generation:6,state:"order-known"};
 const ready={...known,generation:7,state:"dns-ready",expires:expiry,records:domains.map((domain,i)=>({domain,name:"_acme-challenge.example.com",value:(i?"B":"A").repeat(42)+"A",required:true}))};
 const acknowledged={...ready,generation:8,state:"dns-acknowledged"};
 const waiting={...ready,generation:10,state:"validation-waiting",network_used:true};
 const verified={...waiting,generation:12,state:"domain-verified",domain_verified:true};
-const prepared={...verified,generation:13,network_used:false,certificate_key:{prepared:true,fingerprint:Array(32).fill("AB").join(":"),prepared_at:new Date().toISOString().replace(/\.\d{3}Z$/,"Z")}};
+const prepared={...verified,generation:13,network_used:false,can_issue:true,certificate_key:{prepared:true,fingerprint:Array(32).fill("AB").join(":"),prepared_at:new Date().toISOString().replace(/\.\d{3}Z$/,"Z")}};
+const processing={...prepared,generation:15,network_used:true,can_issue:false,issuance:{state:"awaiting-certificate",started_at:prepared.certificate_key.prepared_at,checked_at:prepared.certificate_key.prepared_at,observation:"processing",expires:expiry}};
+const saved={...processing,generation:16,issuance:{...processing.issuance,state:"certificate-saved",observation:"saved"}};
 const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"cache-control":"no-store","content-type":"application/json"}});
 class Element{
   constructor(){this.value="";this.checked=false;this.disabled=false;this.hidden=false;this.textContent="";this.listeners={};this.children=[];}
@@ -27,13 +29,13 @@ function fixture(initial=empty){
   vm.runInNewContext(source,{document,window:{addEventListener(name,fn){windows[name]=fn;}},Date,TextDecoder,Uint8Array,AbortController,
     setTimeout(fn,ms){assert.equal(ms,30000);const id=++key;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},
     fetch:async(url,options)=>{
-      assert.ok(["/api/acme/order/status","/api/acme/order/start","/api/acme/order/resume","/api/acme/order/ack","/api/acme/order/validate","/api/acme/order/refresh","/api/acme/order/prepare-key"].includes(url));
+      assert.ok(["/api/acme/order/status","/api/acme/order/start","/api/acme/order/resume","/api/acme/order/ack","/api/acme/order/validate","/api/acme/order/refresh","/api/acme/order/prepare-key","/api/acme/order/issue","/api/acme/order/certificate-refresh"].includes(url));
       assert.equal(options.method,"POST");assert.equal(options.credentials,"same-origin");assert.equal(options.cache,"no-store");assert.equal(options.redirect,"error");assert.equal(options.headers["X-Rootwell-Request"],"1");
       const input=JSON.parse(options.body);requests.push({url,input});assert.equal(el("acme-order-password").value,"");assert.equal(el("acme-order-consent").checked,false);
       if(url.endsWith("status"))assert.deepEqual(input,{provider:"letsencrypt-staging"});
       else{assert.equal(input.password,"test-only password sentinel");assert.equal(input.confirm,true);assert.equal(input.provider,"letsencrypt-staging");assert.equal(Object.keys(input).length,url.endsWith("start")?5:4);}
       if(next){const fn=next;next=null;return fn();}
-      return reply(url.endsWith("status")?{...initial,network_used:false}:url.endsWith("prepare-key")?prepared:url.endsWith("ack")?acknowledged:url.endsWith("validate")?waiting:url.endsWith("refresh")?verified:{...ready,network_used:true});
+      return reply(url.endsWith("status")?{...initial,network_used:false}:url.endsWith("certificate-refresh")?saved:url.endsWith("issue")?processing:url.endsWith("prepare-key")?prepared:url.endsWith("ack")?acknowledged:url.endsWith("validate")?waiting:url.endsWith("refresh")?verified:{...ready,network_used:true});
     }});
   return {el,document,events,windows,timers,requests,override(fn){next=fn;},refresh(){return el("acme-order-refresh").listeners.click();},
     approve(){el("acme-order-consent").checked=true;el("acme-order-consent").listeners.change();el("acme-order-password").value="test-only password sentinel";el("acme-order-password").listeners.input();},
@@ -49,8 +51,11 @@ function fixture(initial=empty){
   f.approve();await f.submit();assert.equal(f.requests[3].url,"/api/acme/order/validate");assert.equal(f.requests[3].input.expected_generation,8);assert.match(f.el("acme-order-submit").textContent,/Refresh CA/);
   f.approve();await f.submit();assert.equal(f.requests[4].url,"/api/acme/order/refresh");assert.equal(f.requests[4].input.expected_generation,10);assert.match(f.el("acme-order-status").textContent,/CA confirmed every domain.*No certificate was issued/);
   assert.match(f.el("acme-order-submit").textContent,/Prepare certificate key/);await f.submit();assert.equal(f.requests.length,5,"no automatic key creation or stale consent");
-  f.approve();await f.submit();assert.equal(f.requests[5].url,"/api/acme/order/prepare-key");assert.equal(f.requests[5].input.expected_generation,12);assert.match(f.el("acme-order-status").textContent,/key and signed request are saved encrypted.*No certificate has been requested or issued/);
-  assert.match(f.el("acme-order-submit").textContent,/Refresh CA/);f.approve();f.override(()=>reply({...prepared,generation:15,network_used:true}));await f.submit();assert.equal(f.requests[6].url,"/api/acme/order/refresh","prepared key never replaced");
+  f.approve();await f.submit();assert.equal(f.requests[5].url,"/api/acme/order/prepare-key");assert.equal(f.requests[5].input.expected_generation,12);assert.match(f.el("acme-order-status").textContent,/key and signed request are saved encrypted.*no certificate has been requested or issued/);
+  assert.match(f.el("acme-order-submit").textContent,/Get test certificate/);await f.submit();assert.equal(f.requests.length,6,"fresh consent and password required before finalize");
+  f.approve();await f.submit();assert.equal(f.requests[6].url,"/api/acme/order/issue");assert.deepEqual(Object.keys(f.requests[6].input).sort(),["confirm","expected_generation","password","provider"]);
+  assert.match(f.el("acme-order-submit").textContent,/Check certificate result/);await f.submit();assert.equal(f.requests.length,7,"no automatic polling or reused consent");
+  f.approve();await f.submit();assert.equal(f.requests[7].url,"/api/acme/order/certificate-refresh");assert.match(f.el("acme-order-status").textContent,/saved in Certificates.*test-only/);assert.equal(f.el("acme-order-records").children[0].href,"/certificates");assert.equal(f.el("acme-order-form").hidden,true);
 }
 {
   const f=fixture(pending);await f.refresh();assert.equal(f.el("acme-order-form").hidden,true);assert.match(f.el("acme-order-status").textContent,/blocked/);f.approve();await f.submit();assert.equal(f.requests.length,1,"unlocated pending cannot recreate or continue");
@@ -104,8 +109,8 @@ for(const bad of [{...ready,certificate_key:prepared.certificate_key},{...verifi
 }
 const startedAt=prepared.certificate_key.prepared_at;
 for(const [state,observation] of [["issuance-pending",""],["not-issued","ready"],["awaiting-certificate","processing"],["issuance-failed","invalid"],["certificate-saved","saved"],["saved-certificate-deleted","saved"]]) {
-  const initial={...prepared,generation:14,issuance:{state,started_at:startedAt,checked_at:observation?startedAt:"",observation},certificate_key:state==="saved-certificate-deleted"?empty.certificate_key:prepared.certificate_key};
-  const f=fixture(initial);await f.refresh();assert.equal(f.el("acme-order-form").hidden,true);f.approve();await f.submit();assert.equal(f.requests.length,1,"issuance status cannot repeat old DNS/key actions");
+  const initial={...prepared,generation:15,can_issue:false,issuance:{state,started_at:startedAt,checked_at:observation?startedAt:"",observation,expires:expiry},certificate_key:state==="saved-certificate-deleted"?empty.certificate_key:prepared.certificate_key};
+  const f=fixture(initial);await f.refresh();assert.equal(f.el("acme-order-form").hidden,["certificate-saved","saved-certificate-deleted"].includes(state));await f.submit();assert.equal(f.requests.length,1,"no automatic operation or stale consent");
   if(state==="certificate-saved") {assert.match(f.el("acme-order-status").textContent,/saved in Certificates.*test-only/);assert.equal(f.el("acme-order-records").children[0].href,"/certificates");}
   else if(state==="saved-certificate-deleted") assert.match(f.el("acme-order-status").textContent,/removed.*stays closed/);
   else assert.match(f.el("acme-order-status").textContent,/no certificate is saved yet/);
@@ -114,4 +119,13 @@ for(const [state,observation] of [["issuance-pending",""],["not-issued","ready"]
 for(const issuance of [{state:"certificate-saved",started_at:startedAt,checked_at:startedAt,observation:"valid"},{state:"production-trusted",started_at:startedAt,checked_at:startedAt,observation:"saved"},{state:"certificate-saved",started_at:startedAt,checked_at:"2026-02-30T00:00:00Z",observation:"saved"},{state:"not-started",started_at:"",checked_at:"",observation:"",private_key:"sentinel"}]) {
   const f=fixture({...prepared,issuance});await f.refresh();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.doesNotMatch(f.el("acme-order-status").textContent,/sentinel/);f.approve();await f.submit();assert.equal(f.requests.length,1);
 }
-console.log("Manual DNS v4 UI: bounded consent/password, closed issuance/saved/deleted states, no automatic creation/replacement/issuance, strict schema and late/uncertain refusal passed (VM, not visual QA).");
+for(const initial of [prepared,processing])for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},f=>f.windows.pagehide(),f=>f.el("acme-clear").listeners.click(),f=>f.el("acme-provider").listeners.change(),f=>f.el("acme-order-password").listeners.input(),f=>f.el("acme-order-consent").listeners.change(),f=>[...f.timers.values()][0]()]){
+  const f=fixture(initial);await f.refresh();f.approve();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const work=f.submit();while(!release)await new Promise(resolve=>setImmediate(resolve));await f.submit();assert.equal(f.requests.length,2);boundary(f);release(reply(initial===prepared?processing:saved));await work;assert.equal(f.el("acme-order-form").hidden,true);assert.equal(f.el("acme-order-records").hidden,true);assert.equal(f.el("acme-order-submit").disabled,true);
+}
+for(const bad of [{...processing,generation:14},{...processing,can_issue:true},{...processing,issuance:{...processing.issuance,observation:"valid"}},{...processing,certificate_key:{...prepared.certificate_key,fingerprint:Array(32).fill("CD").join(":")}},{...processing,domains:["evil.example.com","example.com"]},{...processing,expires:"9999-01-01T00:00:00Z"},{...processing,records:[]},{...processing,private_key:"sentinel"},{...processing,network_used:false}]){
+  const f=fixture(prepared);await f.refresh();f.approve();f.override(()=>reply(bad));await f.submit();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.equal(f.el("acme-order-records").hidden,true);f.approve();await f.submit();assert.equal(f.requests.length,2,"uncertain finalize cannot be replayed without saved status");
+}
+for(const bad of [{...saved,issuance:{...saved.issuance,expires:"9999-01-01T00:00:00Z"}},{...saved,issuance:{...saved.issuance,started_at:"2020-01-01T00:00:00Z"}},{...saved,generation:processing.generation}]){
+  const f=fixture(processing);await f.refresh();f.approve();f.override(()=>reply(bad));await f.submit();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.equal(f.el("acme-order-records").hidden,true);
+}
+console.log("Manual DNS v5 UI: fresh consent/password, one finalize and read-only same-request result, saved/deleted closure, strict schema and late/uncertain refusal passed (VM, not visual QA).");

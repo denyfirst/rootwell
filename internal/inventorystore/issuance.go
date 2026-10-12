@@ -29,6 +29,7 @@ type IssuanceStatus struct {
 	StartedAt   string `json:"started_at"`
 	CheckedAt   string `json:"checked_at"`
 	Observation string `json:"observation"`
+	Expires     string `json:"expires"`
 }
 
 type issuancePayload struct {
@@ -41,6 +42,7 @@ type issuancePayload struct {
 	Names              []string            `json:"names"`
 	CheckedAt          string              `json:"checked_at,omitempty"`
 	Observation        string              `json:"observation,omitempty"`
+	Expires            string              `json:"expires,omitempty"`
 	Completion         *issuanceCompletion `json:"completion,omitempty"`
 }
 
@@ -101,6 +103,12 @@ func openIssuance(key, id []byte, m manifest) (issuancePayload, error) {
 	if !strictJSON(plain, &p) || !acmeorder.Time(p.StartedAt) || p.StartedGeneration > item.Generation {
 		return bad()
 	}
+	if p.Expires != "" {
+		order, err := openOrder(key, id, m)
+		if err != nil || !acmeorder.Time(p.Expires) || p.Expires > order.Expires || p.Expires <= p.StartedAt || (p.CheckedAt != "" && p.CheckedAt >= p.Expires) || (p.Completion != nil && p.Completion.SavedAt >= p.Expires) {
+			return bad()
+		}
+	}
 	if p.Completion != nil {
 		if validateCompletion(key, id, m, p, item.Generation) != nil {
 			return bad()
@@ -132,7 +140,7 @@ func publicIssuance(p issuancePayload) IssuanceStatus {
 		if p.Completion.DeletedAt != "" {
 			state = "saved-certificate-deleted"
 		}
-		return IssuanceStatus{State: state, StartedAt: p.StartedAt, CheckedAt: p.Completion.SavedAt, Observation: "saved"}
+		return IssuanceStatus{State: state, StartedAt: p.StartedAt, CheckedAt: p.Completion.SavedAt, Observation: "saved", Expires: p.Expires}
 	}
 	state := "not-started"
 	if p.StartedAt != "" {
@@ -146,7 +154,7 @@ func publicIssuance(p issuancePayload) IssuanceStatus {
 	case "invalid":
 		state = "issuance-failed"
 	}
-	return IssuanceStatus{State: state, StartedAt: p.StartedAt, CheckedAt: p.CheckedAt, Observation: p.Observation}
+	return IssuanceStatus{State: state, StartedAt: p.StartedAt, CheckedAt: p.CheckedAt, Observation: p.Observation, Expires: p.Expires}
 }
 
 func ReadStagingIssuance(key, id, image []byte) (IssuanceStatus, uint64, error) {
@@ -157,6 +165,14 @@ func ReadStagingIssuance(key, id, image []byte) (IssuanceStatus, uint64, error) 
 	p, err := openIssuance(key, id, m)
 	if err != nil {
 		return IssuanceStatus{}, 0, err
+	}
+	// Legacy pending/completed images had no separate narrowed deadline.
+	if p.StartedAt != "" && p.Expires == "" {
+		order, err := openOrder(key, id, m)
+		if err != nil {
+			return IssuanceStatus{}, 0, err
+		}
+		p.Expires = order.Expires
 	}
 	return publicIssuance(p), m.Generation, nil
 }
@@ -218,7 +234,7 @@ func beginStagingIssuanceAt(key, id, image []byte, expected uint64, refresh bool
 	order, orderErr := openOrder(key, id, m)
 	now := at.UTC().Format("2006-01-02T15:04:05Z")
 	p, intentErr := openIssuance(key, id, m)
-	if err != nil || orderErr != nil || intentErr != nil || p.Completion != nil || !status.Prepared || order.State != "domain-verified" || !acmeorder.Time(now) || now < status.PreparedAt || now < order.CheckedAt || now >= order.Expires || p.CheckedAt > now || p.StartedAt > now {
+	if err != nil || orderErr != nil || intentErr != nil || p.Completion != nil || !status.Prepared || order.State != "domain-verified" || !acmeorder.Time(now) || now < status.PreparedAt || now < order.CheckedAt || now >= order.Expires || (p.Expires != "" && now >= p.Expires) || p.CheckedAt > now || p.StartedAt > now {
 		return bad(ErrInvalid)
 	}
 	if refresh {
@@ -233,7 +249,7 @@ func beginStagingIssuanceAt(key, id, image []byte, expected uint64, refresh bool
 	if !issuanceCapacity(m, len(image)) {
 		return bad(ErrLimit)
 	}
-	p = issuancePayload{StartedAt: now, StartedGeneration: m.Generation + 1, AccountFingerprint: order.Fingerprint, KeyFingerprint: status.Fingerprint, RequestFingerprint: csrFingerprint(request.CSR), Order: order.URL, Names: slices.Clone(order.Domains)}
+	p = issuancePayload{StartedAt: now, StartedGeneration: m.Generation + 1, AccountFingerprint: order.Fingerprint, KeyFingerprint: status.Fingerprint, RequestFingerprint: csrFingerprint(request.CSR), Order: order.URL, Names: slices.Clone(order.Domains), Expires: order.Expires}
 	next, public, gen, err := sealIssuance(key, id, m, p, "acme-issuance-started")
 	if err != nil {
 		return bad(err)
@@ -255,7 +271,7 @@ func WithStagingIssuance(key, id, image []byte, expected uint64, attempt *Issuan
 	p, err := openIssuance(key, id, m)
 	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	order, orderErr := openOrder(key, id, m)
-	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || use == nil || attempt == nil || attempt.lease == nil || attempt.lease.generation != expected || attempt.lease.imageHash != sha256.Sum256(image) || !acmeorder.Time(now) || p.StartedAt > now || p.CheckedAt > now || order.Expires <= now || attempt.lease.used.Swap(true) {
+	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || use == nil || attempt == nil || attempt.lease == nil || attempt.lease.generation != expected || attempt.lease.imageHash != sha256.Sum256(image) || !acmeorder.Time(now) || p.StartedAt > now || p.CheckedAt > now || order.Expires <= now || (p.Expires != "" && now >= p.Expires) || attempt.lease.used.Swap(true) {
 		return ErrInvalid
 	}
 	request, _, err := openCertificateRequest(key, id, m)
@@ -275,7 +291,11 @@ func WithStagingIssuance(key, id, image []byte, expected uint64, attempt *Issuan
 	if err != nil || !ok {
 		return ErrInvalid
 	}
-	if err := use(signer, account.Registration.AccountURL, p.Order, order.Expires, slices.Clone(p.Names), request.PrivateKey, request.CSR, attempt.lease.refresh); err != nil {
+	expires := order.Expires
+	if p.Expires != "" {
+		expires = min(expires, p.Expires)
+	}
+	if err := use(signer, account.Registration.AccountURL, p.Order, expires, slices.Clone(p.Names), request.PrivateKey, request.CSR, attempt.lease.refresh); err != nil {
 		return ErrIssuanceUncertain
 	}
 	return nil
@@ -294,9 +314,47 @@ func ObserveStagingIssuance(key, id, image []byte, expected uint64, observation 
 	p, err := openIssuance(key, id, m)
 	order, orderErr := openOrder(key, id, m)
 	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || !acmeorder.Time(now) || now < p.StartedAt || now < p.CheckedAt || now >= order.Expires || !slices.Contains([]string{"pending", "ready", "processing", "invalid"}, observation) {
+	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || !acmeorder.Time(now) || now < p.StartedAt || now < p.CheckedAt || now >= order.Expires || (p.Expires != "" && now >= p.Expires) || !slices.Contains([]string{"pending", "ready", "processing", "invalid"}, observation) {
 		return nil, IssuanceStatus{}, 0, ErrInvalid
 	}
 	p.CheckedAt, p.Observation = now, observation
 	return sealIssuance(key, id, m, p, "acme-issuance-observed")
+}
+
+// ConstrainStagingIssuance carries a shortened checked transport deadline into
+// the SAME pending transaction before Observe/Finish advances the generation.
+// Never publish this intermediate image alone. No extension or new authority.
+func ConstrainStagingIssuance(key, id, image []byte, expected uint64, expires string) ([]byte, error) {
+	m, _, err := decode(key, id, image)
+	if err != nil {
+		return nil, err
+	}
+	if expected == 0 || expected != m.Generation {
+		return nil, ErrStaleGeneration
+	}
+	p, err := openIssuance(key, id, m)
+	order, orderErr := openOrder(key, id, m)
+	bound := order.Expires
+	if p.Expires != "" {
+		bound = min(bound, p.Expires)
+	}
+	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	if err != nil || orderErr != nil || p.Completion != nil || p.StartedAt == "" || !acmeorder.Time(expires) || expires > bound || expires <= now || now < p.StartedAt || now < p.CheckedAt {
+		return nil, ErrInvalid
+	}
+	if expires == bound {
+		return bytes.Clone(image), nil
+	}
+	p.Expires = expires
+	if err := sealCompletionIntent(key, id, &m, p); err != nil {
+		return nil, err
+	}
+	next, err := encode(key, m)
+	if err != nil {
+		return nil, err
+	}
+	if _, _, err := ReadStagingIssuance(key, id, next); err != nil {
+		return nil, err
+	}
+	return next, nil
 }

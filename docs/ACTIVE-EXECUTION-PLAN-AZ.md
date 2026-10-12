@@ -28,7 +28,15 @@ sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşd�
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0061:** verilmiş staging sertifikatını pinned qəbul
+**Cari increment — ADR 0062:** Automation UI-də explicit fresh parol/razılıqla
+test sertifikatı almaq və eyni sifarişin nəticəsini yalnız oxumaq. Bir writer-lock
+altında intent → exact lease → bounded CA → pinned yoxlama → atomik pair.
+V5 status müddət qısalmasını saxlayır; itmiş cavabda resend/new key yoxdur.
+Windows browser nümunəsi fake/read-only-dir, real CA çağırışı edilmir.
+Tam local/CI/self-review qapıları tələb edilir; renewal, DNS və production audit
+sonrakıdır. Bitmiş/expired sifariş üçün yeni sifariş/reset siyasəti ayrıca qalır.
+
+**Əvvəlki increment — ADR 0061:** verilmiş staging sertifikatını pinned qəbul
 nüvəsində yenidən yoxlayıb eyni private açarla atomik Certificates saxlamaq.
 Açar hazırlıq qeydindən matched material-a keçir; immutable test-only mənbə,
 metadata/export/deletion və tam bərpa sərhədi var. V4 status/UI pending, saved və

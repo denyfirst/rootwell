@@ -1495,16 +1495,16 @@ mixed/duplicate/malformed/trailing/oversize public PEM refuse. Public PEM is
 limited to five certificates, 48 KiB each, 256 KiB DER, 352 KiB wire before the
 upstream parser; exact first envelope prevents garbage-skipping. A parsed receipt
 is NOT trust or storage evidence: ADR 0058 plus locked atomic custody remains
-mandatory. No exported live entry or production caller/route exists until a
-separate reviewed intent/lease/storage/UI increment. Existing can_issue remains
-false; no automatic restart replay, live CA interoperability or audit claim.
+mandatory. ADR 0062 supplies the only reviewed live entry through locked custody
+and fresh-auth UI; scoped can_issue does not bypass those gates. No automatic
+restart replay, live CA interoperability or audit claim.
 
 Evidence: `TestCertificateConnectorExactCSRAccountJWSAndReadOnlyReconciliation`,
 `TestCertificateConnectorProcessingNeverPollsOrRefinalizes`,
 `TestCertificateGuardExactCSRAndDenyByDefault`,
 `TestCertificateConnectorMaximumNamesFitExactRequestBudget`,
 `TestCertificatePEMChainCountBoundary`, `FuzzCertificateCAResponse` and
-`TestCertificateConnectorNotWiredBeforeDurableCustody`. Synthetic TLS verifies
+`TestCertificateConnectorFixedStagingBoundary`. Synthetic TLS verifies
 actual upstream JWS, including max-name 23-request success, read-only refresh,
 lost finalize and no-poll processing; real receipt checker rejects its untrusted
 test issuer. Two-direction sabotage and final gates are recorded in ADR 0059.
@@ -1542,8 +1542,8 @@ Guarded by `TestStagingReceiptExactBindingIndependentTrustAndNoInputMutation`,
 ## C81 — Atomic completion preserves the exact key and test-only origin
 
 ADR 0061's production entry repeats real fixed pinned receipt acceptance for the
-exact pending key/CSR/names/time/generation. No supplied key/trust/result or live
-route. A single complete image moves private bytes out of preparation into a
+exact pending key/CSR/names/time/generation. No supplied key/trust/result; the live
+entry is constrained in C82. A single complete image moves private bytes into a
 matched certificate material and saves one leaf/public CSR tombstone/test-only
 historical provenance/history. Account/order and existing records stay unchanged;
 duplicate/oversize/stale/expired/malformed input never partially saves. The final
@@ -1554,7 +1554,7 @@ current pair/CSR but keeps a closed no-replay tombstone. Old complete backups
 retain old keys. No key regeneration, completion replay or new read-only lease.
 V4 single-snapshot status blocks old DNS/key actions BEFORE provider work once
 issuance starts; strict UI differentiates pending/saved/deleted and test-only.
-No can_issue gain. Synthetic custody success seam is unexported; real production
+Scoped can_issue appears only in C82. Synthetic custody seam is unexported; real production
 entry rejects its issuer. Linux full-restore fixtures are runtime-only/private.
 
 Guarded by `TestCompletionAtomicMoveProvenanceNotesExportDeleteAndNoReplay`,
@@ -1565,7 +1565,7 @@ Guarded by `TestCompletionAtomicMoveProvenanceNotesExportDeleteAndNoReplay`,
 `TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement`,
 `FuzzStagingCompletionPayload`, inherited receipt/intent/architecture/native tests
 and v4/library/history/real-WASM/demo UI scripts. Actual sabotage: ADR 0061.
-Separate live integration/consent/budgets, renewal/DNS, retention/new-order policy
+Live integration/consent/budgets are C82; renewal/DNS, retention/new-order policy
 and independent production audit remain required; host/rollback/heap risks persist.
 
 ## C80 — Durable issuance intent cannot mint a second first attempt
@@ -1580,7 +1580,8 @@ No observation can claim issued/valid/received or create a pair. Preserve final
 generation/history/record/byte completion capacity; domain-validation mutation
 cannot invalidate an existing intent. Full restore/password recovery preserves
 the exact account key, prepared private key and CSR. Native custody refuses
-before callback/file/permission. No live route/connector wiring or can_issue gain.
+before callback/file/permission. Live route/connector integration is C82, never
+an alternate callback or runtime trust configuration.
 
 Historical non-issued observations are not current authority. Read-only refresh
 does not mutate intent and remains possible at the last completion slot; saving
@@ -1599,8 +1600,37 @@ Guarded by `TestIssuanceIntentExactScopeEncryptionAndSingleUseReadOnlyRecovery`,
 `TestLinuxIssuanceIntentCommitBeforeCallbackNoReplayAndFullRecovery`,
 `TestLinuxIssuanceRevocationAfterIntentRetainsUncertainty`,
 `TestLinuxIssuanceFirstObservationAndRefusal`,
-`TestIssuanceIntentHasNoLiveRouteOrNetworkWiring`, `FuzzStagingIssuancePayload`
+`TestIssuanceExecutionReviewedBoundaries`, `FuzzStagingIssuancePayload`
 and native refusal/history VM tests. Two-direction sabotage: ADR 0060.
+
+## C82 — Interactive issuance cannot bypass durable exact-key custody
+
+ADR 0062 enables fixed staging issue/read-only result through fresh-password,
+explicit generation-bound consent, ready session/origin/header and shared
+auth/crypto/provider/time gates. One private lock spans intent-before-I/O,
+single-use lease, exact CSR transport, independent pinned Check and atomic pair.
+Loss/reopen/recovery allows only same-order reads, never finalize/key/order replay.
+Earliest CA deadline bounds acceptance/publication and persists only with the
+same final transaction, never extends. Unknown issuer, malformed receipt,
+revocation, stale/expiry/budget failure cannot publish partial/saved status.
+Production completion is fixed; no runtime trust/result/receipt/key upload.
+V5 has scoped can_issue and issuance expiry; strict human-facing UI, fresh
+consent per action, no polling, hidden/late/changed/refused result clears authority.
+Saved/deleted requests close. Synthetic browser/transaction evidence is not
+live pinned-CA issuance. Native custody/network refuses. Production audit,
+new/expired-order/reset/retention/renewal/DNS policies remain separate.
+
+Guarded by `TestLinuxCertificateTransactionDurableIntentNoReplayAndCheckedRead`,
+`TestLinuxCertificateTransactionFirstProcessingAndWriterExclusion`,
+`TestLinuxCertificateTransactionSyntheticAcceptanceAtomicCommitAndLateRefusal`,
+`TestLinuxCertificateAPIInteractiveAuthorityNoReplayAndReadOnlyResult`,
+`TestNativeCertificateRefusesBeforeFilePermissionAndConnector`,
+`TestIssuanceDeadlineOnlyNarrowsAndSurvivesReopen`,
+`TestCertificateTransactionProductionCompletionIsFixed`,
+`TestCertificateConnectorFixedStagingBoundary`,
+`TestIssuanceExecutionReviewedBoundaries`, inherited receipt/protocol/restore
+tests and `scripts/test-acme-order.mjs` / `scripts/test-inventory-demo.mjs`.
+Compiling two-way sabotage and final evidence are recorded in ADR 0062/PR.
 
 ## C68 — One certificate library does not collapse the secret boundary
 

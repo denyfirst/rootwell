@@ -92,6 +92,19 @@ manual same-key reconciliation. Repeat manual full backup after transitions.
 
 ## Subsequent capability gates
 
+ADR 0062 connects fixed staging Certificate to durable exact-key/CSR lease and
+atomic pinned completion through explicit Linux UI issue/read-only refresh.
+Intent commits before I/O under one lock. Fresh password/consent/generation,
+session/origin/provider/time budgets repeat; no receipt/key/root upload. Only
+same-order reads after uncertainty, no finalize replay/new key/order. Earliest
+CA expiry also bounds crypto/publication and persists without later extension.
+V5 includes that deadline and scoped can_issue. Hidden/late/strict UI refuses;
+saved/deleted requests close. Runtime trust overrides are architecture-blocked.
+Fake TLS/VM/synthetic transaction and read-only browser evidence is not positive
+live pinned-CA interop. Native refuses. Old complete rollback, host/runtime,
+clock/material/history limits, new/expired order policy, renewal/DNS and audit
+remain. See ADR 0062; earlier increment boundaries below are historical.
+
 ADR 0061 adds internal atomic completion and historical saved-state UI, NOT live
 connector wiring or can_issue. Repeat fixed independent staging Check under the
 writer boundary; exact saved key/CSR/names/order/account/expiry/generation.
