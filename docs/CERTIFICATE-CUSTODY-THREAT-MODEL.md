@@ -30,6 +30,14 @@ plaintext custody export, remote listener, multiuser policy or production claim.
 
 ## Assets and trust
 
+ADR 0062 now connects the trusted fixed staging receipt path to the same locked
+intent/lease/Check/pair transaction through fresh-auth explicit UI. No arbitrary
+certificate receipt or caller trust upload. Earliest CA expiry only narrows and
+bounds final publication; permission loss/unknown issuer leaves pending state,
+never replay or success. Windows fake browser preview is not real custody/CA
+evidence. Host/rollback/clock/retention/new-order and production audit residuals
+remain; ADR 0061's standalone-only boundary below is historical.
+
 ADR 0061 adds ONLY internal checked staging pair completion. No ordinary input
 can supply origin, a trust root/result or the prepared key. Fixed receipt Check
 before atomic writer-locked commit; exact saved CSR/key/name/order scope, time,

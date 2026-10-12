@@ -11,12 +11,12 @@
     <p class="rail-caption" id="rail-workspace">Workspace</p><nav class="rail-nav" aria-labelledby="rail-workspace">
       <a class="rail-item" href="/index.html"><span class="rail-glyph" aria-hidden="true">◇</span>Workbench</a>
       <a class="rail-item" href="/certificates"><span class="rail-glyph" aria-hidden="true">◎</span>Certificates</a>
-      <a class="rail-item" href="/automation" aria-current="page"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Setup</span></a>
+      <a class="rail-item" href="/automation" aria-current="page"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Test</span></a>
     </nav>
     <p class="rail-caption" id="rail-security">Security</p><nav class="rail-nav" aria-labelledby="rail-security"><a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span>Access</a></nav>
     <div class="rail-foot"><div class="local-state"><span aria-hidden="true"></span>Your Rootwell server</div><button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button></div>
   </aside>
-  <div class="workspace-main"><header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Automation</strong></p><p class="boundary">Setup · optional staging connection</p></header>
+  <div class="workspace-main"><header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Automation</strong></p><p class="boundary">Staging only · private keys stay here</p></header>
   <main>
     <section class="work-heading"><h1>Plan a test certificate</h1><p>Check your names and how you will prove control of them. This does not request a certificate.</p></section>
     <aside class="storage-note" aria-label="Setup boundary"><strong>No external connection for Check setup</strong><p>Check setup sends these names only to your own Rootwell. Nothing is saved. No account, key, DNS change, certificate or renewal is created. The separate optional connection check below contacts staging only after your confirmation.</p></aside>
@@ -32,7 +32,7 @@
         <p id="acme-status" role="status" aria-live="polite"></p>
       </form>
     </section>
-    <section id="acme-result" class="card" hidden><h2>2. Your setup summary</h2><ul id="acme-names"></ul><p id="acme-method"></p><details><summary>Planned CA endpoint</summary><p id="acme-directory"></p></details><p>Syntax checked only. No account or challenge exists yet. Certificate issuance and automatic renewal are not available in this increment. Staging certificates are for tests, not ordinary browser trust.</p></section>
+    <section id="acme-result" class="card" hidden><h2>2. Your setup summary</h2><ul id="acme-names"></ul><p id="acme-method"></p><details><summary>Planned CA endpoint</summary><p id="acme-directory"></p></details><p>Syntax checked only. This check creates no account or challenge. Test issuance requires the separate saved account and confirmed manual DNS flow below; automatic renewal is not enabled. Staging certificates are for tests, not ordinary browser trust.</p></section>
     <section class="card"><h2>Check provider connection <span>(optional)</span></h2>
       <p>One directory request from your Rootwell server to Let's Encrypt staging. The provider can see your server's network address; your DNS resolver may see the provider hostname. No domains, certificates, keys or account details are sent.</p>
       <p>This only tests the connection. It does not accept provider terms, open an account, request a certificate or enable renewal.</p>
@@ -72,7 +72,7 @@
       </div>
       <p>Linux or Linux Docker only. Make a new complete backup after a saved transition. An uncertain result is checked using the same key, with no automatic registration retry.</p>
     </section>
-    <section class="card"><h2>Prepare DNS and verify your domains</h2>
+    <section class="card" id="certificate-request"><h2>Get your test certificate</h2>
       <p>After registering your test account, request the TXT records for domains you control. Add them in your DNS provider's dashboard — no DNS API password is needed.</p>
       <button id="acme-order-refresh" type="button" class="secondary">Check saved DNS request</button>
       <p id="acme-order-status" role="status" aria-live="polite">Nothing connects automatically. Check saved status first.</p>
@@ -85,9 +85,10 @@
       </form>
       <button id="acme-order-resume-choice" type="button" class="secondary" hidden>Refresh records from the same saved request</button>
       <details><summary>How do I add these DNS records?</summary><p>Choose type TXT in your DNS provider. Use each Name and Value exactly as shown. Some providers append your domain automatically: enter only the relative name there, such as _acme-challenge. Do not put the name in twice.</p><p>If two records have the same Name, keep both Values; do not overwrite the first one. Do not replace unrelated TXT records. Rootwell does not edit or look up your DNS in this step.</p></details>
-      <p>Your acknowledgement does not verify DNS. The separate “Ask CA to check DNS” action requests validation; “Refresh CA result” only reads the same request and never repeats validation. After confirmed CA verification, “Prepare certificate key” saves one new P-256 key and signed request locally, encrypted and included in full backup — no CA request, certificate issuance or renewal yet. An existing key is never replaced. Staging is test-only. Make a new complete backup after saved changes.</p>
+      <p>Your acknowledgement does not verify DNS. Staging is test-only, not for production. Make a new complete backup after saved changes.</p>
+      <details><summary>What happens to my request and key?</summary><p>“Ask CA to check DNS” requests validation; “Refresh CA result” only reads the same request. After confirmed verification, “Prepare certificate key” saves one encrypted key and signed request locally. Then “Get test certificate” sends only that signed request, checks the returned certificate and saves it with the same key in Certificates. The private key never goes to the CA. An uncertain result allows only “Check certificate result” — no resend or automatic polling.</p></details>
     </section>
-    <section class="card"><h2>What comes next?</h2><p>After preparing your certificate key: send its signed request to staging → check the returned certificate → save the certificate and its key together in Certificates → renewal and DNS automation. Certificate issuance, renewal and server deployment are not enabled yet. Prepared requests cannot yet be reset, deleted or exported in this development version.</p></section>
+    <section class="card"><h2>What comes next?</h2><p>Test issuance uses your Linux or Linux Docker instance. Renewal, DNS automation, production issuance and server deployment are separate next steps. Expired or completed requests cannot yet be replaced or reset in this development version.</p></section>
     </div>
   </main></div>
 </body>

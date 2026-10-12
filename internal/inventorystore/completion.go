@@ -218,7 +218,7 @@ func FinishStagingIssuance(key, id, image []byte, expected uint64, response [][]
 	m, _, err := decode(key, id, next)
 	order, orderErr := openOrder(key, id, m)
 	now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	if err != nil || orderErr != nil || !acmeorder.Time(now) || now < status.CheckedAt || now >= order.Expires {
+	if err != nil || orderErr != nil || !acmeorder.Time(now) || now < status.CheckedAt || now >= order.Expires || (status.Expires != "" && now >= status.Expires) {
 		return nil, IssuanceStatus{}, 0, ErrInvalid
 	}
 	return next, status, gen, nil
@@ -237,7 +237,7 @@ func finishStagingIssuance(key, id, image []byte, expected uint64, response [][]
 	p, err := openIssuance(key, id, m)
 	order, orderErr := openOrder(key, id, m)
 	now := at.UTC().Format("2006-01-02T15:04:05Z")
-	if err != nil || orderErr != nil || p.StartedAt == "" || p.Completion != nil || check == nil || !acmeorder.Time(now) || now < p.StartedAt || now < p.CheckedAt || now >= order.Expires || len(response) == 0 || len(response) > 5 {
+	if err != nil || orderErr != nil || p.StartedAt == "" || p.Completion != nil || check == nil || !acmeorder.Time(now) || now < p.StartedAt || now < p.CheckedAt || now >= order.Expires || (p.Expires != "" && now >= p.Expires) || len(response) == 0 || len(response) > 5 {
 		return bad(ErrInvalid)
 	}
 	request, _, err := openCertificateRequest(key, id, m)

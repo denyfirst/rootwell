@@ -24,13 +24,25 @@ import (
 
 const maxCertificatePEM = 352 << 10
 
-// This connector is intentionally not exported or routed yet. Durable intent,
-// a locked stored-CSR lease, receipt acceptance and atomic pair/provenance
-// storage must precede its live integration. No runtime dependency override.
-// A response is UNTRUSTED certificate input, never a storage/trust verdict.
-type certificateObservation struct {
-	State string
-	DER   [][]byte
+// CertificateObservation is untrusted input, not a storage/trust verdict.
+// Expires is the earliest saved/order/authorization deadline observed by this
+// operation and must also bound acceptance and publication after network I/O.
+type CertificateObservation struct {
+	State   string
+	DER     [][]byte
+	Expires string
+}
+
+type certificateObservation = CertificateObservation
+
+// Certificate uses ONLY the fixed staging transport. The caller must first
+// durably commit intent and consume the exact saved-key/CSR lease under its
+// writer lock. A later invocation is read-only, never another finalize.
+func Certificate(ctx context.Context, permit func() bool, signer crypto.Signer, account, order, expires string, names []string, private, csr []byte, refresh bool) (CertificateObservation, error) {
+	if !Available() {
+		return CertificateObservation{}, errRefused
+	}
+	return certificateOrder(ctx, permit, liveDependencies(), signer, account, order, expires, names, private, csr, refresh)
 }
 
 func certificateOrder(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account, order, expires string, names []string, private, csr []byte, refresh bool) (certificateObservation, error) {
@@ -67,7 +79,7 @@ func certificateOrder(parent context.Context, permit func() bool, deps dependenc
 		return bad()
 	}
 	if refresh && o.Status != acme.StatusValid {
-		return certificateObservation{State: o.Status}, nil
+		return certificateObservation{State: o.Status, Expires: guard.expires}, nil
 	}
 	if (!refresh && o.Status != acme.StatusReady) || (refresh && o.Status != acme.StatusValid) {
 		return bad()
@@ -102,7 +114,7 @@ func certificateOrder(parent context.Context, permit func() bool, deps dependenc
 		if guard.processing && err != nil && allowed() && guard.expires > time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 			// The library's automatic WaitOrder is stopped BEFORE even its nonce
 			// request. A checked processing observation is not issuance success.
-			return certificateObservation{State: acme.StatusProcessing}, nil
+			return certificateObservation{State: acme.StatusProcessing, Expires: guard.expires}, nil
 		}
 		if err == nil && certURL != guard.certificate {
 			return bad()
@@ -111,7 +123,7 @@ func certificateOrder(parent context.Context, permit func() bool, deps dependenc
 	if err != nil || !allowed() || len(der) == 0 || !guard.fetched || guard.expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 		return bad()
 	}
-	return certificateObservation{State: "certificate-received", DER: der}, nil
+	return certificateObservation{State: "certificate-received", DER: der, Expires: guard.expires}, nil
 }
 
 type certificateTransport struct {

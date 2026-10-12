@@ -44,7 +44,14 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-12 cari icra — ADR 0061:** daxili atomik staging pair completion:
+**2026-10-12 cari icra — ADR 0062:** UI-dan explicit test issuance və eyni
+sifarişin read-only nəticəsi; fresh parol, razılıq, exact lease, intent-before-I/O,
+pinned receipt və atomik pair bir transaction-dadır. Müddət yalnız qısala bilər;
+yarımçıq cavab yenidən finalize edilmir. V5 sadə düymələr və fake/read-only
+browser nümayişi; real CA sınağı və production deyil. Renewal/DNS, yeni sifariş/
+expired/reset siyasəti və kənar release auditi ayrıca sonrakı mərhələdir.
+
+**2026-10-12 əvvəlki icra — ADR 0061:** daxili atomik staging pair completion:
 real pinned receipt yoxlaması, eyni açarın Certificates material-a keçirilməsi,
 immutable test-only mənbə, qeydlər/export/deletion və tam bərpa. Sadə V4 status
 və Certificates kartı saved/test-only vəziyyətini düzgün göstərir. Browser-də

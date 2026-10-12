@@ -179,7 +179,7 @@ func TestCertificateConnectorExactCSRAccountJWSAndReadOnlyReconciliation(t *test
 			initial, finalizes, total = "valid", 0, 9
 		}
 		result, calls, err := runCertificate(t, private, csr, publicPEM, refresh, initial, "valid", nil)
-		if err != nil || result.State != "certificate-received" || len(result.DER) != 1 || !bytes.Equal(result.DER[0], der) || calls.order.Load() != 1 || calls.auth.Load() != 2 || calls.finalize.Load() != finalizes || calls.cert.Load() != 1 || calls.all.Load() != total {
+		if err != nil || result.State != "certificate-received" || !acmeorder.Time(result.Expires) || result.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") || len(result.DER) != 1 || !bytes.Equal(result.DER[0], der) || calls.order.Load() != 1 || calls.auth.Load() != 2 || calls.finalize.Load() != finalizes || calls.cert.Load() != 1 || calls.all.Load() != total {
 			t.Fatalf("valid bounded certificate flow refused: %v, %d calls", err, calls.all.Load())
 		}
 		// Protocol success explicitly does not confer receipt trust.

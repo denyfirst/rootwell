@@ -23,6 +23,7 @@ import (
 
 type orderConnect func(context.Context, func() bool, crypto.Signer, string, string, []string, func(string) error) (acmeorder.Instructions, error)
 type validationConnect func(context.Context, func() bool, crypto.Signer, string, acmeorder.Instructions, []string, bool) (acmeorder.Validation, error)
+type certificateConnect func(context.Context, func() bool, crypto.Signer, string, string, string, []string, []byte, []byte, bool) (acmestaging.CertificateObservation, error)
 type orderInput struct {
 	Password string
 	Expected uint64
@@ -31,7 +32,7 @@ type orderInput struct {
 
 func readOrderInput(w http.ResponseWriter, r *http.Request, mode string) (orderInput, bool) {
 	bad := func() (orderInput, bool) { return orderInput{}, false }
-	if mode != "status" && mode != "start" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" && mode != "prepare-key" {
+	if mode != "status" && mode != "start" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" && mode != "prepare-key" && mode != "issue" && mode != "certificate-refresh" {
 		return bad()
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -185,12 +186,17 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		return
 	}
 	if mode != "status" {
-		if issuance.State != "not-started" {
+		certificateAction := mode == "issue" || mode == "certificate-refresh"
+		if !certificateAction && issuance.State != "not-started" {
 			http.Error(w, "Issuance already started. Read saved status; do not repeat DNS validation or prepare another key.", http.StatusConflict)
 			return
 		}
 		if gen != input.Expected {
 			http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
+			return
+		}
+		if certificateAction && (status.State != "domain-verified" || !certificateKey.Prepared || status.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") || (issuance.Expires != "" && issuance.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z")) || (mode == "issue" && issuance.State != "not-started") || (mode == "certificate-refresh" && (issuance.State == "not-started" || issuance.State == "certificate-saved" || issuance.State == "saved-certificate-deleted"))) {
+			http.Error(w, "Read the saved request first. Issuance uses one prepared key once; completed requests remain closed.", http.StatusConflict)
 			return
 		}
 		if mode == "prepare-key" && (status.State != "domain-verified" || certificateKey.Prepared || status.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z")) {
@@ -235,7 +241,15 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 				return
 			}
 			defer func() { g.mu.Lock(); g.directoryBusy = false; g.mu.Unlock() }()
-			if mode == "validate" || mode == "refresh" {
+			if certificateAction {
+				connect := g.certificateConnect
+				if connect == nil {
+					connect = acmestaging.Certificate
+				}
+				issuance, gen, err = instanceaccess.RunStagingCertificate(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, mode == "certificate-refresh", permit, func(signer crypto.Signer, account, order, expires string, names []string, private, csr []byte, readOnly bool) (acmestaging.CertificateObservation, error) {
+					return connect(r.Context(), permit, signer, account, order, expires, names, private, csr, readOnly)
+				})
+			} else if mode == "validate" || mode == "refresh" {
 				connect := g.validationConnect
 				if connect == nil {
 					connect = acmestaging.DNSValidation
@@ -254,7 +268,7 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			}
 		}
 		if err != nil || !permit() {
-			http.Error(w, "Outcome not confirmed. Refresh saved status. Continue only the saved order and key; do not create replacements. No certificate was issued.", http.StatusServiceUnavailable)
+			http.Error(w, "Outcome not confirmed. Refresh saved status. Continue only the saved order and key; do not resend or create replacements. A sent request cannot be undone.", http.StatusServiceUnavailable)
 			return
 		}
 	}
@@ -278,5 +292,6 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		status.Records = []acmeorder.TXT{}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v4", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh", Saved: status.State != "not-started", DomainVerified: status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z"), CertificateKey: certificateKey, Issuance: issuance})
+	verified := status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v5", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh" || mode == "issue" || mode == "certificate-refresh", Saved: status.State != "not-started", DomainVerified: verified, CanIssue: verified && certificateKey.Prepared && issuance.State == "not-started", CertificateKey: certificateKey, Issuance: issuance})
 }

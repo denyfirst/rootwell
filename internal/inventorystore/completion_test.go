@@ -276,12 +276,13 @@ func TestGenerateSyntheticCompletionForIntegration(t *testing.T) {
 	if !filepath.IsAbs(path) || filepath.Base(path) != "synthetic-completion.json" {
 		t.Fatal("fixture destination refused")
 	}
-	key, id, _, done, _, fp, _ := syntheticCompletion(t)
+	key, id, pending, done, chain, fp, _ := syntheticCompletion(t)
 	defer clear(key)
 	body, err := json.Marshal(struct {
-		Key, ID, Image []byte
-		Fingerprint    string
-	}{key, id, done, fp})
+		Key, ID, Image, Pending []byte
+		Chain                   [][]byte
+		Fingerprint             string
+	}{key, id, done, pending, chain, fp})
 	defer clear(body)
 	if err != nil {
 		t.Fatal(err)
