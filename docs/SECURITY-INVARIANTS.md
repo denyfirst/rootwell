@@ -1479,6 +1479,36 @@ Guarded by `TestCertificateRequestExactNamesSeparateKeyAndStrictRefusal`,
 `FuzzCertificateRequestBinding`, `FuzzStagingCertificateRequestPayload`,
 `FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C76 guards.
 
+## C79 — Certificate protocol cannot poll, replay finalize or grant receipt trust
+
+The internal staging connector rechecks exact prepared key/CSR and canonical
+names before I/O and rejects account signer reuse. A current ready same-account
+order plus COMPLETE all-valid authorization mapping precedes one finalize with
+only that exact CSR. Refresh is POST-as-GET only, never finalize/new order/Accept.
+Processing stops the maintained client's internal polling before even nonce
+I/O; failed/lost replies yield zero observation and fixed refusal, not retries.
+Every POST endpoint is single-use; failures close the operation. Twenty-second
+and 23-request bounds, earliest expiry, fixed TLS/public-DNS numeric pinning,
+no proxies/redirects/alternate/retry and live-permission checks apply. Unsafe
+URLs, changed names/finalize/authz set, JWS scope, ambiguous JSON, headers and
+mixed/duplicate/malformed/trailing/oversize public PEM refuse. Public PEM is
+limited to five certificates, 48 KiB each, 256 KiB DER, 352 KiB wire before the
+upstream parser; exact first envelope prevents garbage-skipping. A parsed receipt
+is NOT trust or storage evidence: ADR 0058 plus locked atomic custody remains
+mandatory. No exported live entry or production caller/route exists until a
+separate reviewed intent/lease/storage/UI increment. Existing can_issue remains
+false; no automatic restart replay, live CA interoperability or audit claim.
+
+Evidence: `TestCertificateConnectorExactCSRAccountJWSAndReadOnlyReconciliation`,
+`TestCertificateConnectorProcessingNeverPollsOrRefinalizes`,
+`TestCertificateGuardExactCSRAndDenyByDefault`,
+`TestCertificateConnectorMaximumNamesFitExactRequestBudget`,
+`TestCertificatePEMChainCountBoundary`, `FuzzCertificateCAResponse` and
+`TestCertificateConnectorNotWiredBeforeDurableCustody`. Synthetic TLS verifies
+actual upstream JWS, including max-name 23-request success, read-only refresh,
+lost finalize and no-poll processing; real receipt checker rejects its untrusted
+test issuer. Two-direction sabotage and final gates are recorded in ADR 0059.
+
 ## C78 — Staging receipt acceptance cannot manufacture trust or widen a CSR
 
 ADR 0058 adds only an offline internal gate, not finalize/issuance/storage/UI.

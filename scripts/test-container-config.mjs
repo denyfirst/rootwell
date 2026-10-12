@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { checkContainerConfig } from './check-container-config.mjs';
 
 const restricted = {
@@ -49,4 +50,36 @@ const secretEnvironment = structuredClone(valid);
 secretEnvironment.services.maintenance.environment = { RECOVERY_CODE: 'test-only' };
 assert.throws(() => checkContainerConfig(secretEnvironment));
 
-console.log('Container configuration positive and sabotage checks passed.');
+// Fail closed on packaging drift: broad PEM inclusions must not replace the
+// single reviewed public staging-root exception. The real Docker CI build
+// exercises Docker's matcher and go:embed, not a home-grown glob emulator.
+const dockerIgnore = (await readFile(new URL('../.dockerignore', import.meta.url), 'utf8'))
+  .split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+const rootAsset = '!internal/acmecertificate/staging-roots.pem';
+assert.equal(dockerIgnore[0], '**', 'Build context must deny unknown inputs by default.');
+assert.ok(dockerIgnore.lastIndexOf(rootAsset) > dockerIgnore.lastIndexOf('**/*.pem')
+  && dockerIgnore.includes('**/*.pem'), 'Public staging trust needs its exact final build-context exception.');
+const expectedPublicPEM = new Set([
+  rootAsset,
+  '!web/workbench/rootwell-demo-certificate.pem',
+  '!web/workbench/rootwell-demo-bundle.pem',
+  '!web/workbench/rootwell-verify-demo-root.pem',
+  '!web/workbench/rootwell-verify-demo-leaf.pem',
+  '!web/workbench/rootwell-verify-demo-intermediate.pem',
+  '!web/workbench/rootwell-verify-demo-ca-files.pem',
+]);
+const reviewedSourceIncludes = new Set([
+  '!go.mod', '!go.sum', '!cmd/', '!cmd/**/', '!cmd/**/*.go',
+  '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
+  '!internal/', '!internal/**/', '!internal/**/*.go', '!web/', '!web/workbench/',
+  '!web/workbench/index.html', '!web/workbench/app.js', '!web/workbench/theme.js',
+  '!web/workbench/wasm-loader.js', '!web/workbench/style.css', '!web/workbench/favicon.svg',
+]);
+for (const rule of dockerIgnore.filter((line) => line.startsWith('!'))) {
+  assert.ok(reviewedSourceIncludes.has(rule) || expectedPublicPEM.has(rule),
+    'An unreviewed/broad build-context inclusion is not permitted.');
+}
+assert.deepEqual(new Set(dockerIgnore.filter((line) => line.startsWith('!') && /\.pem$/i.test(line))),
+  expectedPublicPEM, 'Only the exact reviewed public PEM assets may be included.');
+
+console.log('Container configuration positive/sabotage and exact public trust packaging checks passed.');
