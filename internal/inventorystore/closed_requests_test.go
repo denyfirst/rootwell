@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"testing"
@@ -130,6 +131,67 @@ func TestClosedExpiredRequestPreservesKeyButCannotReopenLease(t *testing.T) {
 	}
 	if _, _, _, err := openClosedRequest(key, id, cm, cm.ClosedRequests[0]); err != nil {
 		t.Fatal("historical scope acquired active capacity constraints")
+	}
+}
+
+func TestClosedDeletedRequestAndOuterPurposeContextRefusals(t *testing.T) {
+	key, id, _, completed, _, fp, _ := syntheticCompletion(t)
+	defer clear(key)
+	deleted, gen, err := DeleteRecord(key, id, completed, fp, 13)
+	if err != nil || gen != 14 {
+		t.Fatal("pre-closure deletion refused")
+	}
+	closed, s, gen, err := CloseStagingRequest(key, id, deleted, 14)
+	if err != nil || gen != 15 || s.ClosedCount != 1 || s.Reason != "not-started" {
+		t.Fatal("legitimate deleted completion cannot close")
+	}
+	m, records, err := decode(key, id, closed)
+	if err != nil || len(records) != 0 || len(m.Materials) != 0 {
+		t.Fatal("closure resurrected deleted material")
+	}
+	p, _, issuance, err := openClosedRequest(key, id, m, m.ClosedRequests[0])
+	if err != nil || len(p.Requests) != 0 || issuance.Completion == nil || issuance.Completion.DeletedAt == "" {
+		t.Fatal("deleted closed tombstone lost")
+	}
+	for _, mutate := range []func(*sealedRecord){
+		func(item *sealedRecord) { item.ID = append([]byte{}, item.ID...); item.ID[0] ^= 1 },
+		func(item *sealedRecord) { item.Generation-- },
+		func(item *sealedRecord) { item.Ciphertext = nil },
+		func(item *sealedRecord) {
+			item.Ciphertext = append([]byte{}, item.Ciphertext...)
+			item.Ciphertext[len(item.Ciphertext)-1] ^= 1
+		},
+		func(item *sealedRecord) {
+			item.Ciphertext = append([]byte{}, item.Ciphertext[:len(item.Ciphertext)-1]...)
+		},
+		func(item *sealedRecord) { item.Ciphertext = make([]byte, maxClosedRequestBytes+1) },
+		func(item *sealedRecord) {
+			plain, err := json.Marshal(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer clear(plain)
+			wrongPurpose, err := issuanceKey(key, id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer clear(wrongPurpose)
+			item.Ciphertext, err = inventoryseal.Seal(wrongPurpose, attachmentContext(id, *item), plain)
+			if err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		bad := m
+		bad.ClosedRequests = append([]sealedRecord{}, m.ClosedRequests...)
+		mutate(&bad.ClosedRequests[0])
+		image, err := encode(key, bad)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if records, gen, err := Open(key, id, image); err == nil || records != nil || gen != 0 {
+			t.Fatal("closed purpose/context corruption produced partial output")
+		}
 	}
 }
 

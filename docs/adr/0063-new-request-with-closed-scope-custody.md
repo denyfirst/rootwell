@@ -62,6 +62,13 @@ Linux writer/restore/password recovery and real fresh-auth HTTP fixtures are
 included. Exact-head Linux race/platform/security/CI and separate recorded
 adversarial maintainer self-review are merge gates, not an independent audit.
 
+Final-diff review also added legitimate already-deleted completion closure and
+outer archive ID/generation/ciphertext/truncation/oversize/wrong-HKDF-purpose
+refusals (`TestClosedDeletedRequestAndOuterPurposeContextRefusals`), with zero
+partial output and no resurrection. Real WASM closed-history rendering, all
+five ACME UI suites, disabled close-request demo route and container config
+checks passed. The actual Linux gates remain required, not substituted by vet.
+
 Residuals: archived pending keys have no export/cleanup UI; all archived scopes
 are revalidated on each image read (bounded but cost grows); no anti-rollback,
 cryptographic erasure, CA cancellation or unattended renewal is claimed.

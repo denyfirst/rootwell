@@ -1651,6 +1651,7 @@ refusal and fake read-only browser preview are not real Linux/CA issuance proof.
 
 Guards: `TestClosedCompletedRequestPreservesPairOriginNotesDeleteAndNewOrder`,
 `TestClosedExpiredRequestPreservesKeyButCannotReopenLease`,
+`TestClosedDeletedRequestAndOuterPurposeContextRefusals`,
 `TestClosedRequestStaleUnknownClockTamperAndLimitsRefuse`,
 `TestClosedRequestsRepeatedCyclesExactCapacityAndNoSilentPruning`,
 `FuzzClosedStagingRequest`,
