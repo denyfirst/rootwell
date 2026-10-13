@@ -77,7 +77,7 @@ func TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement(t *te
 	// Provider cooldown is still active: local preparation must not use its gate.
 	w = orderCall(g, "prepare-key", orderRequest("10", false), cookie)
 	var output orderOutput
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v5" || output.Issuance.State != "not-started" || !output.CertificateKey.Prepared || output.Generation != 11 || !output.DomainVerified || output.Network || !output.CanIssue || calls != 2 {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v6" || output.Issuance.State != "not-started" || !output.CertificateKey.Prepared || output.Generation != 11 || !output.DomainVerified || output.Network || !output.CanIssue || calls != 2 {
 		t.Fatalf("local preparation refused/truth wrong: %d", w.Code)
 	}
 	for _, secret := range []string{apiAccount, apiDNS().URL, "private_key", "csr", "sentinel"} {

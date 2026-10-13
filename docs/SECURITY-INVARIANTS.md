@@ -1632,6 +1632,34 @@ Guarded by `TestLinuxCertificateTransactionDurableIntentNoReplayAndCheckedRead`,
 tests and `scripts/test-acme-order.mjs` / `scripts/test-inventory-demo.mjs`.
 Compiling two-way sabotage and final evidence are recorded in ADR 0062/PR.
 
+## C83 — A new request never revives or discards prior custody
+
+ADR 0063 adds local closure only for independently derived complete or known
+expired scopes. Unknown/active/stale/backward-clock/limit work refuses before
+mutation. Fresh password/consent, generation, session revision and private writer
+permission are required. No CA callback/cancellation/revocation or automatic new
+start. Archives are separately sealed, bounded, chronologically/uniquely linked;
+all nested crypto/key/CSR/order/material/tombstone checks precede public output.
+The unexported, nonserialized historical parser flag relaxes only obsolete active
+capacity reservation, never runtime authority. Old lease image/URL reuse fails;
+new requests get separate intent/key/CSR. Material/key/notes/provenance survive;
+deletion updates archive and pair atomically. Full restore/password recovery
+keeps scope; old snapshots retain secrets. No silent pruning/export/reopen/reset.
+V6 exposes availability/reason/count only, fresh action-scoped consent and fixed
+human messages; hidden/late/error results cannot restore authority. Native
+refusal and fake read-only browser preview are not real Linux/CA issuance proof.
+
+Guards: `TestClosedCompletedRequestPreservesPairOriginNotesDeleteAndNewOrder`,
+`TestClosedExpiredRequestPreservesKeyButCannotReopenLease`,
+`TestClosedRequestStaleUnknownClockTamperAndLimitsRefuse`,
+`TestClosedRequestsRepeatedCyclesExactCapacityAndNoSilentPruning`,
+`FuzzClosedStagingRequest`,
+`TestLinuxNewRequestAtomicRevisionPermissionFullRestoreAndPairDeletion`,
+`TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
+`TestNativeNewRequestRefusesBeforeFilesAndPermit`,
+`TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority` and strict
+API/UI/lifecycle/demo tests. Two-way compiling sabotage evidence: ADR 0063.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

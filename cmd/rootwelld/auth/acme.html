@@ -88,7 +88,7 @@
       <p>Your acknowledgement does not verify DNS. Staging is test-only, not for production. Make a new complete backup after saved changes.</p>
       <details><summary>What happens to my request and key?</summary><p>“Ask CA to check DNS” requests validation; “Refresh CA result” only reads the same request. After confirmed verification, “Prepare certificate key” saves one encrypted key and signed request locally. Then “Get test certificate” sends only that signed request, checks the returned certificate and saves it with the same key in Certificates. The private key never goes to the CA. An uncertain result allows only “Check certificate result” — no resend or automatic polling.</p></details>
     </section>
-    <section class="card"><h2>What comes next?</h2><p>Test issuance uses your Linux or Linux Docker instance. Renewal, DNS automation, production issuance and server deployment are separate next steps. Expired or completed requests cannot yet be replaced or reset in this development version.</p></section>
+    <section class="card"><h2>What comes next?</h2><p>After completion or a known expired deadline, “Prepare a new request” closes only the old request locally. Saved certificates, keys and notes stay unchanged. Then enter the new domains and separately confirm the CA operation. Unknown or active requests cannot be replaced; local closure is not CA cancellation or revocation. Renewal, DNS automation, production issuance and server deployment remain separate next steps.</p></section>
     </div>
   </main></div>
 </body>

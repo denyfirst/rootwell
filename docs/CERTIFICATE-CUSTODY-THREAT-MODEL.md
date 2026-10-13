@@ -121,6 +121,19 @@ protect against them. This is not end-to-end encryption or multi-user RBAC.
   authenticates and preserves attachments. Downgrade refuses the new manifest.
   Backup remains manual. A new full backup is required after every mutation.
 
+## Closed staging requests — ADR 0063
+
+Closing a completed or known-expired request atomically archives the exact
+encrypted scope under a separate HKDF/AES-GCM purpose; current certificate
+material/private keys/notes are not removed or copied to a new request. Every
+archived binding and live pair/deletion tombstone authenticates before any
+output. Historical parsing never yields active lease/CA authority. Deletion
+updates the archive and current pair in one image; old snapshots retain keys.
+Expired pending prepared keys remain encrypted internally; no historical key
+export/reopen/reset exists. Archives are bounded (32, 64 KiB each), never silently
+pruned. Full snapshot/password recovery preserves them; old binaries refuse the
+new manifest. Cleanup/retention, anti-rollback and live CA QA remain separate.
+
 ## Residuals and acceptance evidence
 
 No reliable runtime/OS zeroization, external anti-rollback anchor, cryptographic

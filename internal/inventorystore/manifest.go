@@ -50,6 +50,8 @@ type manifest struct {
 	ACMEOrders              []sealedRecord `json:"acme_orders,omitempty"`
 	ACMECertificateRequests []sealedRecord `json:"acme_certificate_requests,omitempty"`
 	ACMEIssuances           []sealedRecord `json:"acme_issuances,omitempty"`
+	ClosedRequests          []sealedRecord `json:"closed_requests,omitempty"`
+	historical              bool
 }
 
 type envelope struct {
@@ -297,6 +299,9 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 		if err := deleteCompletion(key, installationID, &m, fingerprint); err != nil {
 			return nil, 0, err
 		}
+		if err := deleteClosedCompletion(key, installationID, &m, fingerprint); err != nil {
+			return nil, 0, err
+		}
 		if err := addEvent(key, &m, "record-deleted", []string{fingerprint}); err != nil {
 			return nil, 0, err
 		}
@@ -465,6 +470,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 				records[i].StagingOrigin = &publicinventory.StagingOrigin{TestOnly: true, Provider: "letsencrypt-staging", VerifiedAt: c.SavedAt, RootFingerprint: c.ChainFingerprints[len(c.ChainFingerprints)-1]}
 			}
 		}
+	}
+	if err := authenticateClosedRequests(key, id, m, records); err != nil {
+		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {
 		return manifest{}, nil, ErrInvalid

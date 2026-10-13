@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-12. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-13. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -23,18 +23,42 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
+**2026-10-13 visibility maneəsi aradan qalxdı:** istifadəçinin icazəsi ilə
+yalnız `denyfirst/rootwell` yenidən public edildi. GitHub API-si PUBLIC statusunu,
+ruleset 23751134-ün active/no-bypass/strict checks/required signatures/merge-only
+qaydalarını və secret scanning/push protection enabled vəziyyətini təsdiqlədi.
+Heç bir check silinmədi və ödənişli xidmət aktivləşmədi. Aşağıdakı private
+məhdudiyyət tarixi qeyddir; ADR 0063 yeni exact-head CI nəticəsi olmadan merge
+edilmir. Porch dəyişməz qalır.
+
+**2026-10-12 istifadəçi visibility qərarı:** `denyfirst/rootwell` private edildi;
+Porch dəyişmədi. GitHub Free private repo-da ruleset API-si 403 qaytarır və code
+scanning entitlement yoxdur. Heç bir qayda/check silinmir və yoxlama keçilmiş
+sayılmır. Məcburi exact-head CI/ruleset/CodeQL qapısı təmin edilmədən merge yoxdur;
+uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələb edilir.
+
+**Cari increment — ADR 0063:** tamamlanmış və ya məlum müddəti bitmiş sorğunu
+fresh parol/razılıqla lokal bağlayıb ayrıca yeni sorğuya yer açmaq. Pair/açar/
+mənbə/qeydlər qorunur; naməlum və aktiv sorğu, köhnə URI və lease bloklanır.
+32 məhdud şifrəli closed scope səssiz silinmir, tam bərpa və pair silmə ilə
+uyğun qalır. V6 eyni kartda sadə “Prepare a new request” axınıdır; bu CA-da
+cancel/revoke deyil. Model, VM, iki istiqamətli sabotage, fuzz və pinned local
+qapılar keçib; Linux real storage/API/race və ayrı self-review exact-head CI/PR
+qapısındadır. Browser nümunəsi read-only saxtadır, real CA əməliyyatı deyil.
+Növbəti iş ayrıca manual yeniləmədir; avtomatik yeniləmə/DNS hələ hazır deyil.
+
 **Cari dalğa — istifadəçi dörd hissəni təsdiqləyib:** CA domen yoxlaması →
 sertifikat issuance və pair storage → manual yeniləmə → DNS avtomatlaşdırması.
 Hər increment ayrıca test/imzalı PR/self-review/CI qapısından keçir; real CA/DNS
 əməliyyatı və production icazəsi deyil. Bütün dalğa tamamlanmış sayılmır.
 
-**Cari increment — ADR 0062:** Automation UI-də explicit fresh parol/razılıqla
+**Əvvəlki increment — ADR 0062 (PR #93):** Automation UI-də explicit fresh parol/razılıqla
 test sertifikatı almaq və eyni sifarişin nəticəsini yalnız oxumaq. Bir writer-lock
 altında intent → exact lease → bounded CA → pinned yoxlama → atomik pair.
 V5 status müddət qısalmasını saxlayır; itmiş cavabda resend/new key yoxdur.
 Windows browser nümunəsi fake/read-only-dir, real CA çağırışı edilmir.
 Tam local/CI/self-review qapıları tələb edilir; renewal, DNS və production audit
-sonrakıdır. Bitmiş/expired sifariş üçün yeni sifariş/reset siyasəti ayrıca qalır.
+sonrakıdır. Bitmiş/expired sifariş üçün ayrıca yeni sorğu ADR 0063-dədir.
 
 **Əvvəlki increment — ADR 0061:** verilmiş staging sertifikatını pinned qəbul
 nüvəsində yenidən yoxlayıb eyni private açarla atomik Certificates saxlamaq.

@@ -115,7 +115,7 @@ func openIssuance(key, id []byte, m manifest) (issuancePayload, error) {
 		}
 		return p, nil
 	}
-	if len(m.ACMECertificateRequests) != 1 || len(m.Records) >= maxRecords || len(m.History) >= maxHistory || m.Generation >= maxGeneration || p.StartedGeneration <= m.ACMECertificateRequests[0].Generation {
+	if len(m.ACMECertificateRequests) != 1 || (!m.historical && (len(m.Records) >= maxRecords || len(m.History) >= maxHistory || m.Generation >= maxGeneration)) || p.StartedGeneration <= m.ACMECertificateRequests[0].Generation {
 		return bad()
 	}
 	request, status, err := openCertificateRequest(key, id, m)

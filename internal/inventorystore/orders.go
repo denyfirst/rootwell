@@ -160,6 +160,10 @@ func sealOrder(key, id []byte, m manifest, p orderPayload, action string) ([]byt
 }
 
 func BeginStagingOrder(key, id, image []byte, expected uint64, names []string) ([]byte, OrderStatus, uint64, error) {
+	return beginStagingOrderAt(key, id, image, expected, names, time.Now().UTC())
+}
+
+func beginStagingOrderAt(key, id, image []byte, expected uint64, names []string, at time.Time) ([]byte, OrderStatus, uint64, error) {
 	m, _, err := decode(key, id, image)
 	if err != nil {
 		return nil, OrderStatus{}, 0, err
@@ -175,7 +179,7 @@ func BeginStagingOrder(key, id, image []byte, expected uint64, names []string) (
 	if m.Generation > maxGeneration-3 || len(m.History) > maxHistory-3 {
 		return nil, OrderStatus{}, 0, ErrLimit
 	}
-	p := orderPayload{State: "request-pending", Fingerprint: account.Fingerprint, Started: time.Now().UTC().Format("2006-01-02T15:04:05Z"), Domains: slices.Clone(names)}
+	p := orderPayload{State: "request-pending", Fingerprint: account.Fingerprint, Started: at.UTC().Format("2006-01-02T15:04:05Z"), Domains: slices.Clone(names)}
 	return sealOrder(key, id, m, p, "acme-order-started")
 }
 

@@ -97,7 +97,7 @@ func TestLinuxCertificateAPIInteractiveAuthorityNoReplayAndReadOnlyResult(t *tes
 	}
 	w = orderCall(g, "status", orderStatusInput, cookie)
 	var output orderOutput
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v5" || output.CanIssue || output.Network || output.Issuance.State != "issuance-pending" || output.Generation != 12 {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v6" || output.CanIssue || output.Network || output.Issuance.State != "issuance-pending" || output.Generation != 12 {
 		t.Fatal("durable pending status incorrect")
 	}
 	advance()
