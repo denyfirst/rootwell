@@ -79,3 +79,9 @@ Get renewal DNS records. Preview is fake/read-only (no authentication, CA, key o
 durable user-data operation), not a Linux or live-CA browser interoperability test.
 Separate final-head adversarial maintainer self-review and all 13 exact-head CI
 checks precede merge; audit/release remain separate. No Porch changes.
+
+Final review tightened historical deletion proof to the authenticated nested
+issuance generation, not a later outer archive reseal generation. At equal
+second-resolution times, deletion must still be strictly after the dependent
+closure generation. Prior/at-closure deletion refuses; later deletion remains
+valid. This does not grant runtime historical authority.

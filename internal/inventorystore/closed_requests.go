@@ -187,7 +187,9 @@ func authenticateClosedRequests(key, id []byte, m manifest, records []publicinve
 				return ErrInvalid
 			}
 			primary[c.Fingerprint] = true
-			anchors[c.Fingerprint] = renewalAnchor{Names: issuance.Names, Account: issuance.AccountFingerprint, Key: issuance.KeyFingerprint, ClosedAt: p.ClosedAt, ClosedGeneration: p.ClosedGeneration, DeletedAt: c.DeletedAt, DeletedGeneration: item.Generation}
+			// The nested issuance generation proves deletion ordering; merely
+			// resealing the outer archive must not manufacture a later deletion.
+			anchors[c.Fingerprint] = renewalAnchor{Names: issuance.Names, Account: issuance.AccountFingerprint, Key: issuance.KeyFingerprint, ClosedAt: p.ClosedAt, ClosedGeneration: p.ClosedGeneration, DeletedAt: c.DeletedAt, DeletedGeneration: p.Issuances[0].Generation}
 			if c.DeletedAt == "" {
 				for i := range records {
 					if records[i].Fingerprint == c.Fingerprint {

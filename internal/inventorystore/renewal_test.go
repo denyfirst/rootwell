@@ -12,6 +12,7 @@ import (
 	"errors"
 	"math/big"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -396,4 +397,20 @@ func FuzzRenewalOrderBinding(f *testing.F) {
 			t.Fatal("fuzzed renewal exposed partial records")
 		}
 	})
+}
+
+func TestRenewalDeletionGenerationRemainsStrictAtEqualTimes(t *testing.T) {
+	fp := "AB:" + strings.Repeat("CD:", 30) + "EF"
+	at := "2026-10-13T00:00:00Z"
+	order := orderPayload{RenewalSource: fp, Fingerprint: "account", Domains: []string{"example.com"}, Started: at}
+	for _, deletedGen := range []uint64{14, 24, 25} {
+		anchors := map[string]renewalAnchor{fp: {Account: "account", Names: []string{"example.com"}, Key: "original-key", ClosedAt: at, ClosedGeneration: 13, DeletedAt: at, DeletedGeneration: deletedGen}}
+		err := checkRenewalBinding(order, 20, at, 24, "new-key", anchors)
+		if (err == nil) != (deletedGen > 24) {
+			t.Fatal("equal timestamps erased deletion generation ordering")
+		}
+		if err := checkRenewalBinding(order, 20, "", 0, "new-key", anchors); err == nil {
+			t.Fatal("deleted active source gained authority")
+		}
+	}
 }

@@ -1678,6 +1678,7 @@ revocation, deployment, validity extension or renewal-rate exemption claim.
 
 Guards: `TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeletion`,
 `TestManualRenewalRefusesStaleOrphanActiveDeletedNamesAndTamperedLinks`,
+`TestRenewalDeletionGenerationRemainsStrictAtEqualTimes`,
 `FuzzRenewalOrderBinding`, `FuzzManualDNSRequest`,
 `TestLinuxRenewalIntentBeforeIOReadOnlyResumeAndFullRecovery`,
 `TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
