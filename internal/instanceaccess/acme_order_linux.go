@@ -32,6 +32,17 @@ func ReadStagingOrder(accessPath string, key, id []byte, revision [32]byte) (inv
 // A single lock covers intent, network, checkpoint and instructions. A failed
 // request leaves the most recent durable state, never authorizes recreation.
 func RunStagingOrder(accessPath string, key, id []byte, revision [32]byte, expected uint64, names []string, resume bool, permit func() bool, use DNSOrderOperation) (inventorystore.OrderStatus, uint64, error) {
+	return runStagingOrder(accessPath, key, id, revision, expected, names, resume, "", permit, use)
+}
+
+func RunStagingRenewalOrder(accessPath string, key, id []byte, revision [32]byte, expected uint64, fingerprint string, permit func() bool, use DNSOrderOperation) (inventorystore.OrderStatus, uint64, error) {
+	if fingerprint == "" {
+		return inventorystore.OrderStatus{}, 0, inventorystore.ErrInvalid
+	}
+	return runStagingOrder(accessPath, key, id, revision, expected, nil, false, fingerprint, permit, use)
+}
+
+func runStagingOrder(accessPath string, key, id []byte, revision [32]byte, expected uint64, names []string, resume bool, source string, permit func() bool, use DNSOrderOperation) (inventorystore.OrderStatus, uint64, error) {
 	var status inventorystore.OrderStatus
 	var generation uint64
 	err := withAccessWriteLock(accessPath, func() error {
@@ -61,7 +72,13 @@ func RunStagingOrder(accessPath string, key, id []byte, revision [32]byte, expec
 				return inventorystore.ErrInvalid
 			}
 		} else {
-			next, _, gen, err := inventorystore.BeginStagingOrder(key, id, image, expected, names)
+			var next []byte
+			var gen uint64
+			if source != "" {
+				next, _, gen, err = inventorystore.BeginStagingRenewal(key, id, image, expected, source)
+			} else {
+				next, _, gen, err = inventorystore.BeginStagingOrder(key, id, image, expected, names)
+			}
 			if err != nil {
 				return err
 			}

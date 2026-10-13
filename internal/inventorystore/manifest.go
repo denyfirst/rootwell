@@ -275,6 +275,13 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 	if expectedGeneration == 0 || m.Generation != expectedGeneration {
 		return nil, 0, ErrStaleGeneration
 	}
+	order, err := openOrder(key, installationID, m)
+	if err != nil {
+		return nil, 0, err
+	}
+	if order.RenewalSource != "" && order.RenewalSource == fingerprint {
+		return nil, 0, ErrRenewalSourceInUse
+	}
 	if m.Generation >= maxGeneration {
 		return nil, 0, ErrLimit
 	}

@@ -361,6 +361,18 @@
         }
       });
       details.appendChild(openForm);
+	  if (record.staging_origin && record.has_private_key && record.key_status === "matched") {
+		const renewForm = document.createElement("form");
+		renewForm.method = "post"; renewForm.action = "/automation/renew#certificate-request"; renewForm.className = "workbench-actions";
+		for (const [name, value] of [["fingerprint",record.fingerprint],["expected_generation",String(snapshotGeneration)],["tool","renew"]]) {
+		  const field = document.createElement("input");field.type="hidden";field.name=name;field.value=value;renewForm.appendChild(field);
+		}
+		const button=document.createElement("button");button.type="submit";button.className="secondary";button.textContent="Renew test certificate";renewForm.appendChild(button);
+		renewForm.addEventListener("submit",event=>{
+		  if (saving || associating || editingOwner || changingLocation || deleting || document.hidden || displayedGeneration!==snapshotGeneration || snapshotAge()>=120000) {event.preventDefault();listStatus.textContent="Refresh Certificates before preparing a test renewal.";}
+		});
+		details.appendChild(renewForm);
+	  }
       const compareButton = document.createElement("button");
       compareButton.type = "button";
       compareButton.className = "secondary";

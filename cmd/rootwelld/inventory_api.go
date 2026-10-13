@@ -72,6 +72,10 @@ func (g *gate) inventoryWorkbenchEndpoint(w http.ResponseWriter, r *http.Request
 }
 
 func readWorkbenchSelection(w http.ResponseWriter, r *http.Request) (string, uint64, string, bool) {
+	return readPublicNavigationSelection(w, r, false)
+}
+
+func readPublicNavigationSelection(w http.ResponseWriter, r *http.Request, renewal bool) (string, uint64, string, bool) {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/x-www-form-urlencoded" {
 		http.Error(w, "form body required", http.StatusUnsupportedMediaType)
@@ -94,7 +98,7 @@ func readWorkbenchSelection(w http.ResponseWriter, r *http.Request) (string, uin
 		}
 	}
 	if err != nil || generation == 0 || generation > 9007199254740991 || strconv.FormatUint(generation, 10) != rawGeneration ||
-		!validFingerprint || (tool != "inspect" && tool != "verify" && tool != "convert") {
+		!validFingerprint || (renewal && tool != "renew") || (!renewal && tool != "inspect" && tool != "verify" && tool != "convert") {
 		http.Error(w, "invalid selection", http.StatusBadRequest)
 		return "", 0, "", false
 	}
@@ -747,6 +751,8 @@ func readInventoryInput(w http.ResponseWriter, r *http.Request) (inventoryInput,
 
 func inventoryError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, inventorystore.ErrRenewalSourceInUse):
+		http.Error(w, "Close the renewal request in Automation before deleting its original certificate.", http.StatusConflict)
 	case errors.Is(err, instanceaccess.ErrInventoryMissing):
 		http.Error(w, "inventory not initialized; run the offline inventory-init ceremony", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrDuplicate):

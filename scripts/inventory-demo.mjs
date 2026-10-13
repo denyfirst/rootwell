@@ -71,7 +71,7 @@ const assets = new Map([
 ]);
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
-let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake completed request, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the next step. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
+let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal setup, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the next step. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
 automationHTML=replaceOnce(automationHTML,'<section class="card" id="certificate-request">','<section class="card" id="certificate-request"><p class="storage-note">DEMO · fake status only, no saved key or CA operation. Actions disabled.</p>');
 let automationScript=replaceOnce(asset("acme-order.js"),"refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;","refresh.disabled=!!active; names.disabled=true; consent.disabled=true; password.disabled=true; resumeChoice.disabled=true;");
 automationScript=replaceOnce(automationScript,"submit.disabled=!!active || document.hidden", "submit.disabled=true || !!active || document.hidden");
@@ -98,8 +98,7 @@ const server = http.createServer((request, response) => {
     let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
-      const preparedAt=instant(0);
-      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.manual-dns.v6",provider:"letsencrypt-staging",generation:11,state:"domain-verified",domains:["demo.example.com"],expires:instant(1),records:[{domain:"demo.example.com",name:"_acme-challenge.demo.example.com",value:"",required:false}],network_used:false,saved:true,domain_verified:true,can_issue:false,certificate_key:{prepared:true,fingerprint:"AB:".repeat(31)+"AB",prepared_at:preparedAt},issuance:{state:"certificate-saved",started_at:preparedAt,checked_at:preparedAt,observation:"saved",expires:instant(1)},new_request:{available:true,reason:"complete",closed_count:0}}));
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.manual-dns.v7",provider:"letsencrypt-staging",generation:5,state:"not-started",domains:[],expires:"",records:[],renewal_source:"",network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""},new_request:{available:false,reason:"not-started",closed_count:1}}));
     });return;
   }
   if (request.method === "POST" && request.url === "/workbench") {
@@ -123,6 +122,17 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
+	if(request.method==="POST" && request.url==="/automation/renew"){
+	  if(request.headers.origin!=="http://"+request.headers.host || request.headers["sec-fetch-site"]!=="same-origin" || request.headers["sec-fetch-mode"]!=="navigate" || request.headers["sec-fetch-dest"]!=="document" || request.headers["content-type"]!=="application/x-www-form-urlencoded"){response.writeHead(403).end("Fixture navigation refused");return;}
+	  let body="",refused=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){refused=true;body="";}});
+	  request.on("end",()=>{
+		const fields=new URLSearchParams(body);
+		if(refused || [...fields].length!==3 || fields.get("fingerprint")!==demoLeaf.fingerprint256 || fields.get("expected_generation")!=="5" || fields.get("tool")!=="renew"){response.writeHead(400).end("Fixture selection refused");return;}
+		const selection=JSON.stringify({schema_version:"rootwell.acme.renewal-selection.v1",generation:5,fingerprint:demoLeaf.fingerprint256,domains:records[3].dns_names});
+		const page=replaceOnce(automationHTML,'<div id="acme-renewal-source" hidden></div>','<div id="acme-renewal-source" hidden>'+selection+'</div>');
+		response.writeHead(200,{"Content-Type":"text/html; charset=utf-8"}).end(page);
+	  });return;
+	}
   if (request.method === "GET" && request.url === "/") {
     response.writeHead(302, { Location: "/index.html" }).end();
     return;

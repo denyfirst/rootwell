@@ -17,6 +17,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/acmeorder"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -77,6 +78,7 @@ func TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder(t *testing.T)
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || !output.NewRequest.Available || output.NewRequest.Reason != "complete" || output.Generation != 13 {
 		t.Fatalf("completed status refused: %d", w.Code)
 	}
+	assertRenewalNavigation(t, g, cookie, fixture.Fingerprint, 13)
 	originalKey := output.CertificateKey
 	before, err := os.ReadFile(store)
 	if err != nil {
@@ -108,7 +110,7 @@ func TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder(t *testing.T)
 		t.Fatal(err)
 	}
 	w = orderCall(g, "close-request", orderRequest("13", false), cookie)
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v6" || output.NewRequest.ClosedCount != 1 || output.NewRequest.Reason != "not-started" || output.Generation != 14 || output.Network || output.Saved || output.CanIssue || output.CertificateKey.Prepared || output.Issuance.State != "not-started" || calls != 0 {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v7" || output.NewRequest.ClosedCount != 1 || output.NewRequest.Reason != "not-started" || output.Generation != 14 || output.Network || output.Saved || output.CanIssue || output.CertificateKey.Prepared || output.Issuance.State != "not-started" || calls != 0 {
 		t.Fatalf("valid local closure refused: %d", w.Code)
 	}
 	for _, secret := range []string{"private_key", "csr", "ciphertext", "/acme/order/", "sentinel"} {
@@ -130,14 +132,22 @@ func TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder(t *testing.T)
 			t.Fatal("new order used old scope")
 		}
 		info := apiDNS()
+		body, err := os.ReadFile(store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pending, gen, err := inventorystore.ReadStagingOrder(key, id, body)
+		if err != nil || gen != 15 || pending.State != "request-pending" || pending.RenewalSource != fixture.Fingerprint {
+			t.Fatal("renewal network preceded bound durable intent")
+		}
 		info.URL = acmeorder.Origin + "/acme/order/1234/9999"
 		if err := checkpoint(info.URL); err != nil {
 			return acmeorder.Instructions{}, err
 		}
 		return info, nil
 	}
-	w = orderCall(g, "start", orderRequest("14", true), cookie)
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Generation != 17 || !output.Network || output.NewRequest.ClosedCount != 1 || output.State != "dns-ready" || calls != 1 {
+	w = orderCall(g, "renew", renewalRequest("14", fixture.Fingerprint), cookie)
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Generation != 17 || output.RenewalSource != fixture.Fingerprint || !output.Network || output.NewRequest.ClosedCount != 1 || output.State != "dns-ready" || calls != 1 {
 		t.Fatalf("distinct order failed: %d", w.Code)
 	}
 	if w := orderCall(g, "ack", orderRequest("17", false), cookie); w.Code != 200 {

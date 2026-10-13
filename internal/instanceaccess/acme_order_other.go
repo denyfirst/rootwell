@@ -17,6 +17,10 @@ func ReadStagingOrder(_ string, _, _ []byte, _ [32]byte) (inventorystore.OrderSt
 func RunStagingOrder(_ string, _, _ []byte, _ [32]byte, _ uint64, _ []string, _ bool, _ func() bool, _ DNSOrderOperation) (inventorystore.OrderStatus, uint64, error) {
 	return inventorystore.OrderStatus{}, 0, ErrRecoveryUnsupported
 }
+
+func RunStagingRenewalOrder(_ string, _, _ []byte, _ [32]byte, _ uint64, _ string, _ func() bool, _ DNSOrderOperation) (inventorystore.OrderStatus, uint64, error) {
+	return inventorystore.OrderStatus{}, 0, ErrRecoveryUnsupported
+}
 func AcknowledgeStagingDNS(_ string, _, _ []byte, _ [32]byte, _ uint64, _ func() bool) (inventorystore.OrderStatus, uint64, error) {
 	return inventorystore.OrderStatus{}, 0, ErrRecoveryUnsupported
 }

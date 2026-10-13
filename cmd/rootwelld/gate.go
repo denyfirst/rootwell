@@ -154,7 +154,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":
 		g.acmeRegistrationEndpoint(w, r, s, signedIn)
 		return
-	case "/api/acme/order/status", "/api/acme/order/start", "/api/acme/order/resume", "/api/acme/order/ack", "/api/acme/order/validate", "/api/acme/order/refresh", "/api/acme/order/prepare-key", "/api/acme/order/issue", "/api/acme/order/certificate-refresh", "/api/acme/order/close-request":
+	case "/api/acme/order/status", "/api/acme/order/start", "/api/acme/order/renew", "/api/acme/order/resume", "/api/acme/order/ack", "/api/acme/order/validate", "/api/acme/order/refresh", "/api/acme/order/prepare-key", "/api/acme/order/issue", "/api/acme/order/certificate-refresh", "/api/acme/order/close-request":
 		g.acmeOrderEndpoint(w, r, s, signedIn)
 		return
 	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":
@@ -177,6 +177,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
+		return
+	case "/automation/renew":
+		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
 	case "/automation", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {

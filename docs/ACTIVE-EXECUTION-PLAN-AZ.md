@@ -37,7 +37,18 @@ scanning entitlement yoxdur. Heç bir qayda/check silinmir və yoxlama keçilmi�
 sayılmır. Məcburi exact-head CI/ruleset/CodeQL qapısı təmin edilmədən merge yoxdur;
 uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələb edilir.
 
-**Cari increment — ADR 0063:** tamamlanmış və ya məlum müddəti bitmiş sorğunu
+**Cari increment — ADR 0064:** Certificates-də saxlanmış Rootwell staging
+sertifikatından explicit manual yeniləmə. Server eyni domenləri yoxlanmış
+completion-dan götürür; istifadəçi köhnə sorğunu ayrıca bağlayır, sonra fresh
+parol/razılıqla yeni sorğu yaradır. Köhnə cüt/qeydlər qalır, yeni açar müstəqildir,
+yeni sertifikat ayrıca yoxlanıb saxlanır. Source/link/clock/generation və tam
+bərpa yoxlanır; aktiv source silinmir. V7 bir Automation kartı və read-only fake
+browser nümunəsidir. Imported/production/başqa CA renewal, auto retry/scheduler/
+ARI/DNS/deploy deyil. Model/VM/sabotage/fuzz və pinned gates → imzalı PR → bütün
+exact-head CI → ayrıca self-review → merge. Sonra manual renewal nəticə UX-i,
+ARI/backoff və ən sonra scoped DNS avtomatlaşdırması ayrıca qapılardır.
+
+**Əvvəlki increment — ADR 0063 (PR #94, bütün 13 yoxlama keçib):** tamamlanmış və ya məlum müddəti bitmiş sorğunu
 fresh parol/razılıqla lokal bağlayıb ayrıca yeni sorğuya yer açmaq. Pair/açar/
 mənbə/qeydlər qorunur; naməlum və aktiv sorğu, köhnə URI və lease bloklanır.
 32 məhdud şifrəli closed scope səssiz silinmir, tam bərpa və pair silmə ilə

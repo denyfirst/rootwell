@@ -5,7 +5,7 @@ const source=fs.readFileSync("cmd/rootwelld/auth/acme-order.js","utf8"),html=fs.
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|WebSocket|XMLHttpRequest|sendBeacon|clipboard/);
 assert.match(html,/keep both Values/);assert.match(html,/Your acknowledgement does not verify DNS/);
 const domains=["*.example.com","example.com"],expiry=new Date(Date.now()+3600000).toISOString().replace(/\.\d{3}Z$/,"Z");
-const empty={schema_version:"rootwell.acme.manual-dns.v6",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""},new_request:{available:false,reason:"not-started",closed_count:0}};
+const empty={schema_version:"rootwell.acme.manual-dns.v7",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],renewal_source:"",network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""},new_request:{available:false,reason:"not-started",closed_count:0}};
 const pending={...empty,generation:5,state:"request-pending",domains,saved:true,new_request:{available:false,reason:"unknown-order",closed_count:0}};
 const known={...pending,generation:6,state:"order-known"};
 const ready={...known,generation:7,state:"dns-ready",expires:expiry,records:domains.map((domain,i)=>({domain,name:"_acme-challenge.example.com",value:(i?"B":"A").repeat(42)+"A",required:true})),new_request:{available:false,reason:"active",closed_count:0}};
@@ -22,18 +22,19 @@ class Element{
   replaceChildren(...children){this.children=children;}
   append(...children){this.children.push(...children);}
 }
-function fixture(initial=empty){
+function fixture(initial=empty,selection=null){
   const elements={},el=id=>elements[id]??=new Element(),events={},windows={},timers=new Map(),requests=[];let next=null,key=0;
   el("acme-provider").value="letsencrypt-staging";
+	if(selection)el("acme-renewal-source").textContent=typeof selection==="string"?selection:JSON.stringify(selection);
   const document={hidden:false,getElementById:el,createElement:()=>new Element(),addEventListener(name,fn){events[name]=fn;}};
   vm.runInNewContext(source,{document,window:{addEventListener(name,fn){windows[name]=fn;}},Date,TextDecoder,Uint8Array,AbortController,
     setTimeout(fn,ms){assert.equal(ms,30000);const id=++key;timers.set(id,fn);return id;},clearTimeout(id){timers.delete(id);},
     fetch:async(url,options)=>{
-      assert.ok(["/api/acme/order/status","/api/acme/order/start","/api/acme/order/resume","/api/acme/order/ack","/api/acme/order/validate","/api/acme/order/refresh","/api/acme/order/prepare-key","/api/acme/order/issue","/api/acme/order/certificate-refresh","/api/acme/order/close-request"].includes(url));
+      assert.ok(["/api/acme/order/status","/api/acme/order/start","/api/acme/order/renew","/api/acme/order/resume","/api/acme/order/ack","/api/acme/order/validate","/api/acme/order/refresh","/api/acme/order/prepare-key","/api/acme/order/issue","/api/acme/order/certificate-refresh","/api/acme/order/close-request"].includes(url));
       assert.equal(options.method,"POST");assert.equal(options.credentials,"same-origin");assert.equal(options.cache,"no-store");assert.equal(options.redirect,"error");assert.equal(options.headers["X-Rootwell-Request"],"1");
       const input=JSON.parse(options.body);requests.push({url,input});assert.equal(el("acme-order-password").value,"");assert.equal(el("acme-order-consent").checked,false);
       if(url.endsWith("status"))assert.deepEqual(input,{provider:"letsencrypt-staging"});
-      else{assert.equal(input.password,"test-only password sentinel");assert.equal(input.confirm,true);assert.equal(input.provider,"letsencrypt-staging");assert.equal(Object.keys(input).length,url.endsWith("start")?5:4);}
+      else{assert.equal(input.password,"test-only password sentinel");assert.equal(input.confirm,true);assert.equal(input.provider,"letsencrypt-staging");assert.equal(Object.keys(input).length,url.endsWith("start")||url.endsWith("renew")?5:4);}
       if(next){const fn=next;next=null;return fn();}
       return reply(url.endsWith("status")?{...initial,network_used:false}:url.endsWith("certificate-refresh")?saved:url.endsWith("issue")?processing:url.endsWith("prepare-key")?prepared:url.endsWith("ack")?acknowledged:url.endsWith("validate")?waiting:url.endsWith("refresh")?verified:{...ready,network_used:true});
     }});
@@ -139,4 +140,17 @@ for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},
 }
 for(const reason of ["clock-unavailable","capacity"]){const f=fixture({...saved,new_request:{available:false,reason,closed_count:reason==="capacity"?32:0}});await f.refresh();assert.equal(f.el("acme-order-form").hidden,true);assert.match(f.el("acme-order-status").textContent,reason==="capacity"?/limit.*blocked/:/clock.*backwards/);f.approve();await f.submit();assert.equal(f.requests.length,1);}
 for(const refusal of [()=>new Response("secret-sentinel",{status:401}),()=>new Response("secret-sentinel",{status:409}),()=>new Response("secret-sentinel",{status:429}),()=>{throw new Error("secret-sentinel");}]){const f=fixture(saved);await f.refresh();f.approve();f.override(refusal);await f.submit();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.doesNotMatch(f.el("acme-order-status").textContent,/secret-sentinel|closed locally/);f.approve();await f.submit();assert.equal(f.requests.length,2);}
-console.log("Manual DNS v6 UI: explicit local closure retains certificates, fresh new-request consent, bounded strict states and late/uncertain refusal passed (VM, not visual QA).");
+const renewalFP=Array(32).fill("EF").join(":"),renewalSelection={schema_version:"rootwell.acme.renewal-selection.v1",generation:16,fingerprint:renewalFP,domains};
+{
+	const f=fixture(saved,renewalSelection);assert.equal(f.requests.length,0);assert.equal(f.el("acme-renewal-source").textContent,"");assert.match(f.el("acme-renewal-summary").textContent,/original certificate.*stay saved/);
+	await f.refresh();f.approve();f.override(()=>reply({...empty,generation:17,new_request:{...empty.new_request,closed_count:1}}));await f.submit();
+	assert.equal(f.requests[1].url,"/api/acme/order/close-request");assert.equal(f.el("acme-order-submit").textContent,"Get renewal DNS records");assert.equal(f.el("acme-order-domains").readOnly,true);assert.equal(f.el("acme-order-domains").value,domains.join("\n"));
+	await f.submit();assert.equal(f.requests.length,2,"closing cannot automatically renew or reuse consent");
+	f.approve();f.override(()=>reply({...ready,generation:20,network_used:true,renewal_source:renewalFP,new_request:{available:false,reason:"active",closed_count:1}}));await f.submit();
+	assert.equal(f.requests[2].url,"/api/acme/order/renew");assert.equal(f.requests[2].input.expected_generation,17);assert.equal(f.requests[2].input.fingerprint,renewalFP);assert.equal(Object.hasOwn(f.requests[2].input,"domains"),false);assert.match(f.el("acme-renewal-summary").textContent,/Manual test renewal.*original certificate and key stay saved/);assert.equal(f.el("acme-order-submit").textContent,"Save my acknowledgement");
+}
+for(const bad of [{...renewalSelection,generation:15},{...renewalSelection,fingerprint:"invalid"},{...renewalSelection,domains:["example.com","example.com"]},{...renewalSelection,private_key:"sentinel"},"not-json"]){const f=fixture(saved,bad);await f.refresh();f.approve();await f.submit();assert.equal(f.requests.length,1);assert.match(f.el("acme-order-status").textContent,/Selection/);assert.equal(f.el("acme-order-form").hidden,true);}
+const renewableEmpty={...empty,generation:17,new_request:{...empty.new_request,closed_count:1}},renewableHint={...renewalSelection,generation:17};
+for(const bad of [{...ready,generation:20,renewal_source:"",network_used:true,new_request:{available:false,reason:"active",closed_count:1}},{...ready,generation:20,renewal_source:renewalFP,domains:["evil.example.com","example.com"],network_used:true,new_request:{available:false,reason:"active",closed_count:1}},{...ready,generation:20,renewal_source:renewalFP,network_used:true,new_request:{available:false,reason:"active",closed_count:0}}]){const f=fixture(renewableEmpty,renewableHint);await f.refresh();f.approve();f.override(()=>reply(bad));await f.submit();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.equal(f.el("acme-order-submit").disabled,true);assert.equal(f.el("acme-renewal-summary").hidden,true);}
+for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},f=>f.windows.pagehide(),f=>f.el("acme-provider").listeners.change(),f=>f.el("acme-order-domains").listeners.input(),f=>[...f.timers.values()][0]()]){const f=fixture(renewableEmpty,renewableHint);await f.refresh();f.approve();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const pending=f.submit();while(!release)await new Promise(resolve=>setImmediate(resolve));boundary(f);release(reply({...ready,generation:20,network_used:true,renewal_source:renewalFP,new_request:{available:false,reason:"active",closed_count:1}}));await pending;assert.equal(f.el("acme-order-form").hidden,true);assert.equal(f.el("acme-order-submit").disabled,true);assert.equal(f.el("acme-renewal-summary").hidden,true);}
+console.log("Manual DNS v7 UI: explicit same-domain renewal, original preservation, no auto-start, strict source/generation and late/hidden/error refusal passed (VM, not visual QA).");

@@ -28,10 +28,10 @@ try {
   assert.match(html, /id="save-button" type="submit" disabled/);
   assert.equal(page.headers.get("cache-control"), "no-store");
   const origin = new URL(address).origin;
-  const automation=await fetch(origin+"/automation");assert.equal(automation.status,200);assert.match(await automation.text(),/DEMO — fake completed request, no CA connection or private key/);
+  const automation=await fetch(origin+"/automation");assert.equal(automation.status,200);assert.match(await automation.text(),/DEMO — fake renewal setup, no CA connection or private key/);
   const automationScript=await fetch(origin+"/acme-order.js");assert.equal(automationScript.status,200);assert.match(await automationScript.text(),/consent.disabled=true; password.disabled=true/);
-  const demoStatus=await fetch(origin+"/api/acme/order/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"letsencrypt-staging"})});assert.equal(demoStatus.status,200);const demoRequest=await demoStatus.json();assert.equal(demoRequest.schema_version,"rootwell.acme.manual-dns.v6");assert.equal(demoRequest.can_issue,false);assert.equal(demoRequest.new_request.available,true);assert.equal(demoRequest.network_used,false);
-  for(const mode of ["issue","certificate-refresh","prepare-key","start","validate","close-request"])assert.equal((await fetch(origin+"/api/acme/order/"+mode,{method:"POST"})).status,405,"demo cannot execute an operation");
+  const demoStatus=await fetch(origin+"/api/acme/order/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"letsencrypt-staging"})});assert.equal(demoStatus.status,200);const demoRequest=await demoStatus.json();assert.equal(demoRequest.schema_version,"rootwell.acme.manual-dns.v7");assert.equal(demoRequest.can_issue,false);assert.equal(demoRequest.new_request.available,false);assert.equal(demoRequest.new_request.closed_count,1);assert.equal(demoRequest.state,"not-started");assert.equal(demoRequest.network_used,false);
+  for(const mode of ["issue","certificate-refresh","prepare-key","start","renew","validate","close-request"])assert.equal((await fetch(origin+"/api/acme/order/"+mode,{method:"POST"})).status,405,"demo cannot execute an operation");
   assert.match(html, /href="\/index.html"/);
   assert.match(html, /href="\/certificates" aria-current="page"/);
   assert.match(html, /id="certificate-pair-form" data-read-only="true"/);
@@ -94,6 +94,12 @@ try {
   assert.equal(navigation.status,200);
   assert.match(navigation.text,/rootwell.inventory.workbench.v1/);
   assert.match(navigation.text, /<main><aside class="nonclaim" aria-label="Demo mode"><strong>DEMO — synthetic public certificate only/);
+	const renewalFields=new URLSearchParams({fingerprint:result.records[3].fingerprint,expected_generation:"5",tool:"renew"});
+	const renewalNavigation=await new Promise((resolve,reject)=>{
+	  const request=http.request(origin+"/automation/renew",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded",Origin:origin,"Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-Dest":"document"}},response=>{let text="";response.on("data",chunk=>{text+=chunk;});response.on("end",()=>resolve({status:response.statusCode,text}));});request.on("error",reject);request.end(renewalFields.toString());
+	});
+	assert.equal(renewalNavigation.status,200);assert.match(renewalNavigation.text,/rootwell.acme.renewal-selection.v1/);assert.match(renewalNavigation.text,/DEMO.*fake status only/);assert.doesNotMatch(renewalNavigation.text,/PRIVATE KEY|"private_key"/);
+	assert.equal((await fetch(origin+"/automation/renew",{method:"POST",body:renewalFields.toString()})).status,403);
   assert.doesNotMatch(navigation.text, /<div id="inventory-source" hidden>[^<]*<\/div><aside/);
   assert.equal((await fetch(origin+"/workbench")).status,404);
   assert.equal((await fetch(origin+"/workbench",{method:"POST",body:selection.toString()})).status,403);
