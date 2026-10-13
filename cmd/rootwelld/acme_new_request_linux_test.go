@@ -51,7 +51,7 @@ func TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder(t *testing.T)
 	if err := os.WriteFile(store, fixture.Image, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	g, err := newGate(path, t.TempDir(), localHost)
+	g, err := newGate(path, testWorkbenchAssets(t), localHost)
 	if err != nil {
 		t.Fatal(err)
 	}

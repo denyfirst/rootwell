@@ -69,6 +69,13 @@ partial output and no resurrection. Real WASM closed-history rendering, all
 five ACME UI suites, disabled close-request demo route and container config
 checks passed. The actual Linux gates remain required, not substituted by vet.
 
+First actual Linux race run (CI 38346274450, head 775724b) passed inventorystore
+(55.780s) and instanceaccess (503.081s), including closure/full recovery. The new
+HTTP test failed before reaching its route because its Workbench asset directory
+was empty, correctly refused by newGate. Fixed test setup to reuse the existing
+complete fake-asset helper; no production guard was relaxed. The whole final-head
+gate must run again; prior failed CI is not accepted as successful HTTP evidence.
+
 Residuals: archived pending keys have no export/cleanup UI; all archived scopes
 are revalidated on each image read (bounded but cost grows); no anti-rollback,
 cryptographic erasure, CA cancellation or unattended renewal is claimed.
