@@ -160,6 +160,7 @@ func authenticateClosedRequests(key, id []byte, m manifest, records []publicinve
 	lastGen := uint64(0)
 	lastAt := ""
 	primary := map[string]bool{}
+	anchors := map[string]renewalAnchor{}
 	active, err := openIssuance(key, id, m)
 	if err != nil {
 		return err
@@ -177,11 +178,16 @@ func authenticateClosedRequests(key, id []byte, m manifest, records []publicinve
 			return ErrInvalid
 		}
 		seen[order.URL], lastGen, lastAt = true, p.ClosedGeneration, p.ClosedAt
+		newKey, err := renewalKeyFingerprint(key, id, scope, issuance)
+		if err != nil || checkRenewalBinding(order, p.Orders[0].Generation, p.ClosedAt, p.ClosedGeneration, newKey, anchors) != nil {
+			return ErrInvalid
+		}
 		if c := issuance.Completion; c != nil {
 			if primary[c.Fingerprint] {
 				return ErrInvalid
 			}
 			primary[c.Fingerprint] = true
+			anchors[c.Fingerprint] = renewalAnchor{Names: issuance.Names, Account: issuance.AccountFingerprint, Key: issuance.KeyFingerprint, ClosedAt: p.ClosedAt, ClosedGeneration: p.ClosedGeneration, DeletedAt: c.DeletedAt, DeletedGeneration: item.Generation}
 			if c.DeletedAt == "" {
 				for i := range records {
 					if records[i].Fingerprint == c.Fingerprint {
@@ -193,6 +199,12 @@ func authenticateClosedRequests(key, id []byte, m manifest, records []publicinve
 	}
 	if current.State != "not-started" && len(m.ClosedRequests) > 0 && (m.ACMEOrders[0].Generation <= lastGen || current.Started < lastAt) {
 		return ErrInvalid
+	}
+	if current.RenewalSource != "" {
+		newKey, err := renewalKeyFingerprint(key, id, m, active)
+		if err != nil || checkRenewalBinding(current, m.ACMEOrders[0].Generation, "", 0, newKey, anchors) != nil {
+			return ErrInvalid
+		}
 	}
 	return nil
 }

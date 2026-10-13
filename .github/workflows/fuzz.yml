@@ -116,6 +116,8 @@ jobs:
             package: ./internal/inventorystore
           - target: FuzzClosedStagingRequest
             package: ./internal/inventorystore
+          - target: FuzzRenewalOrderBinding
+            package: ./internal/inventorystore
           - target: FuzzStagingCompletionPayload
             package: ./internal/inventorystore
     steps:

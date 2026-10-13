@@ -134,6 +134,20 @@ export/reopen/reset exists. Archives are bounded (32, 64 KiB each), never silent
 pruned. Full snapshot/password recovery preserves them; old binaries refuse the
 new manifest. Cleanup/retention, anti-rollback and live CA QA remain separate.
 
+## Manual test renewal — ADR 0064
+
+A selected existing Rootwell staging pair supplies only its public fingerprint
+and exact authenticated names to a separate renewed order intent. Original key,
+material and notes are never replaced/reused/transferred into the new request.
+Whole-image historical graph validation rejects orphan/forward/self/name/account
+or same-key links; active source remains live until explicit request closure.
+Post-closure source deletion retains its public no-replay completion tombstone,
+with deletion time/generation after the dependent closure. Full restore/password
+recovery keeps the graph and original pair. No extra key/DER copy, new secret
+export or current trust claim; source presence in browser is only a public hint.
+Imported certificates, automatic replacement/deployment, ARI and production
+renewal remain separate. Existing rollback/backup retention/host residuals apply.
+
 ## Residuals and acceptance evidence
 
 No reliable runtime/OS zeroization, external anti-rollback anchor, cryptographic

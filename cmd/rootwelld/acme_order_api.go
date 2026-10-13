@@ -19,20 +19,22 @@ import (
 	"github.com/denyfirst/rootwell/internal/acmestaging"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
 	"github.com/denyfirst/rootwell/internal/inventorystore"
+	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
 type orderConnect func(context.Context, func() bool, crypto.Signer, string, string, []string, func(string) error) (acmeorder.Instructions, error)
 type validationConnect func(context.Context, func() bool, crypto.Signer, string, acmeorder.Instructions, []string, bool) (acmeorder.Validation, error)
 type certificateConnect func(context.Context, func() bool, crypto.Signer, string, string, string, []string, []byte, []byte, bool) (acmestaging.CertificateObservation, error)
 type orderInput struct {
-	Password string
-	Expected uint64
-	Names    []string
+	Password    string
+	Expected    uint64
+	Names       []string
+	Fingerprint string
 }
 
 func readOrderInput(w http.ResponseWriter, r *http.Request, mode string) (orderInput, bool) {
 	bad := func() (orderInput, bool) { return orderInput{}, false }
-	if mode != "status" && mode != "start" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" && mode != "prepare-key" && mode != "issue" && mode != "certificate-refresh" && mode != "close-request" {
+	if mode != "status" && mode != "start" && mode != "renew" && mode != "resume" && mode != "ack" && mode != "validate" && mode != "refresh" && mode != "prepare-key" && mode != "issue" && mode != "certificate-refresh" && mode != "close-request" {
 		return bad()
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -81,6 +83,12 @@ func readOrderInput(w http.ResponseWriter, r *http.Request, mode string) (orderI
 				return bad()
 			}
 			input.Expected = *value
+		case "fingerprint":
+			var value string
+			if mode != "renew" || d.Decode(&value) != nil || !publicinventory.ValidFingerprint(value) {
+				return bad()
+			}
+			input.Fingerprint = value
 		case "domains":
 			var value []string
 			if mode != "start" || d.Decode(&value) != nil {
@@ -100,10 +108,10 @@ func readOrderInput(w http.ResponseWriter, r *http.Request, mode string) (orderI
 	if mode == "status" {
 		count = 1
 	}
-	if mode == "start" {
+	if mode == "start" || mode == "renew" {
 		count = 5
 	}
-	if err != nil || token != json.Delim('}') || len(seen) != count || !seen["provider"] || (mode != "status" && (!seen["password"] || !seen["confirm"] || !seen["expected_generation"])) || (mode == "start" && !seen["domains"]) {
+	if err != nil || token != json.Delim('}') || len(seen) != count || !seen["provider"] || (mode != "status" && (!seen["password"] || !seen["confirm"] || !seen["expected_generation"])) || (mode == "start" && !seen["domains"]) || (mode == "renew" && !seen["fingerprint"]) {
 		return bad()
 	}
 	_, err = d.Token()
@@ -205,7 +213,7 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			http.Error(w, "Only a completed request or known expired deadline can be closed. Unknown or active requests must not be replaced.", http.StatusConflict)
 			return
 		}
-		if mode == "start" && newRequest.Reason == "clock-unavailable" {
+		if (mode == "start" || mode == "renew") && newRequest.Reason == "clock-unavailable" {
 			http.Error(w, "Clock moved backwards. Refresh after correcting the clock.", http.StatusConflict)
 			return
 		}
@@ -217,9 +225,16 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			http.Error(w, "Confirm unexpired CA verification first; an existing certificate key is never replaced.", http.StatusConflict)
 			return
 		}
-		if (mode == "start" && status.State != "not-started") || (mode == "resume" && status.State != "order-known" && status.State != "dns-ready" && status.State != "dns-acknowledged") || (mode == "ack" && status.State != "dns-ready") || (mode == "validate" && status.State != "dns-acknowledged") || (mode == "refresh" && !acmeorder.ValidationStarted(status.State)) {
+		if ((mode == "start" || mode == "renew") && status.State != "not-started") || (mode == "resume" && status.State != "order-known" && status.State != "dns-ready" && status.State != "dns-acknowledged") || (mode == "ack" && status.State != "dns-ready") || (mode == "validate" && status.State != "dns-acknowledged") || (mode == "refresh" && !acmeorder.ValidationStarted(status.State)) {
 			http.Error(w, "This action is not available for the saved order. Refresh status; do not create another order.", http.StatusConflict)
 			return
+		}
+		if mode == "renew" {
+			_, sourceGen, sourceErr := instanceaccess.ReadStagingRenewalSource(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, input.Fingerprint)
+			if sourceErr != nil || sourceGen != gen {
+				http.Error(w, "Refresh Certificates and choose a saved Rootwell test certificate. Its old request must be closed first.", http.StatusConflict)
+				return
+			}
 		}
 		if !g.allowAttempt() {
 			w.Header().Set("Retry-After", "60")
@@ -278,9 +293,14 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 				if connect == nil {
 					connect = acmestaging.DNSOrder
 				}
-				status, gen, err = instanceaccess.RunStagingOrder(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, input.Names, mode == "resume", permit, func(signer crypto.Signer, account, order string, names []string, checkpoint func(string) error) (acmeorder.Instructions, error) {
+				use := func(signer crypto.Signer, account, order string, names []string, checkpoint func(string) error) (acmeorder.Instructions, error) {
 					return connect(r.Context(), permit, signer, account, order, names, checkpoint)
-				})
+				}
+				if mode == "renew" {
+					status, gen, err = instanceaccess.RunStagingRenewalOrder(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, input.Fingerprint, permit, use)
+				} else {
+					status, gen, err = instanceaccess.RunStagingOrder(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen, input.Names, mode == "resume", permit, use)
+				}
 			}
 		}
 		if err != nil || !permit() {
@@ -314,5 +334,5 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	verified := status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v6", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "resume" || mode == "validate" || mode == "refresh" || mode == "issue" || mode == "certificate-refresh", Saved: status.State != "not-started", DomainVerified: verified, CanIssue: verified && certificateKey.Prepared && issuance.State == "not-started", CertificateKey: certificateKey, Issuance: issuance, NewRequest: newRequest})
+	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v7", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "renew" || mode == "resume" || mode == "validate" || mode == "refresh" || mode == "issue" || mode == "certificate-refresh", Saved: status.State != "not-started", DomainVerified: verified, CanIssue: verified && certificateKey.Prepared && issuance.State == "not-started", CertificateKey: certificateKey, Issuance: issuance, NewRequest: newRequest})
 }

@@ -290,6 +290,22 @@ archives; prior backups/host-clock rollback are not prevented. Maximum 32 scopes
 no silent pruning; pending prepared keys remain encrypted but have no historical
 key-export UI. Manual renewal and retention/cleanup need separate decisions.
 
+## Manual staging renewal — ADR 0064
+
+Exact-generation public same-tab selection from Certificates is not authority:
+only authenticated Rootwell staging completion supplies names/source. Imported
+certificates cannot trigger this path. Separate explicit closure precedes fresh
+password/consent new order; the bounded existing protocol is unchanged. An
+optional sealed renewal_source links the new scope to a chronologically earlier
+completion; whole-image validation checks exact names/account/new-key difference,
+no self/forward/orphan/deleted active source. Active source deletion refuses
+until local closure; later historical deletion is linked by time/generation.
+Prior pair/notes and new pair remain separate; no automatic replacement or
+deployment, revocation, key reuse or claimed validity extension. Complete backup
+and recovery preserve linkage. V7 bounded public status/selection and UI clear
+stale/hidden/late/error authority. No automatic network, retry, polling, ARI or
+scheduler; no production renewal-rate exemption or live CA QA/audit claim.
+
 ## Evidence required
 
 Success, malformed/refusal, secret-free errors, no unapproved outbound/storage capability,

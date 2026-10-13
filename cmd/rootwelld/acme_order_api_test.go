@@ -118,15 +118,16 @@ func FuzzManualDNSRequest(f *testing.F) {
 	f.Add([]byte(orderStatusInput))
 	f.Add([]byte(orderRequest("4", true)))
 	f.Add([]byte(orderRequest("6", false)))
+	f.Add([]byte(renewalRequest("14", strings.Repeat("AB:", 31)+"AB")))
 	f.Fuzz(func(t *testing.T, body []byte) {
 		if len(body) > 4097 {
 			return
 		}
-		for _, mode := range []string{"status", "start", "resume", "ack", "validate", "refresh", "prepare-key", "issue", "certificate-refresh", "close-request"} {
+		for _, mode := range []string{"status", "start", "renew", "resume", "ack", "validate", "refresh", "prepare-key", "issue", "certificate-refresh", "close-request"} {
 			r := httptest.NewRequest("POST", "/", strings.NewReader(string(body)))
 			r.Header.Set("Content-Type", "application/json")
 			input, ok := readOrderInput(httptest.NewRecorder(), r, mode)
-			if !ok && (input.Password != "" || input.Expected != 0 || input.Names != nil) {
+			if !ok && (input.Password != "" || input.Expected != 0 || input.Names != nil || input.Fingerprint != "") {
 				t.Fatal("partial authority")
 			}
 		}

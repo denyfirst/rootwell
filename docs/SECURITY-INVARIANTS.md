@@ -1661,6 +1661,32 @@ Guards: `TestClosedCompletedRequestPreservesPairOriginNotesDeleteAndNewOrder`,
 `TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority` and strict
 API/UI/lifecycle/demo tests. Two-way compiling sabotage evidence: ADR 0063.
 
+## C84 — Manual renewal never borrows or replaces the original key
+
+ADR 0064 limits source selection to an authenticated saved Rootwell staging
+completion. Exact-generation same-tab navigation exposes only names/fingerprint,
+no URI/key/DER/notes or authority. Separate closure, fresh consent/password and
+generation precede new intent; existing writer/revision/permit and bounded fixed
+protocol remain. Chronological closed-scope graph validation proves earlier
+source, exact account/names and different new key, rejects orphan/self/forward
+and deleted active source before any output. Active source deletion refuses;
+later deletion preserves authenticated historical tombstones after closure.
+New and original pairs/notes coexist, full recovery preserves linkage. V7
+strict source/generation/consent/cancellation UI; native early refusal and fake
+read-only preview are not real CA proof. No auto-retry/scheduler/ARI, replacement,
+revocation, deployment, validity extension or renewal-rate exemption claim.
+
+Guards: `TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeletion`,
+`TestManualRenewalRefusesStaleOrphanActiveDeletedNamesAndTamperedLinks`,
+`FuzzRenewalOrderBinding`, `FuzzManualDNSRequest`,
+`TestLinuxRenewalIntentBeforeIOReadOnlyResumeAndFullRecovery`,
+`TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
+`TestNativeRenewalRefusesBeforeFilesAndPermit`,
+`TestRenewalRequestAndNavigationStrictShapeNoPartialSelection`,
+`TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`, strict V7 UI,
+inventory/history/demo tests and inherited pinned receipt/no-replay tests.
+Actual compiling two-way sabotage and final evidence are recorded in ADR 0064/PR.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

@@ -590,6 +590,13 @@ const item = elements.records.children[0];
 assert.ok(item.children.some(child=>/Test certificate.*not for production/.test(child.textContent)));
 const stagingDetails = item.children.find(child=>child.className==="record-details");
 assert.ok(stagingDetails.children.some(child=>/not ordinary browser trust, revocation or deployment/.test(child.textContent)));
+const renewalForm=stagingDetails.children.find(child=>child.action==="/automation/renew#certificate-request");
+assert.ok(renewalForm);assert.equal(renewalForm.method,"post");
+assert.deepEqual(renewalForm.children.filter(node=>node.type==="hidden").map(node=>[node.name,node.value]),[["fingerprint",stagingRecord.fingerprint],["expected_generation",String(response.generation)],["tool","renew"]]);
+assert.equal(renewalForm.children.at(-1).textContent,"Renew test certificate");
+let stoppedRenewal=false;renewalForm.listeners.submit({preventDefault(){stoppedRenewal=true;}});assert.equal(stoppedRenewal,false);
+mockDocument.hidden=true;renewalForm.listeners.submit({preventDefault(){stoppedRenewal=true;}});assert.equal(stoppedRenewal,true);mockDocument.hidden=false;
+for(const record of [{...stagingRecord,staging_origin:undefined},{...stagingRecord,staging_origin:undefined,has_private_key:false,key_status:"none"},{...stagingRecord,staging_origin:undefined,key_status:"mismatch"}]){currentResponse={...response,records:[record]};await elements["refresh-button"].listeners.click();const details=elements.records.children[0].children.find(child=>child.className==="record-details");assert.equal(details.children.some(child=>child.action==="/automation/renew#certificate-request"),false,"unsupported/imported certificate must not claim renewal");}
 for (const forged of [{...stagingOrigin,test_only:false},{...stagingOrigin,provider:"production"},{...stagingOrigin,root_fingerprint:"<script>"},{...stagingOrigin,verified_at:"2020-01-01T00:00:00Z"},{...stagingOrigin,private_key:"do-not-echo"},null]) {
   currentResponse = {...response,records:[{...stagingRecord,staging_origin:forged}]};
   await elements["refresh-button"].listeners.click();assert.equal(elements.records.children.length,0,"forged provenance returned partial inventory");

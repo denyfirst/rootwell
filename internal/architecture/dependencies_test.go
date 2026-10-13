@@ -52,6 +52,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_account_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_registration_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_order_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_renewal_navigation.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
@@ -283,7 +284,7 @@ func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T)
 				if (ident.Name == "CloseStagingRequest" || ident.Name == "ReadNewStagingRequest") && !allowedClose[rel] {
 					t.Errorf("unreviewed closed scope consumer: %s", rel)
 				}
-				if (ident.Name == "closedScope" || ident.Name == "openClosedRequest" || ident.Name == "closeStagingRequestAt") && rel != "internal/inventorystore/closed_requests.go" {
+				if (ident.Name == "closedScope" || ident.Name == "openClosedRequest" || ident.Name == "closeStagingRequestAt") && rel != "internal/inventorystore/closed_requests.go" && !(ident.Name == "openClosedRequest" && rel == "internal/inventorystore/renewal.go") {
 					t.Errorf("historical scope exported outside validator: %s", rel)
 				}
 				if ident.Name == "beginStagingOrderAt" && rel != "internal/inventorystore/orders.go" {
@@ -292,6 +293,49 @@ func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T)
 			}
 			if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "historical" && rel != "internal/inventorystore/closed_requests.go" && rel != "internal/inventorystore/issuance.go" {
 				t.Errorf("historical flag outside bound validator: %s", rel)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestManualRenewalConsumersStayInsideReviewedCustodyAndGate(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
+	allowed := map[string]map[string]bool{
+		"BeginStagingRenewal":      {"internal/inventorystore/renewal.go": true, "internal/instanceaccess/acme_order_linux.go": true},
+		"ReadStagingRenewalSource": {"internal/inventorystore/renewal.go": true, "internal/instanceaccess/acme_renewal_linux.go": true, "internal/instanceaccess/acme_renewal_other.go": true, "cmd/rootwelld/acme_renewal_navigation.go": true, "cmd/rootwelld/acme_order_api.go": true},
+		"RunStagingRenewalOrder":   {"internal/instanceaccess/acme_order_linux.go": true, "internal/instanceaccess/acme_order_other.go": true, "cmd/rootwelld/acme_order_api.go": true},
+		"runStagingOrder":          {"internal/instanceaccess/acme_order_linux.go": true},
+		"renewalSource":            {"internal/inventorystore/renewal.go": true},
+		"checkRenewalBinding":      {"internal/inventorystore/renewal.go": true, "internal/inventorystore/closed_requests.go": true},
+		"renewalKeyFingerprint":    {"internal/inventorystore/renewal.go": true, "internal/inventorystore/closed_requests.go": true},
+	}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		ast.Inspect(file, func(node ast.Node) bool {
+			if ident, ok := node.(*ast.Ident); ok {
+				if files, guarded := allowed[ident.Name]; guarded && !files[rel] {
+					t.Errorf("unreviewed renewal consumer: %s (%s)", rel, ident.Name)
+				}
 			}
 			return true
 		})

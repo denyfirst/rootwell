@@ -12,25 +12,28 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/acmeorder"
 	"github.com/denyfirst/rootwell/internal/inventoryseal"
+	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
 type OrderStatus struct {
-	State   string          `json:"state"`
-	Domains []string        `json:"domains"`
-	Expires string          `json:"expires"`
-	Records []acmeorder.TXT `json:"records"`
+	State         string          `json:"state"`
+	Domains       []string        `json:"domains"`
+	Expires       string          `json:"expires"`
+	Records       []acmeorder.TXT `json:"records"`
+	RenewalSource string          `json:"renewal_source"`
 }
 
 type orderPayload struct {
-	State       string                `json:"state"`
-	Fingerprint string                `json:"fingerprint"`
-	Started     string                `json:"started"`
-	Domains     []string              `json:"domains"`
-	URL         string                `json:"url,omitempty"`
-	Expires     string                `json:"expires,omitempty"`
-	Records     []acmeorder.TXT       `json:"records,omitempty"`
-	Validation  *acmeorder.Validation `json:"validation,omitempty"`
-	CheckedAt   string                `json:"checked_at,omitempty"`
+	State         string                `json:"state"`
+	Fingerprint   string                `json:"fingerprint"`
+	Started       string                `json:"started"`
+	Domains       []string              `json:"domains"`
+	URL           string                `json:"url,omitempty"`
+	Expires       string                `json:"expires,omitempty"`
+	Records       []acmeorder.TXT       `json:"records,omitempty"`
+	Validation    *acmeorder.Validation `json:"validation,omitempty"`
+	CheckedAt     string                `json:"checked_at,omitempty"`
+	RenewalSource string                `json:"renewal_source,omitempty"`
 }
 
 func orderID() []byte { sum := sha256.Sum256([]byte("rootwell.acme-staging-order.v1")); return sum[:] }
@@ -60,7 +63,7 @@ func openOrder(key, id []byte, m manifest) (orderPayload, error) {
 	}
 	defer clear(plain)
 	var p orderPayload
-	if !strictJSON(plain, &p) || !acmeorder.CanonicalNames(p.Domains) || !acmeorder.Time(p.Started) {
+	if !strictJSON(plain, &p) || !acmeorder.CanonicalNames(p.Domains) || !acmeorder.Time(p.Started) || p.RenewalSource != "" && !publicinventory.ValidFingerprint(p.RenewalSource) {
 		return orderPayload{}, ErrInvalid
 	}
 	status, err := accountStatus(key, id, m)
@@ -106,7 +109,7 @@ func openOrder(key, id []byte, m manifest) (orderPayload, error) {
 }
 
 func publicOrder(p orderPayload) OrderStatus {
-	return OrderStatus{State: p.State, Domains: slices.Clone(p.Domains), Expires: p.Expires, Records: slices.Clone(p.Records)}
+	return OrderStatus{State: p.State, Domains: slices.Clone(p.Domains), Expires: p.Expires, Records: slices.Clone(p.Records), RenewalSource: p.RenewalSource}
 }
 
 func ReadStagingOrder(key, id, image []byte) (OrderStatus, uint64, error) {
@@ -145,7 +148,11 @@ func sealOrder(key, id []byte, m manifest, p orderPayload, action string) ([]byt
 	if _, err := openOrder(key, id, m); err != nil {
 		return nil, OrderStatus{}, 0, err
 	}
-	if err := addEvent(key, &m, action, []string{p.Fingerprint}); err != nil {
+	eventFingerprint := p.Fingerprint
+	if action == "acme-renewal-started" {
+		eventFingerprint = p.RenewalSource
+	}
+	if err := addEvent(key, &m, action, []string{eventFingerprint}); err != nil {
 		return nil, OrderStatus{}, 0, err
 	}
 	image, err := encode(key, m)

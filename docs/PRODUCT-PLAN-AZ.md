@@ -44,7 +44,16 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-13 cari icra — ADR 0063:** tamamlanmış və ya məlum müddəti bitmiş
+**2026-10-13 cari icra — ADR 0064:** saxlanmış Rootwell staging sertifikatından
+manual test yeniləmə: server-derived eyni domenlər, fresh parol/razılıq, ayrıca
+durable yeni sorğu və müstəqil açar; əvvəlki cüt/qeydlər qalır. Yeniləmə mənbəyi
+şifrəli order-də bağlıdır, tarixçə/tam bərpa/silmə qaydaları onu qoruyur.
+Certificates → eyni Automation kartı, V7 sadə UI. Bu imported/production
+sertifikatı başqa CA-da yeniləmək, ARI, scheduler, DNS avtomatlaşdırması və ya
+deploy deyil. Production auditi ayrıca qalır; manual nəticə UX-i/ARI/backoff və
+scoped DNS adapterləri sonrakı increment-lərdir.
+
+**2026-10-13 əvvəlki icra — ADR 0063:** tamamlanmış və ya məlum müddəti bitmiş
 staging sorğusunu fresh parol/razılıqla yalnız lokal bağlamaq və ayrıca yeni
 sorğu hazırlamaq. Saxlanmış sertifikat/açar/qeydlər və test-only mənbə qalır;
 köhnə sorğu/lease dirçəlmir, aktiv və naməlum sorğu bloklanır. Məhdud şifrəli
