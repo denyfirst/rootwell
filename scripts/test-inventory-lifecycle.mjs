@@ -37,6 +37,7 @@ function start(){
       if(mode==="certificate-request-history")events[events.length-1].action="acme-certificate-key-prepared";
       if(mode==="issuance-history"){events[events.length-2].action="acme-issuance-started";events[events.length-1].action="acme-issuance-observed";}
       if(mode==="completion-history")events[events.length-1].action="acme-certificate-saved";
+      if(mode==="closed-history")events[events.length-1].action="acme-request-closed";
       if(mode==="unknown-history")events[events.length-1].action="acme-issuance-issued";
       if(mode==="bad-history")events[1].generation=999;
       return new Response(JSON.stringify({schema_version:"rootwell.inventory.activity.v1",generation:56,events,monitoring:{status:"ready",checked_at:now,expires_at:end,generation:56,attention:[]}}));
@@ -57,6 +58,7 @@ ui.setMode("certificate-request-history");await ui.api.refreshActivity();assert.
 assert.match(ui.el("history-events").children[0].textContent,/Certificate key$/);assert.doesNotMatch(ui.el("history-events").children[0].textContent,/Account key/);
 ui.setMode("issuance-history");await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,50);assert.match(ui.el("history-events").children[0].textContent,/checked.*no certificate saved.*Certificate key$/);assert.match(ui.el("history-events").children[1].textContent,/started.*outcome not confirmed.*Certificate key$/);
 ui.setMode("completion-history");await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,50);assert.match(ui.el("history-events").children[0].textContent,/Test certificate and matching key saved.*Certificate$/);assert.doesNotMatch(ui.el("history-events").children[0].textContent,/Account key|Certificate key|deployed|production trusted/);
+ui.setMode("closed-history");await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,50);assert.match(ui.el("history-events").children[0].textContent,/closed locally.*saved certificates kept.*Account key$/);
 const stale=start();stale.setMode("stale");await stale.api.open(record,5);assert.match(stale.el("comparison-status").textContent,/unavailable or changed/);stale.select([sameFile]);await stale.el("comparison-button").listeners.click();assert.equal(stale.el("comparison-result").children.length,0);
 const hidden=start();await hidden.api.open(record,5);let release;hidden.select([{size:leaf.raw.length,name:"late.der",arrayBuffer:()=>new Promise(resolve=>{release=resolve;})}]);const comparing=hidden.el("comparison-button").listeners.click();await settle();hidden.document.hidden=true;hidden.docEvents.visibilitychange();release(Uint8Array.from(leaf.raw).buffer);await comparing;assert.equal(hidden.el("comparison-result").children.length,0);assert.equal(hidden.el("comparison-panel").hidden,true);
 const late=start();let finishSource;late.setDelay(new Promise(resolve=>{finishSource=resolve;}));const opening=late.api.open(record,5);await settle();late.api.invalidate();finishSource();await opening;assert.equal(late.el("comparison-target").textContent,"");assert.equal(late.el("comparison-panel").hidden,true);

@@ -44,12 +44,21 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-12 cari icra — ADR 0062:** UI-dan explicit test issuance və eyni
+**2026-10-13 cari icra — ADR 0063:** tamamlanmış və ya məlum müddəti bitmiş
+staging sorğusunu fresh parol/razılıqla yalnız lokal bağlamaq və ayrıca yeni
+sorğu hazırlamaq. Saxlanmış sertifikat/açar/qeydlər və test-only mənbə qalır;
+köhnə sorğu/lease dirçəlmir, aktiv və naməlum sorğu bloklanır. Məhdud şifrəli
+tarixçə tam bərpa/pair silmə ilə yoxlanır; bu CA cancellation/revocation deyil.
+V6 eyni Automation kartıdır, browser nümunəsi fake/read-only. Test/CI/self-review
+development qapısı production audit deyil. Növbəti increment manual yeniləmə,
+daha sonra DNS avtomatlaşdırmasıdır.
+
+**2026-10-12 əvvəlki icra — ADR 0062:** UI-dan explicit test issuance və eyni
 sifarişin read-only nəticəsi; fresh parol, razılıq, exact lease, intent-before-I/O,
 pinned receipt və atomik pair bir transaction-dadır. Müddət yalnız qısala bilər;
 yarımçıq cavab yenidən finalize edilmir. V5 sadə düymələr və fake/read-only
-browser nümayişi; real CA sınağı və production deyil. Renewal/DNS, yeni sifariş/
-expired/reset siyasəti və kənar release auditi ayrıca sonrakı mərhələdir.
+browser nümayişi; real CA sınağı və production deyil. Yeni sorğu ADR 0063-dədir;
+renewal/DNS və kənar release auditi ayrıca sonrakı mərhələdir.
 
 **2026-10-12 əvvəlki icra — ADR 0061:** daxili atomik staging pair completion:
 real pinned receipt yoxlaması, eyni açarın Certificates material-a keçirilməsi,

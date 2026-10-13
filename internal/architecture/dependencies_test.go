@@ -258,6 +258,50 @@ func TestCertificateTransactionProductionCompletionIsFixed(t *testing.T) {
 	}
 }
 
+func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
+	allowedClose := map[string]bool{"internal/inventorystore/closed_requests.go": true, "internal/instanceaccess/acme_new_request_linux.go": true, "internal/instanceaccess/acme_new_request_other.go": true, "cmd/rootwelld/acme_order_api.go": true}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		ast.Inspect(file, func(node ast.Node) bool {
+			if ident, ok := node.(*ast.Ident); ok {
+				if (ident.Name == "CloseStagingRequest" || ident.Name == "ReadNewStagingRequest") && !allowedClose[rel] {
+					t.Errorf("unreviewed closed scope consumer: %s", rel)
+				}
+				if (ident.Name == "closedScope" || ident.Name == "openClosedRequest" || ident.Name == "closeStagingRequestAt") && rel != "internal/inventorystore/closed_requests.go" {
+					t.Errorf("historical scope exported outside validator: %s", rel)
+				}
+				if ident.Name == "beginStagingOrderAt" && rel != "internal/inventorystore/orders.go" {
+					t.Errorf("runtime new-order clock override: %s", rel)
+				}
+			}
+			if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "historical" && rel != "internal/inventorystore/closed_requests.go" && rel != "internal/inventorystore/issuance.go" {
+				t.Errorf("historical flag outside bound validator: %s", rel)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // This regression guard is not a sandbox: new ACME capabilities need an
 // explicit boundary review, not an accidental client/storage import.
 func TestACMESetupHasNoOutboundOrPersistenceImports(t *testing.T) {

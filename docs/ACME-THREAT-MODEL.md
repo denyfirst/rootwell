@@ -275,6 +275,21 @@ capacity must be solved in separate increments before production readiness.
    No Porch changes or shell/SSH capability in this increment. Production
    enrollment/release requires independent audit and explicit decisions.
 
+## Closed request custody — ADR 0063
+
+Explicit local closure requires fresh password/consent, exact generation and
+writer revision/permission. Only completed or authenticated known-expired
+scopes qualify; active or unknown creation refuses. Expiry/closure cannot prove
+non-issuance, cancel/revoke at the CA or authorize old-order replay. A separately
+sealed bounded archive retains exact nested ciphertext and validates all
+bindings before output; no lease/network/reopen/export interface. New starts
+are separate durable intents with fresh consent; archived URLs cannot be reused.
+Saved material, notes, account and derived test-only origin remain. Deleting a
+pair updates the historical deletion tombstone atomically. Full restore retains
+archives; prior backups/host-clock rollback are not prevented. Maximum 32 scopes,
+no silent pruning; pending prepared keys remain encrypted but have no historical
+key-export UI. Manual renewal and retention/cleanup need separate decisions.
+
 ## Evidence required
 
 Success, malformed/refusal, secret-free errors, no unapproved outbound/storage capability,

@@ -31,6 +31,16 @@ func testGate(t *testing.T) (*gate, string) {
 	if err := instanceaccess.Create(path, initialTestPassword); err != nil {
 		t.Fatal(err)
 	}
+	g, err := newGate(path, testWorkbenchAssets(t), localHost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = g.Close() })
+	return g, path
+}
+
+func testWorkbenchAssets(t *testing.T) string {
+	t.Helper()
 	assets := t.TempDir()
 	for name, body := range map[string]string{
 		"index.html": "protected workbench", "app.js": "protected javascript", "secret-view.js": "protected transient secret view", "private-key.js": "protected private javascript", "rootwell.wasm": "protected wasm",
@@ -43,12 +53,7 @@ func testGate(t *testing.T) (*gate, string) {
 			t.Fatal(err)
 		}
 	}
-	g, err := newGate(path, assets, localHost)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = g.Close() })
-	return g, path
+	return assets
 }
 
 func call(g *gate, method, route, body string, cookie *http.Cookie) *httptest.ResponseRecorder {

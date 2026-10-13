@@ -69,9 +69,9 @@ const assets = new Map([
   ["/inventory.js", ["text/javascript; charset=utf-8", script]],
   ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js", "certificate-library.js", "saved-key-attachment.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
 ]);
-// Visual QA only: one FAKE prepared status, no account/order/key or CA I/O.
+// Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
-let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake prepared request, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the next step. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
+let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake completed request, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the next step. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
 automationHTML=replaceOnce(automationHTML,'<section class="card" id="certificate-request">','<section class="card" id="certificate-request"><p class="storage-note">DEMO · fake status only, no saved key or CA operation. Actions disabled.</p>');
 let automationScript=replaceOnce(asset("acme-order.js"),"refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;","refresh.disabled=!!active; names.disabled=true; consent.disabled=true; password.disabled=true; resumeChoice.disabled=true;");
 automationScript=replaceOnce(automationScript,"submit.disabled=!!active || document.hidden", "submit.disabled=true || !!active || document.hidden");
@@ -99,7 +99,7 @@ const server = http.createServer((request, response) => {
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
       const preparedAt=instant(0);
-      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.manual-dns.v5",provider:"letsencrypt-staging",generation:11,state:"domain-verified",domains:["demo.example.com"],expires:instant(1),records:[{domain:"demo.example.com",name:"_acme-challenge.demo.example.com",value:"",required:false}],network_used:false,saved:true,domain_verified:true,can_issue:true,certificate_key:{prepared:true,fingerprint:"AB:".repeat(31)+"AB",prepared_at:preparedAt},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""}}));
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.manual-dns.v6",provider:"letsencrypt-staging",generation:11,state:"domain-verified",domains:["demo.example.com"],expires:instant(1),records:[{domain:"demo.example.com",name:"_acme-challenge.demo.example.com",value:"",required:false}],network_used:false,saved:true,domain_verified:true,can_issue:false,certificate_key:{prepared:true,fingerprint:"AB:".repeat(31)+"AB",prepared_at:preparedAt},issuance:{state:"certificate-saved",started_at:preparedAt,checked_at:preparedAt,observation:"saved",expires:instant(1)},new_request:{available:true,reason:"complete",closed_count:0}}));
     });return;
   }
   if (request.method === "POST" && request.url === "/workbench") {
