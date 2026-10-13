@@ -95,6 +95,7 @@ func TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeleti
 		t.Fatal(err)
 	}
 	image, newFP, gen := completeRenewalFixture(t, key, id, image, gen)
+	assertRenewalResult(t, key, id, image, gen, fp, newFP)
 	if newFP == fp {
 		t.Fatal("renewal overwrote original")
 	}
@@ -117,6 +118,9 @@ func TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeleti
 		t.Fatal(err)
 	}
 	assertRenewalForwardSelfRefused(t, key, id, image, newFP)
+	if result, g, err := ReadStagingRenewalResult(key, id, image, gen); err != nil || result != nil || g != gen {
+		t.Fatal("closed renewal retained an active result")
+	}
 	image, gen, err = DeleteRecord(key, id, image, fp, gen)
 	if err != nil {
 		t.Fatal("closed renewal prevented explicit old deletion", err)
@@ -250,6 +254,10 @@ func assertRenewalReusedKeyRefused(t *testing.T, key, id, image, closed []byte, 
 
 // Synthetic checked completion only; no runtime trust override or real CA.
 func completeRenewalFixture(t *testing.T, key, id, image []byte, gen uint64) ([]byte, string, uint64) {
+	return completeRenewalWithLifetime(t, key, id, image, gen, time.Hour)
+}
+
+func completeRenewalWithLifetime(t *testing.T, key, id, image []byte, gen uint64, lifetime time.Duration) ([]byte, string, uint64) {
 	t.Helper()
 	m, _, err := decode(key, id, image)
 	if err != nil {
@@ -275,7 +283,7 @@ func completeRenewalFixture(t *testing.T, key, id, image []byte, gen uint64) ([]
 	if err != nil {
 		t.Fatal(err)
 	}
-	lt := &x509.Certificate{SerialNumber: big.NewInt(12), DNSNames: slices.Clone(request.Names), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, NotBefore: at.Add(-time.Minute), NotAfter: at.Add(time.Hour)}
+	lt := &x509.Certificate{SerialNumber: big.NewInt(12), DNSNames: slices.Clone(request.Names), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, NotBefore: at.Add(-time.Minute), NotAfter: at.Add(lifetime)}
 	ld, err := x509.CreateCertificate(rand.Reader, lt, root, csr.PublicKey, rootKey)
 	if err != nil {
 		t.Fatal(err)
@@ -360,6 +368,9 @@ func TestManualRenewalRefusesStaleOrphanActiveDeletedNamesAndTamperedLinks(t *te
 		}
 		if records, g, err := Open(key, id, encoded); err == nil || records != nil || g != 0 {
 			t.Fatal("tampered renewal exposed partial source")
+		}
+		if result, g, err := ReadStagingRenewalResult(key, id, encoded, 15); err == nil || result != nil || g != 0 {
+			t.Fatal("valid-MAC tampered renewal exposed partial comparison")
 		}
 	}
 	if !bytes.Equal(before, closed) {

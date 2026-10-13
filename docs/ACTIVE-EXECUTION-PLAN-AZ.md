@@ -37,7 +37,17 @@ scanning entitlement yoxdur. Heç bir qayda/check silinmir və yoxlama keçilmi�
 sayılmır. Məcburi exact-head CI/ruleset/CodeQL qapısı təmin edilmədən merge yoxdur;
 uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələb edilir.
 
-**Cari increment — ADR 0064:** Certificates-də saxlanmış Rootwell staging
+**Cari increment — ADR 0065:** manual test yeniləmənin nəticəsi eyni Automation
+kartında: əvvəlki/yeni bitmə tarixləri, köhnə cütün/qeydlərin qaldığı və yeni
+cütün ayrıca saxlandığı. Tam şifrəli image/revision/generation yoxlanır, public
+Compare nüvəsi tarixləri hesablayır. Eyni/daha qısa ömür “əlavə vaxt” deyil;
+current trust/revoke/deploy yoxlanmış sayılmır. V8 bounded read-only xülasə,
+private data/endpoint/dependency/format dəyişmir. Pending/deleted/closed/ordinary
+scope-da aktiv nəticə yoxdur. Local/model/VM/sabotage/browser → signed PR → bütün
+exact-head CI → ayrıca self-review → merge. Sonra ARI/backoff siyasəti və scoped
+DNS avtomatlaşdırması ayrıca qapılardır; prod/audit hələ yoxdur.
+
+**Əvvəlki increment — ADR 0064 (PR #95, bütün 13 yoxlama keçib):** Certificates-də saxlanmış Rootwell staging
 sertifikatından explicit manual yeniləmə. Server eyni domenləri yoxlanmış
 completion-dan götürür; istifadəçi köhnə sorğunu ayrıca bağlayır, sonra fresh
 parol/razılıqla yeni sorğu yaradır. Köhnə cüt/qeydlər qalır, yeni açar müstəqildir,

@@ -78,6 +78,7 @@
       <p>After registering your test account, request the TXT records for domains you control. Add them in your DNS provider's dashboard — no DNS API password is needed.</p>
       <button id="acme-order-refresh" type="button" class="secondary">Check saved DNS request</button>
       <p id="acme-order-status" role="status" aria-live="polite">Nothing connects automatically. Check saved status first.</p>
+      <section id="acme-renewal-result" class="storage-note" aria-label="Saved test renewal result" hidden></section>
       <div id="acme-order-records" hidden></div>
       <form id="acme-order-form" class="csr-form" hidden>
         <div id="acme-order-names-row"><label for="acme-order-domains">Domains you control — one per line</label><textarea id="acme-order-domains" rows="3" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="example.com&#10;*.example.com"></textarea><p>Up to 8 unique ASCII DNS names, including wildcards. One saved request at a time.</p></div>

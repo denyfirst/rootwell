@@ -110,7 +110,7 @@ func TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder(t *testing.T)
 		t.Fatal(err)
 	}
 	w = orderCall(g, "close-request", orderRequest("13", false), cookie)
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v7" || output.NewRequest.ClosedCount != 1 || output.NewRequest.Reason != "not-started" || output.Generation != 14 || output.Network || output.Saved || output.CanIssue || output.CertificateKey.Prepared || output.Issuance.State != "not-started" || calls != 0 {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || output.Schema != "rootwell.acme.manual-dns.v8" || output.NewRequest.ClosedCount != 1 || output.NewRequest.Reason != "not-started" || output.Generation != 14 || output.Network || output.Saved || output.CanIssue || output.CertificateKey.Prepared || output.Issuance.State != "not-started" || calls != 0 {
 		t.Fatalf("valid local closure refused: %d", w.Code)
 	}
 	for _, secret := range []string{"private_key", "csr", "ciphertext", "/acme/order/", "sentinel"} {

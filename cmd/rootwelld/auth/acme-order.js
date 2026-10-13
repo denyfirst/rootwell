@@ -6,6 +6,8 @@
   const uncertain="Outcome not confirmed. Check saved request first. A sent request cannot be undone. Do not resend it or create another request; only read the same saved result.";
 	const renewalSummary=el("acme-renewal-summary"), renewalSource=el("acme-renewal-source"), fingerprint=value=>typeof value==="string" && /^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/.test(value);
 	let renewal=null, badSelection=false;
+  const renewalResult=el("acme-renewal-result");
+  const clearResult=()=>{renewalResult.hidden=true;renewalResult.replaceChildren();};
   const date=value=>typeof value==="string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).getUTCFullYear()>=2020 && new Date(value).toISOString()===value.replace("Z",".000Z");
   const domain=value=>typeof value==="string" && value.length<=255 && /^(?:\*\.)?[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(value) && value.includes(".") && !value.includes("..");
 	try {
@@ -30,17 +32,23 @@
   };
   const clearInputs=()=>{password.value="";consent.checked=false;};
   const invalidate=()=>{
+	  clearResult();
 	  renewal=null;badSelection=false;renewalSummary.hidden=true;renewalSummary.textContent="";
     generation++;active?.abort();snapshot=null;clearInputs();form.hidden=true;records.hidden=true;records.replaceChildren();resumeChoice.hidden=true;status.textContent=uncertain;enable();
   };
   const valid=(data,mode)=>{
-    if(!data || Array.isArray(data) || Object.keys(data).length!==15 || data.schema_version!=="rootwell.acme.manual-dns.v7" || typeof data.renewal_source!=="string" || data.renewal_source!=="" && (!fingerprint(data.renewal_source) || data.state==="not-started") || data.provider!=="letsencrypt-staging" || typeof data.can_issue!=="boolean" || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","renew","resume","validate","refresh","issue","certificate-refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
+    if(!data || Array.isArray(data) || Object.keys(data).length!==16 || data.schema_version!=="rootwell.acme.manual-dns.v8" || typeof data.renewal_source!=="string" || data.renewal_source!=="" && (!fingerprint(data.renewal_source) || data.state==="not-started") || data.provider!=="letsencrypt-staging" || typeof data.can_issue!=="boolean" || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","renew","resume","validate","refresh","issue","certificate-refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
     const next=data.new_request;
     if(!next || Array.isArray(next) || Object.keys(next).sort().join(",")!=="available,closed_count,reason" || typeof next.available!=="boolean" || !Number.isSafeInteger(next.closed_count) || next.closed_count<0 || next.closed_count>32 || !["not-started","unknown-order","active","complete","expired","capacity","clock-unavailable"].includes(next.reason) || next.available!==["complete","expired"].includes(next.reason))return false;
     if(next.reason==="not-started" && data.state!=="not-started" || next.reason==="unknown-order" && !["request-pending","order-known"].includes(data.state))return false;
 	  if(data.renewal_source && next.closed_count<1)return false;
     const key=data.certificate_key;
     const issuance=data.issuance;
+    const result=data.renewal_result;
+    const completedRenewal=!!data.renewal_source && issuance?.state==="certificate-saved";
+    if(completedRenewal){
+      if(!result || Array.isArray(result) || Object.keys(result).sort().join(",")!=="expiry_extended,new_expiry,new_fingerprint,original_expiry,original_fingerprint" || result.original_fingerprint!==data.renewal_source || !fingerprint(result.new_fingerprint) || result.new_fingerprint===result.original_fingerprint || !date(result.original_expiry) || !date(result.new_expiry) || typeof result.expiry_extended!=="boolean" || result.expiry_extended!==(Date.parse(result.new_expiry)>Date.parse(result.original_expiry)))return false;
+    }else if(result!==null)return false;
     if(!issuance || Array.isArray(issuance) || Object.keys(issuance).sort().join(",")!=="checked_at,expires,observation,started_at,state" || !["not-started","issuance-pending","not-issued","awaiting-certificate","issuance-failed","certificate-saved","saved-certificate-deleted"].includes(issuance.state))return false;
     if(issuance.state==="not-started") {if(issuance.started_at!=="" || issuance.checked_at!=="" || issuance.observation!=="" || issuance.expires!=="")return false;}
     else {
@@ -74,10 +82,28 @@
     form.hidden=false;enable();
   };
   const render=data=>{
+    clearResult();
     snapshot=data;clearInputs();records.replaceChildren();records.hidden=true;resumeChoice.hidden=true;form.hidden=true;
 	  if(badSelection || renewal && renewal.generation!==data.generation){badSelection=true;status.textContent="Selection changed. Return to Certificates, refresh and select Renew test certificate again.";enable();return;}
 	  if(renewal && data.state!=="not-started" && !data.new_request.available && data.renewal_source!==renewal.fingerprint){status.textContent="Another request is still active. Finish it in Automation before starting this renewal; nothing was replaced.";enable();return;}
+	  if(!renewal && !data.renewal_source){renewalSummary.hidden=true;renewalSummary.textContent="";}
 	  if(data.renewal_source){renewalSummary.textContent="Manual test renewal for "+data.domains.join(", ")+". Your original certificate and key stay saved. This uses a new key; no automatic replacement or deployment.";renewalSummary.hidden=false;}
+    if(data.renewal_result){
+      renewalSummary.hidden=true;
+      const result=data.renewal_result;
+      const add=(parent,tag,text)=>{const element=document.createElement(tag);element.textContent=text;parent.append(element);return element;};
+      add(renewalResult,"h3","Your renewed test certificate is saved");
+      add(renewalResult,"p","Domains: "+data.domains.join(", "));
+      const dates=add(renewalResult,"div","");dates.className="renewal-dates";
+      for(const [title,expiry] of [["Original — still saved",result.original_expiry],["New — saved separately",result.new_expiry]]){
+        const card=add(dates,"div","");add(card,"strong",title);add(card,"p","Expires: "+expiry.replace("T"," · ").replace("Z"," UTC"));
+      }
+      add(renewalResult,"p",result.expiry_extended?"The new certificate expires later than the original.":"The new expiry is not later than the original. Do not assume this renewal gives more time.");
+      add(renewalResult,"p","Both certificates and their separate matching keys are kept. Original notes are unchanged. Nothing was installed, replaced or revoked on your servers. These are test certificates; this comparison does not check current trust or revocation. Make a new full backup.");
+      const details=add(renewalResult,"details","");add(details,"summary","Certificate identities");
+      add(details,"p","Original SHA-256: "+result.original_fingerprint);add(details,"p","New SHA-256: "+result.new_fingerprint);
+      renewalResult.hidden=false;
+    }
     if(["clock-unavailable","capacity"].includes(data.new_request.reason)){
       status.textContent=data.new_request.reason==="clock-unavailable"?"The server clock moved backwards. A new request is blocked; correct the clock and check saved status again. Saved certificates and keys remain unchanged.":"The saved request history or storage write limit is reached. A new request is blocked; existing certificates and keys remain unchanged. Do not delete certificates to reset this limit.";
       if(data.issuance.state==="certificate-saved"){const link=document.createElement("a");link.href="/certificates";link.textContent="Open Certificates";records.append(link);records.hidden=false;}
@@ -136,6 +162,7 @@
     if(active || document.hidden || el("acme-provider").value!=="letsencrypt-staging")return;
     if(["ack","validate","refresh","prepare-key","issue","certificate-refresh"].includes(mode) && !usable()){status.textContent="This saved request has expired. Check saved status; do not use stale records or verification.";enable();return;}
     if(mode!=="status" && (submit.disabled || !snapshot || !consent.checked || !password.value))return;
+    clearResult();
     const expected=snapshot?.generation,original=snapshot?.domains?.slice(),originalRecords=JSON.stringify(snapshot?.records),originalExpiry=snapshot?.expires,originalKey=JSON.stringify(snapshot?.certificate_key),originalIssuance=snapshot?.issuance,originalSource=snapshot?.renewal_source,closedCount=snapshot?.new_request.closed_count,requested=mode==="renew"?renewal?.domains.slice():suppliedNames(),selectedSource=renewal?.fingerprint;
     const input={provider:"letsencrypt-staging"};if(mode!=="status"){input.confirm=true;input.expected_generation=expected;input.password=password.value;}if(mode==="start")input.domains=requested;
 	  if(mode==="renew")input.fingerprint=selectedSource;

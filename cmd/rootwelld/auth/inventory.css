@@ -6,6 +6,7 @@
 .inventory-workspace .storage-note p,
 .inventory-workspace .backup p { margin: .35rem 0 0; color: var(--ink-soft); font-size: .85rem; }
 .inventory-workspace .layout { display: grid; gap: 1.2rem; margin: 1.2rem 0; }
+.inventory-workspace .renewal-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem; margin: 1rem 0; }
 .inventory-workspace .card { min-width: 0; padding: 1.4rem; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper-raised); }
 .inventory-workspace .card h2 { margin: 0 0 .4rem; font-size: 1.25rem; font-weight: 650; }
 .inventory-workspace .card > p { color: var(--ink-soft); font-size: .85rem; }

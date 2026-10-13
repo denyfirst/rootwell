@@ -26,3 +26,23 @@ func ReadStagingRenewalSource(path string, key, id []byte, revision [32]byte, ex
 	}
 	return s, gen, nil
 }
+
+func ReadStagingRenewalResult(path string, key, id []byte, revision [32]byte, expected uint64) (*inventorystore.RenewalResult, uint64, error) {
+	var result *inventorystore.RenewalResult
+	var gen uint64
+	err := withAccessWriteLock(path, func() error {
+		if err := checkInventoryRevision(path, revision); err != nil {
+			return err
+		}
+		image, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
+		if err != nil {
+			return err
+		}
+		result, gen, err = inventorystore.ReadStagingRenewalResult(key, id, image, expected)
+		return err
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return result, gen, nil
+}

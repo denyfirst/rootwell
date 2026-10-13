@@ -1688,6 +1688,27 @@ Guards: `TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDe
 inventory/history/demo tests and inherited pinned receipt/no-replay tests.
 Actual compiling two-way sabotage and final evidence are recorded in ADR 0064/PR.
 
+## C85 — A renewal result cannot fabricate extension or replacement
+
+ADR 0065 authenticates the entire image and exact generation before deriving
+two exact public certificate identities/dates via the existing Compare core.
+Only a completed live active renewal has a result; ordinary/pending/deleted/
+closed scopes do not. No write, lease, private-key/notes output or CA connection.
+Linux revision/lock and final API session/generation checks remain. V8 UI rejects
+missing/malformed/foreign result or inconsistent date flag, clears prior output
+on reread/hidden/late/error, and never equates saved test issuance with current
+trust, revocation, extra time or deployment. No new persisted field or dependency.
+
+Guards: `TestRenewalResultRefusesStaleTamperedAndIncompleteWithoutPartialOutput`,
+`TestRenewalResultReportsShorterLifetimeWithoutAssumingExtension`,
+`TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeletion`,
+`TestLinuxRenewalResultReadOnlyRevisionAndFullRestore`,
+`TestLinuxRenewalResultAPIIsPublicReadOnlyAndSessionBound`,
+`TestNativeRenewalRefusesBeforeFilesAndPermit`,
+`TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`,
+`FuzzPublicComparison`, strict V8 UI/demo and inherited graph/receipt tests.
+Actual two-way sabotage and evidence are recorded in ADR 0065/PR.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

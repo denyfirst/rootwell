@@ -309,6 +309,7 @@ func TestManualRenewalConsumersStayInsideReviewedCustodyAndGate(t *testing.T) {
 	allowed := map[string]map[string]bool{
 		"BeginStagingRenewal":      {"internal/inventorystore/renewal.go": true, "internal/instanceaccess/acme_order_linux.go": true},
 		"ReadStagingRenewalSource": {"internal/inventorystore/renewal.go": true, "internal/instanceaccess/acme_renewal_linux.go": true, "internal/instanceaccess/acme_renewal_other.go": true, "cmd/rootwelld/acme_renewal_navigation.go": true, "cmd/rootwelld/acme_order_api.go": true},
+		"ReadStagingRenewalResult": {"internal/inventorystore/renewal_result.go": true, "internal/instanceaccess/acme_renewal_linux.go": true, "internal/instanceaccess/acme_renewal_other.go": true, "cmd/rootwelld/acme_order_api.go": true},
 		"RunStagingRenewalOrder":   {"internal/instanceaccess/acme_order_linux.go": true, "internal/instanceaccess/acme_order_other.go": true, "cmd/rootwelld/acme_order_api.go": true},
 		"runStagingOrder":          {"internal/instanceaccess/acme_order_linux.go": true},
 		"renewalSource":            {"internal/inventorystore/renewal.go": true},
