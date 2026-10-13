@@ -150,6 +150,14 @@ renewal remain separate. Existing rollback/backup retention/host residuals apply
 
 ## Residuals and acceptance evidence
 
+ADR 0065 derives an active saved-renewal result from authenticated public DER
+records only, under the existing writer/revision/exact-generation boundary.
+Five public identity/expiry fields, no private-key/notes copy or export; the
+existing complete image and backups are unchanged. Ordinary/pending/deleted/
+closed scopes have no active result. Date comparison does not newly check trust,
+revocation or deployment and never installs/replaces either pair. Browser stale/
+hidden/late/error output is cleared; the fake preview is not real pair custody.
+
 No reliable runtime/OS zeroization, external anti-rollback anchor, cryptographic
 erasure, CA signer custody, always-on monitoring credential, remote TLS gateway,
 HSM isolation or production assurance is provided. A leaked instance data key

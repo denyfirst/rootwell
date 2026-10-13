@@ -5,7 +5,7 @@ const source=fs.readFileSync("cmd/rootwelld/auth/acme-order.js","utf8"),html=fs.
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|WebSocket|XMLHttpRequest|sendBeacon|clipboard/);
 assert.match(html,/keep both Values/);assert.match(html,/Your acknowledgement does not verify DNS/);
 const domains=["*.example.com","example.com"],expiry=new Date(Date.now()+3600000).toISOString().replace(/\.\d{3}Z$/,"Z");
-const empty={schema_version:"rootwell.acme.manual-dns.v7",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],renewal_source:"",network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""},new_request:{available:false,reason:"not-started",closed_count:0}};
+const empty={schema_version:"rootwell.acme.manual-dns.v8",provider:"letsencrypt-staging",generation:4,state:"not-started",domains:[],expires:"",records:[],renewal_source:"",renewal_result:null,network_used:false,saved:false,domain_verified:false,can_issue:false,certificate_key:{prepared:false,fingerprint:"",prepared_at:""},issuance:{state:"not-started",started_at:"",checked_at:"",observation:"",expires:""},new_request:{available:false,reason:"not-started",closed_count:0}};
 const pending={...empty,generation:5,state:"request-pending",domains,saved:true,new_request:{available:false,reason:"unknown-order",closed_count:0}};
 const known={...pending,generation:6,state:"order-known"};
 const ready={...known,generation:7,state:"dns-ready",expires:expiry,records:domains.map((domain,i)=>({domain,name:"_acme-challenge.example.com",value:(i?"B":"A").repeat(42)+"A",required:true})),new_request:{available:false,reason:"active",closed_count:0}};
@@ -153,4 +153,32 @@ for(const bad of [{...renewalSelection,generation:15},{...renewalSelection,finge
 const renewableEmpty={...empty,generation:17,new_request:{...empty.new_request,closed_count:1}},renewableHint={...renewalSelection,generation:17};
 for(const bad of [{...ready,generation:20,renewal_source:"",network_used:true,new_request:{available:false,reason:"active",closed_count:1}},{...ready,generation:20,renewal_source:renewalFP,domains:["evil.example.com","example.com"],network_used:true,new_request:{available:false,reason:"active",closed_count:1}},{...ready,generation:20,renewal_source:renewalFP,network_used:true,new_request:{available:false,reason:"active",closed_count:0}}]){const f=fixture(renewableEmpty,renewableHint);await f.refresh();f.approve();f.override(()=>reply(bad));await f.submit();assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.equal(f.el("acme-order-submit").disabled,true);assert.equal(f.el("acme-renewal-summary").hidden,true);}
 for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},f=>f.windows.pagehide(),f=>f.el("acme-provider").listeners.change(),f=>f.el("acme-order-domains").listeners.input(),f=>[...f.timers.values()][0]()]){const f=fixture(renewableEmpty,renewableHint);await f.refresh();f.approve();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const pending=f.submit();while(!release)await new Promise(resolve=>setImmediate(resolve));boundary(f);release(reply({...ready,generation:20,network_used:true,renewal_source:renewalFP,new_request:{available:false,reason:"active",closed_count:1}}));await pending;assert.equal(f.el("acme-order-form").hidden,true);assert.equal(f.el("acme-order-submit").disabled,true);assert.equal(f.el("acme-renewal-summary").hidden,true);}
-console.log("Manual DNS v7 UI: explicit same-domain renewal, original preservation, no auto-start, strict source/generation and late/hidden/error refusal passed (VM, not visual QA).");
+console.log("Manual DNS v8 UI: explicit same-domain renewal, original preservation, no auto-start, strict source/generation and late/hidden/error refusal passed (VM, not visual QA).");
+const result={original_fingerprint:renewalFP,new_fingerprint:Array(32).fill("CD").join(":"),original_expiry:"2027-01-01T00:00:00Z",new_expiry:"2027-02-01T00:00:00Z",expiry_extended:true};
+const completedRenewal={...saved,network_used:false,renewal_source:renewalFP,renewal_result:result,new_request:{...saved.new_request,closed_count:1}};
+const resultText=f=>{
+  const collect=e=>e.textContent+e.children.map(collect).join("\n");return collect(f.el("acme-renewal-result"));
+};
+for(const newExpiry of ["2027-02-01T00:00:00Z",result.original_expiry,"2026-12-01T00:00:00Z"]){
+  const f=fixture({...completedRenewal,renewal_result:{...result,new_expiry:newExpiry,expiry_extended:newExpiry>result.original_expiry}});await f.refresh();
+  assert.equal(f.el("acme-renewal-result").hidden,false);assert.match(resultText(f),/Original — still saved/);assert.match(resultText(f),/New — saved separately/);
+  assert.match(resultText(f),newExpiry>result.original_expiry?/expires later/:/not later.*Do not assume/);
+  assert.match(resultText(f),/Nothing was installed, replaced or revoked/);assert.match(resultText(f),/does not check current trust or revocation/);
+  assert.ok(resultText(f).includes(newExpiry.replace("T"," · ").replace("Z"," UTC")));assert.equal(f.requests.length,1,"result read never triggers provider or private export");
+}
+for(const bad of [null,{},[],{...result,original_fingerprint:result.new_fingerprint},{...result,new_fingerprint:renewalFP},{...result,new_fingerprint:"invalid"},{...result,expiry_extended:false},{...result,new_expiry:"2026-02-30T00:00:00Z"},{...result,private_key:"secret-sentinel"}]){
+  const f=fixture({...completedRenewal,renewal_result:bad});await f.refresh();assert.equal(f.el("acme-renewal-result").hidden,true);assert.match(f.el("acme-order-status").textContent,/not confirmed/);assert.doesNotMatch(resultText(f),/secret-sentinel|certificate is saved/);
+}
+for(const initial of [{...empty,renewal_result:result},{...processing,renewal_source:renewalFP,renewal_result:result,new_request:{...processing.new_request,closed_count:1}},{...saved,network_used:false,renewal_result:result},{...completedRenewal,issuance:{...saved.issuance,state:"saved-certificate-deleted"},certificate_key:empty.certificate_key}]){
+  const f=fixture(initial);await f.refresh();assert.equal(f.el("acme-renewal-result").hidden,true);assert.match(f.el("acme-order-status").textContent,/not confirmed/);
+}
+for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},f=>f.windows.pagehide(),f=>f.el("acme-clear").listeners.click(),f=>f.el("acme-provider").listeners.change()]){
+  const f=fixture(completedRenewal);await f.refresh();assert.equal(f.el("acme-renewal-result").hidden,false);boundary(f);assert.equal(f.el("acme-renewal-result").hidden,true);assert.equal(resultText(f),"");
+}
+{
+  const f=fixture(completedRenewal);await f.refresh();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const work=f.refresh();while(!release)await new Promise(resolve=>setImmediate(resolve));assert.equal(f.el("acme-renewal-result").hidden,true);f.windows.pagehide();release(reply(completedRenewal));await work;assert.equal(f.el("acme-renewal-result").hidden,true);
+}
+{
+  const f=fixture(completedRenewal);await f.refresh();f.override(()=>new Response("secret-sentinel",{status:409}));await f.refresh();assert.equal(f.el("acme-renewal-result").hidden,true);assert.equal(resultText(f),"");
+}
+console.log("Manual DNS v8 renewal result: exact identity/dates, no assumed extension/trust/deployment, cleared stale/hidden/late/error output passed.");

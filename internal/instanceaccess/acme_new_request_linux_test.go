@@ -18,9 +18,17 @@ import (
 const closedGateTestPassword = "a different long test password"
 
 func completedClosureStore(t *testing.T) (path, code string, key, id []byte, fp string, revision [32]byte) {
+	return completedFixtureStore(t, false)
+}
+
+func completedFixtureStore(t *testing.T, renewal bool) (path, code string, key, id []byte, fp string, revision [32]byte) {
 	t.Helper()
 	fixturePath := filepath.Join(privateSnapshotDir(t), "synthetic-completion.json")
-	command := exec.Command("go", "test", "../inventorystore", "-run=^TestGenerateSyntheticCompletionForIntegration$", "-count=1")
+	target := "-run=^TestGenerateSyntheticCompletionForIntegration$"
+	if renewal {
+		target = "-run=^TestGenerateSyntheticRenewalForIntegration$"
+	}
+	command := exec.Command("go", "test", "../inventorystore", target, "-count=1")
 	command.Env = append(os.Environ(), "ROOTWELL_TEST_COMPLETION_FIXTURE="+fixturePath)
 	if err := command.Run(); err != nil {
 		t.Fatal("synthetic completion fixture failed")
@@ -186,7 +194,23 @@ func TestGenerateClosedRequestGateFixture(t *testing.T) {
 	if !filepath.IsAbs(destination) || filepath.Base(destination) != "synthetic-closed-gate.json" {
 		t.Fatal("fixture destination refused")
 	}
-	path, _, key, _, fp, _ := completedClosureStore(t)
+	writeStagingGateFixture(t, destination, false)
+}
+
+func TestGenerateRenewalResultGateFixture(t *testing.T) {
+	destination := os.Getenv("ROOTWELL_RENEWAL_RESULT_GATE_FIXTURE")
+	if destination == "" {
+		t.Skip("private renewal gate fixture not requested")
+	}
+	if !filepath.IsAbs(destination) || filepath.Base(destination) != "synthetic-renewal-gate.json" {
+		t.Fatal("fixture destination refused")
+	}
+	writeStagingGateFixture(t, destination, true)
+}
+
+func writeStagingGateFixture(t *testing.T, destination string, renewal bool) {
+	t.Helper()
+	path, _, key, _, fp, _ := completedFixtureStore(t, renewal)
 	defer clear(key)
 	access, err := os.ReadFile(path)
 	if err != nil {

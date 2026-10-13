@@ -44,7 +44,15 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-13 cari icra — ADR 0064:** saxlanmış Rootwell staging sertifikatından
+**2026-10-13 cari icra — ADR 0065:** manual test renewal nəticəsi: əvvəlki/yeni
+sertifikatın dəqiq bitmə tarixləri və hər iki cütün saxlandığı sadə bir kartda.
+Tam image/exact-generation yoxlanmış public Compare, V8 status; yeni secret/
+CA/DNS/write/backup capability yoxdur. Eyni və ya qısa ömür düzgün xəbərdarlıqdır,
+“renewal = daha çox vaxt/current trust/deploy” deyil. Aktiv nəticə lokal bağlanma
+və yeni pair silinməsindən sonra göstərilmir; kitabxana/tarixçə qorunur. ARI/
+backoff, scoped DNS və production audit sonrakı ayrı mərhələlərdir.
+
+**2026-10-13 əvvəlki icra — ADR 0064 (PR #95):** saxlanmış Rootwell staging sertifikatından
 manual test yeniləmə: server-derived eyni domenlər, fresh parol/razılıq, ayrıca
 durable yeni sorğu və müstəqil açar; əvvəlki cüt/qeydlər qalır. Yeniləmə mənbəyi
 şifrəli order-də bağlıdır, tarixçə/tam bərpa/silmə qaydaları onu qoruyur.

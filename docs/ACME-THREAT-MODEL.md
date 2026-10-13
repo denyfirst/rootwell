@@ -308,6 +308,16 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0065 adds only a read-only result for a live completed active renewal.
+Whole-image/revision/exact-generation checks precede public DER comparison;
+the V8 status carries five bounded public identity/expiry fields, never private
+material or new authority. Pending/ordinary/deleted/closed scopes return null.
+Different names/same key/certificate or stale/tampered state refuse without
+partial output. UI checks exact source/dates and expiry flag and clears old
+results on reread/hidden/late/error. Equal/shorter lifetime is not extra time;
+saved staging issuance is not current trust, revocation or server deployment.
+No new network/mutation endpoint, backup format or scheduler. See ADR 0065.
+
 Success, malformed/refusal, secret-free errors, no unapproved outbound/storage capability,
 origin/setup/session/host, late/hidden/source-changed UI and two-way sabotage.
 Every future increment must add its own protocol/crypto/permission/recovery

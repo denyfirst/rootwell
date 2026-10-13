@@ -133,6 +133,7 @@ type orderOutput struct {
 	CertificateKey inventorystore.CertificateRequestStatus `json:"certificate_key"`
 	Issuance       inventorystore.IssuanceStatus           `json:"issuance"`
 	NewRequest     inventorystore.NewRequestStatus         `json:"new_request"`
+	RenewalResult  *inventorystore.RenewalResult           `json:"renewal_result"`
 }
 
 func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -332,7 +333,16 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 	if status.Records == nil {
 		status.Records = []acmeorder.TXT{}
 	}
+	renewalResult, resultGen, err := instanceaccess.ReadStagingRenewalResult(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, gen)
+	if err != nil || resultGen != gen {
+		http.Error(w, "Saved status changed. Refresh first.", http.StatusConflict)
+		return
+	}
+	if !permit() {
+		http.Error(w, "session no longer available", http.StatusUnauthorized)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	verified := status.State == "domain-verified" && status.Expires > time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v7", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "renew" || mode == "resume" || mode == "validate" || mode == "refresh" || mode == "issue" || mode == "certificate-refresh", Saved: status.State != "not-started", DomainVerified: verified, CanIssue: verified && certificateKey.Prepared && issuance.State == "not-started", CertificateKey: certificateKey, Issuance: issuance, NewRequest: newRequest})
+	_ = json.NewEncoder(w).Encode(orderOutput{Schema: "rootwell.acme.manual-dns.v8", Provider: acmeplan.Provider, Generation: gen, OrderStatus: status, Network: mode == "start" || mode == "renew" || mode == "resume" || mode == "validate" || mode == "refresh" || mode == "issue" || mode == "certificate-refresh", Saved: status.State != "not-started", DomainVerified: verified, CanIssue: verified && certificateKey.Prepared && issuance.State == "not-started", CertificateKey: certificateKey, Issuance: issuance, NewRequest: newRequest, RenewalResult: renewalResult})
 }
