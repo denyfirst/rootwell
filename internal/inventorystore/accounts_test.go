@@ -16,7 +16,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
-func preparedAccountFixture(t *testing.T) ([]byte, []byte, []byte, AccountStatus) {
+func preparedAccountFixture(t testing.TB) ([]byte, []byte, []byte, AccountStatus) {
 	t.Helper()
 	key, id := testIdentity(t)
 	image, err := Create(key, id)

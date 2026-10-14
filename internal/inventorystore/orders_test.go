@@ -16,7 +16,7 @@ import (
 
 const orderURLFixture = accountOrigin + "/acme/order/1234/5678"
 
-func registeredOrderFixture(t *testing.T) ([]byte, []byte, []byte) {
+func registeredOrderFixture(t testing.TB) ([]byte, []byte, []byte) {
 	t.Helper()
 	key, id, image, _ := preparedAccountFixture(t)
 	pending, _, _, err := BeginStagingRegistration(key, id, image, 2, registrationTermsFixture)

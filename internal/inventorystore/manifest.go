@@ -52,6 +52,7 @@ type manifest struct {
 	ACMEIssuances           []sealedRecord `json:"acme_issuances,omitempty"`
 	ClosedRequests          []sealedRecord `json:"closed_requests,omitempty"`
 	CloudflareConfigs       []sealedRecord `json:"cloudflare_configs,omitempty"`
+	DNSPlans                []sealedRecord `json:"dns_plans,omitempty"`
 	historical              bool
 }
 
@@ -370,7 +371,7 @@ func encode(key []byte, m manifest) ([]byte, error) {
 	if err != nil || len(result) > maxImage {
 		return nil, ErrLimit
 	}
-	if pendingIssuance(key, m.InstallationID, m) && len(result) > maxImage-issuanceByteReserve {
+	if len(result) > maxImage-reservedImageBytes(key, m.InstallationID, m) {
 		return nil, ErrLimit
 	}
 	return result, nil
@@ -485,6 +486,17 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 	p, err := openCloudflareConfig(key, id, m)
 	clear(p.Token)
 	if err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	dns, err := openDNSPlan(key, id, m)
+	if err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	reserve, err := dnsTotalReserve(key, id, m, dns)
+	if err != nil || reserve < 0 || reserve > 28 {
+		return manifest{}, nil, ErrInvalid
+	}
+	if m.Generation > maxGeneration-uint64(reserve) || len(m.History) > maxHistory-reserve || len(image) > maxImage-reservedImageBytes(key, id, m) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

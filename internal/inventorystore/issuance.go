@@ -65,7 +65,11 @@ func mintIssuanceAttempt(image []byte, gen uint64, refresh bool) *IssuanceAttemp
 }
 
 func issuanceCapacity(m manifest, imageBytes int) bool {
-	return m.Generation <= maxGeneration-2 && len(m.History) <= maxHistory-2 && len(m.Records) < maxRecords && imageBytes > 0 && imageBytes <= maxImage-issuanceByteReserve
+	reserve := issuanceByteReserve
+	if len(m.DNSPlans) > 0 {
+		reserve += dnsPlanByteReserve
+	}
+	return m.Generation <= maxGeneration-2 && len(m.History) <= maxHistory-2 && len(m.Records) < maxRecords && imageBytes > 0 && imageBytes <= maxImage-reserve
 }
 
 func issuanceID() []byte { h := sha256.Sum256([]byte("rootwell.acme-issuance.v1")); return h[:] }
