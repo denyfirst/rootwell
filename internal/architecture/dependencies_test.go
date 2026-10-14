@@ -58,7 +58,8 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"
 				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go" || filepath.ToSlash(relative) == "internal/acmestaging/order.go" || filepath.ToSlash(relative) == "internal/acmestaging/validation.go" || filepath.ToSlash(relative) == "internal/acmestaging/certificate.go") &&
 					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
-				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector {
+				allowedDNSCore := filepath.ToSlash(relative) == "internal/acmestaging/cloudflare.go" && (importPath == "net/http" || importPath == "net/url")
+				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
@@ -75,6 +76,54 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 		if err != nil {
 			t.Fatalf("scan %s: %v", directory, err)
 		}
+	}
+}
+
+func TestCloudflareProtocolCannotBeExportedOrWiredBeforeCustody(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		if rel == "internal/acmestaging/cloudflare.go" {
+			for _, decl := range file.Decls {
+				if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.IsExported() {
+					t.Error("DNS protocol exported before custody", fn.Name.Name)
+				}
+			}
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if id, ok := node.(*ast.Ident); ok {
+				switch id.Name {
+				case "cloudflareRecord", "dnsRecordScope", "dnsRecordState", "dnsCommit", "cfSession", "cfDecodeRecord":
+					if rel != "internal/acmestaging/cloudflare.go" {
+						t.Error("unreviewed DNS protocol consumer", rel, id.Name)
+					}
+				case "pinnedTransportTo":
+					if rel != "internal/acmestaging/cloudflare.go" && rel != "internal/acmestaging/directory.go" {
+						t.Error("unreviewed fixed-host transport consumer", rel)
+					}
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
