@@ -177,6 +177,8 @@ jobs:
           node --check scripts/test-acme-directory.mjs
           node --check cmd/rootwelld/auth/acme-account.js
           node --check scripts/test-acme-account.mjs
+          node --check cmd/rootwelld/auth/cloudflare-config.js
+          node --check scripts/test-cloudflare-config.mjs
           node --check cmd/rootwelld/auth/acme-registration.js
           node --check scripts/test-acme-registration.mjs
           node --check cmd/rootwelld/auth/acme-order.js
@@ -221,6 +223,7 @@ jobs:
           node scripts/test-acme-setup.mjs
           node scripts/test-acme-directory.mjs
           node scripts/test-acme-account.mjs
+          node scripts/test-cloudflare-config.mjs
           node scripts/test-acme-registration.mjs
           node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs

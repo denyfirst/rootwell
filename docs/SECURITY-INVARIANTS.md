@@ -1736,6 +1736,37 @@ Guards: `TestRetryBudgetIntentBackoffProviderWaitAndExhaustion`,
 `TestCloudflareProtocolCannotBeExportedOrWiredBeforeCustody` and inherited
 fixed TLS/DNS/refusal tests. Actual two-way sabotage is recorded in ADR 0066/PR.
 
+## C87 — DNS credential custody does not grant DNS or disclosure authority
+
+ADR 0067: a single purpose-separated encrypted Cloudflare configuration is
+validated with the whole image before every public read. No token, token digest
+or zone ID in status/history; no reveal/export/borrower or network on save.
+Fresh password/explicit confirmation/exact generation/revision/live permission,
+strict bounded ready-session POST and existing shared budgets guard atomic Linux
+custody. Rotation/removal requires explicit request closure. Existing pair and
+pending completion reservations remain. Full password/code restore and password
+recovery preserve exact token-bearing image bytes; native platforms refuse.
+Browser hidden/late/clock/source/schema/errors clear authority and secrets. Old
+backups/provider revocation/host/runtime rollback residuals remain; this is not
+permission proof or completed DNS automation.
+
+Guarded by `TestCloudflareConfigEncryptedAtomicRotationRemovalAndPreservation`,
+`TestCloudflareConfigMalformedTamperPurposeAndStaleRefuseBeforeOutput`,
+`TestCloudflareConfigActiveOrderBlocksRotationAndRemoval`,
+`TestCloudflareConfigPreservesPrivatePairAndPendingCompletionCapacity`,
+`FuzzCloudflareConfigurationPayload`,
+`TestLinuxCloudflareConfigPermissionsRevisionRefusalFullRestoreAndRecovery`,
+`TestLinuxCloudflareConfigDiskFaultKeepsOldImageAndUncertainSaveReconciles`,
+`TestNativeCloudflareConfigRefusesBeforePermissionOrStorage`,
+`TestCloudflareConfigurationRequestStrictShapesNoPartialSecrets`,
+`TestCloudflareConfigurationGateReadyOriginAndNativeRefusal`,
+`FuzzCloudflareConfigurationRequest`,
+`TestLinuxCloudflareConfigAPIReauthStaleSharedBudgetAndSecretFreeStatus`,
+`TestLinuxCloudflareConfigLogoutCancellationAndFetchMetadataCannotWrite`,
+`TestCloudflareCredentialCannotEscapeConfigurationBoundary`,
+`scripts/test-cloudflare-config.mjs`, `scripts/test-inventory-demo.mjs`.
+Two-way compiling sabotage outcomes are in ADR 0067/PR.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

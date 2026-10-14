@@ -308,6 +308,16 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0067 adds local encrypted Cloudflare configuration only, with explicit user
+approval for own-instance encrypted token storage. Ready/fresh-auth/generation/
+writer/permission, purpose-separated full-image validation and full recovery
+apply. Public status has no token/digest/zone ID and all network/verification/DNS
+capabilities remain false. No secret borrower or protocol route; settings save
+does not contact Cloudflare. Rotation/removal requires explicit request closure.
+UI is optional in the existing request card, clears secrets/stale authority,
+and keeps manual DNS. Provider token permission proof and job/lease/retry/cleanup
+transactions remain separate required work. Old backup/host/runtime risks remain.
+
 ADR 0066 adds only retry policy and unexported Cloudflare TXT protocol components.
 Current CA API/cooldown/backup/UI are unchanged. Retry state is NOT yet persisted
 or scheduled. The DNS core is architecture-blocked before credential/order-

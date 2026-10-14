@@ -55,6 +55,14 @@ provider atomic CAS təminatı iddia edilmir. Manual DNS qalır; ARI/scheduler v
 unattended unlock ayrıca mərhələdir. Porch, real customer DNS və production
 release bu dalğanın scope-u deyil. Hər increment ayrı test/PR/CI/self-review.
 
+**2026-10-14 ADR 0067:** istifadəçi Cloudflare tokenini öz Rootwell-də şifrəli
+saxlamağı seçdi. Eyni certificate-request kartında optional ayarlar: lokal status,
+fresh parol/razılıqla save/replace/remove; purpose-separated encryption, tam
+image/backup/parol bərpası. Token/digest/zone ID public cavabda yoxdur. Save DNS/
+provider bağlantısı deyil, manual yol qalır. Mövcud token açıq sorğu bağlanmadan
+dəyişdirilmir/silinmir. PR #97-in 13 yoxlaması keçib və foundation merge edilib;
+ownership/retry job, exact lease/cleanup və explicit DNS UI sonrakı işdir.
+
 **2026-10-13 əvvəlki icra — ADR 0065 (PR #96):** manual test renewal nəticəsi: əvvəlki/yeni
 sertifikatın dəqiq bitmə tarixləri və hər iki cütün saxlandığı sadə bir kartda.
 Tam image/exact-generation yoxlanmış public Compare, V8 status; yeni secret/

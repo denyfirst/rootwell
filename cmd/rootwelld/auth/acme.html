@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -76,6 +76,25 @@
 	  <div id="acme-renewal-source" hidden></div>
 	  <p id="acme-renewal-summary" class="storage-note" hidden></p>
       <p>After registering your test account, request the TXT records for domains you control. Add them in your DNS provider's dashboard — no DNS API password is needed.</p>
+      <details id="cloudflare-settings"><summary>Optional Cloudflare DNS settings</summary>
+        <p>Prepare one zone for the next DNS automation step. Save stores your API token encrypted only on this Rootwell. It does not contact Cloudflare, check token permissions or change DNS. Manual DNS still works without a token.</p>
+        <button id="dns-config-refresh" type="button" class="secondary">Check saved settings</button>
+        <p id="dns-config-status" role="status" aria-live="polite">Settings not checked. Nothing connects automatically.</p>
+        <form id="dns-config-form" class="csr-form" hidden>
+          <label for="dns-config-action">What would you like to do?</label><select id="dns-config-action"><option value="save">Save Cloudflare settings</option><option id="dns-config-remove-option" value="remove" disabled>Remove saved token</option></select>
+          <div id="dns-config-fields">
+            <label for="dns-config-zone">Your Cloudflare zone (domain)</label><input id="dns-config-zone" type="text" maxlength="253" autocomplete="off" spellcheck="false" placeholder="example.com">
+            <label for="dns-config-zone-id">Zone ID from your Cloudflare dashboard</label><input id="dns-config-zone-id" type="text" maxlength="32" autocomplete="off" spellcheck="false">
+            <label for="dns-config-token">Restricted API token — not your Global API Key</label><input id="dns-config-token" type="password" maxlength="256" autocomplete="off" spellcheck="false">
+            <p>Limit the token to DNS Edit and Zone Read for this one zone. Do not use an all-zones or account-wide credential. Successful DNS access alone cannot prove the token is restricted.</p>
+          </div>
+          <p id="dns-config-change-help">Only local settings are saved. Existing certificate keys and notes stay unchanged.</p>
+          <label for="dns-config-password">Your current Rootwell password</label><input id="dns-config-password" type="password" maxlength="256" autocomplete="off">
+          <label class="confirm-row" for="dns-config-consent"><input id="dns-config-consent" type="checkbox" autocomplete="off"><span id="dns-config-consent-label">Save these DNS settings encrypted on my Rootwell</span></label>
+          <button id="dns-config-submit" type="submit" disabled>Save encrypted settings</button>
+        </form>
+        <p>Make a new complete backup after a change. Access-only backups do not include the token. Old backups may retain a removed token; revoke it in Cloudflare if it must no longer work. Settings cannot be changed or removed while a saved certificate request remains open.</p>
+      </details>
       <button id="acme-order-refresh" type="button" class="secondary">Check saved DNS request</button>
       <p id="acme-order-status" role="status" aria-live="polite">Nothing connects automatically. Check saved status first.</p>
       <section id="acme-renewal-result" class="storage-note" aria-label="Saved test renewal result" hidden></section>
