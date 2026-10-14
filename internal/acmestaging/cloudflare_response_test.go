@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -35,6 +36,31 @@ func TestCloudflareCleanupAbsenceRequiresCompleteMatchingListAndNoDelete(t *test
 	}}
 	if _, err := cloudflareRecord(context.Background(), func() bool { return true }, noIO, cfTestToken, scope, dnsRecordState{State: "borrowed"}, true, true, nil); err == nil {
 		t.Fatal("borrowed record acquired cleanup capability")
+	}
+	if result, err := cloudflareRecord(context.Background(), func() bool { return true }, noIO, cfTestToken, scope, dnsRecordState{State: "deleting", ID: record.ID}, true, false, func(dnsRecordState) error { t.Error("uncertain deletion renewed intent"); return nil }); err == nil || result != (dnsRecordState{}) {
+		t.Fatal("uncertain deletion acquired replay authority")
+	}
+}
+
+func TestCloudflareRevocationAfterIntentNeverTransmitsMutation(t *testing.T) {
+	scope := cfScope()
+	var allowed atomic.Bool
+	allowed.Store(true)
+	var calls atomic.Int32
+	deps, _ := fakeProvider(t, cloudflareHost, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.Method != "GET" {
+			t.Error("revoked intent transmitted a DNS mutation")
+		}
+		if strings.HasSuffix(r.URL.Path, "/dns_records") {
+			cfList(w, []cfRecord{})
+		} else {
+			cfZoneReply(w, scope)
+		}
+	})
+	result, err := cloudflareRecord(context.Background(), allowed.Load, deps, cfTestToken, scope, dnsRecordState{State: "new"}, false, false, func(dnsRecordState) error { allowed.Store(false); return nil })
+	if err == nil || result != (dnsRecordState{}) || calls.Load() != 2 {
+		t.Fatal("revoked publication/mutation boundary failed")
 	}
 }
 

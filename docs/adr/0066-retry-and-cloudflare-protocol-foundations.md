@@ -54,6 +54,10 @@ Bounded extensions are ignored, never followed or reflected.
   Changed/foreign/borrowed records never receive a delete intent.
 - A bare 404 is NOT cleanup success: a complete filtered list must also lack
   the exact saved ID. Other matching records are left unchanged.
+- An uncertain deleting scope is GET-only and cannot repeat DELETE. If its
+  owned record still exists, the result remains deleting/uncertain; operator
+  Cloudflare cleanup and later read reconciliation may be needed. A future
+  new explicit cleanup authority must be separately designed, never a reset.
 - 429/503 yield only a fixed retry hint, no body reflection or internal retry.
 
 ## Required next integration gates
@@ -121,6 +125,8 @@ Full local shuffled Go/module/format/vet/build, pinned staticcheck/actionlint,
 native and Linux gosec, Linux/Darwin cross-vet pass. No module change;
 govulncheck reports zero reachable/imported-package findings and one unused
 module-only residual. Actual Linux race and full UI/volume gates remain CI.
+Separate adversarial review tightened uncertain-delete direction: deleting
+cannot request another mutation even with a callback; refusal precedes DNS.
 
 Sources reviewed: [RFC 8555](https://www.rfc-editor.org/rfc/rfc8555.html),
 [RFC 9773](https://www.rfc-editor.org/rfc/rfc9773.html),

@@ -322,7 +322,7 @@ func owns(r cfRecord, s dnsRecordScope, id string) bool {
 // lost response leaves creating/deleting. Reconciliation is GET-only, never a
 // fallback POST, no silent overwrite, no automatic retry or cleanup of borrowed.
 func cloudflareRecord(parent context.Context, permit func() bool, deps dependencies, token string, scope dnsRecordScope, saved dnsRecordState, cleanup, readOnly bool, commit dnsCommit) (dnsRecordState, error) {
-	if !validDNSScope(scope) || !validDNSState(saved) || !dnsToken(token) || permit == nil || !permit() || (!readOnly && commit == nil) || cleanup && saved.State != "created" && saved.State != "deleting" || !cleanup && saved.State != "new" && saved.State != "creating" {
+	if !validDNSScope(scope) || !validDNSState(saved) || !dnsToken(token) || permit == nil || !permit() || (!readOnly && commit == nil) || cleanup && saved.State != "created" && saved.State != "deleting" || cleanup && saved.State == "deleting" && !readOnly || !cleanup && saved.State != "new" && saved.State != "creating" {
 		return dnsRecordState{}, errDNS
 	}
 	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
