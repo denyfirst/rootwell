@@ -72,6 +72,11 @@ const assets = new Map([
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
 let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal result, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the example result. All dates, saved/key statuses and renewal identities below are simulated, not a CA receipt or actual saved pairs. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
+for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action"]){
+  automationHTML=replaceOnce(automationHTML,`id="${id}"`, `id="${id}" disabled`);
+}
+let dnsConfigScript=replaceOnce(asset("cloudflare-config.js"),"button.disabled=!!active", "button.disabled=true || !!active");
+assets.set("/cloudflare-config.js",["text/javascript; charset=utf-8",dnsConfigScript]);
 automationHTML=replaceOnce(automationHTML,'<section class="card" id="certificate-request">','<section class="card" id="certificate-request"><p class="storage-note">DEMO · fake status only, no saved key or CA operation. Actions disabled.</p>');
 let automationScript=replaceOnce(asset("acme-order.js"),"refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;","refresh.disabled=!!active; names.disabled=true; consent.disabled=true; password.disabled=true; resumeChoice.disabled=true;");
 automationScript=replaceOnce(automationScript,"submit.disabled=!!active || document.hidden", "submit.disabled=true || !!active || document.hidden");
@@ -93,6 +98,14 @@ const server = http.createServer((request, response) => {
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if(request.method==="POST"&&request.url==="/api/dns/cloudflare/status"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
+    request.on("end",()=>{
+      if(oversized||body!==JSON.stringify({provider:"cloudflare"})){response.writeHead(400).end("Fixture status refused");return;}
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.dns.config.v1",provider:"cloudflare",generation:5,state:"not-configured",zone_name:"",saved_at:"",can_change:true,network_used:false,token_verified:false,dns_changed:false}));
+    });return;
+  }
   if(request.method==="POST"&&request.url==="/api/acme/order/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});

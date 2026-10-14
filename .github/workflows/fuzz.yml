@@ -98,6 +98,10 @@ jobs:
             package: ./cmd/rootwelld
           - target: FuzzStagingAccountPayload
             package: ./internal/inventorystore
+          - target: FuzzCloudflareConfigurationPayload
+            package: ./internal/inventorystore
+          - target: FuzzCloudflareConfigurationRequest
+            package: ./cmd/rootwelld
           - target: FuzzStagingRegistrationResponse
             package: ./internal/acmestaging
           - target: FuzzStagingRegistrationRequest

@@ -51,6 +51,7 @@ type manifest struct {
 	ACMECertificateRequests []sealedRecord `json:"acme_certificate_requests,omitempty"`
 	ACMEIssuances           []sealedRecord `json:"acme_issuances,omitempty"`
 	ClosedRequests          []sealedRecord `json:"closed_requests,omitempty"`
+	CloudflareConfigs       []sealedRecord `json:"cloudflare_configs,omitempty"`
 	historical              bool
 }
 
@@ -479,6 +480,11 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		}
 	}
 	if err := authenticateClosedRequests(key, id, m, records); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	p, err := openCloudflareConfig(key, id, m)
+	clear(p.Token)
+	if err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation == math.MaxUint64 {

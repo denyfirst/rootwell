@@ -42,7 +42,16 @@ ilk DNS provayderi kimi Cloudflare seçib. Kompüter sönməsindən sonra iş
 `feat/retry-cloudflare-foundations` branch-ında saxlanmış koddan davam edir.
 Porch scope xaricindədir, real CA/DNS əməliyyatı və ya secret import icazəsi deyil.
 
-**Cari increment — ADR 0066:** bounded retry siyasəti və daxili Cloudflare TXT
+**Cari increment — ADR 0067:** istifadəçi tokenin yalnız öz Rootwell-də şifrəli
+saxlanmasını təsdiqlədi. Eyni Automation kartında optional Cloudflare ayarları:
+status, fresh parol/razılıqla save/replace/remove, ayrı purpose encryption,
+tam image/backup/parol bərpası və private writer. Token/digest/zone ID statusda
+yoxdur; save Cloudflare-ə qoşulmur və DNS dəyişmir. Açıq certificate request
+olanda mövcud token dəyişdirilmir/silinmir. Windows önbaxış fake/read-only-dir;
+real Linux custody/API/race exact-head CI qapısındadır. DNS job/ownership/retry
+intent və lease/cleanup transaction növbəti increment-dir; tam automation deyil.
+
+**Tamamlanan increment — ADR 0066 (PR #97, 13 yoxlama keçib):** bounded retry siyasəti və daxili Cloudflare TXT
 protocol nüvəsi. Exponential wait/jitter, provider Retry-After və attempt limit;
 dəqiq zone/record, yalnız TXT, write-dan əvvəl intent callback, borrowed qeydi
 silməmək, unknown create üçün yalnız read, owned cleanup və fake TLS/refusal/
