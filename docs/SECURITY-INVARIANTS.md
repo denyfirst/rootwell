@@ -1709,6 +1709,33 @@ Guards: `TestRenewalResultRefusesStaleTamperedAndIncompleteWithoutPartialOutput`
 `FuzzPublicComparison`, strict V8 UI/demo and inherited graph/receipt tests.
 Actual two-way sabotage and evidence are recorded in ADR 0065/PR.
 
+## C86 — Retry and DNS components cannot silently gain replay or cleanup authority
+
+ADR 0066 only introduces testable components, not runtime automation. Retry
+policy consumes a bounded attempt before I/O, rounds waits up, preserves longer
+provider hints and refuses malformed clocks/state/hints or exhausted counts.
+It cannot authorize CA creation/finalize replay. Cloudflare is unexported and
+architecture-blocked before custody/UI. Fixed TLS/public DNS pinning, no proxy/
+redirect/retry, exact one-zone TXT and intent-before-single-write; borrowed,
+changed/foreign/ambiguous records cannot become cleanup-owned. Lost creation
+only reads; 404 alone cannot fabricate absence. Concurrent provider edits are
+not an atomic CAS guarantee. No new persisted field, route or runtime scheduler.
+
+Guards: `TestRetryBudgetIntentBackoffProviderWaitAndExhaustion`,
+`TestRetryPolicyRejectsMalformedClockHintsAndPartialState`,
+`TestRetryDelayRoundsUpAndRejectsYearOverflow`, `FuzzProviderRetryAfter`,
+`TestCloudflareTXTIntentBeforeWriteOwnExactRecordAndCleanup`,
+`TestCloudflareExistingBorrowedAndUncertainCreateNeverBlindlyRetry`,
+`TestCloudflareRefusesForeignChangedAmbiguousAndBareAbsence`,
+`TestCloudflareCleanupAbsenceRequiresCompleteMatchingListAndNoDelete`,
+`TestCloudflareRecordAliasesAndIncompletePaginationRefuseWithoutWrite`,
+`TestCloudflareRevocationAfterIntentNeverTransmitsMutation`,
+`TestCloudflareRefusesUnsafeScopePermitCommitTransportAndMalformedResponse`,
+`TestCloudflareRateLimitHintNeverRetriesOrEchoesProviderBody`,
+`FuzzCloudflareRecordResponse`,
+`TestCloudflareProtocolCannotBeExportedOrWiredBeforeCustody` and inherited
+fixed TLS/DNS/refusal tests. Actual two-way sabotage is recorded in ADR 0066/PR.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

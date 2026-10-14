@@ -308,6 +308,17 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0066 adds only retry policy and unexported Cloudflare TXT protocol components.
+Current CA API/cooldown/backup/UI are unchanged. Retry state is NOT yet persisted
+or scheduled. The DNS core is architecture-blocked before credential/order-
+ownership custody and explicit fresh-auth UI integration. Exact fixed provider
+TLS/pinned public DNS, three requests/20 seconds, strict bounded responses and
+checkpoint-before-single-write apply. Existing TXT is borrowed, never owned;
+uncertain create is only read; delete rechecks exact owned ID/marker/value.
+GET-to-DELETE is not atomic against external edits, and bare 404 is not success.
+Zone tokens have broader DNS rights than the local TXT-only policy. No actual
+token, live DNS, propagation/CA validation or automation completion claim.
+
 ADR 0065 adds only a read-only result for a live completed active renewal.
 Whole-image/revision/exact-generation checks precede public DER comparison;
 the V8 status carries five bounded public identity/expiry fields, never private

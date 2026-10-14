@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-13. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-14. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -37,7 +37,31 @@ scanning entitlement yoxdur. Heç bir qayda/check silinmir və yoxlama keçilmi�
 sayılmır. Məcburi exact-head CI/ruleset/CodeQL qapısı təmin edilmədən merge yoxdur;
 uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələb edilir.
 
-**Cari increment — ADR 0065:** manual test yeniləmənin nəticəsi eyni Automation
+**Cari dalğa — retry + Cloudflare DNS:** istifadəçi hər ikisini təsdiqləyib,
+ilk DNS provayderi kimi Cloudflare seçib. Kompüter sönməsindən sonra iş
+`feat/retry-cloudflare-foundations` branch-ında saxlanmış koddan davam edir.
+Porch scope xaricindədir, real CA/DNS əməliyyatı və ya secret import icazəsi deyil.
+
+**Cari increment — ADR 0066:** bounded retry siyasəti və daxili Cloudflare TXT
+protocol nüvəsi. Exponential wait/jitter, provider Retry-After və attempt limit;
+dəqiq zone/record, yalnız TXT, write-dan əvvəl intent callback, borrowed qeydi
+silməmək, unknown create üçün yalnız read, owned cleanup və fake TLS/refusal/
+sabotage/fuzz. Hələ exported/live route, token custody, durable retry/job, yeni
+UI və scheduler yoxdur; runtime CA cooldown və V8 dəyişməzdir. Tam DNS
+avtomatlaşdırması tamamlanmış deyil. İmzalı PR/CI/self-review/merge qapısı qalır.
+
+**Ardınca dayanmadan görüləcək uyğun sıra:**
+
+1. Şifrəli provider konfiqurasiyası və order-bound DNS ownership/retry intent;
+   exact generation/writer/permission, reserve, tam backup/password recovery.
+2. Opaque leased connector transaction: intent-before-I/O, uncertain read-only
+   nəticə və atomik commit; bütün owned qeydlər üçün cleanup/closure siyasəti.
+3. Eyni Automation UI-də sadə configure/add/check/cleanup, fresh parol/razılıq,
+   manual alternativ və late/hidden/source/clock/limit refusal; browser demo.
+4. ARI renewal-window/scheduler və scope-lu unlock ayrıca qərar; indiki 12 saatlıq
+   ready sessiya uzadılmır. Hər increment ayrıca test/signed PR/all-CI/self-review.
+
+**Əvvəlki increment — ADR 0065 (PR #96, bütün 13 yoxlama keçib):** manual test yeniləmənin nəticəsi eyni Automation
 kartında: əvvəlki/yeni bitmə tarixləri, köhnə cütün/qeydlərin qaldığı və yeni
 cütün ayrıca saxlandığı. Tam şifrəli image/revision/generation yoxlanır, public
 Compare nüvəsi tarixləri hesablayır. Eyni/daha qısa ömür “əlavə vaxt” deyil;

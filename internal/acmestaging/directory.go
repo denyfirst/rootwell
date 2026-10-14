@@ -92,15 +92,21 @@ func discover(ctx context.Context, permit func() bool, deps dependencies) (Summa
 // Shared fixed-host TLS/DNS policy; each capability supplies its own request
 // allowlist and deadline. No caller-controlled endpoint or root override.
 func pinnedTransport(ctx context.Context, allowed func() bool, deps dependencies) *http.Transport {
+	return pinnedTransportTo(ctx, allowed, deps, host)
+}
+
+// Only the fixed ACME and Cloudflare hosts have reviewed consumers. The host
+// is never an API input; unexpected values fail before DNS or token sending.
+func pinnedTransportTo(ctx context.Context, allowed func() bool, deps dependencies, target string) *http.Transport {
 	transport := &http.Transport{
 		Proxy: nil, TLSClientConfig: deps.tls,
 		TLSHandshakeTimeout: 4 * time.Second, ResponseHeaderTimeout: 4 * time.Second,
 		MaxResponseHeaderBytes: 8192, DisableCompression: true, DisableKeepAlives: true,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if network != "tcp" || address != host+":443" || !allowed() {
+			if (target != host && target != cloudflareHost) || network != "tcp" || address != target+":443" || !allowed() {
 				return nil, errRefused
 			}
-			addresses, err := deps.lookup(ctx, "ip", host)
+			addresses, err := deps.lookup(ctx, "ip", target)
 			if err != nil || len(addresses) == 0 || len(addresses) > 16 {
 				return nil, errRefused
 			}
@@ -128,7 +134,7 @@ func pinnedTransport(ctx context.Context, allowed func() bool, deps dependencies
 			return nil, errRefused
 		}
 		config := deps.tls.Clone()
-		config.ServerName = host
+		config.ServerName = target
 		secure := tls.Client(conn, config)
 		handshakeCtx, stop := context.WithTimeout(ctx, 4*time.Second)
 		defer stop()

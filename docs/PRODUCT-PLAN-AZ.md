@@ -44,7 +44,18 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
-**2026-10-13 cari icra — ADR 0065:** manual test renewal nəticəsi: əvvəlki/yeni
+**2026-10-14 cari dalğa:** istifadəçi təkrar-cəhd qaydaları və DNS avtomatlaşdırması
+hər ikisini təsdiqləyib, ilk provider Cloudflare-dir. ADR 0066 daxili bounded
+retry/Cloudflare TXT protocol nüvələrindən başlayır; hazır UI/automation deyil.
+Ardınca şifrəli credential/order-bound ownership/attempt custody və full recovery,
+leased intent-before-I/O transaction, sonra sadə configure/add/read/cleanup UI.
+Borrowed qeydlər silinmir, itmiş create kor-koranə təkrarlanmır; yalnız öz
+record ID-si və dəqiq marker/value ilə cleanup. Concurrent external edit üçün
+provider atomic CAS təminatı iddia edilmir. Manual DNS qalır; ARI/scheduler və
+unattended unlock ayrıca mərhələdir. Porch, real customer DNS və production
+release bu dalğanın scope-u deyil. Hər increment ayrı test/PR/CI/self-review.
+
+**2026-10-13 əvvəlki icra — ADR 0065 (PR #96):** manual test renewal nəticəsi: əvvəlki/yeni
 sertifikatın dəqiq bitmə tarixləri və hər iki cütün saxlandığı sadə bir kartda.
 Tam image/exact-generation yoxlanmış public Compare, V8 status; yeni secret/
 CA/DNS/write/backup capability yoxdur. Eyni və ya qısa ömür düzgün xəbərdarlıqdır,

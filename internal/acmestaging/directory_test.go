@@ -31,12 +31,16 @@ func directoryJSON() string {
 }
 
 func fakeCA(t *testing.T, handler http.HandlerFunc) (dependencies, *atomic.Int32) {
+	return fakeProvider(t, host, handler)
+}
+
+func fakeProvider(t *testing.T, providerHost string, handler http.HandlerFunc) (dependencies, *atomic.Int32) {
 	t.Helper()
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	template := &x509.Certificate{SerialNumber: big.NewInt(1), DNSNames: []string{host},
+	template := &x509.Certificate{SerialNumber: big.NewInt(1), DNSNames: []string{providerHost},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
 		IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
@@ -67,7 +71,7 @@ func fakeCA(t *testing.T, handler http.HandlerFunc) (dependencies, *atomic.Int32
 	var lookups atomic.Int32
 	return dependencies{
 		lookup: func(_ context.Context, network, name string) ([]netip.Addr, error) {
-			if network != "ip" || name != host {
+			if network != "ip" || name != providerHost {
 				t.Error("unexpected DNS authority")
 			}
 			lookups.Add(1)

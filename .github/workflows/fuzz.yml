@@ -84,6 +84,10 @@ jobs:
             package: ./internal/csrworkbench
           - target: FuzzPublicComparison
             package: ./internal/publicinventory
+          - target: FuzzProviderRetryAfter
+            package: ./internal/providerretry
+          - target: FuzzCloudflareRecordResponse
+            package: ./internal/acmestaging
           - target: FuzzVersionValue
             package: ./internal/version
           - target: FuzzStagingDirectory
