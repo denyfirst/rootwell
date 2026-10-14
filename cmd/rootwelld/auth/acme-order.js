@@ -39,8 +39,8 @@
   const valid=(data,mode)=>{
     if(!data || Array.isArray(data) || Object.keys(data).length!==16 || data.schema_version!=="rootwell.acme.manual-dns.v8" || typeof data.renewal_source!=="string" || data.renewal_source!=="" && (!fingerprint(data.renewal_source) || data.state==="not-started") || data.provider!=="letsencrypt-staging" || typeof data.can_issue!=="boolean" || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","renew","resume","validate","refresh","issue","certificate-refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
     const next=data.new_request;
-    if(!next || Array.isArray(next) || Object.keys(next).sort().join(",")!=="available,closed_count,reason" || typeof next.available!=="boolean" || !Number.isSafeInteger(next.closed_count) || next.closed_count<0 || next.closed_count>32 || !["not-started","unknown-order","active","complete","expired","capacity","clock-unavailable"].includes(next.reason) || next.available!==["complete","expired"].includes(next.reason))return false;
-    if(next.reason==="not-started" && data.state!=="not-started" || next.reason==="unknown-order" && !["request-pending","order-known"].includes(data.state))return false;
+    if(!next || Array.isArray(next) || Object.keys(next).sort().join(",")!=="available,closed_count,reason" || typeof next.available!=="boolean" || !Number.isSafeInteger(next.closed_count) || next.closed_count<0 || next.closed_count>32 || !["not-started","unknown-order","active","complete","expired","capacity","clock-unavailable","dns-cleanup-needed"].includes(next.reason) || next.available!==["complete","expired"].includes(next.reason))return false;
+    if(next.reason==="not-started" && data.state!=="not-started" || next.reason==="unknown-order" && !["request-pending","order-known"].includes(data.state) || next.reason==="dns-cleanup-needed"&&["not-started","request-pending","order-known"].includes(data.state))return false;
 	  if(data.renewal_source && next.closed_count<1)return false;
     const key=data.certificate_key;
     const issuance=data.issuance;
@@ -103,6 +103,11 @@
       const details=add(renewalResult,"details","");add(details,"summary","Certificate identities");
       add(details,"p","Original SHA-256: "+result.original_fingerprint);add(details,"p","New SHA-256: "+result.new_fingerprint);
       renewalResult.hidden=false;
+    }
+    if(data.new_request.reason==="dns-cleanup-needed"&&(["certificate-saved","saved-certificate-deleted"].includes(data.issuance.state)||!usable())){
+      status.textContent="The saved DNS operation is still uncertain. Do not close this request or start a replacement until its DNS records are safely resolved. Saved certificates and keys remain unchanged.";
+      if(data.issuance.state==="certificate-saved"){const link=document.createElement("a");link.href="/certificates";link.textContent="Open Certificates";records.append(link);records.hidden=false;}
+      form.hidden=true;resumeChoice.hidden=true;enable();return;
     }
     if(["clock-unavailable","capacity"].includes(data.new_request.reason)){
       status.textContent=data.new_request.reason==="clock-unavailable"?"The server clock moved backwards. A new request is blocked; correct the clock and check saved status again. Saved certificates and keys remain unchanged.":"The saved request history or storage write limit is reached. A new request is blocked; existing certificates and keys remain unchanged. Do not delete certificates to reset this limit.";

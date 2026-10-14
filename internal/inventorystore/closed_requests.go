@@ -29,6 +29,7 @@ type closedRequest struct {
 	Orders           []sealedRecord `json:"orders"`
 	Requests         []sealedRecord `json:"requests,omitempty"`
 	Issuances        []sealedRecord `json:"issuances,omitempty"`
+	DNSPlans         []sealedRecord `json:"dns_plans,omitempty"`
 }
 
 func closedRequestKey(key, id []byte) ([]byte, error) {
@@ -40,12 +41,22 @@ func closedRequestID(order string) []byte {
 }
 func closedScope(m manifest, p closedRequest) manifest {
 	m.ACMEOrders, m.ACMECertificateRequests, m.ACMEIssuances = p.Orders, p.Requests, p.Issuances
+	m.DNSPlans = p.DNSPlans
 	m.ClosedRequests = nil
 	m.historical = true
 	return m
 }
 
 func closeEligibility(key, id []byte, m manifest, at string) (string, error) {
+	if !m.historical {
+		dns, err := openDNSPlan(key, id, m)
+		if err != nil {
+			return "", err
+		}
+		if dnsPlanReserve(dns) > 0 {
+			return "dns-cleanup-needed", nil
+		}
+	}
 	order, err := openOrder(key, id, m)
 	if err != nil {
 		return "", err
@@ -97,10 +108,10 @@ func openClosedRequest(key, id []byte, m manifest, item sealedRecord) (closedReq
 	plain, err := inventoryseal.Open(k, attachmentContext(id, item), item.Ciphertext)
 	defer clear(plain)
 	var p closedRequest
-	if err != nil || !strictJSON(plain, &p) || !acmeorder.Time(p.ClosedAt) || p.ClosedGeneration < 4 || p.ClosedGeneration > item.Generation || len(p.Orders) != 1 || len(p.Requests) > 1 || len(p.Issuances) > 1 {
+	if err != nil || !strictJSON(plain, &p) || !acmeorder.Time(p.ClosedAt) || p.ClosedGeneration < 4 || p.ClosedGeneration > item.Generation || len(p.Orders) != 1 || len(p.Requests) > 1 || len(p.Issuances) > 1 || len(p.DNSPlans) > 1 {
 		return bad()
 	}
-	for _, items := range [][]sealedRecord{p.Orders, p.Requests} {
+	for _, items := range [][]sealedRecord{p.Orders, p.Requests, p.DNSPlans} {
 		for _, nested := range items {
 			if nested.Generation >= p.ClosedGeneration {
 				return bad()
@@ -113,6 +124,9 @@ func openClosedRequest(key, id []byte, m manifest, item sealedRecord) (closedReq
 		}
 	}
 	scope := closedScope(m, p)
+	if _, err := openDNSPlan(key, id, scope); err != nil {
+		return bad()
+	}
 	order, err := openOrder(key, id, scope)
 	if err != nil || !bytes.Equal(item.ID, closedRequestID(order.URL)) {
 		return bad()
@@ -294,11 +308,12 @@ func closeStagingRequestAt(key, id, image []byte, expected uint64, at time.Time)
 		return bad(err)
 	}
 	m.Generation++
-	p := closedRequest{ClosedAt: now, ClosedGeneration: m.Generation, Reason: s.Reason, Orders: m.ACMEOrders, Requests: m.ACMECertificateRequests, Issuances: m.ACMEIssuances}
+	p := closedRequest{ClosedAt: now, ClosedGeneration: m.Generation, Reason: s.Reason, Orders: m.ACMEOrders, Requests: m.ACMECertificateRequests, Issuances: m.ACMEIssuances, DNSPlans: m.DNSPlans}
 	if err := sealClosedRequest(key, id, &m, -1, p, order.URL); err != nil {
 		return bad(err)
 	}
 	m.ACMEOrders, m.ACMECertificateRequests, m.ACMEIssuances = nil, nil, nil
+	m.DNSPlans = nil
 	if err := addEvent(key, &m, "acme-request-closed", []string{order.Fingerprint}); err != nil {
 		return bad(err)
 	}

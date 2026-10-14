@@ -44,6 +44,12 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
+**2026-10-14 ADR 0068:** daxili order-bound şifrəli DNS plan/owner/retry custody.
+Source yalnız saxlanmış CA TXT-ləridir; cəhd və wait diskdə qalır, qeyri-müəyyən
+scope yeni write kimi replay edilmir və expiry/closure ilə atılmır. Cleanup və
+issuance ehtiyatları ayrıdır, tam bərpa qoruyur. Hələ live DNS/secret borrower/UI
+əməliyyat düyməsi yoxdur; locked result/cleanup transaction və explicit UI sonra.
+
 **2026-10-14 cari dalğa:** istifadəçi təkrar-cəhd qaydaları və DNS avtomatlaşdırması
 hər ikisini təsdiqləyib, ilk provider Cloudflare-dir. ADR 0066 daxili bounded
 retry/Cloudflare TXT protocol nüvələrindən başlayır; hazır UI/automation deyil.

@@ -100,6 +100,8 @@ jobs:
             package: ./internal/inventorystore
           - target: FuzzCloudflareConfigurationPayload
             package: ./internal/inventorystore
+          - target: FuzzDNSPlanPayload
+            package: ./internal/inventorystore
           - target: FuzzCloudflareConfigurationRequest
             package: ./cmd/rootwelld
           - target: FuzzStagingRegistrationResponse

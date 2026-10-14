@@ -38,11 +38,20 @@ sayılmır. Məcburi exact-head CI/ruleset/CodeQL qapısı təmin edilmədən me
 uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələb edilir.
 
 **Cari dalğa — retry + Cloudflare DNS:** istifadəçi hər ikisini təsdiqləyib,
-ilk DNS provayderi kimi Cloudflare seçib. Kompüter sönməsindən sonra iş
-`feat/retry-cloudflare-foundations` branch-ında saxlanmış koddan davam edir.
+ilk DNS provayderi kimi Cloudflare seçib. PR #97 və #98 tamamlanıb; hazırkı iş
+`feat/durable-dns-order-plan` branch-ındadır və ADR 0068 sırasıyla davam edir.
 Porch scope xaricindədir, real CA/DNS əməliyyatı və ya secret import icazəsi deyil.
 
-**Cari increment — ADR 0067:** istifadəçi tokenin yalnız öz Rootwell-də şifrəli
+**Cari increment — ADR 0068:** CA-nın saxlanmış sorğusundan və dəqiq Cloudflare
+ayarından alınan şifrəli DNS planı; ayrı 128-bit owner marker-lər, persisted
+attempt/wait, crypto jitter, exact-image bir dəfəlik handle və restartda read-only
+istiqamət. Naməlum cəhd expiry/closure ilə itmir; cleanup minimum capacity və
+issuance ehtiyatı toplanır. Tam backup/parol bərpası, Linux writer/fault/permission
+və model/sabotage/fuzz/CI qapıları. Hələ token borrower/live connector/yeni DNS
+düyməsi yoxdur. Növbəti: eyni lock altında connector/result/cleanup transaction,
+sonra fresh parol/razılıqla sadə DNS əməliyyat UI-si. Porch-a toxunulmur.
+
+**Tamamlanan increment — ADR 0067 (PR #98, 13 yoxlama keçib):** istifadəçi tokenin yalnız öz Rootwell-də şifrəli
 saxlanmasını təsdiqlədi. Eyni Automation kartında optional Cloudflare ayarları:
 status, fresh parol/razılıqla save/replace/remove, ayrı purpose encryption,
 tam image/backup/parol bərpası və private writer. Token/digest/zone ID statusda

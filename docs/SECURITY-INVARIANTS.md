@@ -1767,6 +1767,35 @@ Guarded by `TestCloudflareConfigEncryptedAtomicRotationRemovalAndPreservation`,
 `scripts/test-cloudflare-config.mjs`, `scripts/test-inventory-demo.mjs`.
 Two-way compiling sabotage outcomes are in ADR 0067/PR.
 
+## C88 — DNS attempts remain bound, durable and uncertain across recovery
+
+ADR 0068: one encrypted DNS plan derives exact required TXT rows from the saved
+unexpired CA order and exact Cloudflare configuration. Distinct same-name values,
+random owner markers, source/configuration/purpose/installation/generation and
+whole-image authentication precede any public output. No token/ID/value/marker/
+URL in status, no token borrower or runtime DNS entry. Attempts/waits persist;
+copied/stale handles cannot shorten waits or mint replay authority. Restored
+creating is read-only, blocked/exhausted/early/invalid clock refuses. Expiry cannot
+abandon uncertain ownership. Harmless archives have no lease; minimum cleanup/
+pending issuance capacity is additive, not a completed cleanup guarantee. Linux
+writer/permission/fault/full password/code recovery preserve exact image bytes.
+UI reports the scoped closure refusal without claiming DNS/CA verification.
+
+Guards: `TestDNSPlanExactSourceEncryptionUncertainIntentAndPersistentWait`,
+`TestDNSPlanWrongScopeStaleMalformedAndContextRefuseBeforeOutput`,
+`TestDNSPlanLeaseExactImageNoReplayAndBudgetExhaustion`,
+`TestDNSPlanClosureArchiveAndCleanupCapacity`,
+`TestDNSPlanReservationsAddToPendingIssuanceAndPreserveMaterial`,
+`TestDNSPlanClockAndUnrequiredRecordsHaveNoAuthority`,
+`TestDNSPlanCrossInstallationAndLegacySchemaRefuse`, `FuzzDNSPlanPayload`,
+`TestLinuxDNSPlanDurableIntentPermissionsRefusalAndFullRecovery`,
+`TestLinuxDNSPlanFaultAndPostCommitRevocationReturnNoLease`,
+`TestNativeDNSPlanRefusesBeforeBorrowingPermission`,
+`TestDNSPlanCustodyCannotAuthorizeNetworkBeforeIntegration`,
+`TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority`,
+`scripts/test-acme-order.mjs`, `scripts/test-inventory-lifecycle.mjs`.
+Actual compiling two-way source and handle sabotage is in ADR 0068/PR.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

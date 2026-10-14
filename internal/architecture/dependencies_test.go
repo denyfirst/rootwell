@@ -191,8 +191,68 @@ func TestCloudflareCredentialCannotEscapeConfigurationBoundary(t *testing.T) {
 			if ok && (id.Name == "cloudflarePayload" || id.Name == "cloudflareConfigKey") && relative != "internal/inventorystore/cloudflare_config.go" {
 				t.Errorf("credential handling outside configuration boundary: %s", relative)
 			}
-			if ok && id.Name == "openCloudflareConfig" && relative != "internal/inventorystore/cloudflare_config.go" && relative != "internal/inventorystore/manifest.go" {
+			if ok && id.Name == "openCloudflareConfig" && relative != "internal/inventorystore/cloudflare_config.go" && relative != "internal/inventorystore/manifest.go" && relative != "internal/inventorystore/dns_plan.go" {
 				t.Errorf("credential borrower before reviewed DNS lease: %s", relative)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDNSPlanCustodyCannotAuthorizeNetworkBeforeIntegration(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	allowed := map[string]bool{"internal/inventorystore/dns_plan.go": true, "internal/instanceaccess/dns_plan_linux.go": true, "internal/instanceaccess/dns_plan_other.go": true}
+	exports := map[string]bool{"ReadStagingDNSPlan": true, "PrepareStagingDNSPlan": true, "BeginStagingDNSAttempt": true, "DeferStagingDNSAttempt": true}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		relative = filepath.ToSlash(relative)
+		metadataOnly := relative == "internal/inventorystore/dns_plan.go"
+		cleared := map[*ast.SelectorExpr]bool{}
+		if metadataOnly {
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if ok && fn.Name.IsExported() && !exports[fn.Name.Name] {
+					t.Errorf("DNS plan exposes unreviewed authority: %s", fn.Name.Name)
+				}
+			}
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				id, ok := call.Fun.(*ast.Ident)
+				if ok && id.Name == "clear" && len(call.Args) == 1 {
+					if s, ok := call.Args[0].(*ast.SelectorExpr); ok && s.Sel.Name == "Token" {
+						cleared[s] = true
+					}
+				}
+				return true
+			})
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && (exports[id.Name] || id.Name == "DNSAttempt") && !allowed[relative] {
+				t.Errorf("DNS intent wired before explicit reviewed route: %s", relative)
+			}
+			if s, ok := n.(*ast.SelectorExpr); ok && metadataOnly && s.Sel.Name == "Token" && !cleared[s] {
+				t.Error("planning consumes a credential instead of only clearing validation bytes")
 			}
 			return true
 		})
@@ -377,7 +437,7 @@ func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T)
 					t.Errorf("runtime new-order clock override: %s", rel)
 				}
 			}
-			if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "historical" && rel != "internal/inventorystore/closed_requests.go" && rel != "internal/inventorystore/issuance.go" {
+			if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "historical" && rel != "internal/inventorystore/closed_requests.go" && rel != "internal/inventorystore/issuance.go" && rel != "internal/inventorystore/dns_plan.go" {
 				t.Errorf("historical flag outside bound validator: %s", rel)
 			}
 			return true

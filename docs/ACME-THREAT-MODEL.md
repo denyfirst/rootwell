@@ -308,6 +308,16 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0068 adds internal order/configuration-bound encrypted DNS planning and
+persisted attempt/wait only. Genuine saved CA TXT source, random per-row owner,
+complete-image validation and Linux exact revision/generation/writer/permit;
+same-image one-use wait handle, read-only direction after uncertainty and full
+restore preserve intent. No token borrower or network/UI provisioning entry.
+Unknown ownership blocks expiry closure; harmless unattempted archive has no
+active authority. Minimum cleanup and pending issuance reserves are additive,
+not completed cleanup recovery. Full locked connector/verified result/cleanup
+retry and explicit fresh-auth/consent UI must be reviewed before outbound DNS.
+
 ADR 0067 adds local encrypted Cloudflare configuration only, with explicit user
 approval for own-instance encrypted token storage. Ready/fresh-auth/generation/
 writer/permission, purpose-separated full-image validation and full recovery

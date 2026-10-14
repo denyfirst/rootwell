@@ -16,7 +16,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
-func testIdentity(t *testing.T) ([]byte, []byte) {
+func testIdentity(t testing.TB) ([]byte, []byte) {
 	t.Helper()
 	key, id := make([]byte, 32), make([]byte, 16)
 	if _, err := rand.Read(key); err != nil {
