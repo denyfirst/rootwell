@@ -64,7 +64,7 @@ func RunStagingDNS(path string, key, id []byte, revision [32]byte, expected uint
 			}
 			gen = g
 		}
-		next, attempt, planned, g, err := inventorystore.BeginStagingDNSOperation(key, id, image, gen, index, mode)
+		next, attempt, planned, _, err := inventorystore.BeginStagingDNSOperation(key, id, image, gen, index, mode)
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func RunStagingDNS(path string, key, id []byte, revision [32]byte, expected uint
 		allowed := func() bool {
 			return permit() && (mode != "add" || planned.Records[index].Attempts > 1 || time.Now().UTC().Format("2006-01-02T15:04:05Z") < planned.Expires)
 		}
-		next, s, g, err = inventorystore.ExecuteStagingDNSAttempt(key, id, image, attempt, allowed, func(operationPermit func() bool, token []byte, scope dnsrecord.Scope, state dnsrecord.State, cleanup, readOnly bool, checkpoint func(dnsrecord.State) error) (dnsrecord.State, error) {
+		next, s, g, err := inventorystore.ExecuteStagingDNSAttempt(key, id, image, attempt, allowed, func(operationPermit func() bool, token []byte, scope dnsrecord.Scope, state dnsrecord.State, cleanup, readOnly bool, checkpoint func(dnsrecord.State) error) (dnsrecord.State, error) {
 			if !allowed() {
 				return dnsrecord.State{}, ErrStaleUpgrade
 			}
