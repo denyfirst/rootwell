@@ -308,6 +308,24 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0069 now connects the saved Cloudflare credential and exact CA-derived DNS
+plan through a single Linux writer-lock transaction and explicit one-domain UI
+add/read/cleanup. Fresh password/consent/exact generation plus shared provider/
+KDF/auth budgets; cleanup additionally requires exclusive editing acknowledgement.
+Attempts/intent commit before I/O, lease consumes once, permission/expiry repeat
+at network/publication boundaries, result/wait commits atomically. Borrowed is
+never deleted; saved owned ID/marker/value must match. Creating/deleting never
+replay after uncertainty, recovery or CA expiry. Separate six-attempt cleanup
+budget and full remaining transition/byte/issuance reserves; unresolved scope
+blocks closure/configuration change. Blocked/exhausted work fails closed and can
+require separately reviewed maintenance recovery, not an invented reset. This
+does not prevent external GET-to-DELETE edits, complete rollback/host compromise,
+late provider processing or guarantee automatic repair. Optional same-card UI,
+strict bounded API/model tests and fake read-only browser preview are not live
+Cloudflare or pinned staging-CA interoperability. No scheduler/unattended unlock,
+production enrollment/deployment/release or Porch changes. Earlier no-network
+DNS increment boundaries below describe their historical state.
+
 ADR 0068 adds internal order/configuration-bound encrypted DNS planning and
 persisted attempt/wait only. Genuine saved CA TXT source, random per-row owner,
 complete-image validation and Linux exact revision/generation/writer/permit;

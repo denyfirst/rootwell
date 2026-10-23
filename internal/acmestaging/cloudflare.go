@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/acmeorder"
+	"github.com/denyfirst/rootwell/internal/dnsrecord"
 	"github.com/denyfirst/rootwell/internal/providerretry"
 )
 
@@ -21,14 +22,18 @@ const cloudflareOrigin = "https://" + cloudflareHost + "/client/v4"
 
 var errDNS = errors.New("DNS operation outcome not confirmed")
 
-// Protocol component only. These types/functions are not exported and cannot
-// be wired to a UI until encrypted intent, locked custody and step-up are added.
-// The trusted future caller supplies CA-derived records, never arbitrary DNS.
-type dnsRecordScope struct {
-	ZoneID, ZoneName, Name, Value, Owner string
-}
-type dnsRecordState struct{ State, ID string }
+type dnsRecordScope = dnsrecord.Scope
+type dnsRecordState = dnsrecord.State
 type dnsCommit func(dnsRecordState) error
+
+// CloudflareTXT is called only inside the reviewed writer-lock/lease boundary.
+// The HTTP user cannot provide a scope, token, state or checkpoint callback.
+func CloudflareTXT(ctx context.Context, permit func() bool, token []byte, scope dnsrecord.Scope, saved dnsrecord.State, cleanup, readOnly bool, commit func(dnsrecord.State) error) (dnsrecord.State, error) {
+	if !Available() {
+		return dnsrecord.State{}, errDNS
+	}
+	return cloudflareRecord(ctx, permit, liveDependencies(), string(token), scope, saved, cleanup, readOnly, commit)
+}
 
 func dnsID(value string) bool {
 	if len(value) != 32 {

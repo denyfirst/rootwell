@@ -26,8 +26,8 @@ func ReadStagingDNSPlan(path string, key, id []byte, revision [32]byte) (invento
 	return status, gen, err
 }
 
-// Internal custody only: no token borrower, connector, HTTP route or scheduler.
-// The trusted future API must supply fresh authentication and explicit consent.
+// Standalone local custody only. Live operations use RunStagingDNS under one
+// lock, never these separate calls. The API supplies fresh auth and consent.
 func PrepareStagingDNSPlan(path string, key, id []byte, revision [32]byte, expected uint64, permit func() bool) (inventorystore.DNSPlanStatus, uint64, error) {
 	s, _, gen, err := changeDNSPlan(path, key, id, revision, permit, func(image []byte) ([]byte, *inventorystore.DNSAttempt, inventorystore.DNSPlanStatus, uint64, error) {
 		next, s, gen, err := inventorystore.PrepareStagingDNSPlan(key, id, image, expected)

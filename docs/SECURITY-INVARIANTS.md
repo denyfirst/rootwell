@@ -1733,7 +1733,7 @@ Guards: `TestRetryBudgetIntentBackoffProviderWaitAndExhaustion`,
 `TestCloudflareRefusesUnsafeScopePermitCommitTransportAndMalformedResponse`,
 `TestCloudflareRateLimitHintNeverRetriesOrEchoesProviderBody`,
 `FuzzCloudflareRecordResponse`,
-`TestCloudflareProtocolCannotBeExportedOrWiredBeforeCustody` and inherited
+`TestCloudflareProtocolHasOnlyReviewedFreshAuthConsumer` and inherited
 fixed TLS/DNS/refusal tests. Actual two-way sabotage is recorded in ADR 0066/PR.
 
 ## C87 — DNS credential custody does not grant DNS or disclosure authority
@@ -1791,10 +1791,55 @@ Guards: `TestDNSPlanExactSourceEncryptionUncertainIntentAndPersistentWait`,
 `TestLinuxDNSPlanDurableIntentPermissionsRefusalAndFullRecovery`,
 `TestLinuxDNSPlanFaultAndPostCommitRevocationReturnNoLease`,
 `TestNativeDNSPlanRefusesBeforeBorrowingPermission`,
-`TestDNSPlanCustodyCannotAuthorizeNetworkBeforeIntegration`,
+`TestDNSPlanCustodyHasOnlyReviewedLockedConsumers`,
 `TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority`,
 `scripts/test-acme-order.mjs`, `scripts/test-inventory-lifecycle.mjs`.
-Actual compiling two-way source and handle sabotage is in ADR 0068/PR.
+
+## C89 — Explicit Cloudflare operations retain exact owned scope and uncertainty
+
+ADR 0069 connects DNS custody only through the fresh-password, explicit-consent
+Linux route and one private writer-lock transaction. Exact revision/generation,
+CA source and bound credential precede intent-before-I/O and one-use full-image
+lease consumption. Runtime cannot invoke unlocked intermediate steps or override
+the clock/transport. Provider results are untrusted transition input, not CA
+verification. First writes require a matching checkpoint, uncertain create/delete
+is read-only, borrowed records are terminal and never cleanup-owned. Owned ID,
+marker, value and token remain encrypted and absent from API/history. Cleanup has
+its own six-attempt persisted wait; remaining attempts/results, permanent pending
+recovery slot and independent issuance reserves cannot overlap. Expiry permits
+only reconciliation/owned cleanup, not new creation or ownership abandonment.
+Blocked/exhausted states remain closed to retry/reset, with explicit operator
+recovery guidance; unlimited automatic repair is not promised. Full snapshots
+and password/code recovery preserve exact scope. Native hosts refuse early.
+
+Cleanup requires explicit exclusive-editing acknowledgement: provider GET and
+DELETE are not atomic against external edits. UI is optional in the existing
+request card, one domain per click, no automatic provider/CA requests. Read-only
+local status differs from live provider I/O. Late/hidden/source/clock/schema/
+direction/counter mismatches clear authority and secrets. Visual demo remains
+synthetic/read-only; successful fake TLS/CI is not live Cloudflare interoperability
+or production audit. A pre-I/O crash can still require manual provider cleanup.
+
+Guards: `TestDNSOperationCreateOwnedCleanupExpiryArchiveAndSecretBoundary`,
+`TestDNSOperationBorrowedNeverCleanupAndLeaseCannotReplay`,
+`TestDNSOperationUnknownCreateReadOnlyAfterExpiryAndPersistentWait`,
+`TestDNSOperationCleanupUnknownNoDeleteReplayAndReservedBudget`,
+`TestDNSOperationMalformedOwnedResultsAndPostCallbackRevocationRefuse`,
+`TestDNSOperationClockCannotGoBackBeforeSavedOutcome`,
+`TestLinuxDNSOperationIntentLockAuthorityAndFullRecovery`,
+`TestLinuxDNSOperationRevocationAndUnknownReturnNoAuthority`,
+`TestLinuxDNSCleanupIntentSnapshotPreservesNoReplay`,
+`TestNativeDNSOperationRefusesBeforePermissionAndSecretBorrow`,
+`TestDNSOperationStrictRequestNoPartialAuthority`,
+`TestDNSOperationGateOriginSetupAndNativeRefusal`, `FuzzDNSOperationRequest`,
+`TestLinuxDNSAPIReauthGenerationBudgetsAndExactLockedCreateCleanup`,
+`TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`,
+`TestCloudflareProtocolHasOnlyReviewedFreshAuthConsumer`,
+`TestDNSPlanCustodyHasOnlyReviewedLockedConsumers`, `FuzzDNSPlanPayload`,
+`scripts/test-dns-operation.mjs`, `scripts/test-inventory-demo.mjs`, and inherited
+Cloudflare fake-TLS ownership, permission, malformed-response and no-replay tests.
+Actual compiling two-way source/direction sabotage is in ADR 0069; inherited
+exact-image handle sabotage is in ADR 0068/PR.
 
 ## C68 — One certificate library does not collapse the secret boundary
 

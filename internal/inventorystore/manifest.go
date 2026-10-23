@@ -493,7 +493,7 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	reserve, err := dnsTotalReserve(key, id, m, dns)
-	if err != nil || reserve < 0 || reserve > 28 {
+	if err != nil || reserve < 0 || reserve > 256 {
 		return manifest{}, nil, ErrInvalid
 	}
 	if m.Generation > maxGeneration-uint64(reserve) || len(m.History) > maxHistory-reserve || len(image) > maxImage-reservedImageBytes(key, id, m) {

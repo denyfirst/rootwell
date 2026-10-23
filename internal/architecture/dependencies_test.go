@@ -51,6 +51,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_directory_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_account_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/cloudflare_config_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/dns_operation_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_registration_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_order_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_renewal_navigation.go" && importPath == "net/http") ||
@@ -63,7 +64,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
-				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
+				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/dns_operation_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
 					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" && filepath.ToSlash(relative) != "internal/acmestaging/certificate.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
@@ -80,7 +81,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 	}
 }
 
-func TestCloudflareProtocolCannotBeExportedOrWiredBeforeCustody(t *testing.T) {
+func TestCloudflareProtocolHasOnlyReviewedFreshAuthConsumer(t *testing.T) {
 	_, current, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -101,12 +102,15 @@ func TestCloudflareProtocolCannotBeExportedOrWiredBeforeCustody(t *testing.T) {
 		rel = filepath.ToSlash(rel)
 		if rel == "internal/acmestaging/cloudflare.go" {
 			for _, decl := range file.Decls {
-				if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.IsExported() {
+				if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.IsExported() && fn.Name.Name != "CloudflareTXT" {
 					t.Error("DNS protocol exported before custody", fn.Name.Name)
 				}
 			}
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
+			if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == "CloudflareTXT" && rel != "cmd/rootwelld/dns_operation_api.go" {
+				t.Error("DNS connector outside fresh-auth transaction", rel)
+			}
 			if id, ok := node.(*ast.Ident); ok {
 				switch id.Name {
 				case "cloudflareRecord", "dnsRecordScope", "dnsRecordState", "dnsCommit", "cfSession", "cfDecodeRecord":
@@ -191,7 +195,7 @@ func TestCloudflareCredentialCannotEscapeConfigurationBoundary(t *testing.T) {
 			if ok && (id.Name == "cloudflarePayload" || id.Name == "cloudflareConfigKey") && relative != "internal/inventorystore/cloudflare_config.go" {
 				t.Errorf("credential handling outside configuration boundary: %s", relative)
 			}
-			if ok && id.Name == "openCloudflareConfig" && relative != "internal/inventorystore/cloudflare_config.go" && relative != "internal/inventorystore/manifest.go" && relative != "internal/inventorystore/dns_plan.go" {
+			if ok && id.Name == "openCloudflareConfig" && relative != "internal/inventorystore/cloudflare_config.go" && relative != "internal/inventorystore/manifest.go" && relative != "internal/inventorystore/dns_plan.go" && relative != "internal/inventorystore/dns_operation.go" {
 				t.Errorf("credential borrower before reviewed DNS lease: %s", relative)
 			}
 			return true
@@ -203,10 +207,14 @@ func TestCloudflareCredentialCannotEscapeConfigurationBoundary(t *testing.T) {
 	}
 }
 
-func TestDNSPlanCustodyCannotAuthorizeNetworkBeforeIntegration(t *testing.T) {
+func TestDNSPlanCustodyHasOnlyReviewedLockedConsumers(t *testing.T) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
 	allowed := map[string]bool{"internal/inventorystore/dns_plan.go": true, "internal/instanceaccess/dns_plan_linux.go": true, "internal/instanceaccess/dns_plan_other.go": true}
+	allowed["internal/inventorystore/dns_operation.go"] = true
+	allowed["internal/instanceaccess/dns_operation_linux.go"] = true
+	allowed["internal/instanceaccess/dns_operation_other.go"] = true
+	allowed["cmd/rootwelld/dns_operation_api.go"] = true
 	exports := map[string]bool{"ReadStagingDNSPlan": true, "PrepareStagingDNSPlan": true, "BeginStagingDNSAttempt": true, "DeferStagingDNSAttempt": true}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -248,6 +256,20 @@ func TestDNSPlanCustodyCannotAuthorizeNetworkBeforeIntegration(t *testing.T) {
 			})
 		}
 		ast.Inspect(file, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok {
+				if id.Name == "executeStagingDNSAttemptAt" && relative != "internal/inventorystore/dns_operation.go" || (id.Name == "beginDNSOperationAt" || id.Name == "deferStagingDNSAttemptAt") && relative != "internal/inventorystore/dns_plan.go" && relative != "internal/inventorystore/dns_operation.go" {
+					t.Error("runtime DNS clock override", relative)
+				}
+				if (id.Name == "BeginStagingDNSOperation" || id.Name == "ExecuteStagingDNSAttempt") && relative != "internal/inventorystore/dns_operation.go" && relative != "internal/instanceaccess/dns_operation_linux.go" {
+					t.Error("DNS route bypasses locked transaction", relative)
+				}
+				if id.Name == "RunStagingDNS" && relative != "internal/instanceaccess/dns_operation_linux.go" && relative != "internal/instanceaccess/dns_operation_other.go" && relative != "cmd/rootwelld/dns_operation_api.go" {
+					t.Error("unreviewed DNS transaction consumer", relative)
+				}
+				if relative == "cmd/rootwelld/dns_operation_api.go" && (id.Name == "DNSAttempt" || id.Name == "PrepareStagingDNSPlan" || id.Name == "BeginStagingDNSAttempt" || id.Name == "DeferStagingDNSAttempt") {
+					t.Error("DNS API invokes unlocked custody step", id.Name)
+				}
+			}
 			if id, ok := n.(*ast.Ident); ok && (exports[id.Name] || id.Name == "DNSAttempt") && !allowed[relative] {
 				t.Errorf("DNS intent wired before explicit reviewed route: %s", relative)
 			}
@@ -437,7 +459,7 @@ func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T)
 					t.Errorf("runtime new-order clock override: %s", rel)
 				}
 			}
-			if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "historical" && rel != "internal/inventorystore/closed_requests.go" && rel != "internal/inventorystore/issuance.go" && rel != "internal/inventorystore/dns_plan.go" {
+			if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "historical" && rel != "internal/inventorystore/closed_requests.go" && rel != "internal/inventorystore/issuance.go" && rel != "internal/inventorystore/dns_plan.go" && rel != "internal/inventorystore/dns_operation.go" {
 				t.Errorf("historical flag outside bound validator: %s", rel)
 			}
 			return true

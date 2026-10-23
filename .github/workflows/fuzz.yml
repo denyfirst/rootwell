@@ -102,6 +102,8 @@ jobs:
             package: ./internal/inventorystore
           - target: FuzzDNSPlanPayload
             package: ./internal/inventorystore
+          - target: FuzzDNSOperationRequest
+            package: ./cmd/rootwelld
           - target: FuzzCloudflareConfigurationRequest
             package: ./cmd/rootwelld
           - target: FuzzStagingRegistrationResponse

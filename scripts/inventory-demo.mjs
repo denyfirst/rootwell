@@ -72,11 +72,14 @@ const assets = new Map([
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
 let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal result, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the example result. All dates, saved/key statuses and renewal identities below are simulated, not a CA receipt or actual saved pairs. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
-for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action"]){
+for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive"]){
   automationHTML=replaceOnce(automationHTML,`id="${id}"`, `id="${id}" disabled`);
 }
 let dnsConfigScript=replaceOnce(asset("cloudflare-config.js"),"button.disabled=!!active", "button.disabled=true || !!active");
 assets.set("/cloudflare-config.js",["text/javascript; charset=utf-8",dnsConfigScript]);
+let dnsOperationScript=replaceOnce(asset("dns-operation.js"),"button.disabled=!!active","button.disabled=true || !!active");
+assets.set("/dns-operation.js",["text/javascript; charset=utf-8",dnsOperationScript]);
+automationHTML=replaceOnce(automationHTML,'<details id="cloudflare-dns">','<details id="cloudflare-dns"><p class="storage-note">DEMO · four independent fake DNS status examples, not the test request below. No Cloudflare connection, token or DNS change. Password, consent and operations are disabled.</p>');
 automationHTML=replaceOnce(automationHTML,'<section class="card" id="certificate-request">','<section class="card" id="certificate-request"><p class="storage-note">DEMO · fake status only, no saved key or CA operation. Actions disabled.</p>');
 let automationScript=replaceOnce(asset("acme-order.js"),"refresh.disabled=!!active; names.disabled=!!active; consent.disabled=!!active; password.disabled=!!active; resumeChoice.disabled=!!active;","refresh.disabled=!!active; names.disabled=true; consent.disabled=true; password.disabled=true; resumeChoice.disabled=true;");
 automationScript=replaceOnce(automationScript,"submit.disabled=!!active || document.hidden", "submit.disabled=true || !!active || document.hidden");
@@ -104,6 +107,16 @@ const server = http.createServer((request, response) => {
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"cloudflare"})){response.writeHead(400).end("Fixture status refused");return;}
       response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.dns.config.v1",provider:"cloudflare",generation:5,state:"not-configured",zone_name:"",saved_at:"",can_change:true,network_used:false,token_verified:false,dns_changed:false}));
+    });return;
+  }
+  if(request.method==="POST"&&request.url==="/api/acme/dns/status"){
+    if(request.headers.origin!=="http://"+request.headers.host || request.headers["x-rootwell-request"]!=="1" || request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
+    request.on("end",()=>{
+      if(oversized || body!==JSON.stringify({provider:"cloudflare"})){response.writeHead(400).end("Fixture status refused");return;}
+      const prepared=instant(-1),wait=new Date(Date.now()+120000).toISOString().slice(0,19)+"Z";
+      const rows=[["api.example.com","created"],["legacy.example.com","borrowed"],["mail.example.com","creating"],["shop.example.com","deleted"]].map(([domain,state])=>({domain,name:"_acme-challenge."+domain,state,attempts:1,not_before:wait,blocked:false,cleanup_attempts:state==="deleted"?1:0,cleanup_not_before:state==="deleted"?wait:"",cleanup_blocked:false,checked_at:state==="creating"?"":prepared}));
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.dns.operation.v1",provider:"cloudflare",generation:40,network_used:false,zone_name:"example.com",server_time:instant(0),can_prepare:false,pending_domains:[],prepared:true,prepared_at:prepared,expires:instant(1),records:rows}));
     });return;
   }
   if(request.method==="POST"&&request.url==="/api/acme/order/status"){
