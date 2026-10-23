@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -75,9 +75,9 @@
     <section class="card" id="certificate-request"><h2>Get your test certificate</h2>
 	  <div id="acme-renewal-source" hidden></div>
 	  <p id="acme-renewal-summary" class="storage-note" hidden></p>
-      <p>After registering your test account, request the TXT records for domains you control. Add them in your DNS provider's dashboard — no DNS API password is needed.</p>
+      <p>After registering your test account, get the DNS records for your domains. Add them yourself in your DNS dashboard, or use the optional Cloudflare helper below. Then ask the CA to check them.</p>
       <details id="cloudflare-settings"><summary>Optional Cloudflare DNS settings</summary>
-        <p>Prepare one zone for the next DNS automation step. Save stores your API token encrypted only on this Rootwell. It does not contact Cloudflare, check token permissions or change DNS. Manual DNS still works without a token.</p>
+        <p>Save a restricted token for one zone. Save stores your API token encrypted only on this Rootwell. It does not contact Cloudflare, check token permissions or change DNS. Manual DNS still works without a token.</p>
         <button id="dns-config-refresh" type="button" class="secondary">Check saved settings</button>
         <p id="dns-config-status" role="status" aria-live="polite">Settings not checked. Nothing connects automatically.</p>
         <form id="dns-config-form" class="csr-form" hidden>
@@ -94,6 +94,22 @@
           <button id="dns-config-submit" type="submit" disabled>Save encrypted settings</button>
         </form>
         <p>Make a new complete backup after a change. Access-only backups do not include the token. Old backups may retain a removed token; revoke it in Cloudflare if it must no longer work. Settings cannot be changed or removed while a saved certificate request remains open.</p>
+      </details>
+      <details id="cloudflare-dns"><summary>Let Cloudflare add the DNS records</summary>
+        <p>Optional: use your saved Cloudflare settings for this certificate request. Nothing runs automatically. Each action handles one domain; two values at the same DNS name stay separate.</p>
+        <button id="dns-operation-refresh" type="button" class="secondary">Read saved DNS status</button>
+        <p id="dns-operation-status" role="status" aria-live="polite">Read saved DNS status first. This does not contact Cloudflare.</p>
+        <ul id="dns-operation-records" hidden></ul>
+        <form id="dns-operation-form" class="csr-form" hidden>
+          <label for="dns-operation-domain">Domain</label><select id="dns-operation-domain"></select>
+          <p id="dns-operation-help"></p>
+          <label for="dns-operation-password">Your current Rootwell password</label><input id="dns-operation-password" type="password" maxlength="256" autocomplete="off" required>
+          <label class="confirm-row" for="dns-operation-consent"><input id="dns-operation-consent" type="checkbox" autocomplete="off"><span id="dns-operation-consent-label"></span></label>
+          <label id="dns-operation-exclusive-row" class="confirm-row" for="dns-operation-exclusive" hidden><input id="dns-operation-exclusive" type="checkbox" autocomplete="off">Only Rootwell will edit these owned DNS records during cleanup. I will not edit them in Cloudflare or through another tool until it finishes.</label>
+          <button id="dns-operation-submit" type="submit" disabled>Add DNS record</button>
+        </form>
+        <p>Adding records does not verify your domain or issue a certificate. After all required records are present, use the saved request's acknowledgement and “Ask CA to check DNS”. Clean up after validation/issuance when you no longer need these temporary records.</p>
+        <details><summary>If an operation is interrupted</summary><p>Read saved DNS status first. “Check result” only reads the same record; it never repeats a create or deletion. An uncertain result stays unresolved even if no record is currently listed. If cleanup is uncertain, inspect the exact Rootwell-marked record in Cloudflare and use remaining read-only checks. Blocked or exhausted attempts stay locked for operator recovery; do not reset or restore an older backup to retry.</p><p>Cleanup removes only an exact owned record ID after checking its name, value and marker. Existing records are left alone. Cloudflare does not provide atomic protection from edits between the check and deletion: exclusive editing during cleanup is required. A provider observation is not DNS propagation or CA verification. Make a new full backup after changes.</p></details>
       </details>
       <button id="acme-order-refresh" type="button" class="secondary">Check saved DNS request</button>
       <p id="acme-order-status" role="status" aria-live="polite">Nothing connects automatically. Check saved status first.</p>

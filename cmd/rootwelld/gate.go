@@ -59,6 +59,7 @@ type gate struct {
 	orderConnect        orderConnect
 	validationConnect   validationConnect
 	certificateConnect  certificateConnect
+	dnsConnect          dnsConnect
 }
 
 func newGate(accessPath, assetsDir, host string) (*gate, error) {
@@ -154,6 +155,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/dns/cloudflare/status", "/api/dns/cloudflare/save", "/api/dns/cloudflare/remove":
 		g.cloudflareConfigEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/dns/status", "/api/acme/dns/add", "/api/acme/dns/check", "/api/acme/dns/cleanup":
+		g.dnsOperationEndpoint(w, r, s, signedIn)
+		return
 	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":
 		g.acmeRegistrationEndpoint(w, r, s, signedIn)
 		return
@@ -184,7 +188,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -208,6 +212,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme-account.js", "text/javascript; charset=utf-8")
 		case "/cloudflare-config.js":
 			g.authAsset(w, r, "auth/cloudflare-config.js", "text/javascript; charset=utf-8")
+		case "/dns-operation.js":
+			g.authAsset(w, r, "auth/dns-operation.js", "text/javascript; charset=utf-8")
 		case "/acme-registration.js":
 			g.authAsset(w, r, "auth/acme-registration.js", "text/javascript; charset=utf-8")
 		case "/acme-order.js":

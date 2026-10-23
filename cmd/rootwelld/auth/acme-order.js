@@ -210,5 +210,6 @@
   names.addEventListener("input",()=>{if(active)invalidate();else{clearInputs();enable();}});
   for(const field of [password,consent])field.addEventListener(field===consent?"change":"input",()=>{if(active)invalidate();else enable();});
   el("acme-provider").addEventListener("change",invalidate);el("acme-clear").addEventListener("click",()=>{names.value="";invalidate();});
+  window.addEventListener("rootwell-dns-changed",invalidate);
   document.addEventListener("visibilitychange",()=>{if(document.hidden)invalidate();});window.addEventListener("pagehide",invalidate);enable();
 })();

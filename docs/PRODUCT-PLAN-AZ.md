@@ -44,6 +44,16 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
+**2026-10-20 ADR 0069:** Cloudflare TXT yaratma, yalnız oxuyan eyni-qeyd yoxlaması
+və owned cleanup eyni Linux writer-lock/intent/lease/result transaction-ına və
+Automation kartındakı optional UI-yə bağlanır. Hər klik bir domen, fresh parol və
+razılıq; cleanup üçün exclusive editing təsdiqi. Mövcud qeydlər silinmir; itmiş
+cavab POST/DELETE replay etmir. Ayrı cleanup retry və tam qalan capacity ehtiyatı,
+tam bərpa və expiry-dən sonra yalnız read/cleanup. Exhausted/blocked scope reset
+olunmur, manual provider müdaxiləsi və ayrıca maintenance recovery tələb edə
+bilər. Real token/DNS yoxlanmayıb; browser fake/read-only-dir. Bu scheduler,
+unattended unlock, avtomatik tam renewal/deploy və production release deyil.
+
 **2026-10-14 ADR 0068:** daxili order-bound şifrəli DNS plan/owner/retry custody.
 Source yalnız saxlanmış CA TXT-ləridir; cəhd və wait diskdə qalır, qeyri-müəyyən
 scope yeni write kimi replay edilmir və expiry/closure ilə atılmır. Cleanup və

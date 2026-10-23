@@ -19,11 +19,26 @@ import (
 )
 
 const dnsPlanByteReserve = 64 << 10
+const dnsTransitionByteReserve = 2 << 10
+
+// Each remaining intent/outcome reserves 2 KiB of outer-envelope growth, on
+// top of 64 KiB payload/closure slack. The reservation shrinks as a transition
+// commits; a fixed, never-decreasing byte reserve cannot fund its own writes.
+func dnsReservedBytes(key, id []byte, m manifest) int {
+	if len(m.DNSPlans) == 0 {
+		return 0
+	}
+	p, err := openDNSPlan(key, id, m)
+	if err != nil {
+		return dnsPlanByteReserve + 256*dnsTransitionByteReserve
+	}
+	return dnsPlanByteReserve + dnsPlanReserve(p)*dnsTransitionByteReserve
+}
 
 func reservedImageBytes(key, id []byte, m manifest) int {
 	reserve := 0
 	if len(m.DNSPlans) > 0 {
-		reserve += dnsPlanByteReserve
+		reserve += dnsReservedBytes(key, id, m)
 	}
 	if pendingIssuance(key, id, m) {
 		reserve += issuanceByteReserve
@@ -31,7 +46,7 @@ func reservedImageBytes(key, id []byte, m manifest) int {
 	return reserve
 }
 
-// DNSPlanStatus is local planning evidence, not DNS existence/CA verification.
+// DNSPlanStatus is saved planning/provider evidence, not current DNS/CA truth.
 // No token, provider ID, owner marker, TXT value or internal URL is public here.
 type DNSPlanStatus struct {
 	Prepared   bool                  `json:"prepared"`
@@ -40,21 +55,30 @@ type DNSPlanStatus struct {
 	Records    []DNSPlanRecordStatus `json:"records"`
 }
 type DNSPlanRecordStatus struct {
-	Domain    string `json:"domain"`
-	Name      string `json:"name"`
-	State     string `json:"state"`
-	Attempts  int    `json:"attempts"`
-	NotBefore string `json:"not_before"`
-	Blocked   bool   `json:"blocked"`
+	Domain           string `json:"domain"`
+	Name             string `json:"name"`
+	State            string `json:"state"`
+	Attempts         int    `json:"attempts"`
+	NotBefore        string `json:"not_before"`
+	Blocked          bool   `json:"blocked"`
+	CleanupAttempts  int    `json:"cleanup_attempts"`
+	CleanupNotBefore string `json:"cleanup_not_before"`
+	CleanupBlocked   bool   `json:"cleanup_blocked"`
+	CheckedAt        string `json:"checked_at"`
 }
 type dnsPlanRecord struct {
-	Domain  string              `json:"domain"`
-	Name    string              `json:"name"`
-	Value   string              `json:"value"`
-	Owner   string              `json:"owner"`
-	State   string              `json:"state"`
-	Retry   providerretry.State `json:"retry"`
-	Blocked bool                `json:"blocked"`
+	Domain         string               `json:"domain"`
+	Name           string               `json:"name"`
+	Value          string               `json:"value"`
+	Owner          string               `json:"owner"`
+	State          string               `json:"state"`
+	Retry          providerretry.State  `json:"retry"`
+	Blocked        bool                 `json:"blocked"`
+	ID             string               `json:"provider_id,omitempty"`
+	Cleanup        *providerretry.State `json:"cleanup,omitempty"`
+	CleanupBlocked bool                 `json:"cleanup_blocked,omitempty"`
+	CheckedAt      string               `json:"checked_at,omitempty"`
+	OutcomeAt      string               `json:"outcome_at,omitempty"`
 }
 type dnsPlanPayload struct {
 	Order              string          `json:"order"`
@@ -68,14 +92,15 @@ type dnsPlanPayload struct {
 	Records            []dnsPlanRecord `json:"records"`
 }
 
-// DNSAttempt is opaque and process-local. No network or secret borrower exists
-// in this increment. Copies share the same consumed state for provider waits.
+// DNSAttempt is opaque and process-local. Only the reviewed locked transaction
+// consumes it for a provider call; copies share the same consumed state.
 type DNSAttempt struct{ lease *dnsAttemptLease }
 type dnsAttemptLease struct {
 	imageHash  [32]byte
 	generation uint64
 	index      int
 	readOnly   bool
+	cleanup    bool
 	used       atomic.Bool
 }
 
@@ -103,7 +128,7 @@ func openDNSPlan(key, id []byte, m manifest) (dnsPlanPayload, error) {
 		return bad()
 	}
 	item := m.DNSPlans[0]
-	if !bytes.Equal(item.ID, dnsPlanID()) || item.Generation < 4 || item.Generation > m.Generation || len(item.Ciphertext) == 0 || len(item.Ciphertext) > 8192 {
+	if !bytes.Equal(item.ID, dnsPlanID()) || item.Generation < 4 || item.Generation > m.Generation || len(item.Ciphertext) == 0 || len(item.Ciphertext) > 16384 {
 		return bad()
 	}
 	k, err := dnsPlanKey(key, id)
@@ -141,11 +166,18 @@ func openDNSPlan(key, id []byte, m manifest) (dnsPlanPayload, error) {
 		}
 	}
 	seenDomains, seenOwners, seenTuples := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	seenIDs := map[string]bool{}
 	for i, r := range p.Records {
 		if i > 0 && p.Records[i-1].Domain >= r.Domain || seenDomains[r.Domain] || seenOwners[r.Owner] || seenTuples[r.Name+"\x00"+r.Value] || !dnsPlanHex(r.Owner) || r.Owner == strings.Repeat("0", 32) || !providerretry.Valid(r.Retry) {
 			return bad()
 		}
 		seenDomains[r.Domain], seenOwners[r.Owner], seenTuples[r.Name+"\x00"+r.Value] = true, true, true
+		if r.ID != "" {
+			if seenIDs[r.ID] {
+				return bad()
+			}
+			seenIDs[r.ID] = true
+		}
 		base := strings.TrimPrefix(r.Domain, "*.")
 		if r.Name != "_acme-challenge."+base || base != p.ZoneName && !strings.HasSuffix(base, "."+p.ZoneName) {
 			return bad()
@@ -163,11 +195,7 @@ func openDNSPlan(key, id []byte, m manifest) (dnsPlanPayload, error) {
 		if !found || decodeErr != nil || len(decoded) != 32 || base64.RawURLEncoding.EncodeToString(decoded) != r.Value {
 			return bad()
 		}
-		if r.State == "new" {
-			if r.Retry.Attempts != 0 || r.Blocked {
-				return bad()
-			}
-		} else if r.State != "creating" || r.Retry.Attempts < 1 || r.Retry.LastAt < p.PreparedAt || m.historical {
+		if !validDNSPlanRecord(r, p.PreparedAt, m.historical) {
 			return bad()
 		}
 	}
@@ -182,8 +210,19 @@ func openDNSPlan(key, id []byte, m manifest) (dnsPlanPayload, error) {
 func dnsPlanReserve(p dnsPlanPayload) int {
 	reserve := 0
 	for _, r := range p.Records {
-		if r.State == "creating" {
-			reserve += 3
+		outcome := 0
+		if r.OutcomeAt == "" {
+			outcome = 1
+		}
+		switch r.State {
+		case "creating":
+			// Current outcome, every remaining read intent/outcome, and all
+			// six separate cleanup intent/outcome pairs. No shared slots.
+			reserve += outcome + 2*(providerretry.MaxAttempts-r.Retry.Attempts) + 2*providerretry.MaxAttempts + 1
+		case "created":
+			reserve += 2*providerretry.MaxAttempts + 1
+		case "deleting":
+			reserve += outcome + 2*(providerretry.MaxAttempts-r.Cleanup.Attempts) + 1
 		}
 	}
 	return reserve
@@ -224,7 +263,12 @@ func publicDNSPlan(p dnsPlanPayload, deadline string) DNSPlanStatus {
 	s.PreparedAt = p.PreparedAt
 	s.Expires = min(p.Expires, deadline)
 	for _, r := range p.Records {
-		s.Records = append(s.Records, DNSPlanRecordStatus{Domain: r.Domain, Name: r.Name, State: r.State, Attempts: r.Retry.Attempts, NotBefore: r.Retry.NotBefore, Blocked: r.Blocked})
+		row := DNSPlanRecordStatus{Domain: r.Domain, Name: r.Name, State: r.State, Attempts: r.Retry.Attempts, NotBefore: r.Retry.NotBefore, Blocked: r.Blocked, CheckedAt: r.CheckedAt, CleanupBlocked: r.CleanupBlocked}
+		if r.Cleanup != nil {
+			row.CleanupAttempts = r.Cleanup.Attempts
+			row.CleanupNotBefore = r.Cleanup.NotBefore
+		}
+		s.Records = append(s.Records, row)
 	}
 	return s
 }
@@ -254,7 +298,7 @@ func sealDNSPlan(key, id []byte, m manifest, p dnsPlanPayload, action string) ([
 	defer clear(k)
 	plain, err := json.Marshal(p)
 	defer clear(plain)
-	if err != nil || len(plain) > 8192-64 {
+	if err != nil || len(plain) > 16384-64 {
 		return nil, DNSPlanStatus{}, 0, ErrInvalid
 	}
 	m.Generation++
@@ -326,13 +370,17 @@ func prepareStagingDNSPlanAt(key, id, image []byte, expected uint64, at time.Tim
 	return sealDNSPlan(key, id, m, p, "acme-dns-plan-prepared")
 }
 
-// Begin returns an image that MUST durably commit before a future connector can
+// Begin returns an image that MUST durably commit before the connector can
 // receive its lease. The first intent marks creating even if no bytes were sent;
 // reopened/uncertain scope can mint read-only attempts only, never reset/replay.
 func BeginStagingDNSAttempt(key, id, image []byte, expected uint64, index int) ([]byte, *DNSAttempt, DNSPlanStatus, uint64, error) {
 	return beginStagingDNSAttemptAt(key, id, image, expected, index, time.Now().UTC())
 }
 func beginStagingDNSAttemptAt(key, id, image []byte, expected uint64, index int, at time.Time) ([]byte, *DNSAttempt, DNSPlanStatus, uint64, error) {
+	return beginDNSOperationAt(key, id, image, expected, index, "add", at)
+}
+
+func beginDNSOperationAt(key, id, image []byte, expected uint64, index int, mode string, at time.Time) ([]byte, *DNSAttempt, DNSPlanStatus, uint64, error) {
 	bad := func(err error) ([]byte, *DNSAttempt, DNSPlanStatus, uint64, error) {
 		return nil, nil, DNSPlanStatus{}, 0, err
 	}
@@ -351,35 +399,69 @@ func beginStagingDNSAttemptAt(key, id, image []byte, expected uint64, index int,
 	if err != nil {
 		return bad(err)
 	}
-	if at.Year() < 2020 || at.Year() > 2100 || at.UTC().Format("2006-01-02T15:04:05Z") < p.PreparedAt || !at.Before(mustDNSTime(min(p.Expires, order.Expires))) || p.Records[index].Blocked {
+	row := &p.Records[index]
+	cleanup := mode == "cleanup" || mode == "check" && row.State == "deleting"
+	if mode != "add" && mode != "check" && mode != "cleanup" || mode == "add" && row.State != "new" && row.State != "creating" || mode == "check" && row.State != "creating" && row.State != "deleting" || mode == "cleanup" && row.State != "created" {
 		return bad(ErrInvalid)
 	}
-	readOnly := p.Records[index].State == "creating"
+	if at.Year() < 2020 || at.Year() > 2100 || at.UTC().Format("2006-01-02T15:04:05Z") < max(p.PreparedAt, row.CheckedAt, row.OutcomeAt) || row.State == "new" && (!at.Before(mustDNSTime(min(p.Expires, order.Expires))) || order.State != "dns-ready" && order.State != "dns-acknowledged") {
+		return bad(ErrInvalid)
+	}
+	if row.State == "new" {
+		required := false
+		for _, source := range order.Records {
+			if source.Domain == row.Domain && source.Name == row.Name && source.Value == row.Value && source.Required {
+				required = true
+			}
+		}
+		if !required {
+			return bad(ErrInvalid)
+		}
+	}
+	readOnly := row.State == "creating" || row.State == "deleting"
+	prior := row.Retry
+	blocked := row.Blocked
+	if cleanup {
+		prior = providerretry.State{}
+		blocked = row.CleanupBlocked
+		if row.Cleanup != nil {
+			prior = *row.Cleanup
+		}
+	}
+	if blocked {
+		return bad(ErrInvalid)
+	}
 	jitter, err := rand.Int(rand.Reader, big.NewInt(31))
 	if err != nil {
 		return bad(ErrInvalid)
 	}
-	retry, err := providerretry.Begin(p.Records[index].Retry, at, int(jitter.Int64()))
+	retry, err := providerretry.Begin(prior, at, int(jitter.Int64()))
 	if err != nil {
 		return bad(err)
 	}
-	p.Records[index].State = "creating"
-	p.Records[index].Retry = retry
+	if cleanup {
+		row.State = "deleting"
+		row.Cleanup = &retry
+	} else {
+		row.State = "creating"
+		row.Retry = retry
+	}
+	row.OutcomeAt = ""
 	reserve, err := dnsTotalReserve(key, id, m, p)
 	if err != nil {
 		return bad(err)
 	}
-	if reserve < 0 || reserve > 28 {
+	if reserve < 0 || reserve > 256 {
 		return bad(ErrInvalid)
 	}
-	if m.Generation > maxGeneration-uint64(reserve)-2 || len(m.History) > maxHistory-reserve-2 || len(image) > maxImage-dnsPlanByteReserve {
+	if m.Generation > maxGeneration-uint64(reserve)-1 || len(m.History) > maxHistory-reserve-1 || len(image) > maxImage-dnsPlanByteReserve {
 		return bad(ErrLimit)
 	}
 	next, s, gen, err := sealDNSPlan(key, id, m, p, "acme-dns-attempt-started")
 	if err != nil {
 		return bad(err)
 	}
-	return next, &DNSAttempt{lease: &dnsAttemptLease{imageHash: sha256.Sum256(next), generation: gen, index: index, readOnly: readOnly}}, s, gen, nil
+	return next, &DNSAttempt{lease: &dnsAttemptLease{imageHash: sha256.Sum256(next), generation: gen, index: index, readOnly: readOnly, cleanup: cleanup}}, s, gen, nil
 }
 func mustDNSTime(s string) time.Time { t, _ := time.Parse("2006-01-02T15:04:05Z", s); return t }
 
@@ -387,6 +469,9 @@ func mustDNSTime(s string) time.Time { t, _ := time.Parse("2006-01-02T15:04:05Z"
 // It cannot mark a record created/deleted or disclose/borrow credentials.
 // Invalid/too-long hints permanently block this policy, retaining prior state.
 func DeferStagingDNSAttempt(key, id, image []byte, attempt *DNSAttempt, hint providerretry.Hint) ([]byte, DNSPlanStatus, uint64, error) {
+	return deferStagingDNSAttemptAt(key, id, image, attempt, hint, time.Now().UTC())
+}
+func deferStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, hint providerretry.Hint, at time.Time) ([]byte, DNSPlanStatus, uint64, error) {
 	if attempt == nil || attempt.lease == nil || !attempt.lease.used.CompareAndSwap(false, true) {
 		return nil, DNSPlanStatus{}, 0, ErrInvalid
 	}
@@ -406,7 +491,7 @@ func DeferStagingDNSAttempt(key, id, image []byte, attempt *DNSAttempt, hint pro
 		return nil, DNSPlanStatus{}, 0, ErrInvalid
 	}
 	r := &p.Records[lease.index]
-	if lease.readOnly != (r.Retry.Attempts > 1) {
+	if lease.cleanup || r.State != "creating" || lease.readOnly != (r.Retry.Attempts > 1) {
 		return nil, DNSPlanStatus{}, 0, ErrInvalid
 	}
 	next, err := providerretry.Apply(r.Retry, hint)
@@ -415,5 +500,6 @@ func DeferStagingDNSAttempt(key, id, image []byte, attempt *DNSAttempt, hint pro
 	} else {
 		r.Retry = next
 	}
+	r.OutcomeAt = at.UTC().Format("2006-01-02T15:04:05Z")
 	return sealDNSPlan(key, id, m, p, "acme-dns-wait-saved")
 }

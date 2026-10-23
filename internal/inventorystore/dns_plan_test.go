@@ -89,7 +89,7 @@ func TestDNSPlanExactSourceEncryptionUncertainIntentAndPersistentWait(t *testing
 	if err != nil || gen != 12 || attempt == nil || !attempt.lease.readOnly || s.Records[0].Attempts != 2 {
 		t.Fatal("reopened pending scope granted replay or refused legitimate read")
 	}
-	next, s, _, err = DeferStagingDNSAttempt(key, id, next, attempt, providerretry.Hint{Blocked: true})
+	next, s, _, err = deferStagingDNSAttemptAt(key, id, next, attempt, providerretry.Hint{Blocked: true}, mustDNSTime(s.Records[0].NotBefore))
 	if err != nil || !s.Records[0].Blocked || s.Records[0].Attempts != 2 {
 		t.Fatal("malformed hint reset intent")
 	}
@@ -235,7 +235,7 @@ func TestDNSPlanClosureArchiveAndCleanupCapacity(t *testing.T) {
 		t.Fatal("expired request abandoned uncertain DNS ownership")
 	}
 	m, _, _ = decode(key, id, started)
-	m.Generation = maxGeneration - 3
+	m.Generation = maxGeneration - 24
 	m.History = nil
 	near, _ := encode(key, m)
 	if out, _, err := Append(key, id, near, demo(t, "rootwell-demo-certificate.pem"), "team", "service"); !errors.Is(err, ErrLimit) || out != nil {
@@ -279,11 +279,11 @@ func TestDNSPlanReservationsAddToPendingIssuanceAndPreserveMaterial(t *testing.T
 	}
 	p, _ := openDNSPlan(key, id, m)
 	reserve, err := dnsTotalReserve(key, id, m, p)
-	if err != nil || reserve != 4 || reservedImageBytes(key, id, m) != issuanceByteReserve+dnsPlanByteReserve {
+	if err != nil || reserve != 25 || reservedImageBytes(key, id, m) != issuanceByteReserve+dnsPlanByteReserve+24*dnsTransitionByteReserve {
 		t.Fatal("issuance and cleanup reservations overlap")
 	}
 	m.History = nil
-	m.Generation = maxGeneration - 4
+	m.Generation = maxGeneration - 25
 	near, _ := encode(key, m)
 	if out, _, err := Append(key, id, near, demo(t, "rootwell-demo-certificate.pem"), "team", "service"); !errors.Is(err, ErrLimit) || out != nil {
 		t.Fatal("generic write consumed overlapping reservation")
@@ -374,6 +374,28 @@ func FuzzDNSPlanPayload(f *testing.F) {
 	}
 	seed, _ := json.Marshal(records)
 	f.Add(seed)
+	m, _, _ := decode(key, id, image)
+	prepared, _ := openDNSPlan(key, id, m)
+	at := mustDNSTime(prepared.PreparedAt)
+	retry := providerretry.State{Attempts: 1, LastAt: prepared.PreparedAt, NotBefore: at.Add(time.Minute).Format("2006-01-02T15:04:05Z")}
+	for _, state := range []string{"creating", "borrowed", "created", "deleting", "deleted"} {
+		rows := append([]dnsPlanRecord(nil), records...)
+		r := &rows[0]
+		r.State = state
+		r.Retry = retry
+		r.OutcomeAt = prepared.PreparedAt
+		if state != "creating" {
+			r.CheckedAt = prepared.PreparedAt
+		}
+		if state == "created" || state == "deleting" || state == "deleted" {
+			r.ID = strings.Repeat("c", 32)
+		}
+		if state == "deleting" || state == "deleted" {
+			r.Cleanup = &retry
+		}
+		seed, _ := json.Marshal(rows)
+		f.Add(seed)
+	}
 	f.Add([]byte("null"))
 	f.Add([]byte("{}"))
 	f.Fuzz(func(t *testing.T, data []byte) {

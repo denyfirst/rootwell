@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-14. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-23. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -39,10 +39,49 @@ uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələ
 
 **Cari dalğa — retry + Cloudflare DNS:** istifadəçi hər ikisini təsdiqləyib,
 ilk DNS provayderi kimi Cloudflare seçib. PR #97 və #98 tamamlanıb; hazırkı iş
-`feat/durable-dns-order-plan` branch-ındadır və ADR 0068 sırasıyla davam edir.
+`feat/cloudflare-dns-ui-transaction` branch-ındadır və ADR 0069 sırasıyla davam edir.
 Porch scope xaricindədir, real CA/DNS əməliyyatı və ya secret import icazəsi deyil.
 
-**Cari increment — ADR 0068:** CA-nın saxlanmış sorğusundan və dəqiq Cloudflare
+**Cari increment — ADR 0069:** eyni Linux writer-lock altında credential/intent/
+one-use lease/Cloudflare/result və ayrı cleanup retry transaction-ı; eyni Automation
+kartında optional bir-domain add/check/cleanup UI. Fresh parol, explicit razılıq,
+cleanup üçün exclusive editing, shared auth/provider/KDF budget, tam qalan
+transition/byte/issuance ehtiyatı. Expiry yeni create-a icazə vermir, read/cleanup
+dayanmır. Borrowed silinmir, creating/deleting replay olunmur; blocked/exhausted
+reset yoxdur və manual provider/reviewed maintenance lazım ola bilər. Lokal
+model/API/UI/negative/sabotage və read-only fake browser yoxlanır; actual Linux/
+race/full recovery, bütün exact-head CI və ayrıca maintainer self-review merge
+qapısıdır. Real token/DNS/CA, scheduler, production və Porch scope-da deyil.
+
+2026-10-23 təkrar govulncheck Go 1.26.9-da crypto/x509 üçün reachable
+GO-2026-6809 tapdı. Module minimum və digest-pinned official Docker build image
+1.26.10-a keçirilir; bütün yoxlamalar patched toolchain ilə təkrarlanır. İstisna,
+scan bypass və hostun global Go quraşdırmasını dəyişmək yoxdur.
+
+### İlk certificate-lifecycle buraxılışına qədər qalan yaxın sıra
+
+1. ADR 0069-u final Linux/race/recovery, imzalı PR/bütün CI və ayrıca maintainer
+   self-review-dan sonra merge etmək. UI demo real provider sınağı deyil.
+2. DNS-də blocked/exhausted və unknown nəticələr üçün ayrıca reviewed operator
+   bərpa axını və history/capacity siyasəti. Ownership səssiz atılmır, POST/DELETE
+   replay və köhnə backup-la reset yoxdur. Bu, scheduler-dən əvvəl həll olunur.
+3. ARI renewal-window və hazır sessiya çərçivəsində bounded scheduler/pause/
+   visible failure. Hazırkı 12 saatlıq açılma uzanmır; 24/7 unattended unlock
+   ayrıca credential/authority qərarı olmadan əlavə edilmir.
+4. Ayrı identity/trust və explicit səlahiyyətlə production ACME dəstəyi;
+   operatorun xüsusi test domeni və məhdud tokeni ilə staging/provider real
+   inteqrasiya sınaqları. EAB/başqa CA uyğunluğu ayrıca profil və test tələb edir;
+   bu plan real customer DNS/production çağırışına icazə vermir.
+5. Docker/quraşdırma/upgrade/HTTPS-access sərhədləri, tam backup/restore məşqi,
+   istifadəçi təlimatı və release-candidate end-to-end yoxlaması. Sonra müstəqil
+   audit, tapıntıların həlli və re-test; bundan əvvəl production release yoxdur.
+
+Bu minimuma SSH/PGP/PAM, yeni CA yaratma və avtomatik server deployment agenti
+qatılmır. Onlar bu buraxılışın bitmə meyarını sonsuz genişləndirmir; ayrı məhsul/
+sonrakı capability mərhələləridir. Nüvənin hazır olması bütün platformanın və ya
+production avtomatlaşdırmasının bitməsi demək deyil; dəqiq faiz/tarix vədi yoxdur.
+
+**Tamamlanan increment — ADR 0068 (PR #99):** CA-nın saxlanmış sorğusundan və dəqiq Cloudflare
 ayarından alınan şifrəli DNS planı; ayrı 128-bit owner marker-lər, persisted
 attempt/wait, crypto jitter, exact-image bir dəfəlik handle və restartda read-only
 istiqamət. Naməlum cəhd expiry/closure ilə itmir; cleanup minimum capacity və

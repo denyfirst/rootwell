@@ -85,5 +85,6 @@
   action.addEventListener("change",()=>{if(active)reset();token.value="";password.value="";consent.checked=false;mode();});
   el("acme-clear").addEventListener("click",reset); el("acme-provider").addEventListener("change",reset);
   document.addEventListener("visibilitychange",()=>{if(document.hidden)reset();}); window.addEventListener("pagehide",reset);
+  window.addEventListener("rootwell-dns-changed",reset);
   reset();
 })();
