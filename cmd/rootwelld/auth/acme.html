@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -21,6 +21,19 @@
     <section class="work-heading"><h1>Plan a test certificate</h1><p>Check your names and how you will prove control of them. This does not request a certificate.</p></section>
     <aside class="storage-note" aria-label="Setup boundary"><strong>No external connection for Check setup</strong><p>Check setup sends these names only to your own Rootwell. Nothing is saved. No account, key, DNS change, certificate or renewal is created. The separate optional connection check below contacts staging only after your confirmation.</p></aside>
     <div class="layout">
+    <section class="card" id="renewal-readiness">
+      <h2>Renewal overview</h2>
+      <p>See what needs attention before your next test renewal. This reads your encrypted store only; it does not contact a CA or DNS provider.</p>
+      <button id="automation-status-refresh" type="button" class="secondary">Check renewal readiness</button>
+      <p id="automation-status-message" role="status" aria-live="polite">Automatic renewal is not enabled. Check saved status to see the next steps.</p>
+      <div id="automation-status-result" hidden>
+        <p id="automation-status-next"></p>
+        <details><summary>Saved certificates and storage headroom</summary><p id="automation-status-capacity"></p><ul id="automation-status-certificates"></ul>
+        <p>Review dates are local reminders based on two thirds of the certificate's actual lifetime, not a CA renewal window or a trust check. Imported certificates need their own issuer's renewal process. Saved older pairs stay saved; they are not deployed or replaced automatically.</p>
+        </details>
+        <p id="automation-status-unlock"></p>
+      </div>
+    </section>
     <section class="card"><h2>1. Choose your test setup</h2>
       <form id="acme-form" class="csr-form">
         <label for="acme-provider">Certificate provider</label><select id="acme-provider"><option value="letsencrypt-staging">Let's Encrypt — staging (test only)</option></select>

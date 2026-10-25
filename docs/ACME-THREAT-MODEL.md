@@ -308,6 +308,17 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0071 adds a local read-only one-image renewal overview, not scheduler or
+ARI authority. Whole authenticated image/access revision, shared crypto budget,
+live ready session and bounded age precede output. Reservation headroom is
+informational; exact writers still decide admission. Terminal DNS uncertainty
+and maintenance remain saved, never reset/pruned/abandoned. Local lifetime
+reminders distinguish manual imported certificates and retained superseded
+staging originals. No secret, notes, TXT, provider IDs, key or internal URI in
+output. Hidden/stale/late/source changes clear UI. The operator explicitly chose
+the existing twelve-hour ready session, not independent 24/7 unlock. Full
+automation and ARI remain further reviewed increments, not completed here.
+
 ADR 0070 extends exhausted ordinary checks with a separately consented six-check
 read-only policy per phase. Existing counters never reset. Intent/result and
 provider waits persist through complete recovery; remaining slots/bytes are

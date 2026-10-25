@@ -28,6 +28,9 @@ try {
   assert.match(html, /id="save-button" type="submit" disabled/);
   assert.equal(page.headers.get("cache-control"), "no-store");
   const origin = new URL(address).origin;
+  const overviewScript=await fetch(origin+"/automation-status.js");assert.equal(overviewScript.status,200);
+  const overview=await fetch(origin+"/api/automation/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"letsencrypt-staging"})});assert.equal(overview.status,200);const summary=await overview.json();assert.equal(summary.network_used,false);assert.equal(summary.automatic_renewal,false);assert.equal(summary.dns,"unknown");assert.match(summary.certificates[0].name,/DEMO/);
+  assert.equal((await fetch(origin+"/api/automation/status",{method:"POST",body:"{}"})).status,403);
   const dnsScript=await fetch(origin+"/cloudflare-config.js");assert.equal(dnsScript.status,200);assert.match(await dnsScript.text(),/button.disabled=true/);
   const dnsOperationScript=await fetch(origin+"/dns-operation.js");assert.equal(dnsOperationScript.status,200);assert.match(await dnsOperationScript.text(),/button.disabled=true/);
   const dnsOperationStatus=await fetch(origin+"/api/acme/dns/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"cloudflare"})});assert.equal(dnsOperationStatus.status,200);const dnsWork=await dnsOperationStatus.json();assert.equal(dnsWork.network_used,false);assert.deepEqual(dnsWork.records.map(row=>row.state),["created","borrowed","creating","deleted"]);

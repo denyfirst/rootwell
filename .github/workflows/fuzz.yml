@@ -58,6 +58,8 @@ jobs:
             package: ./internal/inventoryseal
           - target: FuzzOpenImage
             package: ./internal/inventorystore
+          - target: FuzzAutomationStatusWholeImage
+            package: ./internal/inventorystore
           - target: FuzzOpenRecoveryWrap
             package: ./internal/instanceaccess
           - target: FuzzRecoveryEnvelopeParsing
