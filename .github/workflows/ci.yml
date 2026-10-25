@@ -180,6 +180,8 @@ jobs:
           node --check cmd/rootwelld/auth/cloudflare-config.js
           node --check scripts/test-cloudflare-config.mjs
           node --check scripts/test-dns-operation.mjs
+          node --check cmd/rootwelld/auth/automation-status.js
+          node --check scripts/test-automation-status.mjs
           node --check cmd/rootwelld/auth/dns-operation.js
           node --check cmd/rootwelld/auth/acme-registration.js
           node --check scripts/test-acme-registration.mjs
@@ -227,15 +229,19 @@ jobs:
           node scripts/test-acme-account.mjs
           node scripts/test-cloudflare-config.mjs
           node scripts/test-dns-operation.mjs
+          node scripts/test-automation-status.mjs
           node scripts/test-acme-registration.mjs
           node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
 
-      - name: Smoke test the new Linux DNS recovery fixture
+      - name: Smoke test Linux recovery and renewal overview
         # Fail a malformed synthetic fixture early; this does not replace the
         # full shuffled race suite below or relax any production validator.
-        run: go test -race -run '^TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore$' -count=1 -timeout=5m ./internal/instanceaccess
+        run: |
+          set -eu
+          go test -race -run '^(TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore|TestLinuxAutomationStatusReadOnlyRevisionAndFullRestore)$' -count=1 -timeout=5m ./internal/instanceaccess
+          go test -race -run '^TestLinuxAutomationStatusAPINoNetworkMutationOrUnlockedBypass$' -count=1 -timeout=5m ./cmd/rootwelld
 
       - name: Test with race detector
         # Real password/KDF and recovery tests retain production iterations.

@@ -23,6 +23,34 @@ type renewalAnchor struct {
 	ClosedGeneration, DeletedGeneration uint64
 }
 
+// Public lineage identities only. Historical scopes and their encrypted keys
+// remain inside the validator; a summary consumer receives no replay authority.
+func completedRenewalSources(key, id []byte, m manifest) (map[string]bool, error) {
+	result := map[string]bool{}
+	scopes := []manifest{m}
+	for _, item := range m.ClosedRequests {
+		_, scope, _, err := openClosedRequest(key, id, m, item)
+		if err != nil {
+			return nil, err
+		}
+		scopes = append(scopes, scope)
+	}
+	for _, scope := range scopes {
+		order, err := openOrder(key, id, scope)
+		if err != nil {
+			return nil, err
+		}
+		issued, err := openIssuance(key, id, scope)
+		if err != nil {
+			return nil, err
+		}
+		if issued.Completion != nil && order.RenewalSource != "" {
+			result[order.RenewalSource] = true
+		}
+	}
+	return result, nil
+}
+
 func checkRenewalBinding(order orderPayload, orderGeneration uint64, closedAt string, closedGeneration uint64, newKey string, anchors map[string]renewalAnchor) error {
 	if order.RenewalSource == "" {
 		return nil

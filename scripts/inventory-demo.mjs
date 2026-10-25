@@ -86,6 +86,7 @@ automationScript=replaceOnce(automationScript,"submit.disabled=!!active || docum
 assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
 assets.set("/acme-order.js",["text/javascript; charset=utf-8",automationScript]);
 for(const name of ["acme-setup.js","acme-directory.js","acme-account.js","acme-registration.js"])assets.set("/"+name,["text/javascript; charset=utf-8",asset(name)]);
+assets.set("/automation-status.js",["text/javascript; charset=utf-8",asset("automation-status.js")]);
 const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -101,6 +102,15 @@ const server = http.createServer((request, response) => {
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if(request.method==="POST"&&request.url==="/api/automation/status"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
+    request.on("end",()=>{
+      if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
+      const fakeRows=[{fingerprint:Array(32).fill("AA").join(":"),name:"DEMO · mail.example.com",not_after:instant(12),review_at:instant(-1),state:"due"},{fingerprint:Array(32).fill("BB").join(":"),name:"DEMO · api.example.com",not_after:instant(60),review_at:instant(30),state:"waiting"}];
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.automation.status.v1",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:new Date(Date.now()+7200000).toISOString().slice(0,19)+"Z",generation:40,checked_at:instant(0),request:"active",dns:"unknown",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:880,events_reserved:100,archives_free:30,records_free:498,generations_free:999860,bytes_free:90000000},certificates:fakeRows}));
+    });return;
+  }
   if(request.method==="POST"&&request.url==="/api/dns/cloudflare/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
