@@ -80,31 +80,31 @@ func exhaustSyntheticDNS(t *testing.T, path string, key, id []byte) uint64 {
 	}
 	retry.Attempts = 6
 	retry.NotBefore = last.Add(time.Second).Format("2006-01-02T15:04:05Z")
-	rows[0]["retry"], err = json.Marshal(retry)
+	retryJSON, err := json.Marshal(retry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p["records"], err = json.Marshal(rows)
-	if err != nil {
-		t.Fatal(err)
+	// The production decoder requires canonical STRUCT field order at every
+	// layer. Re-marshalling these lookup maps alphabetizes fields and creates
+	// an invalid fixture even with a correct MAC. Replace only the unique
+	// canonical retry value, preserving all surrounding bytes.
+	if bytes.Count(plain, rows[0]["retry"]) != 1 {
+		t.Fatal("ambiguous fixture retry")
 	}
-	plain, err = json.Marshal(p)
-	if err != nil {
-		t.Fatal(err)
-	}
+	plain = bytes.Replace(plain, rows[0]["retry"], retryJSON, 1)
 	defer clear(plain)
 	plans[0].Ciphertext, err = inventoryseal.Seal(k, context, plain)
 	if err != nil {
 		t.Fatal(err)
 	}
-	body["dns_plans"], err = json.Marshal(plans)
+	plansJSON, err := json.Marshal(plans)
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer.Body, err = json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
+	if bytes.Count(outer.Body, body["dns_plans"]) != 1 {
+		t.Fatal("ambiguous fixture plan")
 	}
+	outer.Body = bytes.Replace(outer.Body, body["dns_plans"], plansJSON, 1)
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write([]byte("rootwell.public-inventory.manifest.v1:"))
 	_, _ = mac.Write(outer.Body)

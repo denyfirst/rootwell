@@ -2,6 +2,8 @@ package inventorystore
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -291,5 +293,106 @@ func TestDNSRecoveryCannotOverrideOrdinaryProviderBlock(t *testing.T) {
 	}
 	if out, a, _, _, err := beginDNSOperationAt(key, id, blocked, g, 0, "recover", at.Add(8*24*time.Hour)); err == nil || out != nil || a != nil {
 		t.Fatal("read-only recovery bypassed an invalid provider hint")
+	}
+}
+
+// Reproduce the Linux synthetic-fixture byte-order bug on every platform. A
+// correct GCM/MAC is not enough: lookup-map serialization is not the canonical
+// struct representation required by the complete-image boundary.
+func TestDNSRecoveryCanonicalFixtureSplice(t *testing.T) {
+	key, id, image, _ := exhaustedDNSFixture(t, false)
+	var outer envelope
+	if json.Unmarshal(image, &outer) != nil {
+		t.Fatal("fixture envelope")
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(outer.Body, &fields) != nil {
+		t.Fatal("fixture manifest")
+	}
+	sealEnvelope := func(body []byte) []byte {
+		mac := hmac.New(sha256.New, key)
+		_, _ = mac.Write([]byte(macLabel))
+		_, _ = mac.Write(body)
+		candidate, err := json.Marshal(envelope{Body: body, MAC: mac.Sum(nil)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return candidate
+	}
+	reordered, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Equal(reordered, outer.Body) {
+		t.Fatal("fixture did not exercise struct/map order")
+	}
+	if s, _, err := ReadStagingDNSPlan(key, id, sealEnvelope(reordered)); err == nil || s.Prepared {
+		t.Fatal("noncanonical manifest accepted")
+	}
+	var plans []sealedRecord
+	if json.Unmarshal(fields["dns_plans"], &plans) != nil || len(plans) != 1 {
+		t.Fatal("fixture plans")
+	}
+	k, err := dnsPlanKey(key, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clear(k)
+	plain, err := inventoryseal.Open(k, attachmentContext(id, plans[0]), plans[0].Ciphertext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clear(plain)
+	var payload map[string]json.RawMessage
+	if json.Unmarshal(plain, &payload) != nil {
+		t.Fatal("fixture payload")
+	}
+	badPlain, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clear(badPlain)
+	badPlans := append([]sealedRecord(nil), plans...)
+	badPlans[0].Ciphertext, err = inventoryseal.Seal(k, attachmentContext(id, plans[0]), badPlain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badPlansJSON, err := json.Marshal(badPlans)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s, _, err := ReadStagingDNSPlan(key, id, sealEnvelope(bytes.Replace(outer.Body, fields["dns_plans"], badPlansJSON, 1))); err == nil || s.Prepared {
+		t.Fatal("noncanonical sealed payload accepted")
+	}
+	var rows []map[string]json.RawMessage
+	if json.Unmarshal(payload["records"], &rows) != nil {
+		t.Fatal("fixture records")
+	}
+	var retry providerretry.State
+	if json.Unmarshal(rows[0]["retry"], &retry) != nil {
+		t.Fatal("fixture retry")
+	}
+	retry.NotBefore = mustDNSTime(retry.LastAt).Add(time.Second).Format("2006-01-02T15:04:05Z")
+	retryJSON, err := json.Marshal(retry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Count(plain, rows[0]["retry"]) != 1 || bytes.Count(outer.Body, fields["dns_plans"]) != 1 {
+		t.Fatal("ambiguous fixture splice")
+	}
+	fixedPlain := bytes.Replace(plain, rows[0]["retry"], retryJSON, 1)
+	defer clear(fixedPlain)
+	plans[0].Ciphertext, err = inventoryseal.Seal(k, attachmentContext(id, plans[0]), fixedPlain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plansJSON, err := json.Marshal(plans)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixed := sealEnvelope(bytes.Replace(outer.Body, fields["dns_plans"], plansJSON, 1))
+	s, _, err := ReadStagingDNSPlan(key, id, fixed)
+	if err != nil || s.Records[0].Attempts != 6 || s.Records[0].NotBefore != retry.NotBefore {
+		t.Fatal("canonical splice refused", err)
 	}
 }

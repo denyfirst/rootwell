@@ -42,3 +42,15 @@ native/Linux vet/staticcheck, Linux gosec, module/format/build, actionlint and
 govulncheck pass (zero reachable/imported-package findings; inherited unused
 module-only residual). UI VM/history/demo tests pass. Actual Linux writer,
 full recovery and race execution remain the exact-head CI gate, not cross-vet.
+
+## Linux fixture correction
+
+First-head Linux CI correctly rejected the new synthetic exhausted image. Its
+test-only helper re-marshalled lookup maps, alphabetizing authenticated payload
+and manifest fields, while the production decoder requires exact canonical
+struct field order. Preserve the original canonical bytes and splice only the
+unique retry value and sealed-plan array, then recompute the fixture MAC.
+Production validators and recovery authority are unchanged. Add an early real
+Linux race smoke test for this fixture before the unchanged full shuffled race
+suite. All checks must pass again on the corrected signed head; earlier-head
+successes are not the merge gate.
