@@ -308,6 +308,15 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0072 supplies offline ARI policy only: bounded unique JSON/window/timestamps,
+one special read-check Retry-After interval, fixed error delays, public certificate
+ID through standard X.509/ASN.1 and cryptorandom time selection subordinate to
+lifetime and existing backoff. Parsed windows are untrusted, not CA observations.
+No runtime consumer, network, storage, signer, job, UI or unlock capability.
+Future pinned source/custody must bind the exact certificate and persist one
+selection before scheduling; no reroll on reads/restarts/restores. Architecture
+tests keep that boundary closed. No arbitrary explanation URL is returned.
+
 ADR 0071 adds a local read-only one-image renewal overview, not scheduler or
 ARI authority. Whole authenticated image/access revision, shared crypto budget,
 live ready session and bounded age precede output. Reservation headroom is

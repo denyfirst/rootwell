@@ -88,6 +88,12 @@ jobs:
             package: ./internal/publicinventory
           - target: FuzzProviderRetryAfter
             package: ./internal/providerretry
+          - target: FuzzARIInformation
+            package: ./internal/renewalpolicy
+          - target: FuzzARICertificateID
+            package: ./internal/renewalpolicy
+          - target: FuzzRenewalSelection
+            package: ./internal/renewalpolicy
           - target: FuzzCloudflareRecordResponse
             package: ./internal/acmestaging
           - target: FuzzVersionValue
