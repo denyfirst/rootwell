@@ -23,8 +23,22 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
-**Cari increment — ADR 0070:** PR #100 / ADR 0069 bütün 13 yoxlama ilə merge
-edilib. Yeni `feat/dns-readonly-recovery` adi altı cəhddən sonra ayrıca, maksimum
+**Cari dalğa — 2026-10-26 istifadəçi qərarı:** avtomatlaşdırma işləri hər kiçik
+addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Hazır sessiya
+çərçivəsi seçilib: çıxış/kilid/restart dayandırır, maksimum 12 saat uzadılmır;
+24/7 üçün diskə parol və ya müstəqil unlock açarı yazılmır. Real DNS/CA/domain/
+terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
+Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
+
+**Cari increment — ADR 0071:** eyni tam authenticated image-dən read-only renewal
+overview: qalan və reserved capacity, DNS maintenance/unknown/wait/cleanup,
+request növbəti addımı, lokal actual-lifetime reminder və superseded pair ayrılığı.
+Bu, avtomatik yeniləmə, ARI provider sorğusu, retention/pruning və ya yeni retry
+səlahiyyəti deyil. Ardınca bounded ARI/schedule policy, scoped session worker və
+pause/failure UI ayrıca icra edilir; dalğa bu increment-lə tamamlanmış deyil.
+
+**Tamamlanan increment — ADR 0070:** PR #101 bütün 13 yoxlama ilə merge
+edilib. Adi altı cəhddən sonra ayrıca, maksimum
 altı read-only bərpa yoxlamasını eyni writer/intent/lease/UI axınına əlavə edir.
 Hər phase üçün ayrı persisted wait/count, bütün qalan intent/outcome ehtiyatı;
 heç bir POST/DELETE, reset və ownership abandonment yoxdur. Invalid provider-hint

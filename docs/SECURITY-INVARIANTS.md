@@ -1841,6 +1841,28 @@ Cloudflare fake-TLS ownership, permission, malformed-response and no-replay test
 Actual compiling two-way source/direction sabotage is in ADR 0069; inherited
 exact-image handle sabotage is in ADR 0068/PR.
 
+## C91 — Renewal readiness cannot manufacture renewal or recovery authority
+
+ADR 0071 reads one complete authenticated image under a revision-checked Linux
+writer lock. No partial status, stitched generations, network, write, key/notes/
+TXT/ownership disclosure or independent unlock credential. Headroom excludes
+existing reservations, but is never an admission guarantee. Pending DNS waits,
+uncertainty and terminal maintenance stay visible and cannot reset counters or
+erase ownership. Local actual-lifetime reminders are not ARI or permission to
+renew. Imported records remain manual; completed renewal successors prevent
+retained originals from being selected twice. Full restore preserves lineage.
+Ready/origin/header/crypto budgets, clock/lifetime and hidden/late UI checks
+apply. The user's session-bound choice never extends twelve-hour access.
+
+Guards: `TestAutomationStatusWholeImageLifetimeAndNoMutation`,
+`TestAutomationStatusDNSReservationsWaitAndTerminalMaintenance`,
+`TestAutomationDNSBlockAndClockCannotBecomeReady`,
+`TestLinuxAutomationStatusReadOnlyRevisionAndFullRestore`,
+`TestNativeAutomationStatusRefusesBeforeFilesystem`,
+`TestAutomationOverviewGateNoNewAuthority`,
+`TestLinuxAutomationStatusAPINoNetworkMutationOrUnlockedBypass`,
+`FuzzAutomationStatusWholeImage`, `scripts/test-automation-status.mjs`.
+
 ## C90 — Exhausted DNS recovery is separate bounded read-only authority
 
 ADR 0070 cannot reset ordinary provisioning/cleanup counters or repeat a DNS

@@ -7,6 +7,15 @@
 **Məhsul adı:** DenyFirst Rootwell
 **Əsas prinsip:** kiçik və yoxlanılan nüvədən başlayıb mərhələli şəkildə tam certificate lifecycle platformasına çevrilmək
 
+**2026-10-26 automation qərarı:** istifadəçi bütün uyğun increment-lərin ardıcıl
+icrasını və yalnız hazır sessiyada işləməsini seçdi. Çıxış/kilid/restart dayanır;
+12 saatlıq giriş uzanmır, diskdə background parolu saxlanmır. Cari ADR 0071
+eyni authenticated image-dən sadə renewal/readiness xülasəsidir: actual-lifetime
+lokal reminder, pending DNS/maintenance/wait və qalan/reserved capacity.
+Bu, ARI, scheduler, pruning/reset və production hazır olması deyil. Sonrakı
+increment-lər [aktiv sıra](ACTIVE-EXECUTION-PLAN-AZ.md) ilə davam edir; hər
+increment ayrıca test/imzalı PR/bütün CI/self-review qapısından keçir.
+
 **2026-10-07 məhsul qərarı:** Rootwell X.509 certificate lifecycle və ona aid
 private açarlara fokuslanır. SSH/PGP və browser SSH/RDP bu məhsulun icra
 planından çıxarılır; gələcək ayrıca məhsul qərarıdır. Əvvəlki geniş
