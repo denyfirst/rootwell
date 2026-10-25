@@ -1133,6 +1133,26 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C92 — Offline ARI policy cannot become renewal authority
+
+ADR 0072: bounded UTF-8/unique-key/depth/budget JSON, strict RFC3339 instants and
+positive window; one ARI Retry-After clamps read checks only, never DNS mutation
+waits. Invalid/missing hints expose no trusted window; bounded error policy
+never retries by itself. Standard X.509/ASN.1 preserves serial padding without
+custom crypto. Random half-open-window selection is subject to current lifetime
+and existing error backoff; stale/future/expired/invalid/entropy refusal returns
+no partial selection. Local fallback uses actual lifetime and short-life policy,
+not a fixed 90 days. No storage, signer, credential, HTTP, runtime consumer,
+scheduler or permission to renew; future exact-source custody must save a choice
+before use, never reroll on reads/restarts/restores. Unknown URLs never escape.
+
+Guards: `TestARIInformationStrictBoundsCanonicalMeaningAndNoURLAuthority`,
+`TestARIRetryAfterBoundsAndErrorPolicy`,
+`TestARISelectionRandomWindowBackoffAndFallback`,
+`TestARICertificateIDPreservesPositiveSerialPaddingAndHasNoTrustClaim`,
+`TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority`,
+`FuzzARIInformation`, `FuzzARICertificateID`, `FuzzRenewalSelection`.
+
 ## C70 — ACME setup checking grants no network, storage or issuance authority
 
 The fixed staging setup route accepts only bounded strict provider/challenge/
