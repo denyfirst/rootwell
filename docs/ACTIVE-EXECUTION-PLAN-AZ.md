@@ -30,12 +30,21 @@ addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Haz
 terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
 Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
 
-**Cari increment — ADR 0071:** eyni tam authenticated image-dən read-only renewal
+**Cari increment — ADR 0072:** bounded offline ARI parsing/Retry-After və error
+policy, standard ASN.1 ilə certificate ID, random half-open-window seçim və
+mövcud backoff-un üstünlüyü. Actual lifetime/short-lived fallback, stale/expired/
+future/entropy refusal və fuzz/sabotage. Hələ runtime consumer, live ARI, persisted
+job/schedule və scheduler/UI authority yoxdur. Sonra pinned staging read və dəqiq
+sertifikata bağlı şifrəli seçim; ardınca hazır-sessiya worker/pause/failure UI.
+
+**Tamamlanan increment — ADR 0071 (PR #102, bütün 13 yoxlama):** eyni tam authenticated image-dən read-only renewal
 overview: qalan və reserved capacity, DNS maintenance/unknown/wait/cleanup,
 request növbəti addımı, lokal actual-lifetime reminder və superseded pair ayrılığı.
 Bu, avtomatik yeniləmə, ARI provider sorğusu, retention/pruning və ya yeni retry
 səlahiyyəti deyil. Ardınca bounded ARI/schedule policy, scoped session worker və
 pause/failure UI ayrıca icra edilir; dalğa bu increment-lə tamamlanmış deyil.
+Merge `ec0628d`, verified signature, actual Linux recovery/API smoke və tam
+shuffled race keçib.
 
 **Tamamlanan increment — ADR 0070:** PR #101 bütün 13 yoxlama ilə merge
 edilib. Adi altı cəhddən sonra ayrıca, maksimum

@@ -14,7 +14,9 @@ eyni authenticated image-dən sadə renewal/readiness xülasəsidir: actual-life
 lokal reminder, pending DNS/maintenance/wait və qalan/reserved capacity.
 Bu, ARI, scheduler, pruning/reset və production hazır olması deyil. Sonrakı
 increment-lər [aktiv sıra](ACTIVE-EXECUTION-PLAN-AZ.md) ilə davam edir; hər
-increment ayrıca test/imzalı PR/bütün CI/self-review qapısından keçir.
+increment ayrıca test/imzalı PR/bütün CI/self-review qapısından keçir. ADR 0071
+PR #102-də bütün 13 yoxlama ilə tamamlandı. Cari ADR 0072 offline ARI/time-policy
+nüvəsidir; live/persisted ARI və ready-session worker növbəti increment-lərdir.
 
 **2026-10-07 məhsul qərarı:** Rootwell X.509 certificate lifecycle və ona aid
 private açarlara fokuslanır. SSH/PGP və browser SSH/RDP bu məhsulun icra
