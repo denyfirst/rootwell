@@ -397,6 +397,27 @@ func FuzzDNSPlanPayload(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Add([]byte("null"))
+	for _, cleanup := range []bool{false, true} {
+		rows := append([]dnsPlanRecord(nil), records...)
+		r := &rows[0]
+		r.State = "creating"
+		r.Retry = retry
+		r.Retry.Attempts = 6
+		r.OutcomeAt = at.Add(2 * time.Minute).Format("2006-01-02T15:04:05Z")
+		recovery := &dnsRecoveryState{Retry: providerretry.State{Attempts: 1, LastAt: at.Add(time.Minute).Format("2006-01-02T15:04:05Z"), NotBefore: at.Add(2 * time.Minute).Format("2006-01-02T15:04:05Z")}}
+		if cleanup {
+			r.State = "deleting"
+			r.ID = strings.Repeat("c", 32)
+			r.CheckedAt = prepared.PreparedAt
+			prior := r.Retry
+			r.Cleanup = &prior
+			r.CleanupRecovery = recovery
+		} else {
+			r.Recovery = recovery
+		}
+		seed, _ := json.Marshal(rows)
+		f.Add(seed)
+	}
 	f.Add([]byte("{}"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) > 8192 {

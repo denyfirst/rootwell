@@ -25,6 +25,8 @@ func TestDNSOperationStrictRequestNoPartialAuthority(t *testing.T) {
 	parse(dnsStatusInput, "status", true)
 	parse(dnsAddInput, "add", true)
 	parse(dnsAddInput, "check", true)
+	parse(dnsAddInput, "recover", true)
+	parse(strings.TrimSuffix(dnsAddInput, "}")+`,"exclusive":true}`, "recover", false)
 	parse(strings.TrimSuffix(dnsAddInput, "}")+`,"exclusive":true}`, "cleanup", true)
 	for _, body := range []string{"null", "[]", dnsAddInput + "{}", string([]byte{0xff}), strings.Repeat(" ", 4097), strings.Replace(dnsAddInput, `"index":0`, `"index":null`, 1), strings.Replace(dnsAddInput, `"index":0`, `"index":-1`, 1), strings.Replace(dnsAddInput, `"index":0`, `"index":8`, 1), strings.Replace(dnsAddInput, `"index":0`, `"index":0.0`, 1), strings.Replace(dnsAddInput, `"confirm":true`, `"confirm":false`, 1), strings.Replace(dnsAddInput, `"confirm":true`, `"confirm":null`, 1), strings.Replace(dnsAddInput, `"password":"`+nextTestPassword+`"`, `"password":null`, 1), strings.Replace(dnsAddInput, `"expected_generation":8`, `"expected_generation":0`, 1), strings.Replace(dnsAddInput, `"expected_generation":8`, `"expected_generation":null`, 1)} {
 		parse(body, "add", false)
@@ -45,7 +47,7 @@ func TestDNSOperationGateOriginSetupAndNativeRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	cookie := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
-	for _, mode := range []string{"status", "add", "check", "cleanup"} {
+	for _, mode := range []string{"status", "add", "check", "cleanup", "recover"} {
 		route := "/api/acme/dns/" + mode
 		body := dnsAddInput
 		if mode == "status" {
@@ -93,6 +95,7 @@ func TestDNSOperationGateOriginSetupAndNativeRefusal(t *testing.T) {
 func FuzzDNSOperationRequest(f *testing.F) {
 	f.Add([]byte(dnsStatusInput), "status")
 	f.Add([]byte(dnsAddInput), "add")
+	f.Add([]byte(dnsAddInput), "recover")
 	f.Add([]byte(strings.TrimSuffix(dnsAddInput, "}")+`,"exclusive":true}`), "cleanup")
 	f.Fuzz(func(t *testing.T, data []byte, mode string) {
 		if len(data) > 8192 {

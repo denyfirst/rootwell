@@ -1841,6 +1841,29 @@ Cloudflare fake-TLS ownership, permission, malformed-response and no-replay test
 Actual compiling two-way source/direction sabotage is in ADR 0069; inherited
 exact-image handle sabotage is in ADR 0068/PR.
 
+## C90 — Exhausted DNS recovery is separate bounded read-only authority
+
+ADR 0070 cannot reset ordinary provisioning/cleanup counters or repeat a DNS
+mutation. Each phase can reserve six separately persisted recovery checks only
+after ordinary exhaustion and its saved wait; invalid provider-hint blocks are
+not bypassed. Exact image/one-use lease/writer/session/source remain mandatory.
+Recovery cannot checkpoint POST/DELETE; only the existing fixed protocol can
+establish owned creation or deletion. Empty create/present cleanup remains
+uncertain. Every remaining intent/outcome slot and byte is admitted before I/O;
+older tight-capacity images stay readable and refuse extra work. Snapshots retain
+all counters/waits. Exhausted/blocked recovery has no reset or abandonment.
+
+Guards: `TestDNSRecoveryExactReadOnlyCreationAndCleanup`,
+`TestDNSRecoveryDurableWaitExhaustionAndCapacity`,
+`TestDNSRecoveryRefusalAndMalformedResults`,
+`TestDNSRecoveryLeaseAndEncryptedValidation`,
+`TestDNSRecoveryCannotOverrideOrdinaryProviderBlock`,
+`TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore`,
+`TestDNSOperationStrictRequestNoPartialAuthority`,
+`TestDNSOperationGateOriginSetupAndNativeRefusal`, `FuzzDNSOperationRequest`,
+`TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`, `scripts/test-dns-operation.mjs`,
+`scripts/test-inventory-demo.mjs` and C89's inherited protocol/writer guards.
+
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate

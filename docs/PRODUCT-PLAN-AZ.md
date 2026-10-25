@@ -44,6 +44,13 @@ icra mərhələsini müəyyən edir. Yeni fikir yarandıqda birbaşa implementas
 
 ## 1. Məhsulun məqsədi
 
+**2026-10-26 ADR 0070:** adi DNS yoxlama cəhdləri dolandan sonra ayrıca bounded
+read-only recovery; eyni saved scope/lock/intent/lease, persisted gözləmə və
+sayğac, ayrıca tam capacity ehtiyatı. Create/delete təkrarı, user verdict və
+reset yoxdur. Invalid-hint blocked və son recovery limiti yenə fail-closed;
+bu, tam operator recovery/retention probleminin yalnız bir hissəsidir. Real
+DNS/CA, scheduler, production və Porch scope xaricindədir.
+
 **2026-10-20 ADR 0069:** Cloudflare TXT yaratma, yalnız oxuyan eyni-qeyd yoxlaması
 və owned cleanup eyni Linux writer-lock/intent/lease/result transaction-ına və
 Automation kartındakı optional UI-yə bağlanır. Hər klik bir domen, fresh parol və

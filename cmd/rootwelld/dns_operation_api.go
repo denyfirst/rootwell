@@ -29,7 +29,7 @@ type dnsOperationInput struct {
 
 func readDNSOperationInput(w http.ResponseWriter, r *http.Request, mode string) (dnsOperationInput, bool) {
 	bad := func() (dnsOperationInput, bool) { return dnsOperationInput{}, false }
-	if mode != "status" && mode != "add" && mode != "check" && mode != "cleanup" {
+	if mode != "status" && mode != "add" && mode != "check" && mode != "cleanup" && mode != "recover" {
 		return bad()
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -222,12 +222,17 @@ func (g *gate) dnsOperationEndpoint(w http.ResponseWriter, r *http.Request, s se
 		valid := input.Index >= 0 && (output.Prepared && input.Index < len(rows) || !output.Prepared && output.CanPrepare && input.Index < len(output.PendingDomains))
 		if valid && output.Prepared {
 			row := rows[input.Index]
-			cleanup := mode == "cleanup" || mode == "check" && row.State == "deleting"
-			valid = mode == "add" && row.State == "new" && output.Expires > output.ServerTime || mode == "check" && (row.State == "creating" || row.State == "deleting") || mode == "cleanup" && row.State == "created"
+			cleanup := mode == "cleanup" || (mode == "check" || mode == "recover") && row.State == "deleting"
+			valid = mode == "add" && row.State == "new" && output.Expires > output.ServerTime || (mode == "check" || mode == "recover") && (row.State == "creating" || row.State == "deleting") || mode == "cleanup" && row.State == "created"
+			attempts, blocked, notBefore := row.Attempts, row.Blocked, row.NotBefore
 			if cleanup {
-				valid = valid && !row.CleanupBlocked && row.CleanupAttempts < 6 && (row.CleanupNotBefore == "" || row.CleanupNotBefore <= output.ServerTime)
+				attempts, blocked, notBefore = row.CleanupAttempts, row.CleanupBlocked, row.CleanupNotBefore
+			}
+			valid = valid && !blocked && (notBefore == "" || notBefore <= output.ServerTime)
+			if mode == "recover" {
+				valid = valid && attempts == 6 && (row.Recovery == nil || !row.Recovery.Blocked && row.Recovery.Attempts < 6 && row.Recovery.NotBefore <= output.ServerTime)
 			} else {
-				valid = valid && !row.Blocked && row.Attempts < 6 && (row.NotBefore == "" || row.NotBefore <= output.ServerTime)
+				valid = valid && attempts < 6
 			}
 		} else if valid {
 			valid = mode == "add"
