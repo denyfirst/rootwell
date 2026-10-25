@@ -21,8 +21,8 @@ func TestAutomationStatusWholeImageLifetimeAndNoMutation(t *testing.T) {
 		t.Fatal("legitimate overview refused", err, s)
 	}
 	r := s.Certificates[0]
-	// Fixture validity is 61 minutes; two thirds is 40m40s after NotBefore.
-	if r.Fingerprint != fp || r.State != "waiting" || r.ReviewAt != at.Add(39*time.Minute+40*time.Second).Format(time.RFC3339) || s.Capacity.EventsFree != 1012 || s.Capacity.EventsReserved != 0 || s.Capacity.ArchivesFree != 32 || s.Capacity.RecordsFree != 499 {
+	// Fixture validity is 61 minutes (<10d); review halfway, 30m30s after NotBefore.
+	if r.Fingerprint != fp || r.State != "waiting" || r.ReviewAt != at.Add(29*time.Minute+30*time.Second).Format(time.RFC3339) || s.Capacity.EventsFree != 1012 || s.Capacity.EventsReserved != 0 || s.Capacity.ArchivesFree != 32 || s.Capacity.RecordsFree != 499 {
 		t.Fatal("incorrect lifetime/headroom", s)
 	}
 	for _, tc := range []struct {

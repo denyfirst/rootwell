@@ -23,7 +23,8 @@ Terminal DNS uncertainty remains saved and blocks progress; this overview does
 not make it repairable. A scheduler must stop and surface it, never bypass it.
 
 Only an authenticated saved staging completion with its matched private key
-gets a local two-thirds-of-actual-lifetime review reminder. Other certificates
+gets a local actual-lifetime review reminder (two thirds elapsed; halfway for
+lifetimes under ten days, following the issuer's integration guide). Other certificates
 remain manual. Retained originals with a completed successor are superseded,
 including when the successor was later deleted. Dates are not CA suggestions,
 renewal consent, issuer trust, deployment, replacement or a rate-limit exemption.
@@ -42,6 +43,10 @@ design: [RFC 9773](https://www.rfc-editor.org/rfc/rfc9773.html), especially
 confused with this local reminder. No ARI-compliance or live interoperability
 claim is made here. Production profile/terms/domain actions and independent
 release audit remain outstanding.
+
+The local reminder's short-lifetime backstop follows the current
+[Let's Encrypt integration guide](https://letsencrypt.org/docs/integration-guide/#when-to-renew),
+checked 2026-10-26. This is still only a local reminder, not a scheduled renewal.
 
 Acceptance: whole-image/refusal/no-mutation/secret/clock/capacity/lineage tests;
 Linux locked revision/full password+code restore/permissions and API origin/

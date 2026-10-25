@@ -147,7 +147,12 @@ func ReadAutomationStatus(key, id, image []byte, at time.Time) (AutomationStatus
 			}
 			// Unix seconds avoid time.Duration saturation for long-lived fixtures.
 			// Validity is not assumed to be 90 days. Parsed RFC3339 years fit int64.
-			review := time.Unix(start.Unix()+(end.Unix()-start.Unix())*2/3, 0).UTC()
+			lifetime := end.Unix() - start.Unix()
+			offset := lifetime * 2 / 3
+			if lifetime < 10*24*60*60 {
+				offset = lifetime / 2
+			}
+			review := time.Unix(start.Unix()+offset, 0).UTC()
 			row.ReviewAt, row.State = review.Format(time.RFC3339), "waiting"
 			switch {
 			case superseded[r.Fingerprint]:
