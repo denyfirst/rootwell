@@ -2,7 +2,13 @@ package inventorystore
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,7 +28,7 @@ func TestAutomationStatusWholeImageLifetimeAndNoMutation(t *testing.T) {
 	}
 	r := s.Certificates[0]
 	// Fixture validity is 61 minutes (<10d); review halfway, 30m30s after NotBefore.
-	if r.Fingerprint != fp || r.State != "waiting" || r.ReviewAt != at.Add(29*time.Minute+30*time.Second).Format(time.RFC3339) || s.Capacity.EventsFree != 1012 || s.Capacity.EventsReserved != 0 || s.Capacity.ArchivesFree != 32 || s.Capacity.RecordsFree != 499 {
+	if r.Fingerprint != fp || r.Name != "*.example.com" || r.State != "waiting" || r.ReviewAt != at.Add(29*time.Minute+30*time.Second).Format(time.RFC3339) || s.Capacity.EventsFree != 1012 || s.Capacity.EventsReserved != 0 || s.Capacity.ArchivesFree != 32 || s.Capacity.RecordsFree != 499 {
 		t.Fatal("incorrect lifetime/headroom", s)
 	}
 	for _, tc := range []struct {
@@ -147,4 +153,37 @@ func FuzzAutomationStatusWholeImage(f *testing.F) {
 			t.Fatal("unauthenticated image exposed status")
 		}
 	})
+}
+
+func TestAutomationStatusUnusualImportedNamesRemainBoundedAndManual(t *testing.T) {
+	key, id := testIdentity(t)
+	defer clear(key)
+	keyPair, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	for _, name := range []string{strings.Repeat("a", 2000) + ".invalid", "bad\x00name.invalid"} {
+		certificate := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "synthetic unusual import"}, DNSNames: []string{name}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour)}
+		der, err := x509.CreateCertificate(rand.Reader, certificate, certificate, keyPair.Public(), keyPair)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blank, err := Create(key, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		image, _, err := Append(key, id, blank, der, "", "private-note-sentinel")
+		if err != nil {
+			t.Fatal("legitimate public import refused", err)
+		}
+		s, err := ReadAutomationStatus(key, id, image, now.Add(time.Second))
+		if err != nil || len(s.Certificates) != 1 {
+			t.Fatal("unusual name disabled whole overview", err)
+		}
+		r := s.Certificates[0]
+		if r.State != "manual" || r.ReviewAt != "" || !strings.HasPrefix(r.Name, "Saved certificate · ") || len(r.Name) > 255 || strings.Contains(r.Name, name) {
+			t.Fatal("unbounded/unsafe imported label escaped", r)
+		}
+	}
 }
