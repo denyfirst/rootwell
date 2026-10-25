@@ -116,6 +116,7 @@ const server = http.createServer((request, response) => {
       if(oversized || body!==JSON.stringify({provider:"cloudflare"})){response.writeHead(400).end("Fixture status refused");return;}
       const prepared=instant(-1),wait=new Date(Date.now()+120000).toISOString().slice(0,19)+"Z";
       const rows=[["api.example.com","created"],["legacy.example.com","borrowed"],["mail.example.com","creating"],["shop.example.com","deleted"]].map(([domain,state])=>({domain,name:"_acme-challenge."+domain,state,attempts:1,not_before:wait,blocked:false,cleanup_attempts:state==="deleted"?1:0,cleanup_not_before:state==="deleted"?wait:"",cleanup_blocked:false,checked_at:state==="creating"?"":prepared}));
+      rows[2].attempts=6;rows[2].not_before=prepared;
       response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.dns.operation.v1",provider:"cloudflare",generation:40,network_used:false,zone_name:"example.com",server_time:instant(0),can_prepare:false,pending_domains:[],prepared:true,prepared_at:prepared,expires:instant(1),records:rows}));
     });return;
   }

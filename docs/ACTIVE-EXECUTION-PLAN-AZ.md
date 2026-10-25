@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-23. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-26. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -23,6 +23,16 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
+**Cari increment — ADR 0070:** PR #100 / ADR 0069 bütün 13 yoxlama ilə merge
+edilib. Yeni `feat/dns-readonly-recovery` adi altı cəhddən sonra ayrıca, maksimum
+altı read-only bərpa yoxlamasını eyni writer/intent/lease/UI axınına əlavə edir.
+Hər phase üçün ayrı persisted wait/count, bütün qalan intent/outcome ehtiyatı;
+heç bir POST/DELETE, reset və ownership abandonment yoxdur. Invalid provider-hint
+ilə blocked scope, bərpa limitinin dolması və capacity çatışmazlığı fail-closed
+qalır. Bu, operator recovery/history-capacity mərhələsinin ilk hissəsidir;
+ümumi mərhələ, scheduler və production tamamlanmış deyil. Real DNS/CA və Porch
+scope xaricindədir. Sonra blocked/indefinite unknown və retention siyasəti qalır.
+
 **2026-10-13 visibility maneəsi aradan qalxdı:** istifadəçinin icazəsi ilə
 yalnız `denyfirst/rootwell` yenidən public edildi. GitHub API-si PUBLIC statusunu,
 ruleset 23751134-ün active/no-bypass/strict checks/required signatures/merge-only
@@ -37,12 +47,12 @@ scanning entitlement yoxdur. Heç bir qayda/check silinmir və yoxlama keçilmi�
 sayılmır. Məcburi exact-head CI/ruleset/CodeQL qapısı təmin edilmədən merge yoxdur;
 uyğun GitHub imkanları və ya ayrıca təsdiqlənmiş workflow qərarı tələb edilir.
 
-**Cari dalğa — retry + Cloudflare DNS:** istifadəçi hər ikisini təsdiqləyib,
-ilk DNS provayderi kimi Cloudflare seçib. PR #97 və #98 tamamlanıb; hazırkı iş
-`feat/cloudflare-dns-ui-transaction` branch-ındadır və ADR 0069 sırasıyla davam edir.
+**Əvvəlki dalğa — retry + Cloudflare DNS:** istifadəçi hər ikisini təsdiqləyib,
+ilk DNS provayderi kimi Cloudflare seçib. PR #97–100 tamamlanıb; sonrakı ADR 0070
+read-only bərpa increment-i yuxarıda göstərilib.
 Porch scope xaricindədir, real CA/DNS əməliyyatı və ya secret import icazəsi deyil.
 
-**Cari increment — ADR 0069:** eyni Linux writer-lock altında credential/intent/
+**Tamamlanan increment — ADR 0069 (PR #100):** eyni Linux writer-lock altında credential/intent/
 one-use lease/Cloudflare/result və ayrı cleanup retry transaction-ı; eyni Automation
 kartında optional bir-domain add/check/cleanup UI. Fresh parol, explicit razılıq,
 cleanup üçün exclusive editing, shared auth/provider/KDF budget, tam qalan
@@ -60,8 +70,7 @@ scan bypass və hostun global Go quraşdırmasını dəyişmək yoxdur.
 
 ### İlk certificate-lifecycle buraxılışına qədər qalan yaxın sıra
 
-1. ADR 0069-u final Linux/race/recovery, imzalı PR/bütün CI və ayrıca maintainer
-   self-review-dan sonra merge etmək. UI demo real provider sınağı deyil.
+1. ADR 0069 tamamlanıb (PR #100, bütün 13 yoxlama). UI demo real provider sınağı deyil.
 2. DNS-də blocked/exhausted və unknown nəticələr üçün ayrıca reviewed operator
    bərpa axını və history/capacity siyasəti. Ownership səssiz atılmır, POST/DELETE
    replay və köhnə backup-la reset yoxdur. Bu, scheduler-dən əvvəl həll olunur.

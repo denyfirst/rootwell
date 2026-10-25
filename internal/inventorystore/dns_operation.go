@@ -11,9 +11,34 @@ import (
 )
 
 func validDNSPlanRecord(r dnsPlanRecord, prepared string, historical bool) bool {
+	for phase, recovery := range []*dnsRecoveryState{r.Recovery, r.CleanupRecovery} {
+		if recovery == nil {
+			continue
+		}
+		prior := r.Retry
+		if phase == 1 {
+			if r.Cleanup == nil || r.State != "deleting" && r.State != "deleted" {
+				return false
+			}
+			prior = *r.Cleanup
+		}
+		if r.State == "new" || r.State == "borrowed" || !providerretry.Valid(recovery.Retry) || recovery.Retry.Attempts < 1 || prior.Attempts != providerretry.MaxAttempts || recovery.Retry.LastAt < prior.NotBefore || phase == 0 && r.Blocked || phase == 1 && r.CleanupBlocked {
+			return false
+		}
+		pending := phase == 0 && r.State == "creating" || phase == 1 && r.State == "deleting"
+		if !pending && (recovery.Blocked || r.CheckedAt < recovery.Retry.LastAt) {
+			return false
+		}
+	}
 	last := r.Retry.LastAt
 	if r.Cleanup != nil {
 		last = r.Cleanup.LastAt
+	}
+	if r.Recovery != nil {
+		last = max(last, r.Recovery.Retry.LastAt)
+	}
+	if r.CleanupRecovery != nil {
+		last = max(last, r.CleanupRecovery.Retry.LastAt)
 	}
 	if r.OutcomeAt != "" && (!acmeorder.Time(r.OutcomeAt) || mustDNSTime(r.OutcomeAt).Year() > 2100 || r.OutcomeAt < last) {
 		return false
@@ -83,7 +108,7 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 	prior := dnsrecord.State{State: "new"}
 	retry := r.Retry
 	if l.cleanup {
-		if r.State != "deleting" || r.Cleanup == nil || l.readOnly != (r.Cleanup.Attempts > 1) {
+		if r.State != "deleting" || r.Cleanup == nil || !l.recovery && l.readOnly != (r.Cleanup.Attempts > 1) {
 			return bad(ErrInvalid)
 		}
 		retry = *r.Cleanup
@@ -92,12 +117,23 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 			prior.State = "deleting"
 		}
 	} else {
-		if r.State != "creating" || l.readOnly != (r.Retry.Attempts > 1) {
+		if r.State != "creating" || !l.recovery && l.readOnly != (r.Retry.Attempts > 1) {
 			return bad(ErrInvalid)
 		}
 		if l.readOnly {
 			prior.State = "creating"
 		}
+	}
+	var recovery *dnsRecoveryState
+	if l.recovery {
+		recovery = r.Recovery
+		if l.cleanup {
+			recovery = r.CleanupRecovery
+		}
+		if !l.readOnly || retry.Attempts != providerretry.MaxAttempts || recovery == nil || recovery.Blocked {
+			return bad(ErrInvalid)
+		}
+		retry = recovery.Retry
 	}
 	order, err := openOrder(key, id, m)
 	if err != nil {
@@ -145,7 +181,13 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 			hint = failure.Hint
 		}
 		wait, waitErr := providerretry.Apply(retry, hint)
-		if l.cleanup {
+		if l.recovery {
+			if waitErr != nil {
+				recovery.Blocked = true
+			} else {
+				recovery.Retry = wait
+			}
+		} else if l.cleanup {
 			if waitErr != nil {
 				r.CleanupBlocked = true
 			} else {
@@ -159,7 +201,11 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 			}
 		}
 		r.OutcomeAt = clock().UTC().Format("2006-01-02T15:04:05Z")
-		return sealDNSPlan(key, id, m, p, "acme-dns-wait-saved")
+		action := "acme-dns-wait-saved"
+		if l.recovery {
+			action = "acme-dns-recovery-wait"
+		}
+		return sealDNSPlan(key, id, m, p, action)
 	}
 	if l.cleanup {
 		if observed.ID != "" && observed.ID != r.ID {
@@ -191,5 +237,9 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 		return bad(ErrInvalid)
 	}
 	r.OutcomeAt = clock().UTC().Format("2006-01-02T15:04:05Z")
-	return sealDNSPlan(key, id, m, p, "acme-dns-result-saved")
+	action := "acme-dns-result-saved"
+	if l.recovery {
+		action = "acme-dns-recovery-result"
+	}
+	return sealDNSPlan(key, id, m, p, action)
 }

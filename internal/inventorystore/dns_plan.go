@@ -55,30 +55,44 @@ type DNSPlanStatus struct {
 	Records    []DNSPlanRecordStatus `json:"records"`
 }
 type DNSPlanRecordStatus struct {
-	Domain           string `json:"domain"`
-	Name             string `json:"name"`
-	State            string `json:"state"`
-	Attempts         int    `json:"attempts"`
-	NotBefore        string `json:"not_before"`
-	Blocked          bool   `json:"blocked"`
-	CleanupAttempts  int    `json:"cleanup_attempts"`
-	CleanupNotBefore string `json:"cleanup_not_before"`
-	CleanupBlocked   bool   `json:"cleanup_blocked"`
-	CheckedAt        string `json:"checked_at"`
+	Domain           string             `json:"domain"`
+	Name             string             `json:"name"`
+	State            string             `json:"state"`
+	Attempts         int                `json:"attempts"`
+	NotBefore        string             `json:"not_before"`
+	Blocked          bool               `json:"blocked"`
+	CleanupAttempts  int                `json:"cleanup_attempts"`
+	CleanupNotBefore string             `json:"cleanup_not_before"`
+	CleanupBlocked   bool               `json:"cleanup_blocked"`
+	CheckedAt        string             `json:"checked_at"`
+	Recovery         *DNSRecoveryStatus `json:"recovery,omitempty"`
+}
+
+// DNSRecoveryStatus describes a separate read-only policy, never reset authority.
+type DNSRecoveryStatus struct {
+	Attempts  int    `json:"attempts"`
+	NotBefore string `json:"not_before"`
+	Blocked   bool   `json:"blocked"`
+}
+type dnsRecoveryState struct {
+	Retry   providerretry.State `json:"retry"`
+	Blocked bool                `json:"blocked"`
 }
 type dnsPlanRecord struct {
-	Domain         string               `json:"domain"`
-	Name           string               `json:"name"`
-	Value          string               `json:"value"`
-	Owner          string               `json:"owner"`
-	State          string               `json:"state"`
-	Retry          providerretry.State  `json:"retry"`
-	Blocked        bool                 `json:"blocked"`
-	ID             string               `json:"provider_id,omitempty"`
-	Cleanup        *providerretry.State `json:"cleanup,omitempty"`
-	CleanupBlocked bool                 `json:"cleanup_blocked,omitempty"`
-	CheckedAt      string               `json:"checked_at,omitempty"`
-	OutcomeAt      string               `json:"outcome_at,omitempty"`
+	Domain          string               `json:"domain"`
+	Name            string               `json:"name"`
+	Value           string               `json:"value"`
+	Owner           string               `json:"owner"`
+	State           string               `json:"state"`
+	Retry           providerretry.State  `json:"retry"`
+	Blocked         bool                 `json:"blocked"`
+	ID              string               `json:"provider_id,omitempty"`
+	Cleanup         *providerretry.State `json:"cleanup,omitempty"`
+	CleanupBlocked  bool                 `json:"cleanup_blocked,omitempty"`
+	CheckedAt       string               `json:"checked_at,omitempty"`
+	OutcomeAt       string               `json:"outcome_at,omitempty"`
+	Recovery        *dnsRecoveryState    `json:"recovery,omitempty"`
+	CleanupRecovery *dnsRecoveryState    `json:"cleanup_recovery,omitempty"`
 }
 type dnsPlanPayload struct {
 	Order              string          `json:"order"`
@@ -101,6 +115,7 @@ type dnsAttemptLease struct {
 	index      int
 	readOnly   bool
 	cleanup    bool
+	recovery   bool
 	used       atomic.Bool
 }
 
@@ -219,10 +234,16 @@ func dnsPlanReserve(p dnsPlanPayload) int {
 			// Current outcome, every remaining read intent/outcome, and all
 			// six separate cleanup intent/outcome pairs. No shared slots.
 			reserve += outcome + 2*(providerretry.MaxAttempts-r.Retry.Attempts) + 2*providerretry.MaxAttempts + 1
+			if r.Recovery != nil {
+				reserve += 2 * (providerretry.MaxAttempts - r.Recovery.Retry.Attempts)
+			}
 		case "created":
 			reserve += 2*providerretry.MaxAttempts + 1
 		case "deleting":
 			reserve += outcome + 2*(providerretry.MaxAttempts-r.Cleanup.Attempts) + 1
+			if r.CleanupRecovery != nil {
+				reserve += 2 * (providerretry.MaxAttempts - r.CleanupRecovery.Retry.Attempts)
+			}
 		}
 	}
 	return reserve
@@ -267,6 +288,13 @@ func publicDNSPlan(p dnsPlanPayload, deadline string) DNSPlanStatus {
 		if r.Cleanup != nil {
 			row.CleanupAttempts = r.Cleanup.Attempts
 			row.CleanupNotBefore = r.Cleanup.NotBefore
+		}
+		recovery := r.Recovery
+		if r.State == "deleting" {
+			recovery = r.CleanupRecovery
+		}
+		if recovery != nil && (r.State == "creating" || r.State == "deleting") {
+			row.Recovery = &DNSRecoveryStatus{Attempts: recovery.Retry.Attempts, NotBefore: recovery.Retry.NotBefore, Blocked: recovery.Blocked}
 		}
 		s.Records = append(s.Records, row)
 	}
@@ -400,8 +428,9 @@ func beginDNSOperationAt(key, id, image []byte, expected uint64, index int, mode
 		return bad(err)
 	}
 	row := &p.Records[index]
-	cleanup := mode == "cleanup" || mode == "check" && row.State == "deleting"
-	if mode != "add" && mode != "check" && mode != "cleanup" || mode == "add" && row.State != "new" && row.State != "creating" || mode == "check" && row.State != "creating" && row.State != "deleting" || mode == "cleanup" && row.State != "created" {
+	recovering := mode == "recover"
+	cleanup := mode == "cleanup" || (mode == "check" || recovering) && row.State == "deleting"
+	if mode != "add" && mode != "check" && mode != "cleanup" && !recovering || mode == "add" && row.State != "new" && row.State != "creating" || (mode == "check" || recovering) && row.State != "creating" && row.State != "deleting" || mode == "cleanup" && row.State != "created" {
 		return bad(ErrInvalid)
 	}
 	if at.Year() < 2020 || at.Year() > 2100 || at.UTC().Format("2006-01-02T15:04:05Z") < max(p.PreparedAt, row.CheckedAt, row.OutcomeAt) || row.State == "new" && (!at.Before(mustDNSTime(min(p.Expires, order.Expires))) || order.State != "dns-ready" && order.State != "dns-acknowledged") {
@@ -431,6 +460,22 @@ func beginDNSOperationAt(key, id, image []byte, expected uint64, index int, mode
 	if blocked {
 		return bad(ErrInvalid)
 	}
+	if recovering {
+		if prior.Attempts != providerretry.MaxAttempts || at.UTC().Format("2006-01-02T15:04:05Z") < prior.NotBefore {
+			return bad(ErrInvalid)
+		}
+		recovery := row.Recovery
+		if cleanup {
+			recovery = row.CleanupRecovery
+		}
+		prior = providerretry.State{}
+		if recovery != nil {
+			if recovery.Blocked {
+				return bad(ErrInvalid)
+			}
+			prior = recovery.Retry
+		}
+	}
 	jitter, err := rand.Int(rand.Reader, big.NewInt(31))
 	if err != nil {
 		return bad(ErrInvalid)
@@ -439,7 +484,14 @@ func beginDNSOperationAt(key, id, image []byte, expected uint64, index int, mode
 	if err != nil {
 		return bad(err)
 	}
-	if cleanup {
+	if recovering {
+		recovery := &dnsRecoveryState{Retry: retry}
+		if cleanup {
+			row.CleanupRecovery = recovery
+		} else {
+			row.Recovery = recovery
+		}
+	} else if cleanup {
 		row.State = "deleting"
 		row.Cleanup = &retry
 	} else {
@@ -457,11 +509,15 @@ func beginDNSOperationAt(key, id, image []byte, expected uint64, index int, mode
 	if m.Generation > maxGeneration-uint64(reserve)-1 || len(m.History) > maxHistory-reserve-1 || len(image) > maxImage-dnsPlanByteReserve {
 		return bad(ErrLimit)
 	}
-	next, s, gen, err := sealDNSPlan(key, id, m, p, "acme-dns-attempt-started")
+	action := "acme-dns-attempt-started"
+	if recovering {
+		action = "acme-dns-recovery-started"
+	}
+	next, s, gen, err := sealDNSPlan(key, id, m, p, action)
 	if err != nil {
 		return bad(err)
 	}
-	return next, &DNSAttempt{lease: &dnsAttemptLease{imageHash: sha256.Sum256(next), generation: gen, index: index, readOnly: readOnly, cleanup: cleanup}}, s, gen, nil
+	return next, &DNSAttempt{lease: &dnsAttemptLease{imageHash: sha256.Sum256(next), generation: gen, index: index, readOnly: readOnly, cleanup: cleanup, recovery: recovering}}, s, gen, nil
 }
 func mustDNSTime(s string) time.Time { t, _ := time.Parse("2006-01-02T15:04:05Z", s); return t }
 
@@ -491,7 +547,7 @@ func deferStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, hint p
 		return nil, DNSPlanStatus{}, 0, ErrInvalid
 	}
 	r := &p.Records[lease.index]
-	if lease.cleanup || r.State != "creating" || lease.readOnly != (r.Retry.Attempts > 1) {
+	if lease.cleanup || lease.recovery || r.State != "creating" || lease.readOnly != (r.Retry.Attempts > 1) {
 		return nil, DNSPlanStatus{}, 0, ErrInvalid
 	}
 	next, err := providerretry.Apply(r.Retry, hint)

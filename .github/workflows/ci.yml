@@ -232,6 +232,11 @@ jobs:
           node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
 
+      - name: Smoke test the new Linux DNS recovery fixture
+        # Fail a malformed synthetic fixture early; this does not replace the
+        # full shuffled race suite below or relax any production validator.
+        run: go test -race -run '^TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore$' -count=1 -timeout=5m ./internal/instanceaccess
+
       - name: Test with race detector
         # Real password/KDF and recovery tests retain production iterations.
         # Bound the growing package suite, not each runtime operation's policy.

@@ -145,7 +145,7 @@ func TestLinuxDNSAPIUnknownCreateNoReplayAndLogout(t *testing.T) {
 		t.Fatal("unknown provider result not retained")
 	}
 	retry := strings.Replace(dnsAddInput, `"expected_generation":8`, `"expected_generation":11`, 1)
-	for _, mode := range []string{"add", "check"} {
+	for _, mode := range []string{"add", "check", "recover"} {
 		if w := dnsAPICall(g, mode, retry, cookie); w.Code != 409 || calls != 1 {
 			t.Fatal("uncertain replay/early check authorized")
 		}

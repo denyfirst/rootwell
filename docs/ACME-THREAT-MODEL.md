@@ -308,6 +308,15 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR 0070 extends exhausted ordinary checks with a separately consented six-check
+read-only policy per phase. Existing counters never reset. Intent/result and
+provider waits persist through complete recovery; remaining slots/bytes are
+reserved before I/O. Same fixed Cloudflare component, no new network destination
+or create/delete authority. Blocked ordinary hints, blocked/exhausted recovery
+and inadequate admission capacity still refuse. Unknown creation cannot be
+declared absent or abandoned by the operator. History pruning/unbounded repair,
+fully general operator recovery, scheduler and production remain separate.
+
 ADR 0069 now connects the saved Cloudflare credential and exact CA-derived DNS
 plan through a single Linux writer-lock transaction and explicit one-domain UI
 add/read/cleanup. Fresh password/consent/exact generation plus shared provider/
