@@ -250,8 +250,15 @@ func (g *gate) acmeRegistrationEndpoint(w http.ResponseWriter, r *http.Request, 
 		if check == nil {
 			check = acmestaging.RegistrationTerms
 		}
-		terms, err = check(r.Context(), permit)
+		err = instanceaccess.RunStagingProviderRead(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, permit, func(allowed func() bool) error {
+			var callErr error
+			terms, callErr = check(r.Context(), allowed)
+			return callErr
+		})
 		if err != nil || !permit() || !inventorystore.ValidStagingTermsURL(terms) {
+			if providerWaitError(w, err) {
+				return
+			}
 			http.Error(w, "Current provider terms could not be safely checked. Nothing was registered.", http.StatusBadGateway)
 			return
 		}
@@ -318,6 +325,9 @@ func (g *gate) acmeRegistrationEndpoint(w http.ResponseWriter, r *http.Request, 
 		return create(r.Context(), permit, signer, accepted)
 	})
 	if err != nil || !permit() {
+		if providerWaitError(w, err) {
+			return
+		}
 		http.Error(w, "Outcome not confirmed. Refresh saved status, then check the existing account with the same key. No key was replaced.", http.StatusServiceUnavailable)
 		return
 	}

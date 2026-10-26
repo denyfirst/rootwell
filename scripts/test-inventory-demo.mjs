@@ -31,6 +31,14 @@ try {
   const overviewScript=await fetch(origin+"/automation-status.js");assert.equal(overviewScript.status,200);
   const overview=await fetch(origin+"/api/automation/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"letsencrypt-staging"})});assert.equal(overview.status,200);const summary=await overview.json();assert.equal(summary.network_used,false);assert.equal(summary.automatic_renewal,false);assert.equal(summary.dns,"unknown");assert.match(summary.certificates[0].name,/DEMO/);
   assert.equal((await fetch(origin+"/api/automation/status",{method:"POST",body:"{}"})).status,403);
+  const timingScript=await fetch(origin+"/renewal-timing.js");assert.equal(timingScript.status,200);assert.match(await timingScript.text(),/submit.disabled=true/);
+  const timingHeaders={Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"};
+  const timingBody=JSON.stringify({provider:"letsencrypt-staging",fingerprint:summary.certificates[0].fingerprint,expected_generation:40});
+  const timing=await fetch(origin+"/api/acme/renewal-timing/status",{method:"POST",headers:timingHeaders,body:timingBody});assert.equal(timing.status,200);const time=await timing.json();assert.equal(time.network_attempted,false);assert.equal(time.saved,false);assert.equal(time.automatic_renewal,false);assert.equal(time.status.state,"ari");assert.equal(Object.keys(time.status).length,22);
+  assert.equal((await fetch(origin+"/api/acme/renewal-timing/status",{method:"POST",body:timingBody})).status,403);
+  assert.equal((await fetch(origin+"/api/acme/renewal-timing/status",{method:"POST",headers:timingHeaders,body:timingBody.replace(':40',':39')})).status,400);
+  for(const mode of ["check","interrupt"])assert.equal((await fetch(origin+"/api/acme/renewal-timing/"+mode,{method:"POST",headers:timingHeaders,body:"{}"})).status,405,"demo cannot connect or mutate timing");
+  const timingHTML=await (await fetch(origin+"/automation")).text();for(const id of ["renewal-time-password","renewal-time-consent"])assert.ok(timingHTML.includes('id="'+id+'" disabled'));
   const dnsScript=await fetch(origin+"/cloudflare-config.js");assert.equal(dnsScript.status,200);assert.match(await dnsScript.text(),/button.disabled=true/);
   const dnsOperationScript=await fetch(origin+"/dns-operation.js");assert.equal(dnsOperationScript.status,200);assert.match(await dnsOperationScript.text(),/button.disabled=true/);
   const dnsOperationStatus=await fetch(origin+"/api/acme/dns/status",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify({provider:"cloudflare"})});assert.equal(dnsOperationStatus.status,200);const dnsWork=await dnsOperationStatus.json();assert.equal(dnsWork.network_used,false);assert.deepEqual(dnsWork.records.map(row=>row.state),["created","borrowed","creating","deleted"]);

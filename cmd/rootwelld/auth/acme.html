@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -32,6 +32,24 @@
         <p>Review dates are local reminders based on the certificate's actual lifetime: two thirds elapsed, or halfway for lifetimes under 10 days. This is not a CA renewal window or a trust check. Imported certificates need their own issuer's renewal process. Saved older pairs stay saved; they are not deployed or replaced automatically.</p>
         </details>
         <p id="automation-status-unlock"></p>
+      </div>
+      <div id="renewal-time-panel" class="storage-note" hidden>
+        <h3>When should I renew?</h3>
+        <p>Choose a saved Rootwell test certificate. Reading its saved time stays local; a provider check needs your separate permission.</p>
+        <label for="renewal-time-certificate">Test certificate</label><select id="renewal-time-certificate"></select>
+        <button id="renewal-time-refresh" type="button" class="secondary">Read saved renewal time</button>
+        <p id="renewal-time-message" role="status" aria-live="polite">Read saved timing first.</p>
+        <div id="renewal-time-result" hidden>
+          <p id="renewal-time-next"></p><p id="renewal-time-reason"></p>
+          <details><summary>Technical details</summary><p id="renewal-time-technical"></p></details>
+        </div>
+        <form id="renewal-time-form" class="csr-form" hidden>
+          <p id="renewal-time-privacy">A provider check may send the certificate's public identifier to Let's Encrypt staging. The provider sees your server's address; your resolver may see its hostname. No private key, password or DNS token is sent.</p>
+          <label for="renewal-time-password">Your current Rootwell password</label><input id="renewal-time-password" type="password" maxlength="256" autocomplete="off" required>
+          <label class="confirm-row" for="renewal-time-consent"><input id="renewal-time-consent" type="checkbox" autocomplete="off"><span id="renewal-time-consent-label">Allow this one provider timing check</span></label>
+          <button id="renewal-time-submit" type="submit" disabled>Check renewal time</button>
+        </form>
+        <p>Timing only — no certificate is requested, renewed, replaced or deployed. Automatic renewal is not enabled. Imported certificates use their own issuer's renewal process.</p>
       </div>
     </section>
     <section class="card"><h2>1. Choose your test setup</h2>

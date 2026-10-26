@@ -30,14 +30,17 @@ addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Haz
 terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
 Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
 
-**Cari increment — ADR 0074:** dəqiq saxlanmış staging sertifikatına bağlı şifrəli
-renewal vaxtı, eyni window üçün dəyişməyən seçim, persisted error/provider wait,
-intent-before-I/O və Linux writer/one-use lease. Pending read ayrıca lokal
-retirement olmadan təkrarlanmır; wait/count qalır. Tam backup/parol bərpası,
-DNS/issuance ilə toplanan ehtiyatlar və refusal/sabotage/fuzz yoxlanır. Hələ live
-ARI adapter/route, yeni UI formu və worker yoxdur. Sonrakı increment bütün CA
-əməliyyatlarına provider wait qapısı və fresh parol/razılıqla sadə UI-dir;
-ardınca hazır sessiya worker/pause gəlir. Bütün avtomatlaşdırma bitmiş deyil.
+**Cari increment — ADR 0075:** üç bağlı addım: bütün CA əməliyyatlarında saxlanmış
+provider wait qapısı; dəqiq staging mənbəyi/intent/lease ilə explicit vaxt
+yoxlaması; mövcud Automation xülasəsində sadə vaxt/səbəb/növbəti addım UI-si.
+Fresh parol və bir dəfəlik razılıq, shared büdcələr, native refusal, yalnız public
+nəticə və yarımçıq yoxlamanın lokal bağlanması. Browser nümunəsi fake/read-only;
+real DNS/CA sınağı deyil. Scheduler və avtomatik yeniləmə daxil deyil; ardınca
+hazır sessiya worker/pause gəlir. Bütün avtomatlaşdırma bitmiş deyil.
+
+**Tamamlanan ADR 0074 — PR #105, 13/13, merge `a73b71a`:** source-bound şifrəli
+vaxt, dəyişməyən seçim, persisted provider wait, intent/lease və tam bərpa.
+Pending retirement wait/count saxlayır; DNS/issuance ehtiyatları toplanır.
 
 **Sadəlik qəbul meyarı:** növbəti UI istifadəçidən ARI/window/lease anlayışı
 tələb etməyəcək. Default görünüşdə yalnız növbəti yenilənmə vaxtı, varsa

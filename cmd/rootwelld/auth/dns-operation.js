@@ -96,5 +96,6 @@
   for(const input of [consent,exclusive])input.addEventListener("change",()=>{if(active)reset();enable();});
   for(const [id,event] of [["acme-clear","click"],["acme-provider","change"],["acme-order-refresh","click"],["acme-order-form","submit"],["dns-config-form","submit"]])el(id).addEventListener(event,reset);
   document.addEventListener("visibilitychange",()=>{if(document.hidden)reset();});window.addEventListener("pagehide",reset);
+  window.addEventListener("rootwell-timing-changed",reset);
   reset();status.textContent="Read saved DNS status first. This does not contact Cloudflare.";
 })();

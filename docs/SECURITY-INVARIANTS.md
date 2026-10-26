@@ -1133,6 +1133,31 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C95 — Explicit timing cannot bypass an all-CA provider wait
+
+ADR0075 gates every enrolled-store CA network path under the private writer lock
+before intent/I/O. Wait/blocked policy survives full restore; status and local
+retirement remain possible. Source-bound fixed ARI adapter grants no signing,
+DNS or uploaded-source authority. Fresh password/one-check consent, exact image/
+revision, live session, shared budgets and bounded API/protocol are mandatory.
+Only public timing metadata is returned. No automatic check/renewal, scheduler,
+extra unlock lifetime or raw provider error. Browser clears hidden/stale/late/
+changed-source authority and secrets; demo cannot accept credentials/mutate.
+
+Guards: `TestStagingProviderBarrierPresentInEveryNetworkWriter`,
+`TestLinuxProviderWaitCoversEveryCAPathBeforeIntentAndSurvivesRestore`,
+`TestLinuxProviderWaitBlockedHintDeniesEveryCAPath`,
+`TestNativeProviderReadRefusesBeforeFilesOrCallback`,
+`TestLinuxRenewalTimingAPIFreshAuthPublicSourceAndNoAutomaticRenewal`,
+`TestLinuxRenewalTimingAPIProviderWaitBlocksDirectoryAndLostReadRetiresLocally`,
+`TestLinuxRenewalTimingAPILogoutDuringProviderCheckRetainsOnlyIntent`,
+`TestRenewalTimingRequestStrictShapesAndNoPartialSecret`,
+`TestRenewalTimingGateOriginSetupNativeAndBoundedResponse`,
+`TestARIScopedReceiptBindsUnsupportedAndFixedFailure`, `FuzzRenewalTimingRequest`,
+`scripts/test-renewal-timing.mjs`, `scripts/test-inventory-demo.mjs`.
+Legacy non-ARI errors do not gain new durable hint persistence in this step.
+Independent audit/live CA QA/worker/production remain separate gates.
+
 ## C94 — Durable renewal timing cannot reroll or erase provider policy
 
 ADR0074 authenticates the exact saved staging completion and ID before timing
@@ -1144,8 +1169,8 @@ Exact-image atomic one-use lease and twenty-second live permission/lifetime;
 Linux lock commits intent before public-DER-only callback and outcome atomically.
 No private signer/token/URI or raw error in timing output. Reserved slot/8KiB
 adds to DNS/issuance, survives note writes and complete password/recovery restore.
-Native refuses. No live adapter/route/worker; architecture blocks wiring before
-all-CA provider barriers, fresh auth/privacy consent and session budgets review.
+Native refuses. ADR0074 had no live adapter/route/worker; ADR0075 adds reviewed
+all-CA barriers, explicit adapter/UI and budgets. Worker remains absent.
 
 Guards: `TestRenewalTimingDurableExactSourceSingleChoiceAndNoSecretBorrow`,
 `TestRenewalTimingPublicWrappersAndPendingRequireExplicitRetirement`,

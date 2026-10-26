@@ -40,6 +40,10 @@ func runStagingCertificate(path string, key, id []byte, revision [32]byte, expec
 		if err != nil {
 			return err
 		}
+		permit, err = stagingProviderPermit(key, id, image, permit)
+		if err != nil {
+			return err
+		}
 		next, attempt, _, gen, err := inventorystore.BeginStagingIssuance(key, id, image, expected, refresh)
 		if err != nil {
 			return err
@@ -71,8 +75,11 @@ func runStagingCertificate(path string, key, id []byte, revision [32]byte, expec
 			defer clear(der)
 		}
 		validDeadline := func() bool {
+			if !permit() {
+				return false
+			}
 			now := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-			return permit() && acmeorder.Time(receipt.Expires) && receipt.Expires <= savedExpiry && now < receipt.Expires
+			return acmeorder.Time(receipt.Expires) && receipt.Expires <= savedExpiry && now < receipt.Expires
 		}
 		if !validDeadline() {
 			return inventorystore.ErrIssuanceUncertain

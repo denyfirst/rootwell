@@ -305,6 +305,9 @@ func (g *gate) acmeOrderEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 			}
 		}
 		if err != nil || !permit() {
+			if providerWaitError(w, err) {
+				return
+			}
 			http.Error(w, "Outcome not confirmed. Refresh saved status. Continue only the saved order and key; do not resend or create replacements. A sent request cannot be undone.", http.StatusServiceUnavailable)
 			return
 		}
