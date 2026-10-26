@@ -6,11 +6,11 @@
   const keys=(v,k)=>v&&typeof v==="object"&&!Array.isArray(v)&&Object.keys(v).sort().join(",")===k.split(",").sort().join(",");
   const date=v=>typeof v==="string"&&/^(?:20\d\d|2100)-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{0,8}[1-9])?Z$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v).getUTCFullYear()>=2020&&new Date(v).getUTCFullYear()<=2100&&new Date(v.replace(/\.\d+Z$/,"Z")).toISOString()===v.replace(/\.\d+Z$/,"Z").replace("Z",".000Z");
   const pretty=v=>new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"UTC"}).format(new Date(v))+" UTC";
-  const uncertain="Saved timing is not current. Read saved status before another action. An interrupted check is never retried automatically.";
-  let epoch=0, active=null, snapshot=null, generation=0, certificates=new Map(), stale=null;
+  const uncertain="Saved timing is not current. Use Check renewal readiness above, then read the saved renewal time again. An interrupted check is never retried automatically.";
+  let epoch=0, active=null, activeMutation=false, snapshot=null, generation=0, certificates=new Map(), stale=null;
   const wipe=()=>{password.value="";consent.checked=false;};
   const enable=()=>{select.disabled=!!active;refresh.disabled=!!active||!certificates.has(select.value)||document.hidden;submit.disabled=!!active||!snapshot||(!snapshot.can_read&&!snapshot.can_interrupt)||!password.value||!consent.checked||document.hidden;};
-  const resetStatus=()=>{++epoch;active?.abort();active=null;clearTimeout(stale);snapshot=null;wipe();form.hidden=true;result.hidden=true;for(const id of ["renewal-time-next","renewal-time-reason","renewal-time-technical"])el(id).textContent="";message.textContent=uncertain;enable();};
+  const resetStatus=(forget=false)=>{const unknown=forget===true||activeMutation;++epoch;active?.abort();active=null;activeMutation=false;clearTimeout(stale);snapshot=null;wipe();form.hidden=true;result.hidden=true;for(const id of ["renewal-time-next","renewal-time-reason","renewal-time-technical"])el(id).textContent="";message.textContent=uncertain;if(unknown){certificates.clear();generation=0;select.replaceChildren();window.dispatchEvent(new Event("rootwell-timing-changed"));}enable();};
   const invalidate=()=>{resetStatus();certificates.clear();generation=0;select.replaceChildren();panel.hidden=true;enable();};
   const setCertificates=(rows,gen)=>{
     invalidate();if(!Number.isSafeInteger(gen)||gen<1||gen>1000000||!Array.isArray(rows)||rows.length>500)return;
@@ -50,10 +50,10 @@
   };
   const run=async mode=>{
     if(active||document.hidden||!certificates.has(select.value)||mode!=="status"&&(!snapshot||!consent.checked||!password.value))return;
-    const chosen=select.value,expected=generation,current=++epoch,controller=new AbortController(),began=Date.now();active=controller;
+    const chosen=select.value,expected=generation,current=++epoch,controller=new AbortController(),began=Date.now();active=controller;activeMutation=mode!=="status";
     const input={provider:"letsencrypt-staging",fingerprint:chosen,expected_generation:expected};if(mode!=="status"){input.password=password.value;input.confirm=true;}
     clearTimeout(stale);wipe();form.hidden=true;result.hidden=true;snapshot=null;enable();message.textContent=mode==="status"?"Reading saved timing — no provider connection…":mode==="interrupt"?"Finishing the interrupted local check — no provider connection…":"Checking the recommended renewal time…";
-    const timeout=setTimeout(()=>{if(current===epoch)resetStatus();},25000);
+    const timeout=setTimeout(()=>{if(current===epoch)resetStatus(true);},25000);
     try {
       const response=await fetch("/api/acme/renewal-timing/"+mode,{method:"POST",credentials:"same-origin",cache:"no-store",redirect:"error",signal:controller.signal,headers:{"Content-Type":"application/json","X-Rootwell-Request":"1"},body:JSON.stringify(input)});input.password="";
       if(response.status!==200||response.headers.get("cache-control")!=="no-store"||response.headers.get("content-type")?.split(";")[0].trim().toLowerCase()!=="application/json"||!response.body)throw new Error();
@@ -62,8 +62,8 @@
       const d=validate(JSON.parse(text),mode,chosen,expected),elapsed=Date.now()-began;
       if(current!==epoch||controller.signal.aborted||document.hidden||select.value!==chosen||elapsed<0||elapsed>=25000||Math.abs(Date.now()-Date.parse(d.checked_at))>=120000)throw new Error();
       render(d);if(mode!=="status")window.dispatchEvent(new Event("rootwell-timing-changed"));
-    }catch{if(current===epoch&&!document.hidden){resetStatus();message.textContent=uncertain;}}
-    finally{input.password="";clearTimeout(timeout);controller.abort();if(current===epoch){active=null;wipe();enable();}}
+    }catch{if(current===epoch&&!document.hidden)resetStatus(true);}
+    finally{input.password="";clearTimeout(timeout);controller.abort();if(current===epoch){active=null;activeMutation=false;wipe();enable();}}
   };
   refresh.addEventListener("click",()=>run("status"));form.addEventListener("submit",event=>{event.preventDefault();return run(snapshot?.can_interrupt?"interrupt":"check");});
   select.addEventListener("change",resetStatus);password.addEventListener("input",()=>{if(active)resetStatus();enable();});consent.addEventListener("change",()=>{if(active)resetStatus();enable();});

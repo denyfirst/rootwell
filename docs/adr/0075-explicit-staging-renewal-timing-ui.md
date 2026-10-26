@@ -47,6 +47,10 @@ password/consent and invalidates other mutation widgets on a committed result.
 The CA can see the server IP and public certificate ID; local resolver can see
 the fixed CA hostname. Cancellation cannot recall already-sent bytes. Uncertain
 results require status refresh and explicit local retirement, never silent retry.
+Unknown/failed/timed-out or cancelled mutations discard the obsolete displayed
+generation, invalidate adjacent widgets and direct the operator to renewal
+readiness before rereading timing. They cannot loop on the old generation or
+quietly guess a new one. A refreshed pending source offers only local retirement.
 
 ## Evidence
 
@@ -62,6 +66,9 @@ password/consent and mutations stay disabled. No real secrets or CA connection.
 Actual compiling two-way sabotage: removing the true-consent requirement failed
 `TestRenewalTimingRequestStrictShapesAndNoPartialSecret` on unsafe input; inverting
 the fixed provider match failed its legitimate status request. Both were restored.
+For the lost-generation UI follow-up, disabling invalidation failed the obsolete
+generation refusal test, while unconditional invalidation failed the legitimate
+flow's event contract. Both runnable mutations were restored and UI tests rerun.
 All final-head CI checks and separate maintainer adversarial
 self-review remain mandatory, not independent audit. Linux execution is a CI
 gate, not inferred from Windows cross-vet. Full automation, session-only worker,

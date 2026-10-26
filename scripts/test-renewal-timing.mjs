@@ -48,4 +48,12 @@ for(const boundary of [f=>{f.document.hidden=true;f.events.visibilitychange();},
   const f=start();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const work=f.read();while(!release)await new Promise(resolve=>setImmediate(resolve));await f.read();assert.equal(f.requests.length,1);boundary(f);release(response(output(initial)));await work;assert.equal(f.el("renewal-time-result").hidden,true);assert.equal(f.el("renewal-time-form").hidden,true);
 }
 for(const mode of ["failure","oversize","headers"]){const f=start();f.override(()=>mode==="failure"?new Response("secret-sentinel",{status:503}):mode==="oversize"?response({...output(initial),padding:"x".repeat(16385)}):new Response(JSON.stringify(output(initial)),{headers:{"content-type":"text/plain","cache-control":"public"}}));await f.read();assert.equal(f.el("renewal-time-result").hidden,true);assert.doesNotMatch(f.el("renewal-time-message").textContent,/secret-sentinel/);}
+for(const mode of ["lost","timeout","changed-input"]){
+  const f=start();await f.read();f.consent();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));const work=f.submit();while(!release)await new Promise(resolve=>setImmediate(resolve));
+  if(mode==="timeout")[...f.timers.values()].find(t=>t.ms===25000).f();
+  if(mode==="changed-input")f.el("renewal-time-password").listeners.input();
+  release(new Response("private-error-sentinel",{status:503}));await work;
+  assert.equal(f.el("renewal-time-result").hidden,true);assert.equal(f.el("renewal-time-refresh").disabled,true,"unknown mutation cannot reread with obsolete generation");assert.equal(f.el("renewal-time-form").hidden,true);assert.match(f.el("renewal-time-message").textContent,/Use Check renewal readiness above/);assert.doesNotMatch(f.el("renewal-time-message").textContent,/private-error-sentinel/);assert.ok(f.sent.includes("rootwell-timing-changed"));await f.read();assert.equal(f.requests.length,2,"no loop with obsolete generation");
+  f.api.setCertificates([{fingerprint:fp,name:"mail.example.com",not_after:initial.not_after,state:"due"}],14);f.override(()=>response(output({...saved,state:"pending",observed_at:"",pending:true,can_interrupt:true,failures:1},"status",14)));await f.read();assert.equal(f.el("renewal-time-result").hidden,false);assert.match(f.el("renewal-time-submit").textContent,/Finish interrupted/);
+}
 console.log("Renewal timing UI: explicit public-source check, fresh secret clearing, local retirement, fixed result, no auto renewal, bounded/stale/hidden/late/malformed refusal passed.");
