@@ -26,6 +26,11 @@ import (
 
 func syntheticCompletion(t *testing.T) (key, id, pending, completed []byte, chain [][]byte, fp string, at time.Time) {
 	t.Helper()
+	return syntheticCompletionLifetime(t, time.Hour)
+}
+
+func syntheticCompletionLifetime(t *testing.T, lifetime time.Duration) (key, id, pending, completed []byte, chain [][]byte, fp string, at time.Time) {
+	t.Helper()
 	key, id, pending = issuanceFixture(t)
 	pending, _, _, _, err := BeginStagingIssuance(key, id, pending, 11, false)
 	if err != nil {
@@ -52,7 +57,7 @@ func syntheticCompletion(t *testing.T) (key, id, pending, completed []byte, chai
 	if err != nil {
 		t.Fatal(err)
 	}
-	leafTemplate := &x509.Certificate{SerialNumber: big.NewInt(2), DNSNames: slices.Clone(request.Names), NotBefore: at.Add(-time.Minute), NotAfter: at.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true}
+	leafTemplate := &x509.Certificate{SerialNumber: big.NewInt(2), DNSNames: slices.Clone(request.Names), NotBefore: at.Add(-time.Minute), NotAfter: at.Add(lifetime), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true}
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, root, csr.PublicKey, rootKey)
 	if err != nil {
 		t.Fatal(err)

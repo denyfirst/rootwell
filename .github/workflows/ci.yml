@@ -243,6 +243,7 @@ jobs:
           go test -race -run '^(TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore|TestLinuxAutomationStatusReadOnlyRevisionAndFullRestore)$' -count=1 -timeout=5m ./internal/instanceaccess
           go test -race -run '^TestLinuxAutomationStatusAPINoNetworkMutationOrUnlockedBypass$' -count=1 -timeout=5m ./cmd/rootwelld
           go test -race -run '^TestARI' -count=1 -timeout=2m ./internal/acmestaging ./internal/renewalpolicy
+          go test -race -run '^TestLinuxRenewalTiming' -count=1 -timeout=5m ./internal/instanceaccess
 
       - name: Test with race detector
         # Real password/KDF and recovery tests retain production iterations.

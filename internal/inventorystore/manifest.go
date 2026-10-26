@@ -53,6 +53,8 @@ type manifest struct {
 	ClosedRequests          []sealedRecord `json:"closed_requests,omitempty"`
 	CloudflareConfigs       []sealedRecord `json:"cloudflare_configs,omitempty"`
 	DNSPlans                []sealedRecord `json:"dns_plans,omitempty"`
+	RenewalTimings          []sealedRecord `json:"renewal_timings,omitempty"`
+	StagingProviderWait     []sealedRecord `json:"staging_provider_wait,omitempty"`
 	historical              bool
 }
 
@@ -305,6 +307,7 @@ func DeleteRecord(key, installationID, image []byte, fingerprint string, expecte
 			}
 		}
 		m.Generation++
+		deleteTimingPlan(&m, fingerprint)
 		if err := deleteCompletion(key, installationID, &m, fingerprint); err != nil {
 			return nil, 0, err
 		}
@@ -490,6 +493,12 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 	}
 	dns, err := openDNSPlan(key, id, m)
 	if err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if err := authenticateTimingPlans(key, id, m, records); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if _, err := openStagingWait(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	reserve, err := dnsTotalReserve(key, id, m, dns)

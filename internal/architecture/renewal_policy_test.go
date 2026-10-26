@@ -17,6 +17,7 @@ func TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority(t *testing.T) {
 	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
 	allowed := map[string]bool{"bytes": true, "encoding/json": true, "errors": true, "io": true, "regexp": true, "strconv": true, "strings": true, "time": true, "unicode/utf8": true, "crypto/x509": true, "encoding/asn1": true, "encoding/base64": true, "crypto/rand": true, "math/big": true}
 	exports := map[string]bool{"CertificateID": true, "ParseInformation": true, "NextCheck": true, "ErrorCheckAt": true, "FallbackWindow": true, "Select": true}
+	policyConsumers := map[string]bool{"internal/acmestaging/renewal_info.go": true, "internal/inventorystore/renewal_timing.go": true, "internal/inventorystore/renewal_timing_operation.go": true, "internal/renewalrecord/record.go": true}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -41,7 +42,7 @@ func TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority(t *testing.T) {
 			if strings.HasPrefix(rel, "internal/renewalpolicy/") && !allowed[name] {
 				t.Error("unreviewed renewal policy import", rel, name)
 			}
-			if name == "github.com/denyfirst/rootwell/internal/renewalpolicy" && rel != "internal/acmestaging/renewal_info.go" {
+			if name == "github.com/denyfirst/rootwell/internal/renewalpolicy" && !policyConsumers[rel] {
 				t.Error("renewal policy wired before scoped custody review", rel)
 			}
 		}
@@ -66,6 +67,67 @@ func TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority(t *testing.T) {
 					if rel != "internal/acmestaging/renewal_info.go" {
 						t.Error("unreviewed ARI protocol consumer", rel, ident.Name)
 					}
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRenewalTimingHasOnlyLockedInternalConsumers(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
+	model := "internal/inventorystore/renewal_timing.go"
+	operation := "internal/inventorystore/renewal_timing_operation.go"
+	wait := "internal/inventorystore/renewal_wait.go"
+	linux := "internal/instanceaccess/renewal_timing_linux.go"
+	other := "internal/instanceaccess/renewal_timing_other.go"
+	allowed := map[string]map[string]bool{
+		"ReadStagingRenewalTiming":      {model: true, linux: true, other: true},
+		"BeginStagingRenewalTiming":     {operation: true, linux: true},
+		"ExecuteStagingRenewalTiming":   {operation: true, linux: true},
+		"InterruptStagingRenewalTiming": {operation: true, linux: true, other: true},
+		"RunStagingRenewalTiming":       {linux: true, other: true},
+		"ReadStagingProviderWait":       {wait: true},
+		"beginTimingAt":                 {operation: true}, "executeTimingAt": {operation: true}, "interruptTimingAt": {operation: true},
+		"readTimingStatusAt": {model: true, operation: true}, "readStagingWaitAt": {wait: true},
+	}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, item := range file.Imports {
+			name, err := strconv.Unquote(item.Path.Value)
+			if err != nil {
+				return err
+			}
+			if name == "github.com/denyfirst/rootwell/internal/renewalrecord" && rel != model && rel != operation {
+				t.Error("unreviewed timing receipt consumer", rel)
+			}
+			if rel == "internal/renewalrecord/record.go" && name != "github.com/denyfirst/rootwell/internal/providerretry" && name != "github.com/denyfirst/rootwell/internal/renewalpolicy" {
+				t.Error("receipt acquired authority", name)
+			}
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if ident, ok := node.(*ast.Ident); ok {
+				if paths, guarded := allowed[ident.Name]; guarded && !paths[rel] {
+					t.Error("unreviewed renewal timing authority", rel, ident.Name)
 				}
 			}
 			return true

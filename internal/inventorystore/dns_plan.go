@@ -43,6 +43,11 @@ func reservedImageBytes(key, id []byte, m manifest) int {
 	if pendingIssuance(key, id, m) {
 		reserve += issuanceByteReserve
 	}
+	timing, err := timingReserve(key, id, m)
+	if err != nil {
+		return maxImage
+	}
+	reserve += timing * timingOutcomeBytes
 	return reserve
 }
 
@@ -250,6 +255,11 @@ func dnsPlanReserve(p dnsPlanPayload) int {
 }
 func dnsTotalReserve(key, id []byte, m manifest, p dnsPlanPayload) (int, error) {
 	reserve := dnsPlanReserve(p)
+	timing, err := timingReserve(key, id, m)
+	if err != nil {
+		return 0, err
+	}
+	reserve += timing
 	if reserve == 0 {
 		return 0, nil
 	}
@@ -272,6 +282,9 @@ func dnsTotalReserve(key, id []byte, m manifest, p dnsPlanPayload) (int, error) 
 	}
 	if pendingIssuance(key, id, m) {
 		reserve++
+	}
+	if reserve < 0 || reserve > 256 {
+		return 0, ErrLimit
 	}
 	return reserve, nil
 }
