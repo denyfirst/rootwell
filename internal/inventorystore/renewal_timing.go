@@ -56,6 +56,7 @@ type timingPayload struct {
 // choice when ARI is stale/unavailable; provider waits always win. No authority.
 type RenewalTimingStatus struct {
 	Fingerprint       string `json:"fingerprint"`
+	NotAfter          string `json:"not_after"`
 	Prepared          bool   `json:"prepared"`
 	State             string `json:"state"`
 	StartedAt         string `json:"started_at"`
@@ -335,7 +336,7 @@ func readTimingStatusAt(key, id, image []byte, expected uint64, fp string, at ti
 	if err != nil {
 		return bad(err)
 	}
-	s := RenewalTimingStatus{Fingerprint: fp, State: "not-prepared", Expired: !at.Before(life.End), Superseded: superseded[fp]}
+	s := RenewalTimingStatus{Fingerprint: fp, NotAfter: source.NotAfter, State: "not-prepared", Expired: !at.Before(life.End), Superseded: superseded[fp]}
 	wait, err := openStagingWait(key, id, m)
 	if err != nil {
 		return bad(err)

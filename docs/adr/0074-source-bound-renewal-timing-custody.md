@@ -25,10 +25,14 @@ retained old pairs are not silently removed or scheduled again.
 
 The Linux private writer lock spans exact access revision/generation checks,
 atomic intent, a one-use exact-image lease, a bounded trusted callback and atomic
-outcome. The callback receives only detached public DER plus a repeated live
+outcome. The writer repeats actual clock/deadline/certificate expiry after
+permission checks and before/after each atomic commit, so slow disk sync cannot
+publish a stale success (a committed result remains uncertain, never replayed).
+The callback receives only detached public DER plus a repeated live
 permit; no signer, private key, token, provider ID, internal URL or trust override.
 The borrowed slice is cleared, not a claim of reliable heap erasure. Lease copies
-share one atomic consumption flag; expiry is twenty seconds and clock rollback
+share one atomic consumption flag; expiry is at most twenty seconds and never
+later than the source certificate's expiry, and clock rollback
 refuses. Revoked/late/wrong-source/partial-error results cannot publish output.
 An uncertain committed write retains the normal inspect/refresh requirement.
 
@@ -88,5 +92,10 @@ fuzz target is scheduled; 153626 executions in a 15-second smoke pass. The first
 smoke found an empty-input harness assumption (Seal intentionally refuses empty
 plaintext); the harness now asserts that refusal and retains the empty corpus.
 No production guard was relaxed. Final gates belong to the PR evidence.
+Separate pre-merge review added a regression that reproduced stale-clock
+acceptance when a slow permission callback outlived the lease. It failed before
+the fix and passes after moving the clock read after permission. Public model
+publication also refuses newly expired/superseded sources; the locked writer
+has its own no-longer-than-twenty-second and certificate-expiry publication bound.
 These are development tests and maintainer self-review, not an independent audit
 or real CA/DNS interoperability test. No new visible UI flow is claimed here.

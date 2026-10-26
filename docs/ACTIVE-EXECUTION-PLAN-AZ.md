@@ -39,6 +39,12 @@ ARI adapter/route, yeni UI formu və worker yoxdur. Sonrakı increment bütün C
 əməliyyatlarına provider wait qapısı və fresh parol/razılıqla sadə UI-dir;
 ardınca hazır sessiya worker/pause gəlir. Bütün avtomatlaşdırma bitmiş deyil.
 
+**Sadəlik qəbul meyarı:** növbəti UI istifadəçidən ARI/window/lease anlayışı
+tələb etməyəcək. Default görünüşdə yalnız növbəti yenilənmə vaxtı, varsa
+gözləmə/dayanma səbəbi və bir uyğun növbəti addım olacaq; texniki detallar
+bağlı Details altında qalacaq. Ayrı menyu və təkrar ayar formaları artırılmır.
+Sadələşdirmə real trust/expiry/error vəziyyətini gizlətməyəcək.
+
 **Tamamlanan increment — ADR 0073 (PR #104, 13/13 yoxlama, merge `863b2f9`):** daxili, unexported staging ARI iki-GET protokolu;
 fixed source/path, public ID, pinned DNS/TLS, no proxy/redirect/retry/credentials,
 8s/header/body/JSON və təkrar permission/expiry. Fake TLS/refusal/sabotage/fuzz;

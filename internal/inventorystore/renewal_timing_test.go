@@ -454,6 +454,45 @@ func TestRenewalTimingConcurrentLeaseAndImportedSourceRefusal(t *testing.T) {
 	}
 }
 
+func TestRenewalTimingSlowPermissionCannotAuthorizeExpiredLease(t *testing.T) {
+	key, id, image, fp, at := timingFixture(t)
+	defer clear(key)
+	pending, attempt, _, err := beginTimingAt(key, id, image, 13, fp, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now, called := at.Add(time.Second), false
+	out, gen, err := executeTimingAt(key, id, pending, attempt, func() bool { now = at.Add(time.Minute); return true }, func(func() bool, []byte) (renewalrecord.Observation, error) {
+		called = true
+		return renewalrecord.Observation{}, errors.New("unreachable")
+	}, func() time.Time { return now })
+	if err == nil || out != nil || gen != 0 || called {
+		t.Fatal("slow permission check authorized an expired lease")
+	}
+}
+
+func TestRenewalTimingLeaseCannotOutliveCertificate(t *testing.T) {
+	key, id, _, image, _, fp, base := syntheticCompletionLifetime(t, 10*time.Second)
+	defer clear(key)
+	at := time.Now().UTC()
+	pending, attempt, _, err := beginTimingAt(key, id, image, 13, fp, at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expires := base.Add(10 * time.Second)
+	if !attempt.lease.until.Equal(expires) {
+		t.Fatal("read lease outlives certificate")
+	}
+	called := false
+	out, gen, err := executeTimingAt(key, id, pending, attempt, func() bool { return true }, func(func() bool, []byte) (renewalrecord.Observation, error) {
+		called = true
+		return renewalrecord.Observation{}, nil
+	}, func() time.Time { return expires })
+	if err == nil || out != nil || gen != 0 || called {
+		t.Fatal("expired certificate reached callback")
+	}
+}
+
 func TestRenewalTimingProviderWaitBoundariesAndAuthenticatedTamper(t *testing.T) {
 	key, id, image, fp, at := timingFixture(t)
 	defer clear(key)

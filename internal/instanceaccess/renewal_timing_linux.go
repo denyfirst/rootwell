@@ -4,6 +4,7 @@ package instanceaccess
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/denyfirst/rootwell/internal/inventorystore"
 )
@@ -51,8 +52,24 @@ func RunStagingRenewalTiming(path string, key, id []byte, revision [32]byte, exp
 		if err != nil {
 			return err
 		}
-		commit := func(next []byte) error {
+		started := time.Now().UTC()
+		next, attempt, planned, _, err := inventorystore.BeginStagingRenewalTiming(key, id, image, expected, fp)
+		if err != nil {
+			return err
+		}
+		expires, err := time.Parse(time.RFC3339, planned.NotAfter)
+		if err != nil {
+			return inventorystore.ErrInvalid
+		}
+		allowed := func() bool {
 			if !permit() {
+				return false
+			}
+			now := time.Now().UTC()
+			return !now.Before(started) && now.Before(started.Add(20*time.Second)) && now.Before(expires)
+		}
+		commit := func(next []byte) error {
+			if !allowed() {
 				return ErrStaleUpgrade
 			}
 			if err := checkInventoryRevision(path, revision); err != nil {
@@ -62,19 +79,15 @@ func RunStagingRenewalTiming(path string, key, id []byte, revision [32]byte, exp
 				return err
 			}
 			image = next
-			if !permit() {
+			if !allowed() {
 				return ErrInventoryUncertain
 			}
 			return nil
 		}
-		next, attempt, _, _, err := inventorystore.BeginStagingRenewalTiming(key, id, image, expected, fp)
-		if err != nil {
-			return err
-		}
 		if err := commit(next); err != nil {
 			return err
 		}
-		next, status, gen, err := inventorystore.ExecuteStagingRenewalTiming(key, id, image, attempt, permit, use)
+		next, status, gen, err := inventorystore.ExecuteStagingRenewalTiming(key, id, image, attempt, allowed, use)
 		if err != nil {
 			return err
 		}

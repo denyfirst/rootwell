@@ -39,7 +39,7 @@ func BeginStagingRenewalTiming(key, id, image []byte, expected uint64, fp string
 	if err != nil {
 		return bad(err)
 	}
-	if time.Now().UTC().Before(finished) || !time.Now().UTC().Before(attempt.lease.until) {
+	if status.Expired || status.Superseded || time.Now().UTC().Before(finished) || !time.Now().UTC().Before(attempt.lease.until) {
 		return bad(ErrInvalid)
 	}
 	return next, attempt, status, g, nil
@@ -99,7 +99,11 @@ func beginTimingAt(key, id, image []byte, expected uint64, fp string, at time.Ti
 	if err != nil {
 		return bad(err)
 	}
-	l := &timingLease{image: sha256.Sum256(next), generation: g, fingerprint: fp, started: at, until: at.Add(20 * time.Second)}
+	until := at.Add(20 * time.Second)
+	if life.End.Before(until) {
+		until = life.End
+	}
+	l := &timingLease{image: sha256.Sum256(next), generation: g, fingerprint: fp, started: at, until: until}
 	return next, &RenewalTimingAttempt{lease: l}, g, nil
 }
 
@@ -110,7 +114,7 @@ func ExecuteStagingRenewalTiming(key, id, image []byte, attempt *RenewalTimingAt
 	}
 	finished := time.Now().UTC()
 	status, g, err := readTimingStatusAt(key, id, next, gen, attempt.lease.fingerprint, finished)
-	if err != nil || permit == nil || !permit() || time.Now().UTC().Before(finished) || !time.Now().UTC().Before(attempt.lease.until) {
+	if err != nil || status.Expired || status.Superseded || permit == nil || !permit() || time.Now().UTC().Before(finished) || !time.Now().UTC().Before(attempt.lease.until) {
 		return nil, RenewalTimingStatus{}, 0, ErrInvalid
 	}
 	return next, status, g, nil
@@ -146,8 +150,11 @@ func executeTimingAt(key, id, image []byte, attempt *RenewalTimingAttempt, permi
 	}
 	started, _ := timingTime(p.StartedAt)
 	allowed := func() bool {
+		if !permit() {
+			return false
+		}
 		now := clock().UTC()
-		return permit() && !now.Before(started) && now.Before(l.until) && now.Before(life.End)
+		return !now.Before(started) && now.Before(l.until) && now.Before(life.End)
 	}
 	wait, err := openStagingWait(key, id, m)
 	if err != nil || !stagingWaitReady(wait, clock().UTC()) || !timingClock(key, id, m, clock().UTC(), &p) || !allowed() {
