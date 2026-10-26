@@ -57,6 +57,10 @@ func runStagingOrder(accessPath string, key, id []byte, revision [32]byte, expec
 		if err != nil {
 			return err
 		}
+		permit, err = stagingProviderPermit(key, id, image, permit)
+		if err != nil {
+			return err
+		}
 		if resume {
 			if len(names) != 0 {
 				return inventorystore.ErrInvalid

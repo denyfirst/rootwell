@@ -17,9 +17,11 @@ increment-lər [aktiv sıra](ACTIVE-EXECUTION-PLAN-AZ.md) ilə davam edir; hər
 increment ayrıca test/imzalı PR/bütün CI/self-review qapısından keçir. ADR 0071
 PR #102-də, ADR 0072 offline ARI/time-policy nüvəsi PR #103-də bütün 13 yoxlama
 ilə tamamlandı. ADR 0073 pinned staging ARI protokolu PR #104-də 13/13 yoxlama
-ilə merge edildi. Cari ADR 0074 dəqiq staging mənbəyinə bağlı şifrəli vaxt/wait/
-intent və Linux locked custody-dir; live adapter/sadə UI və ready-session worker
-növbəti increment-lərdir. Bu dalğa hələ tam avtomatik yeniləmə deyil.
+ilə merge edildi. ADR 0074 source-bound şifrəli vaxt/wait/intent və Linux locked
+custody PR #105-də 13/13 ilə tamamlandı. Cari ADR 0075 bütün CA yollarında wait,
+fresh parol/razılıqla staging vaxt yoxlaması və eyni Automation ekranında sadə
+nəticədir. Ready-session worker/pause sonrakı increment-dir; bu dalğa hələ tam
+avtomatik yeniləmə deyil.
 
 **2026-10-07 məhsul qərarı:** Rootwell X.509 certificate lifecycle və ona aid
 private açarlara fokuslanır. SSH/PGP və browser SSH/RDP bu məhsulun icra

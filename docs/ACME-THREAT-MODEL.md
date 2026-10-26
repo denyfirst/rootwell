@@ -308,6 +308,18 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR0075 connects fixed source-bound staging timing through fresh password and
+one-check disclosure consent. Every enrolled-store CA path now checks the
+authenticated provider wait under the same writer lock, before intent or I/O.
+No custom source/window/URL/signer, no raw error or new DNS authority. Status and
+interrupted-read retirement are local; wait/count/selection survive retirement
+and full restore. Bounded strict API/public UI, shared budgets and stale/hidden/
+late refusal apply. Read-only visual fixture is fake and cannot accept secrets
+or run a mutation. No scheduler, automatic issuance, extra unlock lifetime,
+production or real CA/DNS test. Non-ARI legacy error hint persistence is not
+expanded. See ADR0075/C95; historical unconnected boundaries below are superseded
+only for this reviewed integration, not general production authority.
+
 ADR0074 adds source-bound encrypted timing/one-time selection, persisted retry
 and account-wide provider waits, exact-image one-use twenty-second read lease,
 intent-before-callback Linux writer and full recovery. Imported/expired/replaced

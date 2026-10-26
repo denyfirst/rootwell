@@ -34,9 +34,9 @@ func ReadStagingRenewalTiming(path string, key, id []byte, revision [32]byte, ex
 }
 
 // RunStagingRenewalTiming holds the private lock through intent-before-I/O and
-// atomic outcome. Only public DER is borrowed. No runtime connector/route is
-// enabled yet; future integration must enforce fresh auth, consent and the
-// persisted provider-wide wait on ALL CA operations, not just this read.
+// atomic outcome. Only public DER is borrowed. ADR0075's explicit API enforces
+// fresh auth/consent/budgets; all enrolled-store CA operations enforce the same
+// persisted provider-wide wait, not just this read.
 func RunStagingRenewalTiming(path string, key, id []byte, revision [32]byte, expected uint64, fp string, permit func() bool, use inventorystore.RenewalTimingOperation) (inventorystore.RenewalTimingStatus, uint64, error) {
 	var result inventorystore.RenewalTimingStatus
 	var generation uint64

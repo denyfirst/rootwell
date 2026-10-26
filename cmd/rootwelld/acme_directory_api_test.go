@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -105,6 +106,9 @@ func TestDirectoryGateRequiresReadyOriginConsentAndThrottlesWithoutStorage(t *te
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatal("directory check modified access image")
 	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(path), "inventory.json")); !os.IsNotExist(err) {
+		t.Fatal("legacy directory check created storage")
+	}
 	if w := call(g, "DELETE", "/api/session", "", cookie); w.Code != 204 {
 		t.Fatal("logout failed")
 	}
@@ -191,7 +195,14 @@ func TestDirectoryInFlightLogoutRefusesResultAndConcurrentCheck(t *testing.T) {
 	go func() {
 		done <- acmeCall(g, "POST", "/api/acme/directory", directoryConsent, cookie, "http://"+localHost, true)
 	}()
-	<-started
+	select {
+	case <-started:
+	case early := <-done:
+		t.Fatalf("approved connector returned before entering callback: HTTP %d", early.Code)
+	case <-time.After(30 * time.Second):
+		close(release)
+		t.Fatal("approved connector did not start within its test budget")
+	}
 	// Separate the in-flight limit from the cooldown, under the same mutex.
 	g.mu.Lock()
 	g.directoryLast = g.now().Add(-time.Hour)

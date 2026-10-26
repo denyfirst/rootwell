@@ -98,6 +98,8 @@ jobs:
             package: ./internal/acmestaging
           - target: FuzzRenewalTimingPayload
             package: ./internal/inventorystore
+          - target: FuzzRenewalTimingRequest
+            package: ./cmd/rootwelld
           - target: FuzzCloudflareRecordResponse
             package: ./internal/acmestaging
           - target: FuzzVersionValue

@@ -81,5 +81,6 @@
   el("acme-provider").addEventListener("change", reset); el("acme-clear").addEventListener("click", reset);
   document.addEventListener("visibilitychange", () => { if (document.hidden) reset(); });
   window.addEventListener("pagehide", reset);
+  window.addEventListener("rootwell-timing-changed", reset);
   reset();
 })();

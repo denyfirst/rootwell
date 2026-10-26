@@ -19,7 +19,7 @@
     }
     return d;
   };
-  const clear=()=>{++epoch;active?.abort();active=null;button.disabled=false;result.hidden=true;rows.replaceChildren();for(const id of ["automation-status-next","automation-status-capacity","automation-status-unlock"])el(id).textContent="";message.textContent="Saved status is not current. Check renewal readiness again. Nothing was renewed.";};
+  const clear=(timing=true)=>{++epoch;active?.abort();active=null;button.disabled=false;result.hidden=true;rows.replaceChildren();for(const id of ["automation-status-next","automation-status-capacity","automation-status-unlock"])el(id).textContent="";message.textContent="Saved status is not current. Check renewal readiness again. Nothing was renewed.";if(timing!==false)globalThis.rootwellRenewalTiming?.invalidate();};
   const render=d=>{
     const c=d.capacity, due=d.certificates.filter(r=>r.state==="due"||r.state==="expired").length;
     message.textContent=due?due+" test certificate"+(due===1?" needs":"s need")+" renewal review. Automatic renewal is not enabled.":"Saved status checked. Automatic renewal is not enabled.";
@@ -30,6 +30,7 @@
     if(!d.certificates.length){const li=document.createElement("li");li.textContent="No saved certificates yet.";rows.append(li);}
     el("automation-status-unlock").textContent="Session access ends "+pretty(d.unlock_expires)+". Logout, lock or restart stops session-bound work; no background password is saved. Check again after one minute for current status.";
     result.hidden=false;
+    globalThis.rootwellRenewalTiming?.setCertificates(d.certificates,d.generation);
   };
   button.addEventListener("click",async()=>{
     if(active||document.hidden)return;
@@ -50,5 +51,6 @@
   document.addEventListener("visibilitychange",()=>{if(document.hidden)clear();});
   window.addEventListener("pagehide",clear);
   window.addEventListener("rootwell-dns-changed",clear);
+  window.addEventListener("rootwell-timing-changed",()=>clear(false));
   for(const id of ["acme-order-form","dns-config-form","dns-operation-form","acme-account-form","acme-registration-form"])el(id)?.addEventListener("submit",clear);
 })();

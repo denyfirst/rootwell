@@ -27,6 +27,10 @@ func RunStagingValidation(accessPath string, key, id []byte, revision [32]byte, 
 		if err != nil {
 			return err
 		}
+		permit, err = stagingProviderPermit(key, id, image, permit)
+		if err != nil {
+			return err
+		}
 		next, _, gen, err := inventorystore.BeginStagingValidation(key, id, image, expected, refresh)
 		if err != nil {
 			return err

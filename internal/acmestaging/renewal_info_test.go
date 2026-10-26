@@ -23,6 +23,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/acmeplan"
 	"github.com/denyfirst/rootwell/internal/renewalpolicy"
+	"github.com/denyfirst/rootwell/internal/renewalrecord"
 )
 
 func ariCertificate(t *testing.T, from, to time.Time) []byte {
@@ -99,6 +100,58 @@ func TestARIProtocolMissingAdvertisementDoesNotFetchCertificateID(t *testing.T) 
 	result, err := renewalInformation(context.Background(), func() bool { return true }, deps, der, false)
 	if err != nil || !reflect.DeepEqual(result, ariObservation{}) || calls.Load() != 1 {
 		t.Fatal("unsupported provider not distinguished", err)
+	}
+}
+
+func TestARIScopedReceiptBindsUnsupportedAndFixedFailure(t *testing.T) {
+	now := time.Now().UTC()
+	der := ariCertificate(t, now.Add(-time.Hour), now.Add(90*24*time.Hour))
+	id, err := renewalpolicy.CertificateID(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"unsupported", "available", "wait"} {
+		t.Run(mode, func(t *testing.T) {
+			deps, _ := fakeCA(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Retry-After", "3600")
+				if mode == "wait" {
+					w.Header().Set("Retry-After", "3600")
+					w.WriteHeader(503)
+					return
+				}
+				if r.URL.Path == "/directory" {
+					if mode == "unsupported" {
+						_, _ = io.WriteString(w, directoryJSON())
+					} else {
+						_, _ = io.WriteString(w, ariDirectory(renewalInfoURL))
+					}
+					return
+				}
+				_, _ = io.WriteString(w, ariBody(now))
+			})
+			result, err := renewalReceipt(context.Background(), func() bool { return true }, deps, der)
+			if mode == "wait" {
+				var failure *renewalrecord.Failure
+				if !errors.As(err, &failure) || !failure.Temporary || failure.Hint.NotBefore.IsZero() || result != (renewalrecord.Observation{}) {
+					t.Fatal("provider wait or zero result lost", err)
+				}
+				return
+			}
+			if err != nil || result.CertificateID != id || result.Available != (mode == "available") {
+				t.Fatal("source-bound receipt missing", err)
+			}
+		})
+	}
+}
+
+func TestARINativeExportRefusesBeforeDNS(t *testing.T) {
+	if Available() {
+		t.Skip("native refusal only")
+	}
+	result, err := RenewalInformation(context.Background(), func() bool { t.Fatal("native permit called"); return true }, nil)
+	if err == nil || result != (renewalrecord.Observation{}) {
+		t.Fatal("native acquired ARI network")
 	}
 }
 

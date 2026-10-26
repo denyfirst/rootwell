@@ -2,11 +2,14 @@ package acmestaging
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -14,12 +17,13 @@ import (
 	"github.com/denyfirst/rootwell/internal/acmeplan"
 	"github.com/denyfirst/rootwell/internal/providerretry"
 	"github.com/denyfirst/rootwell/internal/renewalpolicy"
+	"github.com/denyfirst/rootwell/internal/renewalrecord"
 )
 
 const renewalInfoURL = "https://" + host + "/acme/renewal-info"
 
-// Internal protocol component only; no live export or runtime consumer before
-// exact certificate-source custody, durable read intent/waits and opt-in UI.
+// Protocol metadata stays internal; the single reviewed adapter below is bound
+// to exact-source custody, durable read intent/waits and the explicit API.
 type ariObservation struct {
 	Available   bool
 	Information renewalpolicy.Information
@@ -31,6 +35,35 @@ type ariFailure struct {
 }
 
 func (*ariFailure) Error() string { return "renewal information unavailable" }
+
+// RenewalInformation is consumed only by the source-bound locked transaction.
+// No caller-controlled URL/trust, private key, signer or DNS credential.
+func RenewalInformation(ctx context.Context, permit func() bool, der []byte) (renewalrecord.Observation, error) {
+	if !Available() {
+		return renewalrecord.Observation{}, &renewalrecord.Failure{}
+	}
+	dialer := &net.Dialer{Timeout: 3 * time.Second, KeepAlive: -1}
+	return renewalReceipt(ctx, permit, dependencies{lookup: net.DefaultResolver.LookupNetIP, dial: dialer.DialContext, tls: &tls.Config{MinVersion: tls.VersionTLS12}}, der)
+}
+
+func renewalReceipt(ctx context.Context, permit func() bool, deps dependencies, der []byte) (renewalrecord.Observation, error) {
+	id, err := renewalpolicy.CertificateID(der)
+	if err != nil {
+		return renewalrecord.Observation{}, &renewalrecord.Failure{}
+	}
+	result, err := renewalInformation(ctx, permit, deps, der, false)
+	if err != nil {
+		var failure *ariFailure
+		if errors.As(err, &failure) && failure != nil {
+			return renewalrecord.Observation{}, &renewalrecord.Failure{Temporary: failure.Temporary, Hint: failure.Hint}
+		}
+		return renewalrecord.Observation{}, &renewalrecord.Failure{}
+	}
+	if permit == nil || !permit() {
+		return renewalrecord.Observation{}, &renewalrecord.Failure{}
+	}
+	return renewalrecord.Observation{CertificateID: id, Available: result.Available, Information: result.Information}, nil
+}
 
 func renewalInformation(parent context.Context, permit func() bool, deps dependencies, der []byte, replaced bool) (ariObservation, error) {
 	bad := func() (ariObservation, error) { return ariObservation{}, &ariFailure{} }
@@ -47,8 +80,11 @@ func renewalInformation(parent context.Context, permit func() bool, deps depende
 	ctx, cancel := context.WithTimeout(parent, 8*time.Second)
 	defer cancel()
 	allowed := func() bool {
+		if permit == nil || !permit() {
+			return false
+		}
 		now := time.Now().UTC()
-		return ctx.Err() == nil && permit != nil && permit() && !now.Before(started) && now.Before(cert.NotAfter)
+		return ctx.Err() == nil && !now.Before(started) && now.Before(cert.NotAfter)
 	}
 	if !allowed() || deps.lookup == nil || deps.dial == nil || deps.tls == nil {
 		return bad()

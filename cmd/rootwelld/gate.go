@@ -60,6 +60,7 @@ type gate struct {
 	validationConnect   validationConnect
 	certificateConnect  certificateConnect
 	dnsConnect          dnsConnect
+	timingConnect       timingConnect
 }
 
 func newGate(accessPath, assetsDir, host string) (*gate, error) {
@@ -149,6 +150,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/automation/status":
 		g.automationStatusEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/renewal-timing/status", "/api/acme/renewal-timing/check", "/api/acme/renewal-timing/interrupt":
+		g.renewalTimingEndpoint(w, r, s, signedIn)
+		return
 	case "/api/acme/directory":
 		g.acmeDirectoryEndpoint(w, r, s, signedIn)
 		return
@@ -191,7 +195,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -209,6 +213,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme.html", "text/html; charset=utf-8")
 		case "/automation-status.js":
 			g.authAsset(w, r, "auth/automation-status.js", "text/javascript; charset=utf-8")
+		case "/renewal-timing.js":
+			g.authAsset(w, r, "auth/renewal-timing.js", "text/javascript; charset=utf-8")
 		case "/acme-setup.js":
 			g.authAsset(w, r, "auth/acme-setup.js", "text/javascript; charset=utf-8")
 		case "/acme-directory.js":

@@ -181,6 +181,8 @@ jobs:
           node --check scripts/test-cloudflare-config.mjs
           node --check scripts/test-dns-operation.mjs
           node --check cmd/rootwelld/auth/automation-status.js
+          node --check cmd/rootwelld/auth/renewal-timing.js
+          node --check scripts/test-renewal-timing.mjs
           node --check scripts/test-automation-status.mjs
           node --check cmd/rootwelld/auth/dns-operation.js
           node --check cmd/rootwelld/auth/acme-registration.js
@@ -230,6 +232,7 @@ jobs:
           node scripts/test-cloudflare-config.mjs
           node scripts/test-dns-operation.mjs
           node scripts/test-automation-status.mjs
+          node scripts/test-renewal-timing.mjs
           node scripts/test-acme-registration.mjs
           node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs
@@ -244,6 +247,9 @@ jobs:
           go test -race -run '^TestLinuxAutomationStatusAPINoNetworkMutationOrUnlockedBypass$' -count=1 -timeout=5m ./cmd/rootwelld
           go test -race -run '^TestARI' -count=1 -timeout=2m ./internal/acmestaging ./internal/renewalpolicy
           go test -race -run '^TestLinuxRenewalTiming' -count=1 -timeout=5m ./internal/instanceaccess
+          go test -race -run '^TestLinuxProviderWait' -count=1 -timeout=5m ./internal/instanceaccess
+          go test -race -run '^TestLinuxRenewalTimingAPI' -count=1 -timeout=5m ./cmd/rootwelld
+          go test -race -run '^TestDirectory' -count=1 -timeout=2m ./cmd/rootwelld
 
       - name: Test with race detector
         # Real password/KDF and recovery tests retain production iterations.

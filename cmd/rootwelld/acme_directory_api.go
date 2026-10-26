@@ -12,6 +12,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/acmeplan"
 	"github.com/denyfirst/rootwell/internal/acmestaging"
+	"github.com/denyfirst/rootwell/internal/instanceaccess"
 )
 
 type directoryCheck func(context.Context, func() bool) (acmestaging.Summary, error)
@@ -65,6 +66,7 @@ func readDirectoryConsent(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (g *gate) acmeDirectoryEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	defer clear(s.dataKey[:])
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
 		return
@@ -83,7 +85,8 @@ func (g *gate) acmeDirectoryEndpoint(w http.ResponseWriter, r *http.Request, s s
 	}
 	permit := func() bool {
 		current, ok := g.currentSession(r)
-		return ok && !current.setup && r.Context().Err() == nil
+		defer clear(current.dataKey[:])
+		return ok && !current.setup && current.revision == s.revision && r.Context().Err() == nil
 	}
 	if !permit() {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
@@ -104,16 +107,37 @@ func (g *gate) acmeDirectoryEndpoint(w http.ResponseWriter, r *http.Request, s s
 	g.directoryBusy, g.directoryLast = true, now
 	g.mu.Unlock()
 	defer func() { g.mu.Lock(); g.directoryBusy = false; g.mu.Unlock() }()
+	if s.inventoryReady {
+		if !g.startDerivation() {
+			http.Error(w, "another key or password check is running", http.StatusServiceUnavailable)
+			return
+		}
+		defer func() { <-g.derive }()
+	}
 	check := g.directoryCheck
 	if check == nil {
 		check = acmestaging.Discover
 	}
-	result, err := check(r.Context(), permit)
+	var result acmestaging.Summary
+	var err error
+	if s.inventoryReady {
+		err = instanceaccess.RunStagingProviderRead(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, permit, func(allowed func() bool) error {
+			var callErr error
+			result, callErr = check(r.Context(), allowed)
+			return callErr
+		})
+	} else {
+		// An unenrolled access envelope cannot have encrypted provider policy.
+		result, err = check(r.Context(), permit)
+	}
 	if !permit() {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
 	if err != nil {
+		if providerWaitError(w, err) {
+			return
+		}
 		http.Error(w, "Provider connection could not be safely checked. No account or certificate was created.", http.StatusBadGateway)
 		return
 	}

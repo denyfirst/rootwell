@@ -27,6 +27,10 @@ func RunStagingRegistration(accessPath string, key, id []byte, revision [32]byte
 		if err != nil {
 			return err
 		}
+		permit, err = stagingProviderPermit(key, id, image, permit)
+		if err != nil {
+			return err
+		}
 		if !reconcile {
 			next, _, gen, err := inventorystore.BeginStagingRegistration(key, id, image, expected, terms)
 			if err != nil {

@@ -27,6 +27,7 @@ for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "d
 }
 
 const instant = days => new Date(Date.now() + days * 86400000).toISOString().slice(0, 19) + "Z";
+const timingExpiry=[instant(12),instant(60)];
 const records = [
   { fingerprint: "a".repeat(64), subject: "CN=demo-expired.example", issuer: "CN=Demo CA", dns_names: ["demo-expired.example"],
     not_before: instant(-200), not_after: instant(-2), owner: "Demo platform team", location: "demo/nginx",
@@ -72,7 +73,7 @@ const assets = new Map([
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
 let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal result, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the example result. All dates, saved/key statuses and renewal identities below are simulated, not a CA receipt or actual saved pairs. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
-for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive"]){
+for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","renewal-time-password","renewal-time-consent"]){
   automationHTML=replaceOnce(automationHTML,`id="${id}"`, `id="${id}" disabled`);
 }
 let dnsConfigScript=replaceOnce(asset("cloudflare-config.js"),"button.disabled=!!active", "button.disabled=true || !!active");
@@ -87,6 +88,7 @@ assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
 assets.set("/acme-order.js",["text/javascript; charset=utf-8",automationScript]);
 for(const name of ["acme-setup.js","acme-directory.js","acme-account.js","acme-registration.js"])assets.set("/"+name,["text/javascript; charset=utf-8",asset(name)]);
 assets.set("/automation-status.js",["text/javascript; charset=utf-8",asset("automation-status.js")]);
+assets.set("/renewal-timing.js",["text/javascript; charset=utf-8",replaceOnce(asset("renewal-timing.js"),"submit.disabled=!!active","submit.disabled=true || !!active")]);
 const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -102,12 +104,24 @@ const server = http.createServer((request, response) => {
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if(request.method==="POST"&&request.url==="/api/acme/renewal-timing/status"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>2048){oversized=true;body="";}}});
+    request.on("end",()=>{
+      const fingerprints=[Array(32).fill("AA").join(":"),Array(32).fill("BB").join(":")];
+      const index=fingerprints.findIndex(fingerprint=>body===JSON.stringify({provider:"letsencrypt-staging",fingerprint,expected_generation:40}));
+      if(oversized||index<0){response.writeHead(400).end("Fixture status refused");return;}
+      const chosen=instant(index?28:3),fallback=instant(index?29:-1),start=instant(-1),checked=instant(-0.01);
+      const status={fingerprint:fingerprints[index],not_after:timingExpiry[index],prepared:true,state:"ari",started_at:start,observed_at:checked,pending:false,can_read:false,can_interrupt:false,source:"ari",renew_at:chosen,fallback_at:fallback,effective_at:chosen,next_check:instant(0.25),provider_not_before:"",blocked:false,failures:0,window_start:chosen,window_end:instant(index?30:4),checked_at:checked,expired:false,superseded:false};
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.renewal-timing.v1",provider:"letsencrypt-staging",generation:40,checked_at:instant(0),unlock_expires:instant(1/12),network_attempted:false,saved:false,automatic_renewal:false,status}));
+    });return;
+  }
   if(request.method==="POST"&&request.url==="/api/automation/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
-      const fakeRows=[{fingerprint:Array(32).fill("AA").join(":"),name:"DEMO · mail.example.com",not_after:instant(12),review_at:instant(-1),state:"due"},{fingerprint:Array(32).fill("BB").join(":"),name:"DEMO · api.example.com",not_after:instant(60),review_at:instant(30),state:"waiting"}];
+      const fakeRows=[{fingerprint:Array(32).fill("AA").join(":"),name:"DEMO · mail.example.com",not_after:timingExpiry[0],review_at:instant(-1),state:"due"},{fingerprint:Array(32).fill("BB").join(":"),name:"DEMO · api.example.com",not_after:timingExpiry[1],review_at:instant(30),state:"waiting"}];
       response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.automation.status.v1",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:new Date(Date.now()+7200000).toISOString().slice(0,19)+"Z",generation:40,checked_at:instant(0),request:"active",dns:"unknown",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:886,events_reserved:100,archives_free:30,records_free:498,generations_free:999860,bytes_free:100000000},certificates:fakeRows}));
     });return;
   }
