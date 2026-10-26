@@ -1133,6 +1133,33 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C96 — Session timing watch cannot become signing, replay or unlock authority
+
+ADR0076 reads one exact authenticated source/image for recovery admission. Pending
+timing, unsafe DNS/request/account or inadequate unreserved space stops the watch.
+Recovery guidance never resets/prunes/replays. Separate fresh password and literal
+scope; one original-session/revision/expiry-bound memory job, no retained unlock
+key/password/token, no restart/restore adoption. Max twelve timing checks, minimum
+five monotonic elapsed minutes, original expiry and twelve-hour cap, shared budgets,
+persisted wait/intent/lease. Errors and unrelated writes pause, never auto-retire.
+Stop/logout/lock/shutdown cancel permission; sent bytes/committed intent are not
+rolled back. Local Stop uses exact owner/job ID and no crypto slot/password.
+Only fixed public status/recovery UI; no certificate/DNS/signing operation.
+
+Guards: `TestTimingWatchReadinessRecoveryIsReadOnlyAndExactSource`,
+`TestTimingWatchRecoveryPolicyNeverResetsOrReplays`,
+`TestTimingWatchBusyCannotShortenSpacingAndOwnerCannotChange`,
+`TestTimingWatchConstructorCannotExtendOrSwitchReadySession`,
+`TestTimingWatchStrictSeparateConsentAndNoPartialSecret`,
+`TestTimingWatchGateStatusDoesNotGrantOrPersistAuthority`,
+`TestTimingWatchCannotAcquireOrderDNSOrIndependentUnlock`,
+`TestLinuxTimingWatchSeparateConsentIntentAndStopWithoutSecret`,
+`TestLinuxTimingWatchRevocationRetainsPendingAndNeverAutoRetires`,
+`TestNativeTimingReadinessRefusesBeforeFiles`, `FuzzTimingWatchInput`,
+`scripts/test-timing-watch.mjs`, `scripts/test-inventory-demo.mjs`.
+No full terminal maintenance/retention solution or automatic renewal/production
+claim; no anti-rollback, trusted host clock or reliable heap erasure guarantee.
+
 ## C95 — Explicit timing cannot bypass an all-CA provider wait
 
 ADR0075 gates every enrolled-store CA network path under the private writer lock

@@ -87,19 +87,22 @@ func TestRenewalTimingHasOnlyLockedInternalConsumers(t *testing.T) {
 	linux := "internal/instanceaccess/renewal_timing_linux.go"
 	other := "internal/instanceaccess/renewal_timing_other.go"
 	api := "cmd/rootwelld/renewal_timing_api.go"
+	watch := "cmd/rootwelld/timing_watch.go"
 	allowed := map[string]map[string]bool{
 		"ReadStagingRenewalTiming":      {model: true, linux: true, other: true, api: true},
 		"BeginStagingRenewalTiming":     {operation: true, linux: true},
 		"ExecuteStagingRenewalTiming":   {operation: true, linux: true},
 		"InterruptStagingRenewalTiming": {operation: true, linux: true, other: true, api: true},
-		"RunStagingRenewalTiming":       {linux: true, other: true, api: true},
+		"RunStagingRenewalTiming":       {linux: true, other: true, api: true, watch: true},
 		"ReadStagingProviderWait":       {wait: true, "internal/instanceaccess/provider_wait_linux.go": true},
-		"RenewalInformation":            {"internal/acmestaging/renewal_info.go": true, api: true},
-		"timingConnect":                 {"cmd/rootwelld/gate.go": true, api: true},
+		"RenewalInformation":            {"internal/acmestaging/renewal_info.go": true, api: true, watch: true},
+		"timingConnect":                 {"cmd/rootwelld/gate.go": true, api: true, watch: true},
+		"newTimingWatch":                {watch: true, "cmd/rootwelld/timing_watch_api.go": true},
+		"ReadTimingReadiness":           {"internal/inventorystore/timing_watch.go": true, "internal/instanceaccess/timing_watch_linux.go": true, "internal/instanceaccess/timing_watch_other.go": true, "cmd/rootwelld/timing_watch_api.go": true, watch: true},
 		"RunStagingProviderRead":        {"internal/instanceaccess/provider_wait_linux.go": true, "internal/instanceaccess/provider_wait_other.go": true, "cmd/rootwelld/acme_directory_api.go": true, "cmd/rootwelld/acme_registration_api.go": true},
 		"stagingProviderPermit":         {"internal/instanceaccess/provider_wait_linux.go": true, "internal/instanceaccess/acme_registration_linux.go": true, "internal/instanceaccess/acme_order_linux.go": true, "internal/instanceaccess/acme_validation_linux.go": true, "internal/instanceaccess/acme_certificate_linux.go": true},
 		"beginTimingAt":                 {operation: true}, "executeTimingAt": {operation: true}, "interruptTimingAt": {operation: true},
-		"readTimingStatusAt": {model: true, operation: true}, "readStagingWaitAt": {wait: true},
+		"readTimingStatusAt": {model: true, operation: true, "internal/inventorystore/timing_watch.go": true}, "readStagingWaitAt": {wait: true},
 	}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -122,7 +125,7 @@ func TestRenewalTimingHasOnlyLockedInternalConsumers(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if name == "github.com/denyfirst/rootwell/internal/renewalrecord" && rel != model && rel != operation && rel != api && rel != "internal/acmestaging/renewal_info.go" {
+			if name == "github.com/denyfirst/rootwell/internal/renewalrecord" && rel != model && rel != operation && rel != api && rel != watch && rel != "internal/acmestaging/renewal_info.go" {
 				t.Error("unreviewed timing receipt consumer", rel)
 			}
 			if rel == "internal/renewalrecord/record.go" && name != "github.com/denyfirst/rootwell/internal/providerretry" && name != "github.com/denyfirst/rootwell/internal/renewalpolicy" {
