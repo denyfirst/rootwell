@@ -11,8 +11,11 @@ enrollment, real CA/DNS test or Porch change.
    issue/read reconciliation. Local status, interruption retirement and DNS
    ownership cleanup remain available. The permit repeats live access and actual
    clock checks after potentially slow permission calls. Complete restore keeps
-   the policy. An unenrolled access envelope cannot contain encrypted policy;
-   its existing explicit directory-only check remains unchanged.
+   the policy. A ready identity is not storage enrollment: only an exact-revision
+   v2 envelope with no inventory image retains the directory-only check under
+   the lock. Missing v3 or malformed images refuse; absence is never a generic
+   no-policy fallback. Provider concurrency is checked before the crypto slot,
+   preserving the existing in-flight 429.
 2. Connect ADR0073's fixed staging ARI protocol to ADR0074's exact-source
    intent/one-use lease/result transaction. The protocol rederives the public ID
    and produces only a source-bound observation or fixed typed failure. There is
@@ -69,6 +72,12 @@ the fixed provider match failed its legitimate status request. Both were restore
 For the lost-generation UI follow-up, disabling invalidation failed the obsolete
 generation refusal test, while unconditional invalidation failed the legitimate
 flow's event contract. Both runnable mutations were restored and UI tests rerun.
+Full Linux race exposed the ready-identity/storage-enrollment distinction in the
+legacy directory fixture; an unbounded test channel masked the early refusal.
+The wrapper now permits only the verified v2/no-image legacy case, keeps missing
+or corrupt enrolled storage fail-closed, and the test refuses early completion
+or a bounded start timeout instead of hanging. Directory regression tests also
+run in focused Linux smoke; runtime/test deadlines were not increased.
 All final-head CI checks and separate maintainer adversarial
 self-review remain mandatory, not independent audit. Linux execution is a CI
 gate, not inferred from Windows cross-vet. Full automation, session-only worker,

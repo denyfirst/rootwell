@@ -249,6 +249,7 @@ jobs:
           go test -race -run '^TestLinuxRenewalTiming' -count=1 -timeout=5m ./internal/instanceaccess
           go test -race -run '^TestLinuxProviderWait' -count=1 -timeout=5m ./internal/instanceaccess
           go test -race -run '^TestLinuxRenewalTimingAPI' -count=1 -timeout=5m ./cmd/rootwelld
+          go test -race -run '^TestDirectory' -count=1 -timeout=2m ./cmd/rootwelld
 
       - name: Test with race detector
         # Real password/KDF and recovery tests retain production iterations.

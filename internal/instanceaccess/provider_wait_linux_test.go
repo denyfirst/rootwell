@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -61,6 +62,22 @@ func TestLinuxProviderWaitCoversEveryCAPathBeforeIntentAndSurvivesRestore(t *tes
 	defer clear(rk)
 	rev, _ := Revision(fresh)
 	assertBlockedCAPaths(t, fresh, rk, ri, rev, g, fp, inventorystore.ErrTimingWait)
+	// Missing or corrupt enrolled storage is never a no-policy fallback.
+	current := filepath.Join(filepath.Dir(fresh), inventoryName)
+	if err := os.Rename(current, current+".quarantined"); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	use := func(func() bool) error { called = true; return nil }
+	if err := RunStagingProviderRead(fresh, rk, ri, rev, allow, use); !errors.Is(err, ErrInventoryMissing) || called {
+		t.Fatal("missing enrolled image bypassed wait", err)
+	}
+	if err := os.WriteFile(current, []byte(`{"malformed":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := RunStagingProviderRead(fresh, rk, ri, rev, allow, use); err == nil || called {
+		t.Fatal("malformed enrolled image bypassed wait")
+	}
 }
 func TestLinuxProviderWaitBlockedHintDeniesEveryCAPath(t *testing.T) {
 	path, _, key, id, fp, revision := completedClosureStore(t)

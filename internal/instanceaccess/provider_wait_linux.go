@@ -3,6 +3,9 @@
 package instanceaccess
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -58,12 +61,34 @@ func RunStagingProviderRead(path string, key, id []byte, revision [32]byte, perm
 			return err
 		}
 		image, err := readInventory(filepath.Join(filepath.Dir(path), inventoryName))
-		if err != nil {
+		var allowed func() bool
+		if errors.Is(err, ErrInventoryMissing) {
+			// A ready identity is not recovery/storage enrollment. Only a
+			// revision-bound v2 envelope with NO image can use the legacy
+			// directory-only path. Never treat missing v3 storage as no wait.
+			body, readErr := readAccess(path)
+			e, parseErr := parseEnvelope(body)
+			if readErr != nil || parseErr != nil || sha256.Sum256(body) != revision || e.Version != 2 || e.State != ready || len(key) != 32 || !bytes.Equal(e.InstallationID, id) || permit == nil || !permit() {
+				return ErrInventoryMissing
+			}
+			started := time.Now().UTC()
+			allowed = func() bool {
+				if !permit() {
+					return false
+				}
+				now := time.Now().UTC()
+				return !now.Before(started) && now.Year() >= 2020 && now.Year() <= 2100
+			}
+		} else if err != nil {
 			return err
+		} else {
+			allowed, err = stagingProviderPermit(key, id, image, permit)
+			if err != nil {
+				return err
+			}
 		}
-		allowed, err := stagingProviderPermit(key, id, image, permit)
-		if err != nil {
-			return err
+		if !allowed() {
+			return ErrStaleUpgrade
 		}
 		if err := use(allowed); err != nil {
 			return err

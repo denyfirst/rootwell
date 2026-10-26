@@ -96,13 +96,6 @@ func (g *gate) acmeDirectoryEndpoint(w http.ResponseWriter, r *http.Request, s s
 		http.Error(w, "Provider connections require Linux or Linux Docker. Native preview stays offline.", http.StatusServiceUnavailable)
 		return
 	}
-	if s.inventoryReady {
-		if !g.startDerivation() {
-			http.Error(w, "another key or password check is running", http.StatusServiceUnavailable)
-			return
-		}
-		defer func() { <-g.derive }()
-	}
 	// Global bounded RAM state: no queue, no growing per-client map, no persistence.
 	g.mu.Lock()
 	now := g.now()
@@ -114,6 +107,13 @@ func (g *gate) acmeDirectoryEndpoint(w http.ResponseWriter, r *http.Request, s s
 	g.directoryBusy, g.directoryLast = true, now
 	g.mu.Unlock()
 	defer func() { g.mu.Lock(); g.directoryBusy = false; g.mu.Unlock() }()
+	if s.inventoryReady {
+		if !g.startDerivation() {
+			http.Error(w, "another key or password check is running", http.StatusServiceUnavailable)
+			return
+		}
+		defer func() { <-g.derive }()
+	}
 	check := g.directoryCheck
 	if check == nil {
 		check = acmestaging.Discover
