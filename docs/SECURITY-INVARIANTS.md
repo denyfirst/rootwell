@@ -1133,6 +1133,37 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C94 — Durable renewal timing cannot reroll or erase provider policy
+
+ADR0074 authenticates the exact saved staging completion and ID before timing
+output/intent. Imported, wrong-context, malformed, expired or superseded sources
+grant no read. One saved fallback/ARI choice, no same-window reroll or later
+postponement, stale fallback, persisted bounded wait and deletion-independent
+account barrier. Pending read needs explicit local retirement; count/wait remain.
+Exact-image atomic one-use lease and twenty-second live permission/lifetime;
+Linux lock commits intent before public-DER-only callback and outcome atomically.
+No private signer/token/URI or raw error in timing output. Reserved slot/8KiB
+adds to DNS/issuance, survives note writes and complete password/recovery restore.
+Native refuses. No live adapter/route/worker; architecture blocks wiring before
+all-CA provider barriers, fresh auth/privacy consent and session budgets review.
+
+Guards: `TestRenewalTimingDurableExactSourceSingleChoiceAndNoSecretBorrow`,
+`TestRenewalTimingPublicWrappersAndPendingRequireExplicitRetirement`,
+`TestRenewalTimingChangedWindowCannotPostponeAndStaleFallsBack`,
+`TestRenewalTimingUntrustedStoredSemanticsNoPartialProjection`,
+`TestRenewalTimingReservationsProviderBoundsAndPrivacy`,
+`TestRenewalTimingWaitInterruptedReadAndProviderBarrierSurviveDeletion`,
+`TestRenewalTimingLeaseNoReplayRevocationAndMalformedReceipt`,
+`TestRenewalTimingConcurrentLeaseAndImportedSourceRefusal`,
+`TestRenewalTimingProviderWaitBoundariesAndAuthenticatedTamper`,
+`TestRenewalTimingAddsToDNSIssuanceReserveAndRetiresSupersededSource`,
+`TestLinuxRenewalTimingIntentLockSourceAndFullRecovery`,
+`TestLinuxRenewalTimingRevocationPendingSnapshotAndNoRetryReset`,
+`TestNativeRenewalTimingRefusesBeforeFilesOrCallback`,
+`TestRenewalTimingHasOnlyLockedInternalConsumers`, `FuzzRenewalTimingPayload`,
+`scripts/test-inventory-lifecycle.mjs`. Actual compiling two-way sabotage in
+ADR0074; Linux race/complete recovery and every final-head check remain gates.
+
 ## C93 — Staging ARI protocol cannot gain credentials or arbitrary endpoints
 
 ADR0073 permits an internal two-GET fixed staging component only. Validate bounded

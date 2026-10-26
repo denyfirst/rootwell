@@ -75,6 +75,9 @@ func addEvent(key []byte, m *manifest, action string, ids []string) error {
 	if err != nil {
 		return err
 	}
+	if total < 0 || total > 256 {
+		return ErrLimit
+	}
 	if total > 0 && (len(m.History) >= maxHistory-total || m.Generation > maxGeneration-uint64(total)) {
 		return ErrLimit
 	}
@@ -100,6 +103,7 @@ func validEvent(event Event) bool {
 		return false
 	}
 	switch event.Action {
+	case "acme-timing-read-started", "acme-timing-observed", "acme-timing-wait-saved", "acme-timing-interrupted":
 	case "acme-dns-plan-prepared", "acme-dns-attempt-started", "acme-dns-wait-saved", "acme-dns-result-saved":
 	case "acme-dns-recovery-started", "acme-dns-recovery-wait", "acme-dns-recovery-result":
 	case "dns-cloudflare-saved", "dns-cloudflare-removed":

@@ -75,8 +75,8 @@ func ReadAutomationStatus(key, id, image []byte, at time.Time) (AutomationStatus
 	if err != nil {
 		return bad(err)
 	}
-	// dnsTotalReserve includes independent slots only while DNS is unresolved.
-	if dnsPlanReserve(dns) == 0 {
+	// Independent slots are included when DNS or timing reads are unresolved.
+	if reserve == 0 {
 		order, err := openOrder(key, id, m)
 		if err != nil {
 			return bad(err)

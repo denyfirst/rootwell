@@ -483,7 +483,7 @@ func TestManualRenewalConsumersStayInsideReviewedCustodyAndGate(t *testing.T) {
 		"RunStagingRenewalOrder":   {"internal/instanceaccess/acme_order_linux.go": true, "internal/instanceaccess/acme_order_other.go": true, "cmd/rootwelld/acme_order_api.go": true},
 		"runStagingOrder":          {"internal/instanceaccess/acme_order_linux.go": true},
 		"renewalSource":            {"internal/inventorystore/renewal.go": true},
-		"completedRenewalSources":  {"internal/inventorystore/renewal.go": true, "internal/inventorystore/automation_status.go": true},
+		"completedRenewalSources":  {"internal/inventorystore/renewal.go": true, "internal/inventorystore/automation_status.go": true, "internal/inventorystore/renewal_timing.go": true, "internal/inventorystore/renewal_timing_operation.go": true},
 		"checkRenewalBinding":      {"internal/inventorystore/renewal.go": true, "internal/inventorystore/closed_requests.go": true},
 		"renewalKeyFingerprint":    {"internal/inventorystore/renewal.go": true, "internal/inventorystore/closed_requests.go": true},
 	}

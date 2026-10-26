@@ -42,6 +42,7 @@ func closedRequestID(order string) []byte {
 func closedScope(m manifest, p closedRequest) manifest {
 	m.ACMEOrders, m.ACMECertificateRequests, m.ACMEIssuances = p.Orders, p.Requests, p.Issuances
 	m.DNSPlans = p.DNSPlans
+	m.RenewalTimings, m.StagingProviderWait = nil, nil
 	m.ClosedRequests = nil
 	m.historical = true
 	return m

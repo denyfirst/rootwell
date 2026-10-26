@@ -308,6 +308,22 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR0074 adds source-bound encrypted timing/one-time selection, persisted retry
+and account-wide provider waits, exact-image one-use twenty-second read lease,
+intent-before-callback Linux writer and full recovery. Imported/expired/replaced
+sources cannot gain read authority; same windows never reroll, later windows
+cannot postpone an existing ARI choice and stale data cannot hide earlier
+fallback. Pending intent retirement preserves count/wait/selection. Source
+deletion cannot erase the separate provider wait; blocked hints remain blocked.
+Reservations add to DNS/issuance; no silent history pruning/reset. Activity only
+recognizes fixed metadata events, not a new renewal operation. No live adapter/
+route or worker is enabled. All CA operations MUST consult the global persisted
+barrier before a future live route, together with fresh auth/consent/budgets and
+ready-session/revision/expiry checks. Existing legacy paths cannot create this
+state. Native custody refuses; Linux execution/race/full recovery is a CI gate.
+Complete rollback, host/runtime compromise, reliable erasure and live interop
+are not proven. See ADR0074; independent production audit remains separate.
+
 ADR0073 adds only an unexported staging ARI protocol component: at most directory
 and exact advertised fixed-resource GET, no signer/token/key, current non-replaced
 bounded certificate before DNS, inherited pinned public DNS/TLS, no proxy/redirect/
