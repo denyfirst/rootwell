@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/acmeorder"
 	"github.com/denyfirst/rootwell/internal/providerretry"
 )
 
@@ -133,9 +134,11 @@ func ReadAutomationStatus(key, id, image []byte, at time.Time) (AutomationStatus
 		return bad(err)
 	}
 	for _, r := range records {
-		row := RenewalReview{Fingerprint: r.Fingerprint, Name: "Saved certificate", NotAfter: r.NotAfter, State: "manual"}
+		row := RenewalReview{Fingerprint: r.Fingerprint, Name: "Saved certificate · " + r.Fingerprint[:17], NotAfter: r.NotAfter, State: "manual"}
 		if len(r.DNSNames) > 0 {
-			row.Name = r.DNSNames[0]
+			if names, ok := acmeorder.Names([]string{r.DNSNames[0]}); ok {
+				row.Name = names[0]
+			}
 		}
 		if r.StagingOrigin != nil && r.HasPrivateKey && r.KeyStatus == "matched" {
 			// decode already authenticated the record/completion/material linkage;

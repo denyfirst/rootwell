@@ -308,6 +308,16 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR0073 adds only an unexported staging ARI protocol component: at most directory
+and exact advertised fixed-resource GET, no signer/token/key, current non-replaced
+bounded certificate before DNS, inherited pinned public DNS/TLS, no proxy/redirect/
+retry and 8s/header/body/JSON budgets. Fixed errors with bounded provider waits,
+repeated permit/expiry and no partial output. Production consumers/export remain
+architecture-blocked before exact saved-source intent/wait/selection custody and
+explicit UI. Fake TLS is not live CA interoperability. Existing overview labels
+now bound unusual imported DNS hints without altering DER/manual status; client
+counter consistency checks do not grant admission or renewal authority.
+
 ADR 0072 supplies offline ARI policy only: bounded unique JSON/window/timestamps,
 one special read-check Retry-After interval, fixed error delays, public certificate
 ID through standard X.509/ASN.1 and cryptorandom time selection subordinate to

@@ -94,6 +94,8 @@ jobs:
             package: ./internal/renewalpolicy
           - target: FuzzRenewalSelection
             package: ./internal/renewalpolicy
+          - target: FuzzStagingARIURI
+            package: ./internal/acmestaging
           - target: FuzzCloudflareRecordResponse
             package: ./internal/acmestaging
           - target: FuzzVersionValue

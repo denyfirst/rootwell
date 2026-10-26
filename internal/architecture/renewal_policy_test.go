@@ -41,7 +41,7 @@ func TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority(t *testing.T) {
 			if strings.HasPrefix(rel, "internal/renewalpolicy/") && !allowed[name] {
 				t.Error("unreviewed renewal policy import", rel, name)
 			}
-			if name == "github.com/denyfirst/rootwell/internal/renewalpolicy" {
+			if name == "github.com/denyfirst/rootwell/internal/renewalpolicy" && rel != "internal/acmestaging/renewal_info.go" {
 				t.Error("renewal policy wired before scoped custody review", rel)
 			}
 		}
@@ -52,6 +52,24 @@ func TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority(t *testing.T) {
 				}
 			}
 		}
+		if rel == "internal/acmestaging/renewal_info.go" {
+			for _, decl := range file.Decls {
+				if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.IsExported() && (fn.Recv == nil || fn.Name.Name != "Error") {
+					t.Error("ARI protocol exported before custody review", fn.Name.Name)
+				}
+			}
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if ident, ok := node.(*ast.Ident); ok {
+				switch ident.Name {
+				case "renewalInformation", "ariObservation", "ariFailure", "ariSession", "validARIURL", "renewalInfoURL":
+					if rel != "internal/acmestaging/renewal_info.go" {
+						t.Error("unreviewed ARI protocol consumer", rel, ident.Name)
+					}
+				}
+			}
+			return true
+		})
 		return nil
 	})
 	if err != nil {

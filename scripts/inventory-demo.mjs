@@ -108,7 +108,7 @@ const server = http.createServer((request, response) => {
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
       const fakeRows=[{fingerprint:Array(32).fill("AA").join(":"),name:"DEMO · mail.example.com",not_after:instant(12),review_at:instant(-1),state:"due"},{fingerprint:Array(32).fill("BB").join(":"),name:"DEMO · api.example.com",not_after:instant(60),review_at:instant(30),state:"waiting"}];
-      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.automation.status.v1",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:new Date(Date.now()+7200000).toISOString().slice(0,19)+"Z",generation:40,checked_at:instant(0),request:"active",dns:"unknown",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:880,events_reserved:100,archives_free:30,records_free:498,generations_free:999860,bytes_free:90000000},certificates:fakeRows}));
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.automation.status.v1",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:new Date(Date.now()+7200000).toISOString().slice(0,19)+"Z",generation:40,checked_at:instant(0),request:"active",dns:"unknown",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:886,events_reserved:100,archives_free:30,records_free:498,generations_free:999860,bytes_free:100000000},certificates:fakeRows}));
     });return;
   }
   if(request.method==="POST"&&request.url==="/api/dns/cloudflare/status"){

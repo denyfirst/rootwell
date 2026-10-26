@@ -1133,6 +1133,27 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C93 — Staging ARI protocol cannot gain credentials or arbitrary endpoints
+
+ADR0073 permits an internal two-GET fixed staging component only. Validate bounded
+public non-replaced/current certificate before DNS; missing directory support
+sends no certificate ID. Exact advertised resource, public DNS/numeric pin/TLS,
+8s total, bounded headers/body/JSON, no proxy/redirect/retry/compression, one-use
+budget and repeated permission/expiry checks. Fixed errors carry only bounded
+wait hints, no raw body/URL/metadata. No signer/token/key, exported live function,
+runtime consumer, saved state or UI authority before source-bound custody review.
+
+Guards: `TestARIProtocolTwoPinnedPublicGETsNoCredentialsOrRedirects`,
+`TestARIProtocolMissingAdvertisementDoesNotFetchCertificateID`,
+`TestARIProtocolSourcePermissionAndExpiryRefuseBeforeDNS`,
+`TestARIProtocolUntrustedResponsesCannotAddNetworkOrPartialInformation`,
+`TestARIProtocolRevocationAndDeadlineCannotPublishLateResult`,
+`TestARIProtocolOneUseURIAndRequestBudget`,
+`TestARIProtocolUnsafeDNSAndPreSendRevocationCannotDiscloseID`,
+`FuzzStagingARIURI`, `TestRenewalPolicyCannotAcquireRuntimeOrNetworkAuthority` and inherited pinned
+transport/ARI parser/identifier/fuzz guards. Actual compiling two-way sabotage
+is recorded in ADR0073; fake TLS is not live interoperability or production audit.
+
 ## C92 — Offline ARI policy cannot become renewal authority
 
 ADR 0072: bounded UTF-8/unique-key/depth/budget JSON, strict RFC3339 instants and
@@ -1877,6 +1898,7 @@ apply. The user's session-bound choice never extends twelve-hour access.
 Guards: `TestAutomationStatusWholeImageLifetimeAndNoMutation`,
 `TestAutomationStatusDNSReservationsWaitAndTerminalMaintenance`,
 `TestAutomationDNSBlockAndClockCannotBecomeReady`,
+`TestAutomationStatusUnusualImportedNamesRemainBoundedAndManual`,
 `TestLinuxAutomationStatusReadOnlyRevisionAndFullRestore`,
 `TestNativeAutomationStatusRefusesBeforeFilesystem`,
 `TestAutomationOverviewGateNoNewAuthority`,

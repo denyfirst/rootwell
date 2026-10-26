@@ -42,6 +42,7 @@ for(const change of [
   {checked_at:stamp(now-180000)},{checked_at:"2026-02-30T00:00:00Z"},{unlock_expires:stamp(now)},{unlock_expires:stamp(now+43201000)},
   {dns_wait_until:stamp(now+60000)},{dns:"ready"},{request:"verified"},{account_ready:1},
   {capacity:{...initial.capacity,events_reserved:50}},{capacity:{...initial.capacity,records_free:500}},
+  {capacity:{...initial.capacity,events_free:1000}},{capacity:{...initial.capacity,generations_free:999986}},
   {certificates:[{...row,private_key:"secret-sentinel"}]},{certificates:[{...row,state:"issued"}]},{certificates:[{...row,state:"waiting"}]},
   {certificates:[{...row,state:"manual"}]},{certificates:[{...row,fingerprint:"a".repeat(64)}]},
   {certificates:[{...row,name:"bad\u0000name"}]},{certificates:[{...row,review_at:row.not_after}]},

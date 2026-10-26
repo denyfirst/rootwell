@@ -30,7 +30,14 @@ addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Haz
 terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
 Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
 
-**Cari increment — ADR 0072:** bounded offline ARI parsing/Retry-After və error
+**Cari increment — ADR 0073:** daxili, unexported staging ARI iki-GET protokolu;
+fixed source/path, public ID, pinned DNS/TLS, no proxy/redirect/retry/credentials,
+8s/header/body/JSON və təkrar permission/expiry. Fake TLS/refusal/sabotage/fuzz;
+runtime consumer/route hələ bağlıdır. Mövcud overview-da qeyri-adi imported DNS
+adları bounded etiketə keçir, manual status/DER dəyişmir. Sonra source-bound
+intent/result/selection/error-wait custody və explicit UI, ardınca session worker.
+
+**Tamamlanan increment — ADR 0072 (PR #103, bütün 13 yoxlama, merge `82631eb`):** bounded offline ARI parsing/Retry-After və error
 policy, standard ASN.1 ilə certificate ID, random half-open-window seçim və
 mövcud backoff-un üstünlüyü. Actual lifetime/short-lived fallback, stale/expired/
 future/entropy refusal və fuzz/sabotage. Hələ runtime consumer, live ARI, persisted
