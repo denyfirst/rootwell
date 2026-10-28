@@ -2,6 +2,12 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-10-28 ADR 0077:** ayrıca təsdiqlə itkisiz şifrəli tarixçə arxivi aktiv
+hadisə limitində yer açır; bütün hadisələr tam backup-da və UI-də qalır.
+Disk/generation/page limitləri, DNS ownership/retry/wait və unknown vəziyyət
+reset edilmir. Bu, maintenance-in history-capacity hissəsidir; terminal DNS
+bərpası və tam avtomatik renewal hələ tamamlanmış deyil.
+
 **Tarix:** 2026-09-20
 
 **Məhsul adı:** DenyFirst Rootwell

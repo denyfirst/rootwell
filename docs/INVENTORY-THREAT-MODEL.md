@@ -1,5 +1,16 @@
 # Public certificate inventory: first boundary
 
+ADR 0077 adds explicit lossless history archiving: at most four retained pages
+of 512–1024 unchanged event ciphertexts, plus the original 1024-event active log.
+Whole-image MAC, original-start boundary, ordered contiguous generations and
+every event's original AEAD context authenticate before any output. No pruning,
+nonce-generation reuse or operational counter/ownership reset. Exact private
+writer/revision/generation and live fresh-auth/consent gates precede replacement;
+uncertainty gives no partial success. Full recovery retains pages; older binaries
+reject the new fields. History has a fixed 5120-event/40 MiB UI response ceiling
+and 50-event rendering. Disk/generation/page exhaustion and old-image rollback
+remain limits. See [ADR 0077](adr/0077-lossless-encrypted-history-archives.md).
+
 **Status:** Linux-only private-file persistence, complete access+public
 inventory snapshots, and an explicit loopback Inventory UI/API are implemented.
 Native Windows storage is disabled. This boundary is development-only and not

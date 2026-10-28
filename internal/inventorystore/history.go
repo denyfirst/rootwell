@@ -106,6 +106,7 @@ func validEvent(event Event) bool {
 	case "acme-timing-read-started", "acme-timing-observed", "acme-timing-wait-saved", "acme-timing-interrupted":
 	case "acme-dns-plan-prepared", "acme-dns-attempt-started", "acme-dns-wait-saved", "acme-dns-result-saved":
 	case "acme-dns-recovery-started", "acme-dns-recovery-wait", "acme-dns-recovery-result":
+	case "history-archived":
 	case "dns-cloudflare-saved", "dns-cloudflare-removed":
 	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed", "acme-certificate-key-prepared", "acme-issuance-started", "acme-issuance-observed", "acme-certificate-saved", "acme-request-closed", "acme-renewal-started":
 	default:
@@ -129,12 +130,23 @@ func validEvent(event Event) bool {
 }
 
 func openHistory(key, id []byte, m manifest) ([]Event, error) {
-	if len(m.History) > maxHistory {
+	if len(m.History) > maxHistory || len(m.HistoryArchives) > maxHistoryArchives || len(m.HistoryArchives) > 0 && len(m.History) == 0 {
 		return nil, ErrInvalid
 	}
-	result := make([]Event, 0, len(m.History))
+	if len(m.HistoryArchives) == 0 && m.HistoryArchiveStart != 0 || len(m.HistoryArchives) > 0 && (len(m.HistoryArchives[0]) == 0 || m.HistoryArchiveStart < 2 || m.HistoryArchives[0][0].Generation != m.HistoryArchiveStart) {
+		return nil, ErrInvalid
+	}
+	sealedEvents := make([]sealedRecord, 0, len(m.History))
+	for _, page := range m.HistoryArchives {
+		if len(page) < minArchiveEvents || len(page) > maxHistory {
+			return nil, ErrInvalid
+		}
+		sealedEvents = append(sealedEvents, page...)
+	}
+	sealedEvents = append(sealedEvents, m.History...)
+	result := make([]Event, 0, len(sealedEvents))
 	var previous uint64
-	for _, sealed := range m.History {
+	for _, sealed := range sealedEvents {
 		if len(sealed.ID) != 0 || sealed.Generation < 2 || sealed.Generation > m.Generation || (previous != 0 && sealed.Generation != previous+1) {
 			return nil, ErrInvalid
 		}

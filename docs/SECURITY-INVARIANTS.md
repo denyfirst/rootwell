@@ -1133,6 +1133,29 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C97 — History capacity cannot erase evidence or reset operational authority
+
+ADR 0077 explicitly moves 512–1024 unchanged encrypted events into at most four
+retained pages. Authenticate all pages and original start/continuity through the
+active log before output. No loss, partial result, generation reset, automatic
+pruning or new DNS authority. Other custody ciphertext and pending reservations
+stay unchanged. Exact Linux writer/revision/generation/live permit and fresh
+password/separate scope/backup acknowledgement precede atomic replacement.
+Uncertain delivery requires status. Full restore preserves pages; older binaries
+reject archive-bearing images. Bounded active/byte/generation/page limits remain.
+This frees active slots, not disk space or terminal DNS recovery.
+
+Guarded by `TestHistoryArchiveLosslessAtFullLimitAndContinues`,
+`TestHistoryArchiveAdmissionNeverResetsOrDiscards`,
+`TestHistoryArchivePreservesPendingDNSAndTiming`,
+`TestLinuxHistoryArchiveAtomicRetainedAndFullRestore`,
+`TestLinuxHistoryArchiveAPISeparateConsentAndFreshPassword`,
+`TestHistoryArchiveAccessBoundaryBeforeStorage`,
+`TestHistoryArchiveStrictInputAndNoPartialSecret`,
+`TestHistoryArchiveNativeRefusesBeforePermit`, `FuzzHistoryArchiveInput`,
+`scripts/test-history-archive.mjs`, `scripts/test-inventory-lifecycle.mjs`
+and inherited image/backup/platform gates. Two-way sabotage: ADR 0077.
+
 ## C96 — Session timing watch cannot become signing, replay or unlock authority
 
 ADR0076 reads one exact authenticated source/image for recovery admission. Pending
