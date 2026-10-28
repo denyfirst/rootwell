@@ -20,8 +20,11 @@ ilə tamamlandı. ADR 0073 pinned staging ARI protokolu PR #104-də 13/13 yoxlam
 ilə merge edildi. ADR 0074 source-bound şifrəli vaxt/wait/intent və Linux locked
 custody PR #105-də 13/13 ilə tamamlandı. Cari ADR 0075 bütün CA yollarında wait,
 fresh parol/razılıqla staging vaxt yoxlaması və eyni Automation ekranında sadə
-nəticədir. Ready-session worker/pause sonrakı increment-dir; bu dalğa hələ tam
-avtomatik yeniləmə deyil.
+nəticə PR #106-da 13/13 ilə tamamlandı. Cari ADR 0076 ayrıca parol/scope razılığı,
+original sessiya/expiry ilə bir timing-only worker, recovery stop qapıları və
+eyni UI-də status/Stop-dur. DNS/CA yazmır, blocked/capacity/history state-i reset
+etmir; terminal maintenance ümumi işi açıqdır. Bu dalğa hələ tam avtomatik
+yeniləmə deyil.
 
 **2026-10-07 məhsul qərarı:** Rootwell X.509 certificate lifecycle və ona aid
 private açarlara fokuslanır. SSH/PGP və browser SSH/RDP bu məhsulun icra

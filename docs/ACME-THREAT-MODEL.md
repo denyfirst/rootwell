@@ -308,6 +308,22 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR0076 adds only explicit session-bound timing watch, not automatic mutation.
+Same-image recovery preflight stops on pending timing, unsafe DNS/request/account
+state or capacity. No reset/prune/replay/unknown abandonment. Terminal maintenance
+remains open; timing-only scheduling cannot bypass the gate on future writes.
+One exact-source job/original session hash/revision/expiry, separate fresh auth
+and scope consent, no retained key/password/token, max twelve provider checks,
+five elapsed minutes/longer waits, monotonic cap and cancellation on access end.
+Confirmed/uncertain failure pauses; no auto retirement or error retry chain.
+Status/Stop are local; Stop requires no crypto slot/password and preserves pending
+intent. Restart/full restore cannot recreate memory authority. Same optional UI,
+fixed recovery links and strict bounded/stale/hidden/late refusal; page hiding
+does not revoke an explicitly granted browser-independent watch. Fake demo does
+not run a worker or accept credentials. Actual Linux cancellation/pending tests,
+full race and all final-head checks are mandatory. No real CA/DNS, production or
+independent audit claim. See ADR0076/C96; earlier no-worker boundaries are historical.
+
 ADR0075 connects fixed source-bound staging timing through fresh password and
 one-check disclosure consent. Every enrolled-store CA path now checks the
 authenticated provider wait under the same writer lock, before intent or I/O.

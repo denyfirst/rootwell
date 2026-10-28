@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/timing-watch.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -51,6 +51,22 @@
         </form>
         <p>Timing only — no certificate is requested, renewed, replaced or deployed. Automatic renewal is not enabled. Imported certificates use their own issuer's renewal process.</p>
       </div>
+      <details id="timing-watch-panel">
+        <summary>Automatic timing checks (optional)</summary>
+        <p>Check recommended renewal times for the selected test certificate while this login stays unlocked — even if the browser is closed. This does not renew a certificate or change DNS.</p>
+        <button id="watch-status" type="button" class="secondary">Read watch status</button>
+        <p id="watch-message" role="status" aria-live="polite">Nothing starts automatically. Read watch status or select a certificate above.</p>
+        <div id="watch-result" hidden><p id="watch-state"></p><p id="watch-next"></p><p id="watch-reason"></p><a id="watch-recovery" href="#renewal-readiness" hidden>Review recovery step</a></div>
+        <button id="watch-stop" type="button" class="secondary" disabled>Stop timing checks</button>
+        <button id="watch-preview" type="button" class="secondary" disabled>Check before enabling</button>
+        <form id="watch-form" class="csr-form" hidden>
+          <p>Allow repeated public-ID checks to Let's Encrypt staging: at most 12 checks, at least five minutes apart, respecting longer saved waits. The provider sees your server address and the certificate's public identifier; your resolver may see its hostname. No private key, password or DNS token is sent.</p>
+          <label for="watch-password">Your current Rootwell password</label><input id="watch-password" type="password" maxlength="256" autocomplete="off" required>
+          <label class="confirm-row" for="watch-consent"><input id="watch-consent" type="checkbox" autocomplete="off"><span>Allow automatic timing checks for this certificate during this login only</span></label>
+          <button id="watch-start" type="submit" disabled>Enable timing checks</button>
+        </form>
+        <p>Logout, lock, restart or session expiry stops the watch. It never extends your login or saves a background password. An error pauses it for review; interrupted operations are never repeated automatically.</p>
+      </details>
     </section>
     <section class="card"><h2>1. Choose your test setup</h2>
       <form id="acme-form" class="csr-form">

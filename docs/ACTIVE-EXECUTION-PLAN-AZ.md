@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-26. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-27. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -30,13 +30,19 @@ addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Haz
 terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
 Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
 
-**Cari increment — ADR 0075:** üç bağlı addım: bütün CA əməliyyatlarında saxlanmış
-provider wait qapısı; dəqiq staging mənbəyi/intent/lease ilə explicit vaxt
-yoxlaması; mövcud Automation xülasəsində sadə vaxt/səbəb/növbəti addım UI-si.
-Fresh parol və bir dəfəlik razılıq, shared büdcələr, native refusal, yalnız public
-nəticə və yarımçıq yoxlamanın lokal bağlanması. Browser nümunəsi fake/read-only;
-real DNS/CA sınağı deyil. Scheduler və avtomatik yeniləmə daxil deyil; ardınca
-hazır sessiya worker/pause gəlir. Bütün avtomatlaşdırma bitmiş deyil.
+**Cari increment — ADR 0076:** üç bağlı hissə: eyni image-dən təhlükəsiz bərpa/
+dayanma preflight-ı, ayrıca fresh parol və `session-timing-only` razılığı ilə
+sessiyaya bağlı vaxt yoxlaması və eyni Automation kartında sadə status/Stop.
+Bir daemon-da bir iş, maksimum 12 provider yoxlaması, minimum 5 elapsed dəqiqə,
+saxlanmış daha uzun wait qalır. İşdə parol/açar/token saxlanmır; başqa girişə və
+restart/bərpaya daşınmır. Xəta/naməlum nəticə və unrelated generation dəyişikliyi
+işi dayandırır; retry/reset/prune/avtomatik retirement yoxdur. Terminal DNS
+maintenance/history siyasəti hələ ayrıca açıqdır; timing-only iş onu bypass etmir.
+Tam avtomatik renewal/DNS write/issuance/production bu increment deyil.
+
+**Tamamlanan ADR 0075 — PR #106, 13/13, merge `20bb832`:** bütün CA yollarında
+persisted wait; explicit exact-source staging vaxt yoxlaması və sadə UI.
+Linux legacy v2/no-image directory yolu ayrıca qorunur; missing v3 fail-closed.
 
 **Tamamlanan ADR 0074 — PR #105, 13/13, merge `a73b71a`:** source-bound şifrəli
 vaxt, dəyişməyən seçim, persisted provider wait, intent/lease və tam bərpa.
@@ -125,6 +131,9 @@ scan bypass və hostun global Go quraşdırmasını dəyişmək yoxdur.
 3. ARI renewal-window və hazır sessiya çərçivəsində bounded scheduler/pause/
    visible failure. Hazırkı 12 saatlıq açılma uzanmır; 24/7 unattended unlock
    ayrıca credential/authority qərarı olmadan əlavə edilmir.
+   ADR 0076 yalnız read-only timing watch-u recovery stop qapıları ilə bağlayır;
+   bu, ikinci bəndin ümumi terminal maintenance həllinin və ya avtomatik DNS/CA
+   yazma zəncirinin tamamlanması deyil.
 4. Ayrı identity/trust və explicit səlahiyyətlə production ACME dəstəyi;
    operatorun xüsusi test domeni və məhdud tokeni ilə staging/provider real
    inteqrasiya sınaqları. EAB/başqa CA uyğunluğu ayrıca profil və test tələb edir;

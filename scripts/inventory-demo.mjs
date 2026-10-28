@@ -73,7 +73,7 @@ const assets = new Map([
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
 let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal result, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the example result. All dates, saved/key statuses and renewal identities below are simulated, not a CA receipt or actual saved pairs. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
-for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","renewal-time-password","renewal-time-consent"]){
+for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","renewal-time-password","renewal-time-consent","watch-password","watch-consent"]){
   automationHTML=replaceOnce(automationHTML,`id="${id}"`, `id="${id}" disabled`);
 }
 let dnsConfigScript=replaceOnce(asset("cloudflare-config.js"),"button.disabled=!!active", "button.disabled=true || !!active");
@@ -89,6 +89,11 @@ assets.set("/acme-order.js",["text/javascript; charset=utf-8",automationScript])
 for(const name of ["acme-setup.js","acme-directory.js","acme-account.js","acme-registration.js"])assets.set("/"+name,["text/javascript; charset=utf-8",asset(name)]);
 assets.set("/automation-status.js",["text/javascript; charset=utf-8",asset("automation-status.js")]);
 assets.set("/renewal-timing.js",["text/javascript; charset=utf-8",replaceOnce(asset("renewal-timing.js"),"submit.disabled=!!active","submit.disabled=true || !!active")]);
+let watchScript=replaceOnce(asset("timing-watch.js"),"start.disabled=!!active","start.disabled=true || !!active");
+watchScript=replaceOnce(watchScript,"stop.disabled=!!active","stop.disabled=true || !!active");
+assets.set("/timing-watch.js",["text/javascript; charset=utf-8",watchScript]);
+automationHTML=replaceOnce(automationHTML,'<details id="timing-watch-panel">','<details id="timing-watch-panel"><p class="storage-note">DEMO · fake watch and recovery examples only. No background job, CA/DNS connection or credentials. Enable and Stop are disabled.</p>');
+assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
 const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -104,6 +109,19 @@ const server = http.createServer((request, response) => {
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if(request.method==="POST"&&["/api/acme/timing-watch/status","/api/acme/timing-watch/preview"].includes(request.url)){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>2048){oversized=true;body="";}}});
+    request.on("end",()=>{
+      const fingerprints=[Array(32).fill("AA").join(":"),Array(32).fill("BB").join(":")],isPreview=request.url.endsWith("/preview");
+      const index=fingerprints.findIndex(fingerprint=>body===JSON.stringify({provider:"letsencrypt-staging",fingerprint,expected_generation:40}));
+      if(oversized||(isPreview?index<0:body!==JSON.stringify({provider:"letsencrypt-staging"}))){response.writeHead(400).end("Fixture status refused");return;}
+      const watch={name:"DEMO · mail.example.com",id:"ab".repeat(16),fingerprint:fingerprints[0],generation:40,state:"waiting",reason:"provider-wait",recovery:"none",checked_at:instant(0),next_check:instant(0.25),expires:instant(1/12),checks:1,limit:12};
+      // The second certificate demonstrates a safe stop/recovery preflight.
+      const readiness=isPreview?{generation:40,fingerprint:fingerprints[index],name:index?"DEMO · api.example.com":"DEMO · mail.example.com",can_start:index===0,reason:index?"dns-unconfirmed":"provider-wait",recovery:index?"dns":"none",next_check:index?"":instant(0.25)}:null;
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.timing-watch.v1",provider:"letsencrypt-staging",checked_at:instant(0),scope:"session-timing-only",automatic_renewal:false,watch:isPreview?{name:"",id:"",fingerprint:"",generation:0,state:"not-running",reason:"not-started",recovery:"none",checked_at:"",next_check:"",expires:"",checks:0,limit:12}:watch,readiness}));
+    });return;
+  }
   if(request.method==="POST"&&request.url==="/api/acme/renewal-timing/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>2048){oversized=true;body="";}}});

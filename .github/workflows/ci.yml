@@ -183,6 +183,8 @@ jobs:
           node --check cmd/rootwelld/auth/automation-status.js
           node --check cmd/rootwelld/auth/renewal-timing.js
           node --check scripts/test-renewal-timing.mjs
+          node --check cmd/rootwelld/auth/timing-watch.js
+          node --check scripts/test-timing-watch.mjs
           node --check scripts/test-automation-status.mjs
           node --check cmd/rootwelld/auth/dns-operation.js
           node --check cmd/rootwelld/auth/acme-registration.js
@@ -233,10 +235,14 @@ jobs:
           node scripts/test-dns-operation.mjs
           node scripts/test-automation-status.mjs
           node scripts/test-renewal-timing.mjs
+          node scripts/test-timing-watch.mjs
           node scripts/test-acme-registration.mjs
           node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
+
+      - name: Smoke test session timing watch and recovery fences
+        run: go test -race -run '^TestTimingWatch|^TestLinuxTimingWatch' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/architecture
 
       - name: Smoke test Linux recovery and automation boundaries
         # Fail a malformed synthetic fixture early; this does not replace the
