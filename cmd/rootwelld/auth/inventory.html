@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/inventory.css">
   <script src="/theme.js"></script>
+  <script src="/history-archive.js" defer></script>
   <script src="/wasm_exec.js" defer></script>
   <script src="/inventory-engine.js" defer></script>
   <script src="/inventory-import.js" defer></script>
@@ -232,9 +233,20 @@
       <strong>Background checks and history</strong><p id="background-status" role="status" aria-live="polite">Loading activity…</p>
       <details><summary>How background checks work</summary><p>Closing this page does not stop server checks. Logout, session expiry (up to 12 hours), restart or unavailable storage pauses them. Sign in again to unlock; no password is stored on disk for monitoring.</p></details>
       <button id="activity-refresh" type="button" class="secondary">Refresh activity</button>
-      <details><summary>Change history</summary><p id="history-status"></p><ol id="history-events" aria-label="Inventory change history"></ol>
+      <details id="change-history"><summary>Change history</summary><p id="history-status"></p><ol id="history-events" aria-label="Inventory change history"></ol>
         <button id="history-previous" type="button" class="secondary">Newer events</button><button id="history-next" type="button" class="secondary">Older events</button>
-        <p>Not an independent audit log. Earlier activity may be unknown. Deleted fingerprints remain here and in older backups. At 1024 events, changes are refused; nothing is silently removed.</p>
+        <p>Not an independent audit log. Earlier activity may be unknown. Deleted fingerprints remain here and in older backups. The active log holds 1024 events. Explicit encrypted archives retain older events and keep them visible here; nothing is silently removed.</p>
+        <details id="history-storage"><summary>History storage</summary>
+          <p>Archive older activity to make room in the active log. All events stay encrypted in this Rootwell and its complete backups. This does not free disk space or reset DNS retries, pending work or generation limits. Older Rootwell versions cannot open an image after archiving.</p>
+          <button id="archive-status" type="button" class="secondary">Check history storage</button>
+          <p id="archive-message" role="status" aria-live="polite">Check storage before archiving. Nothing happens automatically.</p>
+          <form id="archive-form" class="csr-form" hidden>
+            <label for="archive-password">Your current Rootwell password</label><input id="archive-password" type="password" maxlength="256" autocomplete="off" required>
+            <label class="confirm-row"><input id="archive-backup" type="checkbox" autocomplete="off">I have made a current complete backup and kept a compatible Rootwell version.</label>
+            <label class="confirm-row"><input id="archive-consent" type="checkbox" autocomplete="off">Keep all older events encrypted and make room in the active log.</label>
+            <button id="archive-save" type="submit" disabled>Archive older activity</button>
+          </form>
+        </details>
       </details>
     </aside>
   </main>

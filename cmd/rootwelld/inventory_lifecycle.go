@@ -14,6 +14,7 @@ import (
 )
 
 func (g *gate) lifecycleEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	defer clear(s.dataKey[:])
 	wanted := http.MethodGet
 	if r.URL.Path == "/api/inventory/comparison-source" {
 		wanted = http.MethodPost
@@ -44,9 +45,20 @@ func (g *gate) lifecycleEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if wanted == http.MethodGet {
+		if !g.startDerivation() {
+			http.Error(w, "another key or history read is running", http.StatusServiceUnavailable)
+			return
+		}
+		defer func() { <-g.derive }()
 		events, generation, err := instanceaccess.ReadInventoryHistory(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
 		if err != nil {
 			inventoryError(w, err)
+			return
+		}
+		current, ready := g.currentSession(r)
+		clear(current.dataKey[:])
+		if !ready || current.setup || current.revision != s.revision || r.Context().Err() != nil {
+			http.Error(w, "session unavailable", http.StatusUnauthorized)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(struct {

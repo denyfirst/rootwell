@@ -32,7 +32,8 @@ function start(){
         return new Response(JSON.stringify({schema_version:"rootwell.inventory.comparison-source.v1",generation:mode==="stale"?6:5,fingerprint:leaf.fingerprint256,der:leaf.raw.toString("base64")}));
       }
       const now=new Date().toISOString().slice(0,19)+"Z",end=mode==="expired-monitor"?now:new Date(Date.now()+12*3600000).toISOString().slice(0,19)+"Z";
-      const events=Array.from({length:55},(_,i)=>({generation:i+2,at:now,action:"owner-changed",fingerprints:[leaf.fingerprint256]}));
+      const events=Array.from({length:mode==="archived-history"?1025:mode==="oversize-archived-history"?5121:55},(_,i)=>({generation:i+2,at:now,action:"owner-changed",fingerprints:[leaf.fingerprint256]}));
+      if(mode==="archived-history")events[events.length-1].action="history-archived";
       if(mode==="manual-dns-history"){const actions=["acme-order-started","acme-order-located","acme-dns-prepared","acme-dns-acknowledged"];for(let i=0;i<4;i++)events[events.length-4+i].action=actions[i];}
       if(mode==="certificate-request-history")events[events.length-1].action="acme-certificate-key-prepared";
       if(mode==="issuance-history"){events[events.length-2].action="acme-issuance-started";events[events.length-1].action="acme-issuance-observed";}
@@ -46,7 +47,8 @@ function start(){
 	  if(mode==="renewal-history")events[events.length-1].action="acme-renewal-started";
       if(mode==="unknown-history")events[events.length-1].action="acme-issuance-issued";
       if(mode==="bad-history")events[1].generation=999;
-      return new Response(JSON.stringify({schema_version:"rootwell.inventory.activity.v1",generation:56,events,monitoring:{status:"ready",checked_at:now,expires_at:end,generation:56,attention:[]}}));
+      const generation=events.length+1;
+      return new Response(JSON.stringify({schema_version:"rootwell.inventory.activity.v1",generation,events,monitoring:{status:"ready",checked_at:now,expires_at:end,generation,attention:[]}}));
     }};
   vm.runInNewContext(source,context);
   const select=files=>{el("comparison-file").files=files;el("comparison-file").listeners.change();};
@@ -58,7 +60,8 @@ assert.match(ui.el("comparison-result").children[0].textContent,/exactly the sam
 ui.select([otherFile]);await ui.el("comparison-button").listeners.click();assert.match(ui.el("comparison-result").children[1].textContent,/Public key changed/);assert.ok(ui.el("comparison-result").children.some(v=>v.textContent.includes("Removed names:")));assert.equal(ui.requests.length,1);
 for(const files of [[new File(["-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----"],"bad.pem")],[new File([leaf.toString()+other.toString()],"bundle.pem")],[new File(["broken"],"bad.der")],[sameFile,otherFile]]){ui.select(files);await ui.el("comparison-button").listeners.click();assert.equal(ui.el("comparison-result").children.length,0);assert.doesNotMatch(ui.el("comparison-status").textContent,/finished locally/);assert.equal(ui.requests.length,1);}
 await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,50);assert.match(ui.el("background-status").textContent,/Server checked.*without this page/);ui.el("history-next").listeners.click();assert.equal(ui.el("history-events").children.length,5);ui.el("history-previous").listeners.click();assert.equal(ui.el("history-events").children.length,50);
-for(const mode of ["bad-history","expired-monitor","unknown-history"]){ui.setMode(mode);await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,0);assert.match(ui.el("background-status").textContent,/could not be confirmed/);}
+ui.setMode("archived-history");await ui.api.refreshActivity();assert.match(ui.el("history-status").textContent,/of 1025 recorded changes/);assert.match(ui.el("history-events").children[0].textContent,/all events retained.*History storage/);for(let page=0;page<20;page++)ui.el("history-next").listeners.click();assert.equal(ui.el("history-events").children.length,25);assert.match(ui.el("history-events").children[24].children[0].children[0].textContent,/generation 2/);
+for(const mode of ["bad-history","expired-monitor","unknown-history","oversize-archived-history"]){ui.setMode(mode);await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,0);assert.match(ui.el("background-status").textContent,/could not be confirmed/);}
 ui.setMode("manual-dns-history");await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,50);assert.match(ui.el("history-events").children[0].textContent,/acknowledgement saved.*not CA verification/);assert.match(ui.el("history-events").children[1].textContent,/DNS instructions saved/);
 ui.setMode("certificate-request-history");await ui.api.refreshActivity();assert.equal(ui.el("history-events").children.length,50);assert.match(ui.el("history-events").children[0].textContent,/Certificate key prepared.*no certificate issued/);
 assert.match(ui.el("history-events").children[0].textContent,/Certificate key$/);assert.doesNotMatch(ui.el("history-events").children[0].textContent,/Account key/);

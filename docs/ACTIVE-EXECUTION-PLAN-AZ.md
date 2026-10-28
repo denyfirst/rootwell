@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-27. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-28. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -30,7 +30,14 @@ addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Haz
 terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
 Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
 
-**Cari increment — ADR 0076:** üç bağlı hissə: eyni image-dən təhlükəsiz bərpa/
+**Cari increment — ADR 0077:** itkisiz tarixçə arxivi. 512–1024 aktiv hadisə
+eyni şifrəli məzmunla maksimum dörd saxlanmış səhifəyə keçirilir. Aktiv logda
+yer açılır; disk, generation, DNS ownership/cəhd/wait/pending vəziyyəti reset
+olunmur. Certificates → Change history → History storage, ayrıca fresh parol,
+backup/uyğun binary təsdiqi; tam bərpa bütün hadisələri saxlayır. Bu history
+capacity hissəsidir, terminal DNS/closed-request capacity və tam renewal açıqdır.
+
+**Tamamlanan ADR 0076 — PR #107, 13/13, merge `44e0dd6`:** üç bağlı hissə: eyni image-dən təhlükəsiz bərpa/
 dayanma preflight-ı, ayrıca fresh parol və `session-timing-only` razılığı ilə
 sessiyaya bağlı vaxt yoxlaması və eyni Automation kartında sadə status/Stop.
 Bir daemon-da bir iş, maksimum 12 provider yoxlaması, minimum 5 elapsed dəqiqə,

@@ -20,6 +20,8 @@ let html = asset("inventory.html");
 html = replaceOnce(html, "<main>", `<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — generated fake records only</strong><p>This is a read-only visual preview on this computer, not your encrypted inventory. Save, editing, and backup are disabled. Never enter a real certificate or secret here.</p></aside>`);
 html = replaceOnce(html, '<form id="inventory-form">', '<form id="inventory-form" data-read-only="true">');
 html = replaceOnce(html, '<form id="certificate-pair-form">', '<form id="certificate-pair-form" data-read-only="true">');
+for(const id of ["archive-password","archive-backup","archive-consent"])html=replaceOnce(html,`id="${id}"`,`id="${id}" disabled`);
+html=replaceOnce(html,'<details id="history-storage">','<details id="history-storage"><p class="storage-note">DEMO · synthetic history counts only. Password, confirmation and archiving are disabled.</p>');
 let script = asset("inventory.js");
 script=replaceOnce(script,'addText(item, "strong", record.subject || "Subject not provided");','addText(item, "strong", record.subject || "Subject not provided"); if (record.staging_origin) addText(item, "small", "DEMO · status example only, not a real CA receipt");');
 for (const button of ["addButton", "editOwnerButton", "manageLocationButton", "deleteRecordButton"]) {
@@ -94,6 +96,7 @@ watchScript=replaceOnce(watchScript,"stop.disabled=!!active","stop.disabled=true
 assets.set("/timing-watch.js",["text/javascript; charset=utf-8",watchScript]);
 automationHTML=replaceOnce(automationHTML,'<details id="timing-watch-panel">','<details id="timing-watch-panel"><p class="storage-note">DEMO · fake watch and recovery examples only. No background job, CA/DNS connection or credentials. Enable and Stop are disabled.</p>');
 assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
+assets.set("/history-archive.js",["text/javascript; charset=utf-8",replaceOnce(asset("history-archive.js"),"save.disabled=!!active","save.disabled=true || !!active")]);
 const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -133,6 +136,10 @@ const server = http.createServer((request, response) => {
       const status={fingerprint:fingerprints[index],not_after:timingExpiry[index],prepared:true,state:"ari",started_at:start,observed_at:checked,pending:false,can_read:false,can_interrupt:false,source:"ari",renew_at:chosen,fallback_at:fallback,effective_at:chosen,next_check:instant(0.25),provider_not_before:"",blocked:false,failures:0,window_start:chosen,window_end:instant(index?30:4),checked_at:checked,expired:false,superseded:false};
       response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.renewal-timing.v1",provider:"letsencrypt-staging",generation:40,checked_at:instant(0),unlock_expires:instant(1/12),network_attempted:false,saved:false,automatic_renewal:false,status}));
     });return;
+  }
+  if(request.method==="POST"&&request.url==="/api/inventory/history/status"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"){response.writeHead(403).end("Fixture origin refused");return;}
+    response.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}).end(JSON.stringify({schema_version:"rootwell.history-archive.v1",checked_at:instant(0),network_used:false,saved:false,status:{generation:1601,active_events:600,archived_events:1000,pages_free:3,can_archive:true,reason:"ready"}}));return;
   }
   if(request.method==="POST"&&request.url==="/api/automation/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
