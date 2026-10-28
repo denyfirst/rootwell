@@ -68,7 +68,7 @@ func TestHistoryArchiveLosslessAtFullLimitAndContinues(t *testing.T) {
 	if err != nil || len(events) != maxHistory+2 {
 		t.Fatal("append lost archived events")
 	}
-	for _, tc := range []string{"replay-page", "drop-page", "swap", "ciphertext", "empty-active", "wrong-id", "wrong-key", "oversize-page"} {
+	for _, tc := range []string{"replay-page", "drop-page", "drop-whole-page", "swap", "ciphertext", "empty-active", "wrong-id", "wrong-key", "oversize-page"} {
 		t.Run(tc, func(t *testing.T) {
 			m, _, _ := decode(key, id, next)
 			k, install := key, id
@@ -77,6 +77,8 @@ func TestHistoryArchiveLosslessAtFullLimitAndContinues(t *testing.T) {
 				m.HistoryArchives = append(m.HistoryArchives, m.HistoryArchives[0])
 			case "drop-page":
 				m.HistoryArchives[0] = m.HistoryArchives[0][1:]
+			case "drop-whole-page":
+				m.HistoryArchives = m.HistoryArchives[1:]
 			case "swap":
 				p := m.HistoryArchives[0]
 				p[0], p[1] = p[1], p[0]

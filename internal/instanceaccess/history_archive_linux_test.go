@@ -38,7 +38,7 @@ func TestLinuxHistoryArchiveAtomicRetainedAndFullRestore(t *testing.T) {
 	if err != nil || !status.CanArchive || status.Active != 512 {
 		t.Fatal("valid status refused", err, status)
 	}
-	for _, tc := range []string{"stale", "revoked", "revision"} {
+	for _, tc := range []string{"stale", "revoked", "revoked-after-read", "revision"} {
 		r := rev
 		expected := status.Generation
 		p := permit
@@ -47,6 +47,10 @@ func TestLinuxHistoryArchiveAtomicRetainedAndFullRestore(t *testing.T) {
 		}
 		if tc == "revoked" {
 			p = func() bool { return false }
+		}
+		if tc == "revoked-after-read" {
+			calls := 0
+			p = func() bool { calls++; return calls < 2 }
 		}
 		if tc == "revision" {
 			r[0] ^= 1
@@ -57,7 +61,13 @@ func TestLinuxHistoryArchiveAtomicRetainedAndFullRestore(t *testing.T) {
 			t.Fatal("refused archive changed image", tc, e)
 		}
 	}
-	saved, err := InventoryHistoryArchive(path, key, id, rev, status.Generation, permit)
+	calls := 0
+	uncertain, err := InventoryHistoryArchive(path, key, id, rev, status.Generation, func() bool { calls++; return calls < 3 })
+	if !errors.Is(err, ErrInventoryUncertain) || uncertain != (inventorystore.HistoryArchiveStatus{}) {
+		t.Fatal("post-commit revocation reported success", err)
+	}
+	// A sent result can be lost after commit. Read status; never repeat the write.
+	saved, err := InventoryHistoryArchive(path, key, id, rev, 0, permit)
 	if err != nil || saved.Active != 1 || saved.Archived != 512 {
 		t.Fatal("archive refused", err)
 	}
