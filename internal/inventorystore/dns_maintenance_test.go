@@ -238,3 +238,42 @@ func TestDNSMaintenanceCapacityWaitAndOldDeferCannotBypassPolicy(t *testing.T) {
 		}
 	}
 }
+
+func TestDNSMaintenanceResolvedPhasesSurviveLocalClosure(t *testing.T) {
+	key, id, image, at := blockedDNSFixture(t, false)
+	image, _, _ = dnsRunAt(t, key, id, image, 0, "maintenance", at, func(_ func() bool, _ []byte, _ dnsrecord.Scope, _ dnsrecord.State, cleanup, read bool, _ func(dnsrecord.State) error) (dnsrecord.State, error) {
+		if cleanup || !read {
+			t.Fatal("creation maintenance gained write")
+		}
+		return dnsrecord.State{State: "created", ID: dnsOwnedID}, nil
+	})
+	image, s, _ := dnsRunAt(t, key, id, image, 0, "cleanup", at.Add(time.Minute), func(_ func() bool, _ []byte, _ dnsrecord.Scope, saved dnsrecord.State, cleanup, read bool, checkpoint func(dnsrecord.State) error) (dnsrecord.State, error) {
+		if !cleanup || read || checkpoint(dnsrecord.State{State: "deleting", ID: saved.ID}) != nil {
+			t.Fatal("separate cleanup intent missing")
+		}
+		return dnsrecord.State{}, &providerretry.Failure{Hint: providerretry.Hint{Blocked: true}}
+	})
+	at = mustDNSTime(s.Records[0].Maintenance.NotBefore)
+	image, _, g := dnsRunAt(t, key, id, image, 0, "maintenance", at, func(_ func() bool, _ []byte, _ dnsrecord.Scope, _ dnsrecord.State, cleanup, read bool, _ func(dnsrecord.State) error) (dnsrecord.State, error) {
+		if !cleanup || !read {
+			t.Fatal("cleanup maintenance gained write")
+		}
+		return dnsrecord.State{State: "deleted"}, nil
+	})
+	closed, status, _, err := closeStagingRequestAt(key, id, image, g, at.Add(time.Minute))
+	if err != nil || status.ClosedCount != 1 {
+		t.Fatal("proved DNS recovery cannot close expired request", err)
+	}
+	m, _, err := decode(key, id, closed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, scope, _, err := openClosedRequest(key, id, m, m.ClosedRequests[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := openDNSPlan(key, id, scope)
+	if err != nil || !p.Records[0].Blocked || !p.Records[0].CleanupBlocked || !maintenanceResolved(p.Records[0], false) || !maintenanceResolved(p.Records[0], true) || p.Records[0].Retry.Attempts != 1 || p.Records[0].Cleanup.Attempts != 1 {
+		t.Fatal("closure erased old policies or recovery receipts", err)
+	}
+}

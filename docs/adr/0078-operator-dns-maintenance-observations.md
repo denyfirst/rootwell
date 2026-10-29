@@ -31,6 +31,9 @@ release authority is introduced here.
 Evidence: model tests cover both phases, terminal-policy preservation, exact
 scope/read-only checkpoint, one-use lease, stale/revoked grant, lost intent,
 unknown empty create, future wait, malformed receipt, capacity and counter cap.
+Both recovered phases can close an expired request without erasing their old
+terminal policies or either resolution receipt. Malformed UI maintenance state,
+invented completion and response counter/wait resets are explicitly refused.
 Native custody refuses before callbacks. UI tests require independent review
 consent, immutable old counters/waits, a single scoped request, secret clearing,
 and refuse stale/hidden/late/malformed output. The read-only demo cannot submit
