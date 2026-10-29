@@ -76,7 +76,7 @@ const assets = new Map([
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
 let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal result, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the example result. All dates, saved/key statuses and renewal identities below are simulated, not a CA receipt or actual saved pairs. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
-for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","renewal-time-password","renewal-time-consent","watch-password","watch-consent"]){
+for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","dns-operation-reviewed","renewal-time-password","renewal-time-consent","watch-password","watch-consent"]){
   automationHTML=replaceOnce(automationHTML,`id="${id}"`, `id="${id}" disabled`);
 }
 let dnsConfigScript=replaceOnce(asset("cloudflare-config.js"),"button.disabled=!!active", "button.disabled=true || !!active");
@@ -174,7 +174,7 @@ const server = http.createServer((request, response) => {
       if(oversized || body!==JSON.stringify({provider:"cloudflare"})){response.writeHead(400).end("Fixture status refused");return;}
       const prepared=instant(-1),wait=new Date(Date.now()+120000).toISOString().slice(0,19)+"Z";
       const rows=[["api.example.com","created"],["legacy.example.com","borrowed"],["mail.example.com","creating"],["shop.example.com","deleted"]].map(([domain,state])=>({domain,name:"_acme-challenge."+domain,state,attempts:1,not_before:wait,blocked:false,cleanup_attempts:state==="deleted"?1:0,cleanup_not_before:state==="deleted"?wait:"",cleanup_blocked:false,checked_at:state==="creating"?"":prepared}));
-      rows[2].attempts=6;rows[2].not_before=prepared;
+      rows[2].attempts=6;rows[2].not_before=prepared;rows[2].recovery={attempts:6,not_before:prepared,blocked:false};rows[2].maintenance={attempts:0,not_before:instant(0),blocked:false};
       response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.dns.operation.v1",provider:"cloudflare",generation:40,network_used:false,zone_name:"example.com",server_time:instant(0),can_prepare:false,pending_domains:[],prepared:true,prepared_at:prepared,expires:instant(1),records:rows}));
     });return;
   }

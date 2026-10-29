@@ -269,7 +269,7 @@ func TestDNSPlanCustodyHasOnlyReviewedLockedConsumers(t *testing.T) {
 				if (id.Name == "BeginStagingDNSOperation" || id.Name == "ExecuteStagingDNSAttempt") && relative != "internal/inventorystore/dns_operation.go" && relative != "internal/instanceaccess/dns_operation_linux.go" {
 					t.Error("DNS route bypasses locked transaction", relative)
 				}
-				if id.Name == "RunStagingDNS" && relative != "internal/instanceaccess/dns_operation_linux.go" && relative != "internal/instanceaccess/dns_operation_other.go" && relative != "cmd/rootwelld/dns_operation_api.go" {
+				if (id.Name == "RunStagingDNS" || id.Name == "RunOperatorDNSMaintenance") && relative != "internal/instanceaccess/dns_operation_linux.go" && relative != "internal/instanceaccess/dns_operation_other.go" && relative != "cmd/rootwelld/dns_operation_api.go" {
 					t.Error("unreviewed DNS transaction consumer", relative)
 				}
 				if relative == "cmd/rootwelld/dns_operation_api.go" && (id.Name == "DNSAttempt" || id.Name == "PrepareStagingDNSPlan" || id.Name == "BeginStagingDNSAttempt" || id.Name == "DeferStagingDNSAttempt") {

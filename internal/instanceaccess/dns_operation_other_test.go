@@ -18,3 +18,13 @@ func TestNativeDNSOperationRefusesBeforePermissionAndSecretBorrow(t *testing.T) 
 		t.Fatal("native DNS custody enabled")
 	}
 }
+
+func TestNativeDNSMaintenanceRefusesBeforePermissionAndSecretBorrow(t *testing.T) {
+	s, g, err := RunOperatorDNSMaintenance("must-not-open", nil, nil, [32]byte{}, 1, 0, func() bool { t.Fatal("native maintenance borrowed permit"); return true }, func(func() bool, []byte, dnsrecord.Scope, dnsrecord.State, bool, bool, func(dnsrecord.State) error) (dnsrecord.State, error) {
+		t.Fatal("native maintenance borrowed token")
+		return dnsrecord.State{}, nil
+	})
+	if !errors.Is(err, ErrRecoveryUnsupported) || s.Prepared || g != 0 {
+		t.Fatal("native operator custody enabled")
+	}
+}

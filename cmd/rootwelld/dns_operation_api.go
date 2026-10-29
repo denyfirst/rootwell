@@ -29,7 +29,7 @@ type dnsOperationInput struct {
 
 func readDNSOperationInput(w http.ResponseWriter, r *http.Request, mode string) (dnsOperationInput, bool) {
 	bad := func() (dnsOperationInput, bool) { return dnsOperationInput{}, false }
-	if mode != "status" && mode != "add" && mode != "check" && mode != "cleanup" && mode != "recover" {
+	if mode != "status" && mode != "add" && mode != "check" && mode != "cleanup" && mode != "recover" && mode != "maintenance" {
 		return bad()
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -84,6 +84,16 @@ func readDNSOperationInput(w http.ResponseWriter, r *http.Request, mode string) 
 			if mode == "status" || name == "exclusive" && mode != "cleanup" || d.Decode(&v) != nil || v == nil || !*v {
 				return bad()
 			}
+		case "reviewed":
+			var v *bool
+			if mode != "maintenance" || d.Decode(&v) != nil || v == nil || !*v {
+				return bad()
+			}
+		case "scope":
+			var v *string
+			if mode != "maintenance" || d.Decode(&v) != nil || v == nil || *v != "operator-dns-read-only" {
+				return bad()
+			}
 		default:
 			return bad()
 		}
@@ -96,7 +106,13 @@ func readDNSOperationInput(w http.ResponseWriter, r *http.Request, mode string) 
 	if mode == "cleanup" {
 		want = 6
 	}
+	if mode == "maintenance" {
+		want = 7
+	}
 	if err != nil || end != json.Delim('}') || len(seen) != want || !seen["provider"] || mode != "status" && (!seen["confirm"] || !seen["password"] || !seen["expected_generation"] || !seen["index"]) || mode == "cleanup" && !seen["exclusive"] {
+		return bad()
+	}
+	if mode == "maintenance" && (!seen["reviewed"] || !seen["scope"]) {
 		return bad()
 	}
 	_, err = d.Token()
@@ -222,14 +238,16 @@ func (g *gate) dnsOperationEndpoint(w http.ResponseWriter, r *http.Request, s se
 		valid := input.Index >= 0 && (output.Prepared && input.Index < len(rows) || !output.Prepared && output.CanPrepare && input.Index < len(output.PendingDomains))
 		if valid && output.Prepared {
 			row := rows[input.Index]
-			cleanup := mode == "cleanup" || (mode == "check" || mode == "recover") && row.State == "deleting"
+			cleanup := mode == "cleanup" || (mode == "check" || mode == "recover" || mode == "maintenance") && row.State == "deleting"
 			valid = mode == "add" && row.State == "new" && output.Expires > output.ServerTime || (mode == "check" || mode == "recover") && (row.State == "creating" || row.State == "deleting") || mode == "cleanup" && row.State == "created"
 			attempts, blocked, notBefore := row.Attempts, row.Blocked, row.NotBefore
 			if cleanup {
 				attempts, blocked, notBefore = row.CleanupAttempts, row.CleanupBlocked, row.CleanupNotBefore
 			}
 			valid = valid && !blocked && (notBefore == "" || notBefore <= output.ServerTime)
-			if mode == "recover" {
+			if mode == "maintenance" {
+				valid = (row.State == "creating" || row.State == "deleting") && row.Maintenance != nil && row.Maintenance.Attempts < 65535 && row.Maintenance.NotBefore <= output.ServerTime
+			} else if mode == "recover" {
 				valid = valid && attempts == 6 && (row.Recovery == nil || !row.Recovery.Blocked && row.Recovery.Attempts < 6 && row.Recovery.NotBefore <= output.ServerTime)
 			} else {
 				valid = valid && attempts < 6
@@ -269,9 +287,15 @@ func (g *gate) dnsOperationEndpoint(w http.ResponseWriter, r *http.Request, s se
 		if connect == nil {
 			connect = acmestaging.CloudflareTXT
 		}
-		_, gen, err := instanceaccess.RunStagingDNS(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, input.Index, mode, permit, func(allowed func() bool, token []byte, scope dnsrecord.Scope, state dnsrecord.State, cleanup, readOnly bool, checkpoint func(dnsrecord.State) error) (dnsrecord.State, error) {
+		operation := func(allowed func() bool, token []byte, scope dnsrecord.Scope, state dnsrecord.State, cleanup, readOnly bool, checkpoint func(dnsrecord.State) error) (dnsrecord.State, error) {
 			return connect(ctx, allowed, token, scope, state, cleanup, readOnly, checkpoint)
-		})
+		}
+		var gen uint64
+		if mode == "maintenance" {
+			_, gen, err = instanceaccess.RunOperatorDNSMaintenance(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, input.Index, permit, operation)
+		} else {
+			_, gen, err = instanceaccess.RunStagingDNS(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, input.Index, mode, permit, operation)
+		}
 		if err != nil || !permit() {
 			http.Error(w, "DNS outcome not confirmed. Read saved DNS status first. Do not repeat a create or deletion; a sent operation cannot be undone.", http.StatusServiceUnavailable)
 			return

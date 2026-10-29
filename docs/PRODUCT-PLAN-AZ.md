@@ -2,6 +2,13 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-10-29 ADR 0078:** terminal DNS create/delete nəticəsini ayrıca parol,
+scope və review təsdiqi ilə yalnız oxuyan operator yoxlaması. Köhnə cəhd/blok/
+ownership saxlanır; ən azı 1 gün, blocked hint üçün 7 gün və bütün uzun wait-lər
+qalır. Boş creation uğur deyil; worker bu ayrıca icazəni almır. Eyni optional
+DNS kartında, ayrıca menyusuzdur. Naməlum creation, closed-request capacity və
+tam renewal mərhələsinin qalan hissələri açıqdır. Dörd bəndlik icra davam edir.
+
 **2026-10-28 ADR 0077:** ayrıca təsdiqlə itkisiz şifrəli tarixçə arxivi aktiv
 hadisə limitində yer açır; bütün hadisələr tam backup-da və UI-də qalır.
 Disk/generation/page limitləri, DNS ownership/retry/wait və unknown vəziyyət

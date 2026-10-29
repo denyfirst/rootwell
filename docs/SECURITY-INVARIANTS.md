@@ -1133,6 +1133,37 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C98 — Operator observations cannot revive terminal DNS mutation policy
+
+ADR0078 adds only one explicitly reviewed manual read: fresh password, exact
+generation/record, `operator-dns-read-only` scope and separate acknowledgement.
+Ordinary DNS capability rejects this mode; approved callers of the separate
+operator entry point are architecture-checked. No scheduler authority is implied.
+Only terminal pending create/delete qualifies, after all saved waits and a
+one-day floor (seven days for an uninterpretable/blocked hint). Each grant has
+its own retained count/wait, at most 65535 observations and one result. Invalid
+hints impose a new seven-day hold. No automatic chain, old counter/block reset,
+ownership abandonment, user verdict, new POST/DELETE or token replacement.
+Empty creation remains unknown. Exact connector ownership/deletion proof saves
+a phase-specific receipt while preserving the original terminal policy. Public
+flags describe the active unresolved policy; resolution cannot revive its writes.
+Intent-before-I/O, exact-image one-use lease, private writer, current permission,
+capacity reservation and full restore remain mandatory. The observation timestamp
+and later publication time may differ without weakening either bound.
+
+Guarded by `TestDNSMaintenanceSeparateReadOnlyAuthorityPreservesTerminalPolicy`,
+`TestDNSMaintenanceUnknownAndRevocationRetainIntentWaitAndCounters`,
+`TestDNSMaintenanceNotAnAlternativeToOrdinaryChecksAndBadHintsDelay`,
+`TestDNSMaintenanceCapacityWaitAndOldDeferCannotBypassPolicy`,
+`TestDNSMaintenanceResolvedPhasesSurviveLocalClosure`,
+`TestLinuxDNSMaintenanceReadOnlyIntentFullRestoreAndNoOrdinaryAuthority`,
+`TestLinuxDNSMaintenanceAPIFreshScopeNoWriteAndNoCounterReset`,
+`TestNativeDNSMaintenanceRefusesBeforePermissionAndSecretBorrow`, strict request/
+origin/setup tests, `FuzzDNSOperationRequest`, architecture and DNS/demo UI tests.
+This is synthetic evidence; live provider interoperability and release audit
+remain separate. Indefinitely empty creation, closed-request storage capacity
+and complete automatic renewal are still open; retained evidence is not pruned.
+
 ## C97 — History capacity cannot erase evidence or reset operational authority
 
 ADR 0077 explicitly moves 512–1024 unchanged encrypted events into at most four
