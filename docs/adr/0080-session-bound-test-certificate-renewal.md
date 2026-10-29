@@ -80,6 +80,57 @@ sticky-block, dropped-lease, redaction and full-recovery tests cover this bounda
 The complete worker, its grant/UI and all final-head Linux/CI evidence remain
 required before this ADR can be called implemented.
 
+Worker/UI implementation checkpoint: `ReadRenewalCycle` projects only public
+metadata from one fully authenticated image. The pure action policy composes
+existing transactions, refuses unrelated interrupted timing work and requires
+320 generation/event transitions plus 4 MiB of byte growth, a pair slot and
+future closure(s). The conservative bound covers eight names, six ordinary DNS
+attempts per phase, twelve ARI/validation/certificate read cycles, key/order/
+ack/closure steps and a failed-call wait event. Actual writer reservations stay
+in force. Only the job's committed generation delta and positive image growth
+consume its runtime budget; freed bytes cannot mint new credit. No auto archive.
+
+One memory worker borrows the original session key per step; expiry/revision/
+logout/lock/restart, monotonic cap or unrelated generation/configuration changes
+stop it. At most 160 actions, twelve reads per CA kind, at least one elapsed
+minute per action and five after CA validation/certificate/timing operations.
+Saved waits are additionally evaluated before every relevant call. Unknown DNS
+creation/deletion uses ordinary reads, never recovery/maintenance. Failed CA
+callbacks pause even if bounded wait metadata was saved. No new order on lost
+Location; only exact known scope resumes after a fresh grant. The current
+bound request may finish after its original source expires; no new cycle may
+start from an expired/superseded original. A confirmed new pair may clean up
+after source/order expiry or a CA hold, because that requires no new CA call.
+
+The optional existing Automation card has strict local preview/status, fresh
+password/exact-generation/`session-test-renewal` plus two confirmations for Start,
+and owner-only Stop independent of crypto/provider budgets. Status includes no
+provider URL/key/token/TXT. The renewal overview v2 distinguishes a job active
+in this login; timing-only controls describe only their own narrower grant.
+Source change, hidden/page exit, timeout and late/malformed/oversized responses
+clear UI authority/password/consents. Fake preview has disabled inputs/start/
+stop and returns 405 to mutations. Late stop/shutdown preserves completed status.
+
+Layered Linux worker tests progress through real timing/order/DNS/ack/validation/
+key/issuance transactions and deliberately hit the fixed checker's rejection
+of a synthetic receipt. They assert one order, one Accept/finalize and no replay
+after pause; separate policy/writer receipt tests cover saved-pair cleanup. No
+runtime checker/root seam was added to obtain an artificial green end-to-end.
+Actual Linux execution and all final-head checks remain pending at this point.
+
+Local evidence, 2026-10-29: full native shuffled suite passed; subsequent
+affected native suites, Linux cross-vet/staticcheck/gosec, build, module verify,
+actionlint and vulnerability scan passed. New grant parser fuzz smoke completed
+274078 executions. The real UI and read-only preview contract tests passed;
+preview never accepts credentials or starts/stops a job. Deliberately allowing
+an unknown-order replacement failed the positive sequence's expected pause;
+inverting sufficient-headroom admission failed its legitimate order step.
+Restored policy tests passed. Resume checks additionally refuse expired orders
+even when unresolved DNS masks local close eligibility, and never provision a
+new TXT record after CA validation has begun. Manual already-verified DNS can
+continue without creating a new provider plan. These are admission improvements;
+the existing writers retain their own expiry/no-replay checks.
+
 Wait-boundary sabotage (2026-10-29): allowing a later success to clear a prior
 blocked hint failed `TestCAOperationWaitBoundedStickyAndSecretFree` with
 `invalid hint unblocked or shortened`; inverting exact-generation admission

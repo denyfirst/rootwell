@@ -111,6 +111,9 @@ func (g *gate) newTimingWatch(owner [32]byte, s session, fp, name string, gen ui
 			return nil, errors.New("watch still active")
 		}
 	}
+	if g.renewal != nil && !finished(g.renewal.done) {
+		return nil, errors.New("renewal still active")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &timingWatch{name: name, owner: owner, revision: s.revision, id: hex.EncodeToString(raw[:]), fp: fp, generation: gen, started: now, last: now, expires: s.expires, state: "waiting", reason: "ready", recovery: "none", ctx: ctx, cancel: cancel, done: make(chan struct{})}
 	w.born = time.Now()

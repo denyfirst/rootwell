@@ -10,8 +10,8 @@
   let epoch=0, active=null, activeMutation=false, snapshot=null, generation=0, certificates=new Map(), stale=null;
   const wipe=()=>{password.value="";consent.checked=false;};
   const enable=()=>{select.disabled=!!active;refresh.disabled=!!active||!certificates.has(select.value)||document.hidden;submit.disabled=!!active||!snapshot||(!snapshot.can_read&&!snapshot.can_interrupt)||!password.value||!consent.checked||document.hidden;};
-  const resetStatus=(forget=false)=>{const unknown=forget===true||activeMutation;++epoch;active?.abort();active=null;activeMutation=false;clearTimeout(stale);snapshot=null;wipe();form.hidden=true;result.hidden=true;for(const id of ["renewal-time-next","renewal-time-reason","renewal-time-technical"])el(id).textContent="";message.textContent=uncertain;if(unknown){certificates.clear();generation=0;select.replaceChildren();globalThis.rootwellTimingWatch?.invalidate();window.dispatchEvent(new Event("rootwell-timing-changed"));}enable();};
-  const invalidate=()=>{resetStatus();certificates.clear();generation=0;select.replaceChildren();panel.hidden=true;globalThis.rootwellTimingWatch?.invalidate();enable();};
+  const resetStatus=(forget=false)=>{const unknown=forget===true||activeMutation;++epoch;active?.abort();active=null;activeMutation=false;clearTimeout(stale);snapshot=null;wipe();form.hidden=true;result.hidden=true;for(const id of ["renewal-time-next","renewal-time-reason","renewal-time-technical"])el(id).textContent="";message.textContent=uncertain;if(unknown){certificates.clear();generation=0;select.replaceChildren();globalThis.rootwellTimingWatch?.invalidate();globalThis.rootwellRenewalJob?.invalidate();window.dispatchEvent(new Event("rootwell-timing-changed"));}enable();};
+  const invalidate=()=>{resetStatus();certificates.clear();generation=0;select.replaceChildren();panel.hidden=true;globalThis.rootwellTimingWatch?.invalidate();globalThis.rootwellRenewalJob?.invalidate();enable();};
   const setCertificates=(rows,gen)=>{
     invalidate();if(!Number.isSafeInteger(gen)||gen<1||gen>1000000||!Array.isArray(rows)||rows.length>500)return;
     for(const row of rows){if(row.state==="manual")continue;if(!fp(row.fingerprint)||typeof row.name!=="string"||!row.name||row.name.length>255||/[\u0000-\u001f\u007f]/.test(row.name)||row.not_after!==undefined&&!date(row.not_after)||certificates.has(row.fingerprint)){invalidate();return;}certificates.set(row.fingerprint,row);}
@@ -19,7 +19,7 @@
     for(const row of certificates.values()){const option=document.createElement("option");option.value=row.fingerprint;option.textContent=row.name+(row.state==="superseded"?" — older certificate":row.state==="expired"?" — expired":"");select.appendChild(option);}
     if(certificates.size){select.value=certificates.keys().next().value;panel.hidden=false;message.textContent="Read the saved renewal time for this test certificate. Nothing contacts the provider automatically.";}
     enable();
-    globalThis.rootwellTimingWatch?.setSource(select.value,generation);
+    globalThis.rootwellTimingWatch?.setSource(select.value,generation);globalThis.rootwellRenewalJob?.setSource(select.value,generation);
   };
   const validate=(d,mode,chosen,expected)=>{
     if(!keys(d,"schema_version,provider,generation,checked_at,unlock_expires,network_attempted,saved,automatic_renewal,status")||d.schema_version!=="rootwell.acme.renewal-timing.v1"||d.provider!=="letsencrypt-staging"||d.generation!==expected+(mode==="status"?0:mode==="check"?2:1)||d.generation>1000000||!date(d.checked_at)||!date(d.unlock_expires)||Date.parse(d.unlock_expires)<=Date.parse(d.checked_at)||Date.parse(d.unlock_expires)-Date.parse(d.checked_at)>43200000||d.network_attempted!==(mode==="check")||d.saved!==(mode!=="status")||d.automatic_renewal!==false)throw new Error();
@@ -39,12 +39,12 @@
   };
   const render=d=>{
     snapshot=d.status;generation=d.generation;const s=snapshot;
-    globalThis.rootwellTimingWatch?.setSource(s.fingerprint,generation);
+    globalThis.rootwellTimingWatch?.setSource(s.fingerprint,generation);globalThis.rootwellRenewalJob?.setSource(s.fingerprint,generation);
     el("renewal-time-next").textContent=s.prepared?"Suggested renewal time: "+pretty(s.effective_at):"No renewal time has been saved yet.";
     const wait=[s.next_check,s.provider_not_before].filter(Boolean).sort((a,b)=>Date.parse(b)-Date.parse(a))[0];
     el("renewal-time-reason").textContent=s.superseded?"A newer certificate is already saved. The original stays in Certificates.":s.expired?"This certificate has expired. Continue its renewal with your issuer; timing checks cannot extend it.":s.blocked?"Provider access is paused for reviewed maintenance. Do not reset or restore an old backup to retry.":s.pending?"The last timing check was interrupted. Finish it locally before any later check; the saved wait stays in place.":!s.can_read&&wait?(s.state==="error"?"The provider check failed. ":s.state==="unsupported"?"The provider did not offer a renewal time. ":"")+"Next provider check: "+pretty(wait)+". Rootwell will respect the saved wait.":s.state==="error"?"The provider check failed. Saved timing is a local estimate, not a new certificate.":s.source==="ari"?"Provider recommendation saved. No certificate has been renewed.":s.prepared?"Using the saved lifetime estimate. No certificate has been renewed.":"You can request a recommended time from the test provider.";
     el("renewal-time-technical").textContent="Saved state: "+s.state+" · generation "+generation+(s.fallback_at?" · local estimate "+pretty(s.fallback_at):"")+(s.checked_at?" · provider information checked "+pretty(s.checked_at):"")+". This is not issuer trust, revocation or deployment verification.";
-    message.textContent="Saved timing checked. Automatic renewal is not enabled.";result.hidden=false;
+    message.textContent="Saved timing checked. This check does not enable certificate renewal.";result.hidden=false;
     const interrupt=s.can_interrupt;form.hidden=!interrupt&&!s.can_read;el("renewal-time-privacy").hidden=interrupt;
     el("renewal-time-consent-label").textContent=interrupt?"Finish only the interrupted local check; keep its wait and retry count":"Allow this one provider timing check";
     submit.textContent=interrupt?"Finish interrupted check":"Check renewal time";
@@ -68,8 +68,8 @@
     finally{input.password="";clearTimeout(timeout);controller.abort();if(current===epoch){active=null;activeMutation=false;wipe();enable();}}
   };
   refresh.addEventListener("click",()=>run("status"));form.addEventListener("submit",event=>{event.preventDefault();return run(snapshot?.can_interrupt?"interrupt":"check");});
-  select.addEventListener("change",()=>{resetStatus();globalThis.rootwellTimingWatch?.setSource(select.value,generation);});password.addEventListener("input",()=>{if(active)resetStatus();enable();});consent.addEventListener("change",()=>{if(active)resetStatus();enable();});
-  window.addEventListener("rootwell-watch-changed",invalidate);
+  select.addEventListener("change",()=>{resetStatus();globalThis.rootwellTimingWatch?.setSource(select.value,generation);globalThis.rootwellRenewalJob?.setSource(select.value,generation);});password.addEventListener("input",()=>{if(active)resetStatus();enable();});consent.addEventListener("change",()=>{if(active)resetStatus();enable();});
+  window.addEventListener("rootwell-watch-changed",invalidate);window.addEventListener("rootwell-renewal-job-changed",invalidate);
   document.addEventListener("visibilitychange",()=>{if(document.hidden)invalidate();});window.addEventListener("pagehide",invalidate);window.addEventListener("rootwell-dns-changed",invalidate);
   for(const id of ["acme-order-form","dns-config-form","dns-operation-form","acme-account-form","acme-registration-form"])el(id)?.addEventListener("submit",invalidate);
   Object.defineProperty(globalThis,"rootwellRenewalTiming",{value:Object.freeze({setCertificates,invalidate})});
