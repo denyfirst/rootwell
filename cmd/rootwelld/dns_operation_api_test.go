@@ -11,6 +11,7 @@ import (
 )
 
 const dnsAddInput = `{"provider":"cloudflare","password":"` + nextTestPassword + `","expected_generation":8,"index":0,"confirm":true}`
+const dnsMaintenanceInput = `{"provider":"cloudflare","password":"` + nextTestPassword + `","expected_generation":11,"index":0,"confirm":true,"reviewed":true,"scope":"operator-dns-read-only"}`
 
 func TestDNSOperationStrictRequestNoPartialAuthority(t *testing.T) {
 	parse := func(body, mode string, want bool) {
@@ -26,6 +27,12 @@ func TestDNSOperationStrictRequestNoPartialAuthority(t *testing.T) {
 	parse(dnsAddInput, "add", true)
 	parse(dnsAddInput, "check", true)
 	parse(dnsAddInput, "recover", true)
+	parse(dnsAddInput, "maintenance", false)
+	parse(dnsMaintenanceInput, "maintenance", true)
+	parse(dnsMaintenanceInput, "check", false)
+	for _, body := range []string{strings.Replace(dnsMaintenanceInput, `"reviewed":true`, `"reviewed":false`, 1), strings.Replace(dnsMaintenanceInput, `operator-dns-read-only`, `session-renewal`, 1), strings.Replace(dnsMaintenanceInput, `"scope":`, `"scope":"operator-dns-read-only","scope":`, 1)} {
+		parse(body, "maintenance", false)
+	}
 	parse(strings.TrimSuffix(dnsAddInput, "}")+`,"exclusive":true}`, "recover", false)
 	parse(strings.TrimSuffix(dnsAddInput, "}")+`,"exclusive":true}`, "cleanup", true)
 	for _, body := range []string{"null", "[]", dnsAddInput + "{}", string([]byte{0xff}), strings.Repeat(" ", 4097), strings.Replace(dnsAddInput, `"index":0`, `"index":null`, 1), strings.Replace(dnsAddInput, `"index":0`, `"index":-1`, 1), strings.Replace(dnsAddInput, `"index":0`, `"index":8`, 1), strings.Replace(dnsAddInput, `"index":0`, `"index":0.0`, 1), strings.Replace(dnsAddInput, `"confirm":true`, `"confirm":false`, 1), strings.Replace(dnsAddInput, `"confirm":true`, `"confirm":null`, 1), strings.Replace(dnsAddInput, `"password":"`+nextTestPassword+`"`, `"password":null`, 1), strings.Replace(dnsAddInput, `"expected_generation":8`, `"expected_generation":0`, 1), strings.Replace(dnsAddInput, `"expected_generation":8`, `"expected_generation":null`, 1)} {
@@ -47,7 +54,7 @@ func TestDNSOperationGateOriginSetupAndNativeRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	cookie := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
-	for _, mode := range []string{"status", "add", "check", "cleanup", "recover"} {
+	for _, mode := range []string{"status", "add", "check", "cleanup", "recover", "maintenance"} {
 		route := "/api/acme/dns/" + mode
 		body := dnsAddInput
 		if mode == "status" {
@@ -55,6 +62,9 @@ func TestDNSOperationGateOriginSetupAndNativeRefusal(t *testing.T) {
 		}
 		if mode == "cleanup" {
 			body = strings.TrimSuffix(body, "}") + `,"exclusive":true}`
+		}
+		if mode == "maintenance" {
+			body = dnsMaintenanceInput
 		}
 		for _, tc := range []struct {
 			method, origin    string
@@ -96,6 +106,7 @@ func FuzzDNSOperationRequest(f *testing.F) {
 	f.Add([]byte(dnsStatusInput), "status")
 	f.Add([]byte(dnsAddInput), "add")
 	f.Add([]byte(dnsAddInput), "recover")
+	f.Add([]byte(dnsMaintenanceInput), "maintenance")
 	f.Add([]byte(strings.TrimSuffix(dnsAddInput, "}")+`,"exclusive":true}`), "cleanup")
 	f.Fuzz(func(t *testing.T, data []byte, mode string) {
 		if len(data) > 8192 {

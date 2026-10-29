@@ -11,6 +11,9 @@ import (
 )
 
 func validDNSPlanRecord(r dnsPlanRecord, prepared string, historical bool) bool {
+	if !validDNSMaintenance(r) {
+		return false
+	}
 	for phase, recovery := range []*dnsRecoveryState{r.Recovery, r.CleanupRecovery} {
 		if recovery == nil {
 			continue
@@ -26,7 +29,7 @@ func validDNSPlanRecord(r dnsPlanRecord, prepared string, historical bool) bool 
 			return false
 		}
 		pending := phase == 0 && r.State == "creating" || phase == 1 && r.State == "deleting"
-		if !pending && (recovery.Blocked || r.CheckedAt < recovery.Retry.LastAt) {
+		if !pending && (recovery.Blocked && !maintenanceResolved(r, phase == 1) || r.CheckedAt < recovery.Retry.LastAt) {
 			return false
 		}
 	}
@@ -39,6 +42,11 @@ func validDNSPlanRecord(r dnsPlanRecord, prepared string, historical bool) bool 
 	}
 	if r.CleanupRecovery != nil {
 		last = max(last, r.CleanupRecovery.Retry.LastAt)
+	}
+	for _, m := range []*dnsMaintenanceState{r.Maintenance, r.CleanupMaintenance} {
+		if m != nil {
+			last = max(last, m.LastAt)
+		}
 	}
 	if r.OutcomeAt != "" && (!acmeorder.Time(r.OutcomeAt) || mustDNSTime(r.OutcomeAt).Year() > 2100 || r.OutcomeAt < last) {
 		return false
@@ -56,15 +64,15 @@ func validDNSPlanRecord(r dnsPlanRecord, prepared string, historical bool) bool 
 	case "borrowed":
 		return checked && r.OutcomeAt >= r.CheckedAt && !r.Blocked && r.ID == "" && r.Cleanup == nil && !r.CleanupBlocked
 	case "created":
-		return !historical && checked && r.OutcomeAt >= r.CheckedAt && !r.Blocked && dnsPlanHex(r.ID) && r.Cleanup == nil && !r.CleanupBlocked
+		return !historical && checked && r.OutcomeAt >= r.CheckedAt && (!r.Blocked || maintenanceResolved(r, false)) && dnsPlanHex(r.ID) && r.Cleanup == nil && !r.CleanupBlocked
 	case "deleting", "deleted":
-		if !checked || r.Blocked || !dnsPlanHex(r.ID) || r.Cleanup == nil || !providerretry.Valid(*r.Cleanup) || r.Cleanup.Attempts < 1 || r.Cleanup.LastAt < r.Retry.LastAt || r.Cleanup.LastAt < prepared {
+		if !checked || r.Blocked && !maintenanceResolved(r, false) || !dnsPlanHex(r.ID) || r.Cleanup == nil || !providerretry.Valid(*r.Cleanup) || r.Cleanup.Attempts < 1 || r.Cleanup.LastAt < r.Retry.LastAt || r.Cleanup.LastAt < prepared {
 			return false
 		}
 		if r.State == "deleting" {
 			return !historical && r.CheckedAt <= r.Cleanup.LastAt
 		}
-		return !r.CleanupBlocked && r.CheckedAt >= r.Cleanup.LastAt && r.OutcomeAt >= r.CheckedAt
+		return (!r.CleanupBlocked || maintenanceResolved(r, true)) && r.CheckedAt >= r.Cleanup.LastAt && r.OutcomeAt >= r.CheckedAt
 	default:
 		return false
 	}
@@ -108,7 +116,7 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 	prior := dnsrecord.State{State: "new"}
 	retry := r.Retry
 	if l.cleanup {
-		if r.State != "deleting" || r.Cleanup == nil || !l.recovery && l.readOnly != (r.Cleanup.Attempts > 1) {
+		if r.State != "deleting" || r.Cleanup == nil || !l.recovery && !l.maintenance && l.readOnly != (r.Cleanup.Attempts > 1) {
 			return bad(ErrInvalid)
 		}
 		retry = *r.Cleanup
@@ -117,7 +125,7 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 			prior.State = "deleting"
 		}
 	} else {
-		if r.State != "creating" || !l.recovery && l.readOnly != (r.Retry.Attempts > 1) {
+		if r.State != "creating" || !l.recovery && !l.maintenance && l.readOnly != (r.Retry.Attempts > 1) {
 			return bad(ErrInvalid)
 		}
 		if l.readOnly {
@@ -134,6 +142,13 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 			return bad(ErrInvalid)
 		}
 		retry = recovery.Retry
+	}
+	maintenance := maintenanceState(*r, l.cleanup)
+	if l.maintenance {
+		if !l.readOnly || l.recovery || maintenance == nil || maintenance.Resolved || maintenance.OutcomeAt != "" || r.OutcomeAt != "" {
+			return bad(ErrInvalid)
+		}
+		retry.LastAt = maintenance.LastAt
 	}
 	order, err := openOrder(key, id, m)
 	if err != nil {
@@ -179,6 +194,11 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 		var failure *providerretry.Failure
 		if errors.As(callErr, &failure) && failure != nil {
 			hint = failure.Hint
+		}
+		if l.maintenance {
+			deferDNSMaintenance(maintenance, hint, clock().UTC())
+			r.OutcomeAt = maintenance.OutcomeAt
+			return sealDNSPlan(key, id, m, p, "acme-dns-maintenance-wait")
 		}
 		wait, waitErr := providerretry.Apply(retry, hint)
 		if l.recovery {
@@ -237,9 +257,21 @@ func executeStagingDNSAttemptAt(key, id, image []byte, attempt *DNSAttempt, perm
 		return bad(ErrInvalid)
 	}
 	r.OutcomeAt = clock().UTC().Format("2006-01-02T15:04:05Z")
+	if l.maintenance {
+		maintenance.OutcomeAt = r.OutcomeAt
+		maintenance.Resolved = r.State == "created" && !l.cleanup || r.State == "deleted" && l.cleanup
+		if maintenance.Resolved {
+			// Bind the receipt to the confirmed observation, not a potentially
+			// later publication clock read crossing a second boundary.
+			maintenance.OutcomeAt = r.CheckedAt
+		}
+	}
 	action := "acme-dns-result-saved"
 	if l.recovery {
 		action = "acme-dns-recovery-result"
+	}
+	if l.maintenance {
+		action = "acme-dns-maintenance-result"
 	}
 	return sealDNSPlan(key, id, m, p, action)
 }

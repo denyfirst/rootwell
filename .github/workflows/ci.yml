@@ -250,6 +250,9 @@ jobs:
       - name: Smoke test lossless history archive and full recovery
         run: go test -race -run '^TestHistoryArchive|^TestLinuxHistoryArchive' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess
 
+      - name: Smoke test operator DNS observations and full recovery
+        run: go test -race -run '^TestDNSMaintenance|^TestLinuxDNSMaintenance' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess
+
       - name: Smoke test Linux recovery and automation boundaries
         # Fail a malformed synthetic fixture early; this does not replace the
         # full shuffled race suite below or relax any production validator.

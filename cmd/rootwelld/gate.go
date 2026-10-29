@@ -178,7 +178,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/dns/cloudflare/status", "/api/dns/cloudflare/save", "/api/dns/cloudflare/remove":
 		g.cloudflareConfigEndpoint(w, r, s, signedIn)
 		return
-	case "/api/acme/dns/status", "/api/acme/dns/add", "/api/acme/dns/check", "/api/acme/dns/cleanup", "/api/acme/dns/recover":
+	case "/api/acme/dns/status", "/api/acme/dns/add", "/api/acme/dns/check", "/api/acme/dns/cleanup", "/api/acme/dns/recover", "/api/acme/dns/maintenance":
 		g.dnsOperationEndpoint(w, r, s, signedIn)
 		return
 	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":

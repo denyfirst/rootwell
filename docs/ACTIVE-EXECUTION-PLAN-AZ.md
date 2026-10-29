@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-28. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-10-29. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -23,6 +23,22 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
+**2026-10-29 — dörd bəndin hamısı təsdiqlənib:** DNS terminal bərpa/capacity →
+sessiyaya bağlı tam renewal → ayrı production profili və real inteqrasiya →
+quraşdırma/upgrade/restore/UI və müstəqil audit üçün release hazırlığı. İşlər
+kiçik addımdan sonra yeni təsdiq gözləmədən ardıcıl aparılır; hər PR-ın imza,
+tam CI və ayrıca self-review qapısı qalır. Real test domeni/məhdud token üçün
+sual açıqdır; secret chat/log/git-ə verilməyəcək. Bu hostda Docker yoxdur və WSL
+quraşdırılmayıb; OS-ə səssiz quraşdırma edilmir. Real provider/Linux browser
+sınağı üçün operatorun test mühiti tələb olunur. Sintetik CI real sınaq deyil.
+Müstəqil audit bu implementasiya sessiyasının self-review-u ilə əvəz edilmir.
+
+**Cari ADR 0078:** ayrıca scope/parol/reviewed təsdiqi ilə operator-only DNS
+observation. Normal və recovery sayğac/blokları saxlanır, yalnız read-only,
+24 saatlıq və blocked halda 7 günlük minimumla, bütün saxlanmış uzun wait-lər
+qorunur. İntent-before-I/O, exact lease/writer, no POST/DELETE/unknown verdict.
+Adi/scheduler DNS capability-si operator giriş yolunu çağıra bilmir.
+
 **Cari dalğa — 2026-10-26 istifadəçi qərarı:** avtomatlaşdırma işləri hər kiçik
 addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Hazır sessiya
 çərçivəsi seçilib: çıxış/kilid/restart dayandırır, maksimum 12 saat uzadılmır;
@@ -30,7 +46,7 @@ addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Haz
 terms əməliyyatı və production buraxılışı ayrıca operator səlahiyyəti olaraq qalır.
 Hər increment-in imzalı PR/bütün CI/self-review qapısı dəyişmir.
 
-**Cari increment — ADR 0077:** itkisiz tarixçə arxivi. 512–1024 aktiv hadisə
+**Tamamlanan ADR 0077 — PR #108, 13/13, merge `a2a03c9`:** itkisiz tarixçə arxivi. 512–1024 aktiv hadisə
 eyni şifrəli məzmunla maksimum dörd saxlanmış səhifəyə keçirilir. Aktiv logda
 yer açılır; disk, generation, DNS ownership/cəhd/wait/pending vəziyyəti reset
 olunmur. Certificates → Change history → History storage, ayrıca fresh parol,

@@ -14,6 +14,19 @@ import (
 // secret borrowing, bounded network and atomic observation. Fresh password and
 // explicit consent are required at the API boundary, not implied by this method.
 func RunStagingDNS(path string, key, id []byte, revision [32]byte, expected uint64, index int, mode string, permit func() bool, use inventorystore.DNSOperation) (inventorystore.DNSPlanStatus, uint64, error) {
+	if mode == "maintenance" {
+		return inventorystore.DNSPlanStatus{}, 0, inventorystore.ErrInvalid
+	}
+	return runStagingDNS(path, key, id, revision, expected, index, mode, permit, use)
+}
+
+// Separate entry point: a scheduler's ordinary DNS capability cannot invoke it.
+// Only the fresh-auth, reviewed-scope operator API is an approved caller.
+func RunOperatorDNSMaintenance(path string, key, id []byte, revision [32]byte, expected uint64, index int, permit func() bool, use inventorystore.DNSOperation) (inventorystore.DNSPlanStatus, uint64, error) {
+	return runStagingDNS(path, key, id, revision, expected, index, "maintenance", permit, use)
+}
+
+func runStagingDNS(path string, key, id []byte, revision [32]byte, expected uint64, index int, mode string, permit func() bool, use inventorystore.DNSOperation) (inventorystore.DNSPlanStatus, uint64, error) {
 	var status inventorystore.DNSPlanStatus
 	var generation uint64
 	err := withAccessWriteLock(path, func() error {
