@@ -1175,7 +1175,11 @@ Guards: `TestRenewalCycleSequenceOneOrderNewKeyAndOwnedCleanup`,
 `TestLinuxSessionRenewalFreshGrantIntentAndLogoutCancel`,
 `TestLinuxSessionRenewalRechecksOriginalSessionScopeAndGeneration`,
 `TestRenewalJobOnlyBorrowedSessionAndLockedTransactions`,
-the `TestCAOperationWait` / `TestLinuxCA` suites, `FuzzRenewalJobInput`,
+`TestCAOperationWaitBoundedStickyAndSecretFree`,
+`TestLinuxCAFailureWaitDurableAndFullRecovery`,
+`TestLinuxCAOrderSuccessPublishesWaitInSameResult`,
+`TestLinuxCACertificateWaitSurvivesRedactionAndKeepsLeaseDirection`,
+`TestLinuxCAValidationWaitKeepsPendingOrCheckedScope`, `FuzzRenewalJobInput`,
 `scripts/test-renewal-job.mjs` and the read-only preview tests. Synthetic layered
 evidence is not a live CA/Cloudflare interoperability or independent audit claim.
 
