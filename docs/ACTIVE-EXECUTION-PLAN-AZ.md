@@ -33,11 +33,23 @@ quraşdırılmayıb; OS-ə səssiz quraşdırma edilmir. Real provider/Linux bro
 sınağı üçün operatorun test mühiti tələb olunur. Sintetik CI real sınaq deyil.
 Müstəqil audit bu implementasiya sessiyasının self-review-u ilə əvəz edilmir.
 
-**Cari ADR 0078:** ayrıca scope/parol/reviewed təsdiqi ilə operator-only DNS
+**Cari ADR 0079:** bağlanmış sorğular üçün itkisiz saxlanmış səhifələr. 16–32
+qeyd, maksimum dörd səhifə + 32 aktiv yer (cəmi 160); heç nə silinmir. Bütün
+qeydlər lineage/renewal/provenance və deletion tombstone yoxlamalarında qalır.
+Ayrıca fresh parol/scope/backup təsdiqi, eyni optional History storage hissəsi,
+v9 total count və dolu aktiv closure list-dən əvvəl new order/renewal rəddi.
+Mövcud raw-historical-scope architecture sərhədi genişləndirilmir; yeni core
+yalnız validatorun public fingerprint/clock metadatasını alır. Model/UI, synthetic
+current-clock fixture və iki tərəfli sabotage keçib; actual Linux/full race/CI
+merge qapıları qalır. Sonra sessiyaya bağlı tam staging renewal zənciridir.
+
+**Tamamlanan ADR 0078 — PR #109, 13/13, merge `ac598fc`:** ayrıca scope/parol/reviewed təsdiqi ilə operator-only DNS
 observation. Normal və recovery sayğac/blokları saxlanır, yalnız read-only,
 24 saatlıq və blocked halda 7 günlük minimumla, bütün saxlanmış uzun wait-lər
 qorunur. İntent-before-I/O, exact lease/writer, no POST/DELETE/unknown verdict.
 Adi/scheduler DNS capability-si operator giriş yolunu çağıra bilmir.
+İki recovered phase bağlananda köhnə blok/cəhd/receipt saxlanır. Nəticəsiz boş
+creation naməlum qalır; bu şübhəni operator verdikti ilə silmək olmaz.
 
 **Cari dalğa — 2026-10-26 istifadəçi qərarı:** avtomatlaşdırma işləri hər kiçik
 addımdan sonra yeni “davam edək?” gözləmədən ardıcıl aparılır. Hazır sessiya
