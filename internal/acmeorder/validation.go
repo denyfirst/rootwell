@@ -1,12 +1,15 @@
 package acmeorder
 
+import "github.com/denyfirst/rootwell/internal/providerretry"
+
 // Validation is a bounded CA observation, not certificate issuance authority.
 // Statuses follow the exact canonical Names order, never provider response order.
 type Validation struct {
-	URL         string   `json:"url"`
-	Expires     string   `json:"expires"`
-	OrderStatus string   `json:"order_status"`
-	Statuses    []string `json:"statuses"`
+	URL         string             `json:"url"`
+	Expires     string             `json:"expires"`
+	OrderStatus string             `json:"order_status"`
+	Statuses    []string           `json:"statuses"`
+	Wait        providerretry.Hint `json:"-"`
 }
 
 func ValidationState(v Validation, names []string) string {

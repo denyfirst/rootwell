@@ -56,7 +56,13 @@ func RunStagingValidation(accessPath string, key, id []byte, revision [32]byte, 
 			return err
 		})
 		if err != nil {
-			return err
+			return saveCAFailureWait(accessPath, key, id, image, expected, permit, err, err)
+		}
+		if !result.Wait.NotBefore.IsZero() || result.Wait.Blocked {
+			image, err = inventorystore.ConstrainStagingCAWait(key, id, image, expected, result.Wait)
+			if err != nil {
+				return err
+			}
 		}
 		next, status, generation, err = inventorystore.FinishStagingValidation(key, id, image, expected, result)
 		if err != nil {

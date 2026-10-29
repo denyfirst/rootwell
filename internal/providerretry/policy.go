@@ -32,6 +32,13 @@ type Failure struct{ Hint Hint }
 
 func (*Failure) Error() string { return "provider operation not confirmed" }
 
+func (f *Failure) ProviderWait() Hint {
+	if f == nil {
+		return Hint{}
+	}
+	return f.Hint
+}
+
 func canonical(value string) (time.Time, bool) {
 	t, err := time.Parse("2006-01-02T15:04:05Z", value)
 	return t, err == nil && t.Year() >= 2020 && t.Year() <= 2100 && t.UTC().Format("2006-01-02T15:04:05Z") == value

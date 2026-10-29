@@ -59,17 +59,19 @@ func runStagingCertificate(path string, key, id []byte, revision [32]byte, expec
 		}
 		var receipt acmestaging.CertificateObservation
 		var savedExpiry string
+		var transportError error
 		err = inventorystore.WithStagingIssuance(key, id, image, gen, attempt, func(signer crypto.Signer, account, order, expires string, names []string, private, csr []byte, readOnly bool) error {
 			if !permit() {
 				return ErrStaleUpgrade
 			}
 			savedExpiry = expires
-			var callbackErr error
-			receipt, callbackErr = use(signer, account, order, expires, names, private, csr, readOnly)
-			return callbackErr
+			receipt, transportError = use(signer, account, order, expires, names, private, csr, readOnly)
+			return transportError
 		})
 		if err != nil {
-			return err
+			// Keep the model's fixed uncertainty error; only bounded typed
+			// transport metadata may cross its error-redaction boundary.
+			return saveCAFailureWait(path, key, id, image, gen, permit, err, transportError)
 		}
 		for _, der := range receipt.DER {
 			defer clear(der)
@@ -83,6 +85,12 @@ func runStagingCertificate(path string, key, id []byte, revision [32]byte, expec
 		}
 		if !validDeadline() {
 			return inventorystore.ErrIssuanceUncertain
+		}
+		if !receipt.Wait.NotBefore.IsZero() || receipt.Wait.Blocked {
+			image, err = inventorystore.ConstrainStagingCAWait(key, id, image, gen, receipt.Wait)
+			if err != nil {
+				return err
+			}
 		}
 		image, err = inventorystore.ConstrainStagingIssuance(key, id, image, gen, receipt.Expires)
 		if err != nil {

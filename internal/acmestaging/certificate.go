@@ -19,6 +19,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/acmeorder"
 	"github.com/denyfirst/rootwell/internal/acmeplan"
 	"github.com/denyfirst/rootwell/internal/certinspect"
+	"github.com/denyfirst/rootwell/internal/providerretry"
 	"golang.org/x/crypto/acme"
 )
 
@@ -31,6 +32,7 @@ type CertificateObservation struct {
 	State   string
 	DER     [][]byte
 	Expires string
+	Wait    providerretry.Hint `json:"-"`
 }
 
 type certificateObservation = CertificateObservation
@@ -45,7 +47,18 @@ func Certificate(ctx context.Context, permit func() bool, signer crypto.Signer, 
 	return certificateOrder(ctx, permit, liveDependencies(), signer, account, order, expires, names, private, csr, refresh)
 }
 
-func certificateOrder(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account, order, expires string, names []string, private, csr []byte, refresh bool) (certificateObservation, error) {
+func certificateOrder(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account, order, expires string, names []string, private, csr []byte, refresh bool) (observation certificateObservation, operationErr error) {
+	var guard *certificateTransport
+	defer func() {
+		if guard != nil {
+			if operationErr != nil {
+				observation = certificateObservation{}
+				operationErr = operationWaitFailure(guard.wait)
+			} else {
+				observation.Wait = guard.wait
+			}
+		}
+	}()
 	bad := func() (certificateObservation, error) { return certificateObservation{}, errRefused }
 	if !validAccountSigner(signer) || !acmeorder.OrderURL(order, account) || !acmeorder.Time(expires) || expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 		return bad()
@@ -66,7 +79,7 @@ func certificateOrder(parent context.Context, permit func() bool, deps dependenc
 	}
 	transport := pinnedTransport(ctx, allowed, deps)
 	defer transport.CloseIdleConnections()
-	guard := &certificateTransport{base: transport, allowed: allowed, account: account, order: order, expires: expires, names: slices.Clone(names), csr: bytes.Clone(csr), refresh: refresh, used: map[string]bool{}}
+	guard = &certificateTransport{base: transport, allowed: allowed, account: account, order: order, expires: expires, names: slices.Clone(names), csr: bytes.Clone(csr), refresh: refresh, used: map[string]bool{}}
 	defer clear(guard.csr)
 	client := &acme.Client{Key: signer, KID: acme.KeyID(account), DirectoryURL: acmeplan.Directory, UserAgent: "Rootwell-staging-certificate",
 		HTTPClient: &http.Client{Transport: guard, CheckRedirect: func(*http.Request, []*http.Request) error { return errRefused }}, RetryBackoff: func(int, *http.Request, *http.Response) time.Duration { return 0 }}
@@ -136,6 +149,7 @@ type certificateTransport struct {
 	finalized, processing, fetched, failed      bool
 	used                                        map[string]bool
 	requests                                    int
+	wait                                        providerretry.Hint
 }
 
 func (t *certificateTransport) finalize() string {
@@ -191,6 +205,7 @@ func (t *certificateTransport) RoundTrip(r *http.Request) (res *http.Response, e
 		return nil, errRefused
 	}
 	defer res.Body.Close()
+	t.wait = captureOperationWait(t.wait, res.Header.Values("Retry-After"), res.StatusCode, time.Now().UTC())
 	if !t.allowed() || (res.Header.Get("Content-Encoding") != "" && res.Header.Get("Content-Encoding") != "identity") {
 		return nil, errRefused
 	}

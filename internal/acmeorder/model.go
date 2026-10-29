@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/acmeplan"
+	"github.com/denyfirst/rootwell/internal/providerretry"
 )
 
 const Origin = "https://acme-staging-v02.api.letsencrypt.org"
@@ -20,9 +21,10 @@ type TXT struct {
 }
 
 type Instructions struct {
-	URL     string `json:"url"`
-	Expires string `json:"expires"`
-	Records []TXT  `json:"records"`
+	URL     string             `json:"url"`
+	Expires string             `json:"expires"`
+	Records []TXT              `json:"records"`
+	Wait    providerretry.Hint `json:"-"` // transient fixed-provider metadata, not a stored CA verdict
 }
 
 func Names(input []string) ([]string, bool) {

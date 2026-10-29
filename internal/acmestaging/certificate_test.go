@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -224,7 +225,7 @@ func TestCertificateConnectorRejectsOrderAndAuthorizationSubstitutionBeforeWrite
 			_, _ = io.WriteString(w, body)
 			return true
 		})
-		if err != errRefused || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 0 || calls.cert.Load() != 0 || calls.order.Load() != 1 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 0 || calls.cert.Load() != 0 || calls.order.Load() != 1 {
 			t.Fatal("unsafe order gained write authority")
 		}
 	}
@@ -242,7 +243,7 @@ func TestCertificateConnectorRejectsOrderAndAuthorizationSubstitutionBeforeWrite
 			_, _ = io.WriteString(w, body)
 			return true
 		})
-		if err != errRefused || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 0 || calls.cert.Load() != 0 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 0 || calls.cert.Load() != 0 {
 			t.Fatal("incomplete/wrong authorization gained write authority")
 		}
 	}
@@ -261,7 +262,7 @@ func TestCertificateConnectorFinalizationFailureNeverRetriesOrReturnsPartialRece
 			_, _ = io.WriteString(w, `{"type":"urn:ietf:params:acme:error:badNonce","detail":"private-error-sentinel"}`)
 			return true
 		})
-		if err != errRefused || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 1 || calls.order.Load() != 1 || calls.cert.Load() != 0 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 1 || calls.order.Load() != 1 || calls.cert.Load() != 0 {
 			t.Fatal("failed finalize retried, redirected or returned partial receipt")
 		}
 	}
@@ -281,7 +282,7 @@ func TestCertificateConnectorFinalizationFailureNeverRetriesOrReturnsPartialRece
 			_, _ = io.WriteString(w, body)
 			return true
 		})
-		if err != errRefused || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 1 || calls.cert.Load() != 0 || calls.order.Load() != 1 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(result, certificateObservation{}) || calls.finalize.Load() != 1 || calls.cert.Load() != 0 || calls.order.Load() != 1 {
 			t.Fatal("unsafe finalize response followed a URL or polled")
 		}
 	}
@@ -300,11 +301,11 @@ func TestCertificateConnectorStrictPublicPEMAndLimits(t *testing.T) {
 		bytes.Repeat([]byte{'x'}, maxCertificatePEM+1),
 	}
 	for i, input := range badInputs {
-		if out, err := strictCertificatePEM(input); err != errRefused || out != nil {
+		if out, err := strictCertificatePEM(input); !errors.Is(err, errRefused) || out != nil {
 			t.Fatalf("unsafe public PEM accepted or partially returned (case %d)", i)
 		}
 		result, calls, err := runCertificate(t, private, csr, input, true, "valid", "valid", nil)
-		if err != errRefused || !reflect.DeepEqual(result, certificateObservation{}) || calls.cert.Load() != 1 || calls.finalize.Load() != 0 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(result, certificateObservation{}) || calls.cert.Load() != 1 || calls.finalize.Load() != 0 {
 			t.Fatal("unsafe certificate response accepted/retried")
 		}
 	}
@@ -323,7 +324,7 @@ func TestCertificateConnectorPreflightCancellationAndRevocation(t *testing.T) {
 	if marshalErr != nil || csrErr != nil {
 		t.Fatal("account reuse fixture failed")
 	}
-	if _, err := certificateOrder(context.Background(), func() bool { return true }, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, accountPrivate, accountCSR, false); err != errRefused || calls.all.Load() != 0 {
+	if _, err := certificateOrder(context.Background(), func() bool { return true }, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, accountPrivate, accountCSR, false); !errors.Is(err, errRefused) || calls.all.Load() != 0 {
 		t.Fatal("account key reused for a certificate request")
 	}
 	for _, tc := range []struct {
@@ -338,18 +339,18 @@ func TestCertificateConnectorPreflightCancellationAndRevocation(t *testing.T) {
 		{testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, nil, csr},
 		{testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, append(bytes.Clone(csr), 0)},
 	} {
-		if r, err := certificateOrder(context.Background(), func() bool { return true }, deps, key, tc.account, tc.order, tc.expires, tc.names, tc.private, tc.csr, false); err != errRefused || !reflect.DeepEqual(r, certificateObservation{}) || calls.all.Load() != 0 {
+		if r, err := certificateOrder(context.Background(), func() bool { return true }, deps, key, tc.account, tc.order, tc.expires, tc.names, tc.private, tc.csr, false); !errors.Is(err, errRefused) || !reflect.DeepEqual(r, certificateObservation{}) || calls.all.Load() != 0 {
 			t.Fatal("preflight failure reached network")
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, permit := range []func() bool{nil, func() bool { return false }} {
-		if _, err := certificateOrder(context.Background(), permit, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false); err != errRefused || calls.all.Load() != 0 {
+		if _, err := certificateOrder(context.Background(), permit, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false); !errors.Is(err, errRefused) || calls.all.Load() != 0 {
 			t.Fatal("absent permission reached network")
 		}
 	}
-	if _, err := certificateOrder(ctx, func() bool { return true }, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false); err != errRefused || calls.all.Load() != 0 {
+	if _, err := certificateOrder(ctx, func() bool { return true }, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false); !errors.Is(err, errRefused) || calls.all.Load() != 0 {
 		t.Fatal("cancelled operation reached network")
 	}
 	var permitted atomic.Bool
@@ -364,7 +365,7 @@ func TestCertificateConnectorPreflightCancellationAndRevocation(t *testing.T) {
 		return true
 	})
 	r, err := certificateOrder(context.Background(), permitted.Load, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false)
-	if err != errRefused || !reflect.DeepEqual(r, certificateObservation{}) || calls.finalize.Load() != 1 || calls.cert.Load() != 0 {
+	if !errors.Is(err, errRefused) || !reflect.DeepEqual(r, certificateObservation{}) || calls.finalize.Load() != 1 || calls.cert.Load() != 0 {
 		t.Fatal("late revocation allowed certificate fetch/result")
 	}
 }
@@ -436,14 +437,14 @@ func TestCertificateGuardExactCSRAndDenyByDefault(t *testing.T) {
 			}
 			r.Header.Set("Content-Type", "application/jose+json")
 			tc.alter(&g, r)
-			if res, err := g.RoundTrip(r); err != errRefused || res != nil || calls != 0 || !g.failed {
+			if res, err := g.RoundTrip(r); !errors.Is(err, errRefused) || res != nil || calls != 0 || !g.failed {
 				t.Fatal("unapproved request reached transport")
 			}
 			// Even restoring the permission flag cannot reopen this failed lease.
 			g.allowed = func() bool { return true }
 			g.refresh = false
 			g.processing = false
-			if _, err := g.RoundTrip(r); err != errRefused || calls != 0 {
+			if _, err := g.RoundTrip(r); !errors.Is(err, errRefused) || calls != 0 {
 				t.Fatal("failed operation regained authority")
 			}
 		})
@@ -476,7 +477,7 @@ func TestCertificateConnectorHeadersAndLostFinalizeResponse(t *testing.T) {
 			}
 			return true
 		})
-		if err != errRefused || !reflect.DeepEqual(r, certificateObservation{}) || calls.finalize.Load() > 1 || calls.cert.Load() > 1 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(r, certificateObservation{}) || calls.finalize.Load() > 1 || calls.cert.Load() > 1 {
 			t.Fatal("unsafe header accepted/retried")
 		}
 	}
@@ -501,7 +502,7 @@ func TestCertificateConnectorHeadersAndLostFinalizeResponse(t *testing.T) {
 		return true
 	})
 	r, err := certificateOrder(ctx, func() bool { return true }, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false)
-	if err != errRefused || !reflect.DeepEqual(r, certificateObservation{}) || calls.finalize.Load() != 1 || calls.order.Load() != 1 || calls.cert.Load() != 0 {
+	if !errors.Is(err, errRefused) || !reflect.DeepEqual(r, certificateObservation{}) || calls.finalize.Load() != 1 || calls.order.Load() != 1 || calls.cert.Load() != 0 {
 		t.Fatal("lost finalize response replayed or returned partial receipt")
 	}
 }
@@ -515,7 +516,7 @@ func TestCertificatePEMChainCountBoundary(t *testing.T) {
 		if i < 5 && (err != nil || !bytes.Equal(out, input)) {
 			t.Fatal("valid bounded public collection refused")
 		}
-		if i == 5 && (err != errRefused || out != nil) {
+		if i == 5 && (!errors.Is(err, errRefused) || out != nil) {
 			t.Fatal("upstream five-certificate ceiling exceeded")
 		}
 	}
@@ -620,7 +621,7 @@ func TestCertificateConnectorInheritsPublicDNSAndTLSTrustRefusal(t *testing.T) {
 			}
 		}
 		result, err := certificateOrder(context.Background(), func() bool { return true }, deps, key, testAccountURL, testOrderURL, futureCertificateExpiry(), testOrderNames, private, csr, false)
-		if err != errRefused || !reflect.DeepEqual(result, certificateObservation{}) || calls.all.Load() != 0 {
+		if !errors.Is(err, errRefused) || !reflect.DeepEqual(result, certificateObservation{}) || calls.all.Load() != 0 {
 			t.Fatal("private DNS/untrusted TLS reached application request")
 		}
 	}
