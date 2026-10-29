@@ -308,6 +308,20 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR0078 introduces separately reviewed operator-only DNS observations after
+terminal ordinary/recovery policy. Fresh password/exact record/generation plus
+literal scope and review acknowledgement do not delegate that authority to a
+worker. Ordinary storage entry rejects the mode, and AST caller checks guard
+the separate entry point. No write checkpoint, supplied verdict or scope input;
+the existing fixed connector alone proves owned creation or confirmed deletion.
+Original counters/block flags/ownership/long waits remain sealed. One-day
+observation floor, seven-day blocked-hint hold, bounded manual counter, exact
+intent/lease/private writer and full backup preserve uncertainty across crashes.
+Resolved receipts allow only the normal next phase; empty creation stays unknown.
+Synthetic API/full-restore/fake provider tests do not prove real interoperability.
+Indefinitely unknown creation, closed-request capacity, automatic full renewal,
+isolated production profile and independent release audit remain open.
+
 ADR0076 adds only explicit session-bound timing watch, not automatic mutation.
 Same-image recovery preflight stops on pending timing, unsafe DNS/request/account
 state or capacity. No reset/prune/replay/unknown abandonment. Terminal maintenance

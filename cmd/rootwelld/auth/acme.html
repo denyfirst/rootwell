@@ -154,6 +154,7 @@
           <label for="dns-operation-password">Your current Rootwell password</label><input id="dns-operation-password" type="password" maxlength="256" autocomplete="off" required>
           <label class="confirm-row" for="dns-operation-consent"><input id="dns-operation-consent" type="checkbox" autocomplete="off"><span id="dns-operation-consent-label"></span></label>
           <label id="dns-operation-exclusive-row" class="confirm-row" for="dns-operation-exclusive" hidden><input id="dns-operation-exclusive" type="checkbox" autocomplete="off">Only Rootwell will edit these owned DNS records during cleanup. I will not edit them in Cloudflare or through another tool until it finishes.</label>
+          <label id="dns-operation-reviewed-row" class="confirm-row" for="dns-operation-reviewed" hidden><input id="dns-operation-reviewed" type="checkbox" autocomplete="off">I reviewed the provider restriction and approve this one read-only operator check. This does not restart automatic attempts or declare DNS work complete.</label>
           <button id="dns-operation-submit" type="submit" disabled>Add DNS record</button>
         </form>
         <p>Adding records does not verify your domain or issue a certificate. After all required records are present, use the saved request's acknowledgement and “Ask CA to check DNS”. Clean up after validation/issuance when you no longer need these temporary records.</p>
