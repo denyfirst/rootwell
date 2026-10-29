@@ -183,7 +183,7 @@ func beginStagingOrderAt(key, id, image []byte, expected uint64, names []string,
 		return nil, OrderStatus{}, 0, ErrInvalid
 	}
 	// Intent, URI checkpoint and instructions must all fit before network.
-	if m.Generation > maxGeneration-3 || len(m.History) > maxHistory-3 {
+	if m.Generation > maxGeneration-3 || len(m.History) > maxHistory-3 || len(m.ClosedRequests) >= maxClosedRequests {
 		return nil, OrderStatus{}, 0, ErrLimit
 	}
 	p := orderPayload{State: "request-pending", Fingerprint: account.Fingerprint, Started: at.UTC().Format("2006-01-02T15:04:05Z"), Domains: slices.Clone(names)}

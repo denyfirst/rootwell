@@ -28,7 +28,7 @@ type renewalAnchor struct {
 func completedRenewalSources(key, id []byte, m manifest) (map[string]bool, error) {
 	result := map[string]bool{}
 	scopes := []manifest{m}
-	for _, item := range m.ClosedRequests {
+	for _, item := range allClosedRequests(m) {
 		_, scope, _, err := openClosedRequest(key, id, m, item)
 		if err != nil {
 			return nil, err
@@ -84,7 +84,7 @@ func renewalSource(key, id []byte, m manifest, fingerprint string) (RenewalSourc
 	if current.Completion != nil && current.Completion.Fingerprint == fingerprint && current.Completion.DeletedAt == "" {
 		return RenewalSource{Fingerprint: fingerprint, Domains: slices.Clone(current.Names)}, nil
 	}
-	for _, item := range m.ClosedRequests {
+	for _, item := range allClosedRequests(m) {
 		_, _, p, err := openClosedRequest(key, id, m, item)
 		if err != nil {
 			return RenewalSource{}, err
@@ -123,7 +123,7 @@ func BeginStagingRenewal(key, id, image []byte, expected uint64, fingerprint str
 	if err != nil || len(m.ACMEOrders) != 0 || !acmeorder.CanonicalNames(s.Domains) {
 		return nil, OrderStatus{}, 0, ErrInvalid
 	}
-	if m.Generation > maxGeneration-3 || len(m.History) > maxHistory-3 {
+	if m.Generation > maxGeneration-3 || len(m.History) > maxHistory-3 || len(m.ClosedRequests) >= maxClosedRequests {
 		return nil, OrderStatus{}, 0, ErrLimit
 	}
 	account, err := accountStatus(key, id, m)

@@ -37,9 +37,9 @@
     generation++;active?.abort();snapshot=null;clearInputs();form.hidden=true;records.hidden=true;records.replaceChildren();resumeChoice.hidden=true;status.textContent=uncertain;enable();
   };
   const valid=(data,mode)=>{
-    if(!data || Array.isArray(data) || Object.keys(data).length!==16 || data.schema_version!=="rootwell.acme.manual-dns.v8" || typeof data.renewal_source!=="string" || data.renewal_source!=="" && (!fingerprint(data.renewal_source) || data.state==="not-started") || data.provider!=="letsencrypt-staging" || typeof data.can_issue!=="boolean" || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","renew","resume","validate","refresh","issue","certificate-refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
+    if(!data || Array.isArray(data) || Object.keys(data).length!==16 || data.schema_version!=="rootwell.acme.manual-dns.v9" || typeof data.renewal_source!=="string" || data.renewal_source!=="" && (!fingerprint(data.renewal_source) || data.state==="not-started") || data.provider!=="letsencrypt-staging" || typeof data.can_issue!=="boolean" || typeof data.domain_verified!=="boolean" || data.domain_verified && data.state!=="domain-verified" || !Number.isSafeInteger(data.generation) || data.generation<1 || data.generation>1000000 || !["not-started","request-pending","order-known","dns-ready","dns-acknowledged",...validationStates].includes(data.state) || data.saved!==(data.state!=="not-started") || data.network_used!==["start","renew","resume","validate","refresh","issue","certificate-refresh"].includes(mode) || !Array.isArray(data.domains) || !Array.isArray(data.records))return false;
     const next=data.new_request;
-    if(!next || Array.isArray(next) || Object.keys(next).sort().join(",")!=="available,closed_count,reason" || typeof next.available!=="boolean" || !Number.isSafeInteger(next.closed_count) || next.closed_count<0 || next.closed_count>32 || !["not-started","unknown-order","active","complete","expired","capacity","clock-unavailable","dns-cleanup-needed"].includes(next.reason) || next.available!==["complete","expired"].includes(next.reason))return false;
+    if(!next || Array.isArray(next) || Object.keys(next).sort().join(",")!=="available,closed_count,reason" || typeof next.available!=="boolean" || !Number.isSafeInteger(next.closed_count) || next.closed_count<0 || next.closed_count>160 || !["not-started","unknown-order","active","complete","expired","capacity","clock-unavailable","dns-cleanup-needed"].includes(next.reason) || next.available!==["complete","expired"].includes(next.reason))return false;
     if(next.reason==="not-started" && data.state!=="not-started" || next.reason==="unknown-order" && !["request-pending","order-known"].includes(data.state) || next.reason==="dns-cleanup-needed"&&["not-started","request-pending","order-known"].includes(data.state))return false;
 	  if(data.renewal_source && next.closed_count<1)return false;
     const key=data.certificate_key;
@@ -60,7 +60,7 @@
     }
     if(!key || Array.isArray(key) || Object.keys(key).length!==3 || typeof key.prepared!=="boolean" || (key.prepared ? !validationStates.includes(data.state) || !date(key.prepared_at) || typeof key.fingerprint!=="string" || !/^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/.test(key.fingerprint) : key.fingerprint!=="" || key.prepared_at!==""))return false;
     if(data.can_issue!==(data.domain_verified && key.prepared && issuance.state==="not-started"))return false;
-    if(next.reason==="complete" && !["certificate-saved","saved-certificate-deleted"].includes(issuance.state) || next.reason==="expired" && (!date(data.expires) || ["certificate-saved","saved-certificate-deleted"].includes(issuance.state)) || next.available && next.closed_count>=32)return false;
+    if(next.reason==="complete" && !["certificate-saved","saved-certificate-deleted"].includes(issuance.state) || next.reason==="expired" && (!date(data.expires) || ["certificate-saved","saved-certificate-deleted"].includes(issuance.state)) || next.available && next.closed_count>=160)return false;
     if(issuance.state!=="not-started" && key.prepared && issuance.started_at<key.prepared_at)return false;
     if(data.state==="not-started")return data.domains.length===0 && data.records.length===0 && data.expires==="";
     if(data.domains.length<1 || data.domains.length>8 || !data.domains.every(domain) || new Set(data.domains).size!==data.domains.length || data.domains.some((n,i)=>i>0 && data.domains[i-1]>=n))return false;
@@ -85,7 +85,7 @@
     clearResult();
     snapshot=data;clearInputs();records.replaceChildren();records.hidden=true;resumeChoice.hidden=true;form.hidden=true;
 	  if(badSelection || renewal && renewal.generation!==data.generation){badSelection=true;status.textContent="Selection changed. Return to Certificates, refresh and select Renew test certificate again.";enable();return;}
-	  if(renewal && data.state!=="not-started" && !data.new_request.available && data.renewal_source!==renewal.fingerprint){status.textContent="Another request is still active. Finish it in Automation before starting this renewal; nothing was replaced.";enable();return;}
+	  if(renewal && data.state!=="not-started" && !data.new_request.available && data.renewal_source!==renewal.fingerprint && !["capacity","clock-unavailable"].includes(data.new_request.reason)){status.textContent="Another request is still active. Finish it in Automation before starting this renewal; nothing was replaced.";enable();return;}
 	  if(!renewal && !data.renewal_source){renewalSummary.hidden=true;renewalSummary.textContent="";}
 	  if(data.renewal_source){renewalSummary.textContent="Manual test renewal for "+data.domains.join(", ")+". Your original certificate and key stay saved. This uses a new key; no automatic replacement or deployment.";renewalSummary.hidden=false;}
     if(data.renewal_result){
@@ -110,7 +110,7 @@
       form.hidden=true;resumeChoice.hidden=true;enable();return;
     }
     if(["clock-unavailable","capacity"].includes(data.new_request.reason)){
-      status.textContent=data.new_request.reason==="clock-unavailable"?"The server clock moved backwards. A new request is blocked; correct the clock and check saved status again. Saved certificates and keys remain unchanged.":"The saved request history or storage write limit is reached. A new request is blocked; existing certificates and keys remain unchanged. Do not delete certificates to reset this limit.";
+      status.textContent=data.new_request.reason==="clock-unavailable"?"The server clock moved backwards. A new request is blocked; correct the clock and check saved status again. Saved certificates and keys remain unchanged.":"A storage limit is reached. A new request is blocked; existing certificates and keys remain unchanged. Check activity and closed requests in Certificates → Change history → History storage. Archiving does not free disk bytes or reset generations.";
       if(data.issuance.state==="certificate-saved"){const link=document.createElement("a");link.href="/certificates";link.textContent="Open Certificates";records.append(link);records.hidden=false;}
       enable();return;
     }

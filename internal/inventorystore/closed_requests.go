@@ -44,6 +44,8 @@ func closedScope(m manifest, p closedRequest) manifest {
 	m.DNSPlans = p.DNSPlans
 	m.RenewalTimings, m.StagingProviderWait = nil, nil
 	m.ClosedRequests = nil
+	m.ClosedRequestArchives = nil
+	m.ClosedRequestArchiveCount = 0
 	m.historical = true
 	return m
 }
@@ -161,7 +163,17 @@ func openClosedRequest(key, id []byte, m manifest, item sealedRecord) (closedReq
 }
 
 func authenticateClosedRequests(key, id []byte, m manifest, records []publicinventory.Record) error {
-	if len(m.ClosedRequests) > maxClosedRequests {
+	if len(m.ClosedRequests) > maxClosedRequests || len(m.ClosedRequestArchives) > maxClosedRequestArchives || m.ClosedRequestArchiveCount < 0 || m.ClosedRequestArchiveCount > maxClosedRequestArchives*maxClosedRequests {
+		return ErrInvalid
+	}
+	archived := 0
+	for _, page := range m.ClosedRequestArchives {
+		if len(page) < minClosedRequestArchive || len(page) > maxClosedRequests {
+			return ErrInvalid
+		}
+		archived += len(page)
+	}
+	if archived != m.ClosedRequestArchiveCount {
 		return ErrInvalid
 	}
 	current, err := openOrder(key, id, m)
@@ -183,7 +195,7 @@ func authenticateClosedRequests(key, id []byte, m manifest, records []publicinve
 	if active.Completion != nil {
 		primary[active.Completion.Fingerprint] = true
 	}
-	for _, item := range m.ClosedRequests {
+	for _, item := range allClosedRequests(m) {
 		p, scope, issuance, err := openClosedRequest(key, id, m, item)
 		if err != nil {
 			return err
@@ -214,7 +226,7 @@ func authenticateClosedRequests(key, id []byte, m manifest, records []publicinve
 			}
 		}
 	}
-	if current.State != "not-started" && len(m.ClosedRequests) > 0 && (m.ACMEOrders[0].Generation <= lastGen || current.Started < lastAt) {
+	if current.State != "not-started" && closedRequestCount(m) > 0 && (m.ACMEOrders[0].Generation <= lastGen || current.Started < lastAt) {
 		return ErrInvalid
 	}
 	if current.RenewalSource != "" {
@@ -231,7 +243,7 @@ func newRequestStatus(key, id []byte, m manifest, at string) (NewRequestStatus, 
 	if err != nil {
 		return NewRequestStatus{}, err
 	}
-	for _, item := range m.ClosedRequests {
+	for _, item := range allClosedRequests(m) {
 		p, _, _, err := openClosedRequest(key, id, m, item)
 		if err != nil {
 			return NewRequestStatus{}, err
@@ -241,11 +253,29 @@ func newRequestStatus(key, id []byte, m manifest, at string) (NewRequestStatus, 
 		}
 	}
 	available := reason == "complete" || reason == "expired"
+	if reason == "not-started" && len(m.ClosedRequests) >= maxClosedRequests {
+		reason = "capacity"
+	}
 	if available && (len(m.ClosedRequests) >= maxClosedRequests || m.Generation >= maxGeneration || len(m.History) >= maxHistory) {
 		available = false
 		reason = "capacity"
 	}
-	return NewRequestStatus{Available: available, Reason: reason, ClosedCount: len(m.ClosedRequests)}, nil
+	return NewRequestStatus{Available: available, Reason: reason, ClosedCount: closedRequestCount(m)}, nil
+}
+
+// Metadata only: raw historical scopes and keys stay in this validator.
+func closedArchiveMetadata(key, id []byte, m manifest, at string) (string, error) {
+	for _, item := range allClosedRequests(m) {
+		p, _, _, err := openClosedRequest(key, id, m, item)
+		if err != nil || p.ClosedAt > at {
+			return "", ErrInvalid
+		}
+	}
+	account, err := accountStatus(key, id, m)
+	if err != nil {
+		return "", err
+	}
+	return account.Fingerprint, nil
 }
 
 func ReadNewStagingRequest(key, id, image []byte) (NewRequestStatus, uint64, error) {
@@ -279,6 +309,16 @@ func sealClosedRequest(key, id []byte, m *manifest, index int, p closedRequest, 
 	if index < 0 {
 		m.ClosedRequests = append(m.ClosedRequests, item)
 	} else {
+		for _, page := range m.ClosedRequestArchives {
+			if index < len(page) {
+				page[index] = item
+				return nil
+			}
+			index -= len(page)
+		}
+		if index >= len(m.ClosedRequests) {
+			return ErrInvalid
+		}
 		m.ClosedRequests[index] = item
 	}
 	return nil
@@ -331,7 +371,7 @@ func closeStagingRequestAt(key, id, image []byte, expected uint64, at time.Time)
 
 // Called only after record/material removal, with original image authenticated.
 func deleteClosedCompletion(key, id []byte, m *manifest, fp string) error {
-	for i, item := range m.ClosedRequests {
+	for i, item := range allClosedRequests(*m) {
 		k, err := closedRequestKey(key, id)
 		if err != nil {
 			return ErrInvalid

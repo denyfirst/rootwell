@@ -308,6 +308,20 @@ scheduler; no production renewal-rate exemption or live CA QA/audit claim.
 
 ## Evidence required
 
+ADR0079 extends retained closed history with four bounded 16–32-record pages,
+preserving encrypted records and all global lineage/URL/chronology checks. A
+retained-count consistency field rejects dropped pages; old binaries reject the
+new manifest. Active uncertainty/credentials/waits/reservations remain unchanged.
+New order/renewal intent refuses a full active closure list before network work.
+Renewal lookup and deletion tombstones include retained pages; raw historical
+scopes remain in the existing validator, never exported to the new metadata core.
+Fresh password/exact generation/separate scope/backup acknowledgement and private
+Linux transaction enforce local repack only. Manual DNS v9 reports total retained
+count; active capacity remains independently admitted. No prune, reset, disk-byte
+reclamation, historical replay or worker authority. Actual Linux full recovery/
+API, race/platform/UI/negative/sabotage evidence is required; real provider proof
+and independent release audit remain separate. See ADR0079/C99.
+
 ADR0078 introduces separately reviewed operator-only DNS observations after
 terminal ordinary/recovery policy. Fresh password/exact record/generation plus
 literal scope and review acknowledgement do not delegate that authority to a

@@ -2,6 +2,13 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-10-29 ADR 0079:** bağlanmış sorğuların 16–32 qeydi itkisiz saxlanmış
+səhifəyə keçirilir, aktiv 32-lik siyahıda yer açılır. Maksimum dörd səhifə və
+160 ümumi scope; lineage/provenance/tombstone və tam backup saxlanır. Aktiv və
+naməlum işə toxunulmur, limit dolanda yeni CA sorğusu əvvəlcədən dayanır. Eyni
+optional History storage hissəsi, ayrıca parol/scope/backup təsdiqi. Disk və
+generation limitləri reset edilmir. Ardınca hazır sessiyada tam staging renewal.
+
 **2026-10-29 ADR 0078:** terminal DNS create/delete nəticəsini ayrıca parol,
 scope və review təsdiqi ilə yalnız oxuyan operator yoxlaması. Köhnə cəhd/blok/
 ownership saxlanır; ən azı 1 gün, blocked hint üçün 7 gün və bütün uzun wait-lər

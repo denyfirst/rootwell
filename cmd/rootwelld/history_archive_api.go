@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
-	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"io"
 	"mime"
 	"net/http"
@@ -20,6 +19,10 @@ type historyArchiveInput struct {
 }
 
 func readHistoryArchiveInput(w http.ResponseWriter, r *http.Request, write bool) (historyArchiveInput, bool) {
+	return readStorageArchiveInput(w, r, write, "lossless-history-archive")
+}
+
+func readStorageArchiveInput(w http.ResponseWriter, r *http.Request, write bool, requiredScope string) (historyArchiveInput, bool) {
 	bad := func() (historyArchiveInput, bool) { return historyArchiveInput{}, false }
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" || len(r.Header.Values("Content-Type")) != 1 {
@@ -69,7 +72,7 @@ func readHistoryArchiveInput(w http.ResponseWriter, r *http.Request, write bool)
 	var input historyArchiveInput
 	var password, scope *string
 	var confirm, backup bool
-	if json.Unmarshal(fields["expected_generation"], &input.Expected) != nil || input.Expected < 1 || input.Expected > 1000000 || json.Unmarshal(fields["password"], &password) != nil || password == nil || len(*password) < 1 || len(*password) > 256 || json.Unmarshal(fields["scope"], &scope) != nil || scope == nil || *scope != "lossless-history-archive" || json.Unmarshal(fields["confirm"], &confirm) != nil || !confirm || json.Unmarshal(fields["backup_confirmed"], &backup) != nil || !backup {
+	if json.Unmarshal(fields["expected_generation"], &input.Expected) != nil || input.Expected < 1 || input.Expected > 1000000 || json.Unmarshal(fields["password"], &password) != nil || password == nil || len(*password) < 1 || len(*password) > 256 || json.Unmarshal(fields["scope"], &scope) != nil || scope == nil || *scope != requiredScope || json.Unmarshal(fields["confirm"], &confirm) != nil || !confirm || json.Unmarshal(fields["backup_confirmed"], &backup) != nil || !backup {
 		return bad()
 	}
 	input.Password = *password
@@ -77,6 +80,14 @@ func readHistoryArchiveInput(w http.ResponseWriter, r *http.Request, write bool)
 }
 
 func (g *gate) historyArchiveEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	g.storageArchiveEndpoint(w, r, s, signedIn, false)
+}
+
+func (g *gate) requestArchiveEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
+	g.storageArchiveEndpoint(w, r, s, signedIn, true)
+}
+
+func (g *gate) storageArchiveEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool, requests bool) {
 	defer clear(s.dataKey[:])
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
@@ -98,7 +109,12 @@ func (g *gate) historyArchiveEndpoint(w http.ResponseWriter, r *http.Request, s 
 		}
 	}
 	write := r.URL.Path == "/api/inventory/history/archive"
-	input, ok := readHistoryArchiveInput(w, r, write)
+	scope, schema := "lossless-history-archive", "rootwell.history-archive.v1"
+	if requests {
+		write = r.URL.Path == "/api/acme/request-storage/archive"
+		scope, schema = "lossless-request-archive", "rootwell.request-archive.v1"
+	}
+	input, ok := readStorageArchiveInput(w, r, write, scope)
 	defer func() { input.Password = "" }()
 	if !ok {
 		http.Error(w, "invalid archive request", http.StatusBadRequest)
@@ -138,7 +154,13 @@ func (g *gate) historyArchiveEndpoint(w http.ResponseWriter, r *http.Request, s 
 			return
 		}
 	}
-	saved, err := instanceaccess.InventoryHistoryArchive(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, permit)
+	var saved any
+	var err error
+	if requests {
+		saved, err = instanceaccess.InventoryRequestArchive(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, permit)
+	} else {
+		saved, err = instanceaccess.InventoryHistoryArchive(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, permit)
+	}
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -149,10 +171,10 @@ func (g *gate) historyArchiveEndpoint(w http.ResponseWriter, r *http.Request, s 
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(struct {
-		Schema      string                              `json:"schema_version"`
-		CheckedAt   string                              `json:"checked_at"`
-		NetworkUsed bool                                `json:"network_used"`
-		Saved       bool                                `json:"saved"`
-		Status      inventorystore.HistoryArchiveStatus `json:"status"`
-	}{"rootwell.history-archive.v1", time.Now().UTC().Format(time.RFC3339), false, write, saved})
+		Schema      string `json:"schema_version"`
+		CheckedAt   string `json:"checked_at"`
+		NetworkUsed bool   `json:"network_used"`
+		Saved       bool   `json:"saved"`
+		Status      any    `json:"status"`
+	}{schema, time.Now().UTC().Format(time.RFC3339), false, write, saved})
 }

@@ -39,25 +39,27 @@ type sealedRecord struct {
 }
 
 type manifest struct {
-	Version                 int              `json:"version"`
-	InstallationID          []byte           `json:"installation_id"`
-	Generation              uint64           `json:"generation"`
-	Records                 []sealedRecord   `json:"records"`
-	History                 []sealedRecord   `json:"history,omitempty"`
-	HistoryArchives         [][]sealedRecord `json:"history_archives,omitempty"`
-	HistoryArchiveStart     uint64           `json:"history_archive_start,omitempty"`
-	Keys                    []sealedRecord   `json:"keys,omitempty"`
-	Materials               []sealedRecord   `json:"materials,omitempty"`
-	ACMEAccounts            []sealedRecord   `json:"acme_accounts,omitempty"`
-	ACMEOrders              []sealedRecord   `json:"acme_orders,omitempty"`
-	ACMECertificateRequests []sealedRecord   `json:"acme_certificate_requests,omitempty"`
-	ACMEIssuances           []sealedRecord   `json:"acme_issuances,omitempty"`
-	ClosedRequests          []sealedRecord   `json:"closed_requests,omitempty"`
-	CloudflareConfigs       []sealedRecord   `json:"cloudflare_configs,omitempty"`
-	DNSPlans                []sealedRecord   `json:"dns_plans,omitempty"`
-	RenewalTimings          []sealedRecord   `json:"renewal_timings,omitempty"`
-	StagingProviderWait     []sealedRecord   `json:"staging_provider_wait,omitempty"`
-	historical              bool
+	Version                   int              `json:"version"`
+	InstallationID            []byte           `json:"installation_id"`
+	Generation                uint64           `json:"generation"`
+	Records                   []sealedRecord   `json:"records"`
+	History                   []sealedRecord   `json:"history,omitempty"`
+	HistoryArchives           [][]sealedRecord `json:"history_archives,omitempty"`
+	HistoryArchiveStart       uint64           `json:"history_archive_start,omitempty"`
+	Keys                      []sealedRecord   `json:"keys,omitempty"`
+	Materials                 []sealedRecord   `json:"materials,omitempty"`
+	ACMEAccounts              []sealedRecord   `json:"acme_accounts,omitempty"`
+	ACMEOrders                []sealedRecord   `json:"acme_orders,omitempty"`
+	ACMECertificateRequests   []sealedRecord   `json:"acme_certificate_requests,omitempty"`
+	ACMEIssuances             []sealedRecord   `json:"acme_issuances,omitempty"`
+	ClosedRequests            []sealedRecord   `json:"closed_requests,omitempty"`
+	ClosedRequestArchives     [][]sealedRecord `json:"closed_request_archives,omitempty"`
+	ClosedRequestArchiveCount int              `json:"closed_request_archive_count,omitempty"`
+	CloudflareConfigs         []sealedRecord   `json:"cloudflare_configs,omitempty"`
+	DNSPlans                  []sealedRecord   `json:"dns_plans,omitempty"`
+	RenewalTimings            []sealedRecord   `json:"renewal_timings,omitempty"`
+	StagingProviderWait       []sealedRecord   `json:"staging_provider_wait,omitempty"`
+	historical                bool
 }
 
 type envelope struct {
