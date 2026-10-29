@@ -131,6 +131,13 @@ new TXT record after CA validation has begun. Manual already-verified DNS can
 continue without creating a new provider plan. These are admission improvements;
 the existing writers retain their own expiry/no-replay checks.
 
+Adversarial follow-up: a saved long CA hold must not mask an already lost
+order or failed validation/issuance as merely waiting. Policy now reports those
+fixed stop reasons immediately while preserving the hold; healthy same-order
+reads still wait. `TestRenewalCycleLongCAWaitCannotHideAnAlreadyUncertainWrite`
+and the complete policy suite pass. The first Linux renewal/CA-wait smoke passed
+on `bec68d5`; the changed final head still needs every required check/full race.
+
 Wait-boundary sabotage (2026-10-29): allowing a later success to clear a prior
 blocked hint failed `TestCAOperationWaitBoundedStickyAndSecretFree` with
 `invalid hint unblocked or shortened`; inverting exact-generation admission

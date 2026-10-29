@@ -178,6 +178,23 @@ func TestRenewalCycleResumeDoesNotReprovisionAfterCAValidationOrHideExpiry(t *te
 	cycleNext(t, s, at, "pause")
 }
 
+func TestRenewalCycleLongCAWaitCannotHideAnAlreadyUncertainWrite(t *testing.T) {
+	for _, state := range []string{"request-pending", "validation-failed", "domain-verified"} {
+		s, at := cycleFixture()
+		s.OrderSource, s.OrderState = s.Fingerprint, state
+		s.Timing.ProviderNotBefore = timingStamp(at.Add(7 * 24 * time.Hour))
+		if state == "domain-verified" {
+			s.KeyPrepared = true
+			s.Issuance.State = "issuance-failed"
+		}
+		cycleNext(t, s, at, "pause")
+	}
+	s, at := cycleFixture()
+	s.OrderSource, s.OrderState = s.Fingerprint, "order-known"
+	s.Timing.ProviderNotBefore = timingStamp(at.Add(time.Hour))
+	cycleNext(t, s, at, "wait") // known same-order reads still respect the hold
+}
+
 func TestRenewalCycleAuthenticatedMetadataZeroOnFailure(t *testing.T) {
 	key, id, image, fp, at := timingFixture(t)
 	defer clear(key)

@@ -267,19 +267,24 @@ func DecideRenewalCycle(s RenewalCycle, events, bytes int, at time.Time) CycleDe
 				}
 			}
 		}
-		if d, ok := wait(s.Timing.ProviderNotBefore); ok {
-			return d
-		}
 		switch s.OrderState {
 		case "request-pending":
 			return pause("order-unconfirmed")
 		case "order-known":
-			return choose("order-read")
 		case "validation-failed":
 			return pause("validation-failed")
 		case "dns-ready", "dns-acknowledged", "validation-pending", "validation-waiting", "domain-verified":
 		default:
 			return pause("invalid-state")
+		}
+		if s.Issuance.State == "issuance-failed" || s.Issuance.State == "saved-certificate-deleted" {
+			return pause("certificate-unconfirmed")
+		}
+		if d, ok := wait(s.Timing.ProviderNotBefore); ok {
+			return d
+		}
+		if s.OrderState == "order-known" {
+			return choose("order-read")
 		}
 		if s.RequiredDNS && !s.DNS.Prepared && (s.OrderState == "dns-ready" || s.OrderState == "dns-acknowledged") {
 			return choose("dns-plan")
