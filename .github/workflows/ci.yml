@@ -187,6 +187,8 @@ jobs:
           node --check scripts/test-timing-watch.mjs
           node --check cmd/rootwelld/auth/history-archive.js
           node --check scripts/test-history-archive.mjs
+          node --check cmd/rootwelld/auth/request-archive.js
+          node --check scripts/test-request-archive.mjs
           node --check scripts/test-automation-status.mjs
           node --check cmd/rootwelld/auth/dns-operation.js
           node --check cmd/rootwelld/auth/acme-registration.js
@@ -239,6 +241,7 @@ jobs:
           node scripts/test-renewal-timing.mjs
           node scripts/test-timing-watch.mjs
           node scripts/test-history-archive.mjs
+          node scripts/test-request-archive.mjs
           node scripts/test-acme-registration.mjs
           node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs
@@ -249,6 +252,9 @@ jobs:
 
       - name: Smoke test lossless history archive and full recovery
         run: go test -race -run '^TestHistoryArchive|^TestLinuxHistoryArchive' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess
+
+      - name: Smoke test retained request pages and full recovery
+        run: go test -race -run '^TestRequestArchiveFullActive|^TestRequestArchiveSynthetic|^TestLinuxRequestArchive' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess
 
       - name: Smoke test operator DNS observations and full recovery
         run: go test -race -run '^TestDNSMaintenance|^TestLinuxDNSMaintenance' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess

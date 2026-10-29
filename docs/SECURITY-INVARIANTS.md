@@ -1133,6 +1133,42 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C99 — Closed-request capacity cannot erase lineage or revive historical authority
+
+ADR0079 retains 16–32 closed encrypted records in at most four pages, plus the
+existing active bound of 32 (maximum 160 total). A retained-count field and
+canonical whole-image validation reject dropped/malformed pages. All pages and
+active records share chronological/unique-order/renewal-anchor checks; historical
+raw scopes stay inside the existing validator. Renewal-source/provenance and
+superseded lineage lookup includes every retained record. Pair deletion updates
+its original archived tombstone, never a new unrelated slot. Active uncertainty,
+other ciphertext, pending reservations, byte/generation bounds and full snapshots
+remain. Starting a new order/renewal refuses a full active closure list before
+any network work. No pruning, byte reclamation, abandonment or historical replay.
+
+Fresh password/exact generation/separate `lossless-request-archive` scope and
+backup/compatible-version acknowledgement precede local Linux writer/permit/
+revision/atomic-publication checks. Status and strict bounded UI expose counts,
+never keys/provider URLs. Older binaries refuse the new manifest fields; manual
+DNS v9 distinguishes the larger total retained count from active capacity. The
+optional existing storage section and disabled fake preview grant no network or
+worker authority. A result lost after commit requires status, never blind replay.
+
+Guarded by `TestRequestArchiveFullActiveLosslessAndNextClosure`,
+`TestRequestArchiveRefusesStaleClockMalformedOrDroppedPages`,
+`TestRequestArchiveAllPagesFiniteNoPruning`,
+`TestRequestArchivePreservesUnknownActiveWorkAndReservations`,
+`TestRequestArchiveRetainsPairSourceAndUpdatesArchivedTombstone`,
+`TestRequestArchiveSyntheticFixtureRoundTrip`,
+`TestLinuxRequestArchiveWriterFullRecoveryAndLostResult`,
+`TestLinuxRequestArchiveAPIFreshScopeAndRetainedCounts`,
+`TestRequestArchiveStrictScopeAndAccessBoundary`,
+`TestRequestArchiveNativeRefusesBeforePermit`,
+`TestRequestArchiveHasOnlyReviewedLocalConsumers`, inherited historical-closure
+architecture guards, shared archive-input fuzzing, request/manual-DNS/demo/history
+WASM UI tests and all inherited platform/full-recovery gates. Compiling two-way
+sabotage: ADR0079. This is development evidence, not independent release audit.
+
 ## C98 — Operator observations cannot revive terminal DNS mutation policy
 
 ADR0078 adds only one explicitly reviewed manual read: fresh password, exact

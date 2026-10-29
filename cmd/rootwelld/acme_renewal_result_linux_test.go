@@ -60,7 +60,7 @@ func TestLinuxRenewalResultAPIIsPublicReadOnlyAndSessionBound(t *testing.T) {
 	}
 	w := orderCall(g, "status", orderStatusInput, cookie)
 	var result orderOutput
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Schema != "rootwell.acme.manual-dns.v8" || result.Generation != 23 || result.Network || result.CanIssue || result.Issuance.State != "certificate-saved" || result.RenewalResult == nil || result.RenewalResult.OriginalFingerprint != fixture.Fingerprint || result.RenewalResult.NewFingerprint == fixture.Fingerprint || !result.RenewalResult.ExpiryExtended || calls != 0 {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Schema != "rootwell.acme.manual-dns.v9" || result.Generation != 23 || result.Network || result.CanIssue || result.Issuance.State != "certificate-saved" || result.RenewalResult == nil || result.RenewalResult.OriginalFingerprint != fixture.Fingerprint || result.RenewalResult.NewFingerprint == fixture.Fingerprint || !result.RenewalResult.ExpiryExtended || calls != 0 {
 		t.Fatal("renewal result API unavailable or wrong authority", w.Code)
 	}
 	if w.Header().Get("Cache-Control") != "no-store" {

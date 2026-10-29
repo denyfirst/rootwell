@@ -196,6 +196,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/history/status", "/api/inventory/history/archive":
 		g.historyArchiveEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/request-storage/status", "/api/acme/request-storage/archive":
+		g.requestArchiveEndpoint(w, r, s, signedIn)
+		return
 	case "/api/inventory/locations":
 		g.inventoryLocationEndpoint(w, r, s, signedIn)
 		return
@@ -214,7 +217,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/history-archive.js", "/timing-watch.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -238,6 +241,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/timing-watch.js", "text/javascript; charset=utf-8")
 		case "/history-archive.js":
 			g.authAsset(w, r, "auth/history-archive.js", "text/javascript; charset=utf-8")
+		case "/request-archive.js":
+			g.authAsset(w, r, "auth/request-archive.js", "text/javascript; charset=utf-8")
 		case "/acme-setup.js":
 			g.authAsset(w, r, "auth/acme-setup.js", "text/javascript; charset=utf-8")
 		case "/acme-directory.js":

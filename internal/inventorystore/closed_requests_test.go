@@ -323,26 +323,14 @@ func TestClosedRequestsRepeatedCyclesExactCapacityAndNoSilentPruning(t *testing.
 		}
 		at = at.Add(2 * time.Second)
 	}
-	image, _, gen, err := beginStagingOrderAt(key, id, image, gen, names, at)
-	if err != nil {
-		t.Fatal(err)
-	}
-	info := orderInstructionsFixture()
-	info.URL = acmeorder.Origin + "/acme/order/1234/5000"
-	info.Expires = at.Add(time.Second).Format("2006-01-02T15:04:05Z")
-	image, _, gen, err = UpdateStagingOrder(key, id, image, gen, info.URL, nil, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	image, _, gen, err = UpdateStagingOrder(key, id, image, gen, "", &info, false)
-	if err != nil {
-		t.Fatal(err)
+	if next, _, _, err := beginStagingOrderAt(key, id, image, gen, names, at); err == nil || next != nil {
+		t.Fatal("new order consumed capacity before its future closure could fit")
 	}
 	m, _, err := decode(key, id, image)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := newRequestStatus(key, id, m, info.Expires)
+	s, err := newRequestStatus(key, id, m, at.Format(time.RFC3339))
 	if err != nil || s.Available || s.Reason != "capacity" || s.ClosedCount != maxClosedRequests {
 		t.Fatal("closed scope ceiling bypassed")
 	}
