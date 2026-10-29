@@ -33,15 +33,25 @@ quraşdırılmayıb; OS-ə səssiz quraşdırma edilmir. Real provider/Linux bro
 sınağı üçün operatorun test mühiti tələb olunur. Sintetik CI real sınaq deyil.
 Müstəqil audit bu implementasiya sessiyasının self-review-u ilə əvəz edilmir.
 
-**Cari ADR 0079:** bağlanmış sorğular üçün itkisiz saxlanmış səhifələr. 16–32
+**Cari ADR 0080 — kod və lokal sınaqlar, CI/merge qapısı açıqdır:** original
+sessiyaya bağlı bir tam staging renewal üçün ayrıca fresh parol, exact-source
+və exclusive-DNS razılığı. Yalnız public scope saxlayan memory job, hər addımda
+current key borrow/clear, bütün locked writer/intent/lease və fixed pinned
+completion. 320 transition/4 MiB ilkin headroom öz yazıları ilə azalır; digər
+pending timing ehtiyatı götürülmür. 160 action, hər CA read növünə 12 limit,
+minimum interval və daha uzun provider wait. Xəta pause; unknown order/Accept/
+finalize write replay yoxdur. Owned cleanup təsdiqlənmədən complete deyil.
+Eyni Automation kartı/status/Stop; read-only fake demo real issuer nəticəsi deyil.
+
+**Tamamlanan ADR 0079 — PR #110, 13/13, merge `13b0ee4`:** bağlanmış sorğular üçün itkisiz saxlanmış səhifələr. 16–32
 qeyd, maksimum dörd səhifə + 32 aktiv yer (cəmi 160); heç nə silinmir. Bütün
 qeydlər lineage/renewal/provenance və deletion tombstone yoxlamalarında qalır.
 Ayrıca fresh parol/scope/backup təsdiqi, eyni optional History storage hissəsi,
 v9 total count və dolu aktiv closure list-dən əvvəl new order/renewal rəddi.
 Mövcud raw-historical-scope architecture sərhədi genişləndirilmir; yeni core
 yalnız validatorun public fingerprint/clock metadatasını alır. Model/UI, synthetic
-current-clock fixture və iki tərəfli sabotage keçib; actual Linux/full race/CI
-merge qapıları qalır. Sonra sessiyaya bağlı tam staging renewal zənciridir.
+current-clock fixture, iki tərəfli sabotage, actual Linux/full race və bütün CI
+keçib. Sessiyaya bağlı tam staging renewal zənciri ADR 0080 ilə davam edir.
 
 **Tamamlanan ADR 0078 — PR #109, 13/13, merge `ac598fc`:** ayrıca scope/parol/reviewed təsdiqi ilə operator-only DNS
 observation. Normal və recovery sayğac/blokları saxlanır, yalnız read-only,

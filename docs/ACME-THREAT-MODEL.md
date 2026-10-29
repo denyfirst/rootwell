@@ -3,6 +3,37 @@
 Date: 2026-10-11. Single operator, existing loopback access gate. Porch is
 excluded. Offline Workbench acquires no CA network capability.
 
+## Original-session complete test renewal — ADR 0080
+
+An explicit password/exact-source/full-renewal/exclusive-DNS grant composes the
+existing fixed staging and Cloudflare transactions. It does not accept account
+terms, arbitrary URLs, roots, uploaded CA verdicts or client-supplied DNS scope.
+An in-memory job keeps only original owner/revision/expiry and public scope/
+counters. It borrows live session key bytes for one bounded step and clears
+them. Restart/backup has no job authority. Unrelated saved edits or logout/lock/
+expiry/revision stop it; browser closure after the grant alone does not revoke
+the original session. A timing watch cannot run concurrently.
+
+Abuse cases include a lost Location being replaced, uncertain challenge Accept
+or finalization being repeated, a DNS read becoming another POST/DELETE, retry
+exhaustion being reset, a shorter/error wait clearing a longer block, capacity
+being consumed from another pending outcome, old keys being reused, and a saved
+pair being called complete before DNS cleanup. Exact image generations, normal
+one-use intent/leases, 320-transition/4-MiB headroom, runtime counters/spacing,
+bounded sticky CA/DNS waits, fixed pinned completion and separately visible
+cleanup state constrain these paths. Only ordinary DNS reads are included;
+operator recovery/maintenance remains separate. No silent archive, pruning,
+deployment, source overwrite, continuous loop or unattended server unlock.
+
+Layered tests execute real Linux custody against synthetic callbacks and refuse
+an unpinned receipt through the fixed production checker. Policy tests cover
+confirmed save/owned cleanup and untouched borrowed records; existing private
+receipt/writer tests cover the positive acceptance layer. This is not a real
+end-to-end provider/CA success claim. A dedicated domain, restricted token and
+operator terms decision are required for that separate test. Host clock,
+same-user compromise, process-memory copies, sent requests after cancellation,
+complete-image rollback and independent production audit remain limitations.
+
 ## First increment: setup check, not issuance
 
 Automation accepts 1–32 unique ASCII DNS identifiers and a manual DNS-01 or

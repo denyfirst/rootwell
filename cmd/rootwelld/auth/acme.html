@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/timing-watch.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/timing-watch.js" defer></script><script src="/renewal-job.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -25,7 +25,7 @@
       <h2>Renewal overview</h2>
       <p>See what needs attention before your next test renewal. This reads your encrypted store only; it does not contact a CA or DNS provider.</p>
       <button id="automation-status-refresh" type="button" class="secondary">Check renewal readiness</button>
-      <p id="automation-status-message" role="status" aria-live="polite">Automatic renewal is not enabled. Check saved status to see the next steps.</p>
+      <p id="automation-status-message" role="status" aria-live="polite">Check saved status and this login's renewal job before continuing.</p>
       <div id="automation-status-result" hidden>
         <p id="automation-status-next"></p>
         <details><summary>Saved certificates and storage headroom</summary><p id="automation-status-capacity"></p><ul id="automation-status-certificates"></ul>
@@ -51,8 +51,25 @@
           <label class="confirm-row" for="renewal-time-consent"><input id="renewal-time-consent" type="checkbox" autocomplete="off"><span id="renewal-time-consent-label">Allow this one provider timing check</span></label>
           <button id="renewal-time-submit" type="submit" disabled>Check renewal time</button>
         </form>
-        <p>Timing only — no certificate is requested, renewed, replaced or deployed. Automatic renewal is not enabled. Imported certificates use their own issuer's renewal process.</p>
+        <p>These timing controls do not renew a certificate. A full session renewal needs its separate approval below. Imported certificates use their own issuer's renewal process.</p>
       </div>
+      <details id="session-renewal-panel">
+        <summary>Renew a test certificate during this login (optional)</summary>
+        <p>Select a saved test certificate above. Rootwell can handle one renewal: recommended timing, domain verification, a new key and certificate, then temporary DNS cleanup.</p>
+        <button id="renewal-job-status" type="button" class="secondary">Read renewal status</button>
+        <p id="renewal-job-message" role="status" aria-live="polite">Nothing starts automatically. Check before enabling.</p>
+        <div id="renewal-job-result" hidden><p id="renewal-job-state"></p><p id="renewal-job-reason"></p><p id="renewal-job-next"></p><p id="renewal-job-saved"></p><a id="renewal-job-recovery" href="#renewal-readiness" hidden>Review this step</a><details><summary>Technical details</summary><p id="renewal-job-details"></p></details></div>
+        <button id="renewal-job-stop" type="button" class="secondary" disabled>Stop renewal</button>
+        <button id="renewal-job-preview" type="button" class="secondary" disabled>Check before enabling renewal</button>
+        <form id="renewal-job-form" class="csr-form" hidden>
+          <p>This grants CA requests to Let's Encrypt staging and required TXT operations in your saved Cloudflare zone. Cloudflare receives its restricted token and DNS values; the CA receives names and a public CSR. Private keys and your Rootwell password stay here. Existing certificate pairs and notes remain saved. Nothing is deployed.</p>
+          <label for="renewal-job-password">Your current Rootwell password</label><input id="renewal-job-password" type="password" maxlength="256" autocomplete="off" required>
+          <label class="confirm-row" for="renewal-job-exclusive"><input id="renewal-job-exclusive" type="checkbox" autocomplete="off"><span>I will not edit these challenge records in another client during this renewal</span></label>
+          <label class="confirm-row" for="renewal-job-consent"><input id="renewal-job-consent" type="checkbox" autocomplete="off"><span>Allow one test renewal and its owned DNS cleanup during this original login only</span></label>
+          <button id="renewal-job-start" type="submit" disabled>Enable this test renewal</button>
+        </form>
+        <p>Works even if this browser closes, until logout, lock, restart or this login expires (at most 12 hours). No background password is saved. Errors pause for review; unknown writes are never replayed. A separate timing watch must be stopped first.</p>
+      </details>
       <details id="timing-watch-panel">
         <summary>Automatic timing checks (optional)</summary>
         <p>Check recommended renewal times for the selected test certificate while this login stays unlocked — even if the browser is closed. This does not renew a certificate or change DNS.</p>

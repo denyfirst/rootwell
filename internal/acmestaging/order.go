@@ -15,6 +15,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/acmeorder"
 	"github.com/denyfirst/rootwell/internal/acmeplan"
+	"github.com/denyfirst/rootwell/internal/providerretry"
 	"golang.org/x/crypto/acme"
 )
 
@@ -30,7 +31,18 @@ func DNSOrder(ctx context.Context, permit func() bool, signer crypto.Signer, acc
 	return dnsOrder(ctx, permit, liveDependencies(), signer, account, order, names, checkpoint)
 }
 
-func dnsOrder(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account, order string, names []string, checkpoint func(string) error) (acmeorder.Instructions, error) {
+func dnsOrder(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account, order string, names []string, checkpoint func(string) error) (instructions acmeorder.Instructions, operationErr error) {
+	var guard *orderTransport
+	defer func() {
+		if guard != nil {
+			if operationErr != nil {
+				instructions = acmeorder.Instructions{}
+				operationErr = operationWaitFailure(guard.wait)
+			} else {
+				instructions.Wait = guard.wait
+			}
+		}
+	}()
 	bad := func() (acmeorder.Instructions, error) { return acmeorder.Instructions{}, errRefused }
 	if !validAccountSigner(signer) || !acmeorder.AccountURL(account) || !acmeorder.CanonicalNames(names) || (order == "" && checkpoint == nil) || (order != "" && !acmeorder.OrderURL(order, account)) {
 		return bad()
@@ -40,7 +52,7 @@ func dnsOrder(parent context.Context, permit func() bool, deps dependencies, sig
 	allowed := func() bool { return ctx.Err() == nil && permit != nil && permit() }
 	transport := pinnedTransport(ctx, allowed, deps)
 	defer transport.CloseIdleConnections()
-	guard := &orderTransport{base: transport, allowed: allowed, account: account, order: order, names: slices.Clone(names), checkpoint: checkpoint, used: map[string]bool{}}
+	guard = &orderTransport{base: transport, allowed: allowed, account: account, order: order, names: slices.Clone(names), checkpoint: checkpoint, used: map[string]bool{}}
 	client := &acme.Client{Key: signer, KID: acme.KeyID(account), DirectoryURL: acmeplan.Directory, UserAgent: "Rootwell-staging-manual-dns",
 		HTTPClient: &http.Client{Transport: guard, CheckRedirect: func(*http.Request, []*http.Request) error { return errRefused }}, RetryBackoff: func(int, *http.Request, *http.Response) time.Duration { return 0 }}
 	directory, err := client.Discover(ctx)
@@ -118,6 +130,7 @@ type orderTransport struct {
 	used                           map[string]bool
 	validation                     bool
 	challenges                     map[string]string // populated only after all acknowledged digests match
+	wait                           providerretry.Hint
 }
 
 func (t *orderTransport) RoundTrip(r *http.Request) (response *http.Response, err error) {
@@ -173,6 +186,7 @@ func (t *orderTransport) RoundTrip(r *http.Request) (response *http.Response, er
 		return nil, errRefused
 	}
 	defer response.Body.Close()
+	t.wait = captureOperationWait(t.wait, response.Header.Values("Retry-After"), response.StatusCode, time.Now().UTC())
 	if !t.allowed() {
 		return nil, errRefused
 	}

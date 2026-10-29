@@ -62,6 +62,7 @@ type gate struct {
 	dnsConnect          dnsConnect
 	timingConnect       timingConnect
 	watch               *timingWatch
+	renewal             *renewalJob
 	closed              bool
 }
 
@@ -85,6 +86,11 @@ func (g *gate) Close() error {
 	g.mu.Lock()
 	g.closed = true
 	var watchDone chan struct{}
+	var renewalDone chan struct{}
+	if g.renewal != nil {
+		g.pauseRenewalLocked(g.renewal, "server-stopped")
+		renewalDone = g.renewal.done
+	}
 	if g.watch != nil {
 		g.pauseWatchLocked(g.watch, "server-stopped", "none")
 		watchDone = g.watch.done
@@ -92,6 +98,9 @@ func (g *gate) Close() error {
 	g.mu.Unlock()
 	if watchDone != nil {
 		<-watchDone
+	}
+	if renewalDone != nil {
+		<-renewalDone
 	}
 	if g.monitorStop != nil {
 		close(g.monitorStop)
@@ -169,6 +178,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/timing-watch/preview", "/api/acme/timing-watch/start", "/api/acme/timing-watch/status", "/api/acme/timing-watch/stop":
 		g.timingWatchEndpoint(w, r, s, signedIn)
 		return
+	case "/api/acme/renewal-job/preview", "/api/acme/renewal-job/start", "/api/acme/renewal-job/status", "/api/acme/renewal-job/stop":
+		g.renewalJobEndpoint(w, r, s, signedIn)
+		return
 	case "/api/acme/directory":
 		g.acmeDirectoryEndpoint(w, r, s, signedIn)
 		return
@@ -217,7 +229,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -239,6 +251,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/renewal-timing.js", "text/javascript; charset=utf-8")
 		case "/timing-watch.js":
 			g.authAsset(w, r, "auth/timing-watch.js", "text/javascript; charset=utf-8")
+		case "/renewal-job.js":
+			g.authAsset(w, r, "auth/renewal-job.js", "text/javascript; charset=utf-8")
 		case "/history-archive.js":
 			g.authAsset(w, r, "auth/history-archive.js", "text/javascript; charset=utf-8")
 		case "/request-archive.js":
@@ -432,6 +446,9 @@ func (g *gate) revokeSession(w http.ResponseWriter, r *http.Request) {
 // Best-effort erasure of the map-held key. Go may retain copies until GC;
 // this is not a guarantee against a compromised process memory image.
 func (g *gate) forgetSessionLocked(id [32]byte) {
+	if g.renewal != nil && g.renewal.owner == id {
+		g.pauseRenewalLocked(g.renewal, "access-ended")
+	}
 	if g.watch != nil && g.watch.owner == id {
 		g.pauseWatchLocked(g.watch, "access-ended", "none")
 	}

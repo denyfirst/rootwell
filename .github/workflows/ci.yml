@@ -185,6 +185,8 @@ jobs:
           node --check scripts/test-renewal-timing.mjs
           node --check cmd/rootwelld/auth/timing-watch.js
           node --check scripts/test-timing-watch.mjs
+          node --check cmd/rootwelld/auth/renewal-job.js
+          node --check scripts/test-renewal-job.mjs
           node --check cmd/rootwelld/auth/history-archive.js
           node --check scripts/test-history-archive.mjs
           node --check cmd/rootwelld/auth/request-archive.js
@@ -240,6 +242,7 @@ jobs:
           node scripts/test-automation-status.mjs
           node scripts/test-renewal-timing.mjs
           node scripts/test-timing-watch.mjs
+          node scripts/test-renewal-job.mjs
           node scripts/test-history-archive.mjs
           node scripts/test-request-archive.mjs
           node scripts/test-acme-registration.mjs
@@ -249,6 +252,9 @@ jobs:
 
       - name: Smoke test session timing watch and recovery fences
         run: go test -race -run '^TestTimingWatch|^TestLinuxTimingWatch' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/architecture
+
+      - name: Smoke test original-session renewal and durable CA waits
+        run: go test -race -run '^TestRenewalCycle|^TestRenewalJob|^TestLinuxSessionRenewal|^TestCAOperationWait|^TestCAFailureWait|^TestLinuxCA' -count=1 -timeout=8m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess ./internal/architecture ./internal/acmestaging
 
       - name: Smoke test lossless history archive and full recovery
         run: go test -race -run '^TestHistoryArchive|^TestLinuxHistoryArchive' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess

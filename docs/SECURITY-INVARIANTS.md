@@ -1133,6 +1133,57 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C100 — A complete renewal borrows only its original ready session
+
+ADR0080 grants one exact saved-source staging renewal with a fresh password,
+`session-test-renewal` scope and separate exclusive-DNS acknowledgement. Preview
+and status are local metadata only. A job retains public scope/counters and the
+original owner hash/revision/expiry, never session/key/token/signer/image/CSR.
+Borrow and clear a ready-session key for each bounded locked transaction.
+Logout, lock, revision/expiry, monotonic twelve-hour cap, restart, scope/config
+or unrelated generation changes stop it. Timing watch and full renewal cannot
+overlap; stop needs neither password nor a derivation/provider slot.
+
+Admission requires headroom for 320 remaining generation/event transitions,
+4 MiB of growth, a new pair and the future closure(s). Its own committed growth
+consumes this budget rather than requiring the initial budget again. Other
+interrupted timing work keeps its reserved outcome space. No auto-prune/archive,
+new order after lost Location, challenge reacceptance, finalize replay,
+recovery/maintenance counter reset, arbitrary connector or trust override.
+Maximum 160 actions, 12 timing/validation/certificate reads per kind, runtime
+spacing and every longer saved provider wait apply. Error pauses; ordinary DNS
+uncertainty permits only its bounded scoped reads under this separate grant.
+
+Authenticated CA Retry-After metadata is bounded and sticky across successful
+result publication and failed callbacks. A failure can save only wait metadata
+with the pending outcome unchanged; insufficient capacity/publication remains
+uncertain. Fixed issuance error redaction and the pinned receipt checker remain.
+Only a checked new pair plus confirmed owned cleanup is complete. Borrowed DNS
+is untouched; original pairs/notes remain; no deployment or continuous cycle.
+Saved-but-unconfirmed cleanup is visible. A late Stop or server close cannot
+erase a confirmed completion. Restart/backup cannot reconstruct job authority.
+
+Guards: `TestRenewalCycleSequenceOneOrderNewKeyAndOwnedCleanup`,
+`TestRenewalCycleRefusesAmbiguityExhaustionAndCapacity`,
+`TestRenewalCycleWaitsDoNotReplayAndBudgetFundsItsOwnWrites`,
+`TestRenewalCycleAuthenticatedMetadataZeroOnFailure`,
+`TestRenewalCycleResumeDoesNotReprovisionAfterCAValidationOrHideExpiry`,
+`TestRenewalCycleLongCAWaitCannotHideAnAlreadyUncertainWrite`,
+`TestRenewalJobStrictIndependentConsentAndZeroPartialSecrets`,
+`TestRenewalJobStatusOwnerStopOriginAndNativeRefusal`,
+`TestRenewalJobConstructorSessionBoundsAndMutualExclusion`,
+`TestLinuxSessionRenewalRealTransactionsRejectUnpinnedReceiptWithoutReplay`,
+`TestLinuxSessionRenewalFreshGrantIntentAndLogoutCancel`,
+`TestLinuxSessionRenewalRechecksOriginalSessionScopeAndGeneration`,
+`TestRenewalJobOnlyBorrowedSessionAndLockedTransactions`,
+`TestCAOperationWaitBoundedStickyAndSecretFree`,
+`TestLinuxCAFailureWaitDurableAndFullRecovery`,
+`TestLinuxCAOrderSuccessPublishesWaitInSameResult`,
+`TestLinuxCACertificateWaitSurvivesRedactionAndKeepsLeaseDirection`,
+`TestLinuxCAValidationWaitKeepsPendingOrCheckedScope`, `FuzzRenewalJobInput`,
+`scripts/test-renewal-job.mjs` and the read-only preview tests. Synthetic layered
+evidence is not a live CA/Cloudflare interoperability or independent audit claim.
+
 ## C99 — Closed-request capacity cannot erase lineage or revive historical authority
 
 ADR0079 retains 16–32 closed encrypted records in at most four pages, plus the
