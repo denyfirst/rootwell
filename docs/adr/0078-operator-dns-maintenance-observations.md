@@ -34,6 +34,8 @@ unknown empty create, future wait, malformed receipt, capacity and counter cap.
 Both recovered phases can close an expired request without erasing their old
 terminal policies or either resolution receipt. Malformed UI maintenance state,
 invented completion and response counter/wait resets are explicitly refused.
+The read-only overview also rejects a clock preceding a pending maintenance
+intent, including when no outcome timestamp was published.
 Native custody refuses before callbacks. UI tests require independent review
 consent, immutable old counters/waits, a single scoped request, secret clearing,
 and refuse stale/hidden/late/malformed output. The read-only demo cannot submit

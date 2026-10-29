@@ -195,6 +195,11 @@ func dnsAutomationState(p dnsPlanPayload, now string) (string, string) {
 		if now < max(p.PreparedAt, r.CheckedAt, r.OutcomeAt, r.Retry.LastAt) || r.Cleanup != nil && now < r.Cleanup.LastAt || r.Recovery != nil && now < r.Recovery.Retry.LastAt || r.CleanupRecovery != nil && now < r.CleanupRecovery.Retry.LastAt {
 			return "clock-unavailable", ""
 		}
+		for _, maintenance := range []*dnsMaintenanceState{r.Maintenance, r.CleanupMaintenance} {
+			if maintenance != nil && now < max(maintenance.LastAt, maintenance.OutcomeAt) {
+				return "clock-unavailable", ""
+			}
+		}
 		if r.State == "creating" || r.State == "deleting" {
 			retry, blocked, recovery := r.Retry, r.Blocked, r.Recovery
 			if r.State == "deleting" {

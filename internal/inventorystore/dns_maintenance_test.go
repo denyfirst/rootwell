@@ -108,6 +108,11 @@ func TestDNSMaintenanceUnknownAndRevocationRetainIntentWaitAndCounters(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
+	pm, _, _ := decode(key, id, pending)
+	pp, _ := openDNSPlan(key, id, pm)
+	if state, wait := dnsAutomationState(pp, at.Add(-time.Second).Format(time.RFC3339)); state != "clock-unavailable" || wait != "" {
+		t.Fatal("overview hid a clock rollback behind a pending operator intent")
+	}
 	called := false
 	if out, _, _, err := executeStagingDNSAttemptAt(key, id, pending, a, func() bool { return false }, func(func() bool, []byte, dnsrecord.Scope, dnsrecord.State, bool, bool, func(dnsrecord.State) error) (dnsrecord.State, error) {
 		called = true
