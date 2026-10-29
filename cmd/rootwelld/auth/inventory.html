@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/inventory.css">
   <script src="/theme.js"></script>
   <script src="/history-archive.js" defer></script>
+  <script src="/request-archive.js" defer></script>
   <script src="/wasm_exec.js" defer></script>
   <script src="/inventory-engine.js" defer></script>
   <script src="/inventory-import.js" defer></script>
@@ -246,6 +247,18 @@
             <label class="confirm-row"><input id="archive-consent" type="checkbox" autocomplete="off">Keep all older events encrypted and make room in the active log.</label>
             <button id="archive-save" type="submit" disabled>Archive older activity</button>
           </form>
+          <section id="request-storage" aria-labelledby="request-storage-title">
+            <h3 id="request-storage-title">Closed certificate requests</h3>
+            <p>Make room when older certificate requests fill the active list. All records stay encrypted and included in complete backups. This does not delete certificates, clear pending work or free disk space.</p>
+            <button id="request-archive-status" type="button" class="secondary">Check request storage</button>
+            <p id="request-archive-message" role="status" aria-live="polite">Nothing is moved automatically.</p>
+            <form id="request-archive-form" class="csr-form" hidden>
+              <label for="request-archive-password">Your current Rootwell password</label><input id="request-archive-password" type="password" maxlength="256" autocomplete="off" required>
+              <label class="confirm-row"><input id="request-archive-backup" type="checkbox" autocomplete="off">I have made a current complete backup and kept a compatible Rootwell version.</label>
+              <label class="confirm-row"><input id="request-archive-consent" type="checkbox" autocomplete="off">Retain all closed request records and make room in the active list.</label>
+              <button id="request-archive-save" type="submit" disabled>Archive closed requests</button>
+            </form>
+          </section>
         </details>
       </details>
     </aside>

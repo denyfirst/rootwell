@@ -106,7 +106,7 @@ func validEvent(event Event) bool {
 	case "acme-timing-read-started", "acme-timing-observed", "acme-timing-wait-saved", "acme-timing-interrupted":
 	case "acme-dns-plan-prepared", "acme-dns-attempt-started", "acme-dns-wait-saved", "acme-dns-result-saved":
 	case "acme-dns-recovery-started", "acme-dns-recovery-wait", "acme-dns-recovery-result":
-	case "history-archived":
+	case "history-archived", "acme-request-history-archived":
 	case "dns-cloudflare-saved", "dns-cloudflare-removed":
 	case "import", "owner-changed", "location-added", "location-renamed", "location-removed", "record-deleted", "key-added", "acme-key-prepared", "acme-registration-started", "acme-account-registered", "acme-account-absent", "acme-order-started", "acme-order-located", "acme-dns-prepared", "acme-dns-acknowledged", "acme-validation-started", "acme-validation-observed", "acme-certificate-key-prepared", "acme-issuance-started", "acme-issuance-observed", "acme-certificate-saved", "acme-request-closed", "acme-renewal-started":
 	default:

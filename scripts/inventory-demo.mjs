@@ -21,6 +21,7 @@ html = replaceOnce(html, "<main>", `<main><aside class="storage-note" aria-label
 html = replaceOnce(html, '<form id="inventory-form">', '<form id="inventory-form" data-read-only="true">');
 html = replaceOnce(html, '<form id="certificate-pair-form">', '<form id="certificate-pair-form" data-read-only="true">');
 for(const id of ["archive-password","archive-backup","archive-consent"])html=replaceOnce(html,`id="${id}"`,`id="${id}" disabled`);
+for(const id of ["request-archive-password","request-archive-backup","request-archive-consent"])html=replaceOnce(html,`id="${id}"`,`id="${id}" disabled`);
 html=replaceOnce(html,'<details id="history-storage">','<details id="history-storage"><p class="storage-note">DEMO · synthetic history counts only. Password, confirmation and archiving are disabled.</p>');
 let script = asset("inventory.js");
 script=replaceOnce(script,'addText(item, "strong", record.subject || "Subject not provided");','addText(item, "strong", record.subject || "Subject not provided"); if (record.staging_origin) addText(item, "small", "DEMO · status example only, not a real CA receipt");');
@@ -97,6 +98,7 @@ assets.set("/timing-watch.js",["text/javascript; charset=utf-8",watchScript]);
 automationHTML=replaceOnce(automationHTML,'<details id="timing-watch-panel">','<details id="timing-watch-panel"><p class="storage-note">DEMO · fake watch and recovery examples only. No background job, CA/DNS connection or credentials. Enable and Stop are disabled.</p>');
 assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
 assets.set("/history-archive.js",["text/javascript; charset=utf-8",replaceOnce(asset("history-archive.js"),"save.disabled=!!active","save.disabled=true || !!active")]);
+assets.set("/request-archive.js",["text/javascript; charset=utf-8",replaceOnce(asset("request-archive.js"),"save.disabled=!!active","save.disabled=true || !!active")]);
 const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
@@ -141,6 +143,13 @@ const server = http.createServer((request, response) => {
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"){response.writeHead(403).end("Fixture origin refused");return;}
     response.writeHead(200,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}).end(JSON.stringify({schema_version:"rootwell.history-archive.v1",checked_at:instant(0),network_used:false,saved:false,status:{generation:1601,active_events:600,archived_events:1000,pages_free:3,can_archive:true,reason:"ready"}}));return;
   }
+  if(request.method==="POST"&&request.url==="/api/acme/request-storage/status"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>64){oversized=true;body="";}}});
+    request.on("end",()=>{if(oversized||body!=="{}"){response.writeHead(400).end("Fixture status refused");return;}
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.request-archive.v1",checked_at:instant(0),network_used:false,saved:false,status:{generation:201,active_requests:32,archived_requests:32,pages_free:3,can_archive:true,reason:"ready"}}));
+    });return;
+  }
   if(request.method==="POST"&&request.url==="/api/automation/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
@@ -175,7 +184,7 @@ const server = http.createServer((request, response) => {
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
       const originalExpiry=instant(2),newExpiry=instant(90),preparedAt=instant(-1),requestExpiry=instant(1);
-      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.manual-dns.v8",provider:"letsencrypt-staging",generation:5,state:"domain-verified",domains:["verify.rootwell.invalid"],expires:requestExpiry,records:[{domain:"verify.rootwell.invalid",name:"_acme-challenge.verify.rootwell.invalid",value:"",required:false}],renewal_source:demoLeaf.fingerprint256,renewal_result:{original_fingerprint:demoLeaf.fingerprint256,new_fingerprint:Array(32).fill("DD").join(":"),original_expiry:originalExpiry,new_expiry:newExpiry,expiry_extended:true},network_used:false,saved:true,domain_verified:true,can_issue:false,certificate_key:{prepared:true,fingerprint:Array(32).fill("AB").join(":"),prepared_at:preparedAt},issuance:{state:"certificate-saved",started_at:preparedAt,checked_at:preparedAt,observation:"saved",expires:requestExpiry},new_request:{available:true,reason:"complete",closed_count:1}}));
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.manual-dns.v9",provider:"letsencrypt-staging",generation:5,state:"domain-verified",domains:["verify.rootwell.invalid"],expires:requestExpiry,records:[{domain:"verify.rootwell.invalid",name:"_acme-challenge.verify.rootwell.invalid",value:"",required:false}],renewal_source:demoLeaf.fingerprint256,renewal_result:{original_fingerprint:demoLeaf.fingerprint256,new_fingerprint:Array(32).fill("DD").join(":"),original_expiry:originalExpiry,new_expiry:newExpiry,expiry_extended:true},network_used:false,saved:true,domain_verified:true,can_issue:false,certificate_key:{prepared:true,fingerprint:Array(32).fill("AB").join(":"),prepared_at:preparedAt},issuance:{state:"certificate-saved",started_at:preparedAt,checked_at:preparedAt,observation:"saved",expires:requestExpiry},new_request:{available:true,reason:"complete",closed_count:1}}));
     });return;
   }
   if (request.method === "POST" && request.url === "/workbench") {

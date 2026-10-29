@@ -69,6 +69,7 @@ func TestHistoryArchiveAccessBoundaryBeforeStorage(t *testing.T) {
 func FuzzHistoryArchiveInput(f *testing.F) {
 	f.Add([]byte(archiveBody(513)), true)
 	f.Add([]byte("{}"), false)
+	f.Add([]byte(requestArchiveBody(37)), true)
 	f.Fuzz(func(t *testing.T, body []byte, write bool) {
 		if len(body) > 4096 {
 			t.Skip()
@@ -78,6 +79,12 @@ func FuzzHistoryArchiveInput(f *testing.F) {
 		s, ok := readHistoryArchiveInput(httptest.NewRecorder(), r, write)
 		if !ok && s != (historyArchiveInput{}) {
 			t.Fatal("partial parsed credential")
+		}
+		r = httptest.NewRequest("POST", "/", strings.NewReader(string(body)))
+		r.Header.Set("Content-Type", "application/json")
+		s, ok = readStorageArchiveInput(httptest.NewRecorder(), r, write, "lossless-request-archive")
+		if !ok && s != (historyArchiveInput{}) {
+			t.Fatal("partial request archive credential")
 		}
 	})
 }
