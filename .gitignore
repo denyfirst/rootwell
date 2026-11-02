@@ -29,6 +29,8 @@ go.work.sum
 !/web/workbench/rootwell-verify-demo-ca-files.pem
 # Public-only, fingerprint-pinned staging trust asset; never private keys.
 !/internal/acmecertificate/staging-roots.pem
+# Public-only, separately pinned production receipt trust asset.
+!/internal/acmecertificate/production-roots.pem
 *.key
 *.p12
 *.pfx

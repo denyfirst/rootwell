@@ -96,6 +96,8 @@ jobs:
             package: ./internal/renewalpolicy
           - target: FuzzStagingARIURI
             package: ./internal/acmestaging
+          - target: FuzzFixedACMEProfileURLs
+            package: ./internal/acmeprofile
           - target: FuzzRenewalTimingPayload
             package: ./internal/inventorystore
           - target: FuzzTimingWatchInput
