@@ -32,17 +32,27 @@ operator upgrade və müstəqil audit iddiası yoxdur. Production custody/UI və
 real CA/DNS sınağı ayrıca açıq qalır. İstifadəçinin cavabı: domen/token hazır
 deyil, lokal və sintetik işlərlə davam edirik.
 
+**Tamamlanan ADR 0081 — PR #112, 13/13, merge `2e72c01`:** iki sabit
+və dəyişməyən mühit kataloqu, cross-environment account/order/resource rəddi,
+legacy axının yalnız staging seçməsi və ayrıca ISRG X1/X2 pin-ləri ilə production
+receipt yoxlayıcısı. Mövcud staging trust hovuzuna production əlavə edilmir;
+prod route, hesab, custody və UI hələ açılmır. Sonra authenticated ayrı ACME
+namespace-lər, profile-bound grant/writer/backup/restore, fixed connector və
+sadə UI inteqrasiyası tamamlanmalıdır. Real domen/token və operatorun terms
+qərarı tələb edən sınaqlar saxta uğurla əvəz olunmur. Dörd bəndlik iş davam edir.
+
 **2026-10-29 — dörd bəndin hamısı təsdiqlənib:** DNS terminal bərpa/capacity →
 sessiyaya bağlı tam renewal → ayrı production profili və real inteqrasiya →
 quraşdırma/upgrade/restore/UI və müstəqil audit üçün release hazırlığı. İşlər
 kiçik addımdan sonra yeni təsdiq gözləmədən ardıcıl aparılır; hər PR-ın imza,
-tam CI və ayrıca self-review qapısı qalır. Real test domeni/məhdud token üçün
-sual açıqdır; secret chat/log/git-ə verilməyəcək. Bu hostda Docker yoxdur və WSL
+tam CI və ayrıca self-review qapısı qalır. İstifadəçinin son cavabına görə real
+test domeni/məhdud token hələ yoxdur; lokal və sintetik işlərlə davam edirik.
+Real CA/DNS sınağı sübut edilməyib; secret chat/log/git-ə verilməyəcək. Bu hostda Docker yoxdur və WSL
 quraşdırılmayıb; OS-ə səssiz quraşdırma edilmir. Real provider/Linux browser
 sınağı üçün operatorun test mühiti tələb olunur. Sintetik CI real sınaq deyil.
 Müstəqil audit bu implementasiya sessiyasının self-review-u ilə əvəz edilmir.
 
-**Cari ADR 0080 — kod və lokal sınaqlar, CI/merge qapısı açıqdır:** original
+**Tamamlanan ADR 0080 — PR #111, 13/13, merge `862aed7`:** original
 sessiyaya bağlı bir tam staging renewal üçün ayrıca fresh parol, exact-source
 və exclusive-DNS razılığı. Yalnız public scope saxlayan memory job, hər addımda
 current key borrow/clear, bütün locked writer/intent/lease və fixed pinned
@@ -51,6 +61,8 @@ pending timing ehtiyatı götürülmür. 160 action, hər CA read növünə 12 l
 minimum interval və daha uzun provider wait. Xəta pause; unknown order/Accept/
 finalize write replay yoxdur. Owned cleanup təsdiqlənmədən complete deyil.
 Eyni Automation kartı/status/Stop; read-only fake demo real issuer nəticəsi deyil.
+Tam shuffled Linux race və actual Linux transaction/recovery smoke keçib;
+müstəqil audit və canlı CA/DNS sübutu bu development nəticəsinə daxil deyil.
 
 **Tamamlanan ADR 0079 — PR #110, 13/13, merge `13b0ee4`:** bağlanmış sorğular üçün itkisiz saxlanmış səhifələr. 16–32
 qeyd, maksimum dörd səhifə + 32 aktiv yer (cəmi 160); heç nə silinmir. Bütün

@@ -28,6 +28,8 @@
 **/*.pem
 # Exact public-only embedded staging roots; never private/operator PEM files.
 !internal/acmecertificate/staging-roots.pem
+# Separate exact public-only production receipt asset; never operator material.
+!internal/acmecertificate/production-roots.pem
 !web/workbench/rootwell-demo-certificate.pem
 !web/workbench/rootwell-demo-bundle.pem
 !web/workbench/rootwell-verify-demo-root.pem
