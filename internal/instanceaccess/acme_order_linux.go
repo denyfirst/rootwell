@@ -123,10 +123,16 @@ func runStagingOrder(accessPath string, key, id []byte, revision [32]byte, expec
 			return err
 		})
 		if err != nil {
-			return err
+			return saveCAFailureWait(accessPath, key, id, image, expected, permit, err, err)
 		}
 		if !checkpointed {
 			return inventorystore.ErrInvalid
+		}
+		if !info.Wait.NotBefore.IsZero() || info.Wait.Blocked {
+			image, err = inventorystore.ConstrainStagingCAWait(key, id, image, expected, info.Wait)
+			if err != nil {
+				return err
+			}
 		}
 		next, ready, gen, err := inventorystore.UpdateStagingOrder(key, id, image, expected, "", &info, false)
 		if err != nil {

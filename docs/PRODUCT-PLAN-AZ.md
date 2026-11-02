@@ -2,6 +2,14 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-10-29 ADR 0080 — icra/CI mərhələsində:** ayrıca parol və DNS razılığı ilə
+bir hazır-sessiya staging renewal: vaxt → sifariş → DNS/CA təsdiqi → yeni açar/
+sertifikat → yalnız owned DNS təmizliyi. Original sessiya/revision/expiry-dən
+kənar unlock yoxdur, restart dayandırır. Köhnə pair/qeyd saxlanır; uncertain
+write təkrar edilmir, terminal recovery/reset/prune/deploy verilmir. Eyni
+Automation kartında status/Stop və sadə növbəti addım. Production profili, real
+inteqrasiya və müstəqil audit hələ ayrıca növbəti qapılardır.
+
 **2026-10-29 ADR 0079:** bağlanmış sorğuların 16–32 qeydi itkisiz saxlanmış
 səhifəyə keçirilir, aktiv 32-lik siyahıda yer açılır. Maksimum dörd səhifə və
 160 ümumi scope; lineage/provenance/tombstone və tam backup saxlanır. Aktiv və

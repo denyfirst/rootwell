@@ -95,6 +95,11 @@ assets.set("/renewal-timing.js",["text/javascript; charset=utf-8",replaceOnce(as
 let watchScript=replaceOnce(asset("timing-watch.js"),"start.disabled=!!active","start.disabled=true || !!active");
 watchScript=replaceOnce(watchScript,"stop.disabled=!!active","stop.disabled=true || !!active");
 assets.set("/timing-watch.js",["text/javascript; charset=utf-8",watchScript]);
+let renewalJobScript=replaceOnce(asset("renewal-job.js"),"start.disabled=!!active","start.disabled=true || !!active");
+renewalJobScript=replaceOnce(renewalJobScript,"stop.disabled=!!active","stop.disabled=true || !!active");
+assets.set("/renewal-job.js",["text/javascript; charset=utf-8",renewalJobScript]);
+for(const id of ["renewal-job-password","renewal-job-consent","renewal-job-exclusive"])automationHTML=replaceOnce(automationHTML,`id="${id}"`,`id="${id}" disabled`);
+automationHTML=replaceOnce(automationHTML,'<details id="session-renewal-panel">','<details id="session-renewal-panel"><p class="storage-note">DEMO · fake session status only. No job, CA/DNS request or private key. Enable and Stop are disabled.</p>');
 automationHTML=replaceOnce(automationHTML,'<details id="timing-watch-panel">','<details id="timing-watch-panel"><p class="storage-note">DEMO · fake watch and recovery examples only. No background job, CA/DNS connection or credentials. Enable and Stop are disabled.</p>');
 assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
 assets.set("/history-archive.js",["text/javascript; charset=utf-8",replaceOnce(asset("history-archive.js"),"save.disabled=!!active","save.disabled=true || !!active")]);
@@ -114,6 +119,19 @@ const server = http.createServer((request, response) => {
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if(request.method==="POST"&&["/api/acme/renewal-job/status","/api/acme/renewal-job/preview"].includes(request.url)){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>2048){oversized=true;body="";}}});
+    request.on("end",()=>{
+      const fingerprints=[Array(32).fill("AA").join(":"),Array(32).fill("BB").join(":")],isPreview=request.url.endsWith("/preview");
+      const index=fingerprints.findIndex(fingerprint=>body===JSON.stringify({provider:"letsencrypt-staging",fingerprint,expected_generation:40}));
+      if(oversized||(isPreview?index<0:body!==JSON.stringify({provider:"letsencrypt-staging"}))){response.writeHead(400).end("Fixture status refused");return;}
+      const idle={id:"",fingerprint:"",name:"",generation:0,state:"not-running",reason:"not-started",phase:"",saved_fingerprint:"",checked_at:"",next_check:"",expires:"",actions:0,limit:160};
+      const job={id:"cd".repeat(16),fingerprint:fingerprints[0],name:"DEMO · mail.example.com",generation:40,state:"waiting",reason:"renewal-wait",phase:"wait",saved_fingerprint:"",checked_at:instant(0),next_check:instant(0.04),expires:instant(1/12),actions:1,limit:160};
+      const readiness=isPreview?{generation:40,fingerprint:fingerprints[index],name:index?"DEMO · api.example.com":"DEMO · mail.example.com",can_start:index===0,reason:index?"dns-maintenance":"renewal-wait",next_check:index?"":instant(0.04)}:null;
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.renewal-job.v1",provider:"letsencrypt-staging",scope:"session-test-renewal",test_only:true,checked_at:instant(0),job:isPreview?idle:job,readiness}));
+    });return;
+  }
   if(request.method==="POST"&&["/api/acme/timing-watch/status","/api/acme/timing-watch/preview"].includes(request.url)){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>2048){oversized=true;body="";}}});
@@ -156,7 +174,7 @@ const server = http.createServer((request, response) => {
     request.on("end",()=>{
       if(oversized||body!==JSON.stringify({provider:"letsencrypt-staging"})){response.writeHead(400).end("Fixture status refused");return;}
       const fakeRows=[{fingerprint:Array(32).fill("AA").join(":"),name:"DEMO · mail.example.com",not_after:timingExpiry[0],review_at:instant(-1),state:"due"},{fingerprint:Array(32).fill("BB").join(":"),name:"DEMO · api.example.com",not_after:timingExpiry[1],review_at:instant(30),state:"waiting"}];
-      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.automation.status.v1",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:new Date(Date.now()+7200000).toISOString().slice(0,19)+"Z",generation:40,checked_at:instant(0),request:"active",dns:"unknown",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:886,events_reserved:100,archives_free:30,records_free:498,generations_free:999860,bytes_free:100000000},certificates:fakeRows}));
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.automation.status.v2",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:new Date(Date.now()+7200000).toISOString().slice(0,19)+"Z",generation:40,checked_at:instant(0),request:"active",dns:"unknown",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:886,events_reserved:100,archives_free:30,records_free:498,generations_free:999860,bytes_free:100000000},certificates:fakeRows}));
     });return;
   }
   if(request.method==="POST"&&request.url==="/api/dns/cloudflare/status"){
