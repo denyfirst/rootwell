@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-29. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-11-02. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -23,12 +23,22 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
+**ADR 0081 — production mərhələsinin offline əsası, CI/merge açıqdır:** iki sabit
+və dəyişməyən mühit kataloqu, cross-environment account/order/resource rəddi,
+legacy axının yalnız staging seçməsi və ayrıca ISRG X1/X2 pin-ləri ilə production
+receipt yoxlayıcısı. Mövcud staging trust hovuzuna production əlavə edilmir;
+prod route, hesab, custody və UI hələ açılmır. Sonra authenticated ayrı ACME
+namespace-lər, profile-bound grant/writer/backup/restore, fixed connector və
+sadə UI inteqrasiyası tamamlanmalıdır. Real domen/token və operatorun terms
+qərarı tələb edən sınaqlar saxta uğurla əvəz olunmur. Dörd bəndlik iş davam edir.
+
 **2026-10-29 — dörd bəndin hamısı təsdiqlənib:** DNS terminal bərpa/capacity →
 sessiyaya bağlı tam renewal → ayrı production profili və real inteqrasiya →
 quraşdırma/upgrade/restore/UI və müstəqil audit üçün release hazırlığı. İşlər
 kiçik addımdan sonra yeni təsdiq gözləmədən ardıcıl aparılır; hər PR-ın imza,
-tam CI və ayrıca self-review qapısı qalır. Real test domeni/məhdud token üçün
-sual açıqdır; secret chat/log/git-ə verilməyəcək. Bu hostda Docker yoxdur və WSL
+tam CI və ayrıca self-review qapısı qalır. İstifadəçinin son cavabına görə real
+test domeni/məhdud token hələ yoxdur; lokal və sintetik işlərlə davam edirik.
+Real CA/DNS sınağı sübut edilməyib; secret chat/log/git-ə verilməyəcək. Bu hostda Docker yoxdur və WSL
 quraşdırılmayıb; OS-ə səssiz quraşdırma edilmir. Real provider/Linux browser
 sınağı üçün operatorun test mühiti tələb olunur. Sintetik CI real sınaq deyil.
 Müstəqil audit bu implementasiya sessiyasının self-review-u ilə əvəz edilmir.

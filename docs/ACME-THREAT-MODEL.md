@@ -3,6 +3,21 @@
 Date: 2026-10-11. Single operator, existing loopback access gate. Porch is
 excluded. Offline Workbench acquires no CA network capability.
 
+## Fixed production foundations — ADR 0081
+
+The immutable environment catalog has no network/custody authority. Existing
+runtime validators explicitly select staging; production account/order/resource
+URLs cannot enter them. A new offline production receipt checker uses a separate
+two-root pinned pool and every existing bounded key/CSR/name/usage/expiry/path
+constraint. It never joins staging/system trust or accepts caller roots. Only
+the fixed checker may produce a non-test result. Both public checker entries
+refuse private synthetic test roots; positive synthetic proofs remain behind
+the existing unexported checking boundary. Architecture fences keep production
+trust without a runtime consumer until authenticated per-environment custody,
+grant, backup/restore, connector and UI review. No account/key/test completion
+is migrated/promoted by this increment. Live provider tests and independent
+release audit remain separate; public root retrieval is not live issuance.
+
 ## First increment: setup check, not issuance
 
 Automation accepts 1–32 unique ASCII DNS identifiers and a manual DNS-01 or

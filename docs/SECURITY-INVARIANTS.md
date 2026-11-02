@@ -1133,6 +1133,31 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C101 — A production profile cannot promote staging identity or test trust
+
+ADR0081 supplies two immutable fixed-environment descriptions and separate
+offline production receipt trust. Zero/unknown profiles never choose a default
+or endpoint. Account/order/resource identities cannot cross origins, account
+bindings, aliases, credentials or unbounded/normalised paths. Existing runtime
+validators explicitly select staging only. The catalog cannot connect, derive
+keys, mutate state or grant authority.
+
+Production receipt checking uses only embedded pinned ISRG X1/X2 and all exact
+key/CSR/name/usage/expiry/bounded-chain constraints. Staging roots never enter
+that pool; response-provided/changed/duplicate/substituted roots are refused.
+Only successful checking produces non-test evidence; failures have no partial
+result. No host trust or fetching. No production runtime route/consumer may be
+added before separate authenticated environment custody and grant review.
+
+Guards: `TestFixedACMEProfilesSeparateOriginsAccountsAndNamespaces`,
+`TestFixedACMEProfilesUnknownAndMalformedNeverSelectDefault`,
+`TestLegacyOrderValidationCannotSelectProduction`,
+`TestProductionReceiptTrustIsFixedIndependentAndNeverIncludesStaging`,
+`TestProductionReceiptUsesAllBindingConstraintsWithoutRuntimeRootOverride`,
+`TestFixedACMEProfilesCannotBecomeRuntimePromotionOrTrustConfiguration`,
+`FuzzFixedACMEProfileURLs`. These are layered synthetic/offline proofs, not a
+real CA issuance, live DNS interoperability or independent release audit claim.
+
 ## C99 — Closed-request capacity cannot erase lineage or revive historical authority
 
 ADR0079 retains 16–32 closed encrypted records in at most four pages, plus the
