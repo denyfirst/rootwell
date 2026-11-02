@@ -23,6 +23,14 @@ tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
 
+**ADR 0083 — ayrı production hesab açarının lokal hazırlığı, sınaqlar davam edir:**
+staging açarı dəyişmir, yeni key ayrıca namespace/HKDF/record ilə eyni şifrəli
+image-də saxlanır. Bütün reader-lər hər iki scope-u yoxlayır; ortaq generation/
+history/image və staging completion ehtiyatı qorunur. Eyni Automation account
+kartında bağlı Advanced hissəsi, fresh parol və ayrıca təsdiq var. CA bağlantısı,
+terms, qeydiyyat, production issuance/renewal bu addımda açılmır. Linux atomic
+custody/tam recovery/API/UI/fuzz/refusal və final CI qapıları tamamlanmalıdır.
+
 **ADR 0081 — production mərhələsinin offline əsası, CI/merge açıqdır:** iki sabit
 və dəyişməyən mühit kataloqu, cross-environment account/order/resource rəddi,
 legacy axının yalnız staging seçməsi və ayrıca ISRG X1/X2 pin-ləri ilə production

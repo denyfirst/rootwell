@@ -5,6 +5,14 @@ excluded. Offline Workbench acquires no CA network capability.
 
 ## Fixed production foundations — ADR 0081
 
+ADR0083 now permits only a separately encrypted local production account key,
+with fixed local routes and an optional collapsed UI. It does not reach CA
+registration/terms/issuance, the offline production receipt checker or existing
+staging signer/requests. All image readers authenticate both key scopes; shared
+capacity/reserves, Linux writer/revision/generation, fresh password and separate
+consent apply. Full backups carry both identities. Production runtime protocol
+and authenticated order/DNS/wait/receipt scopes remain closed.
+
 The immutable environment catalog has no network/custody authority. Existing
 runtime validators explicitly select staging; production account/order/resource
 URLs cannot enter them. A new offline production receipt checker uses a separate

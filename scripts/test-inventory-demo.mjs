@@ -51,6 +51,10 @@ try {
   assert.equal((await fetch(origin+"/api/acme/renewal-timing/status",{method:"POST",headers:timingHeaders,body:timingBody.replace(':40',':39')})).status,400);
   for(const mode of ["check","interrupt"])assert.equal((await fetch(origin+"/api/acme/renewal-timing/"+mode,{method:"POST",headers:timingHeaders,body:"{}"})).status,405,"demo cannot connect or mutate timing");
   const timingHTML=await (await fetch(origin+"/automation")).text();for(const id of ["renewal-time-password","renewal-time-consent","watch-password","watch-consent"])assert.ok(timingHTML.includes('id="'+id+'" disabled'));
+  for(const id of ["production-account-password","production-account-consent"])assert.ok(timingHTML.includes('id="'+id+'" disabled'));
+  const productionScript=await fetch(origin+"/production-account.js");assert.equal(productionScript.status,200);assert.match(await productionScript.text(),/prepare.disabled=true/);
+  const productionStatus=await fetch(origin+"/api/acme/production-account/status",{method:"POST",headers:watchHeaders,body:JSON.stringify({provider:"letsencrypt-production"})});assert.equal(productionStatus.status,200);const localProduction=await productionStatus.json();assert.equal(localProduction.state,"not-prepared");assert.equal(localProduction.network_used,false);assert.equal(localProduction.account_created,false);assert.equal(localProduction.can_issue,false);
+  assert.equal((await fetch(origin+"/api/acme/production-account/prepare",{method:"POST",headers:watchHeaders,body:"{}"})).status,405,"demo cannot create a production key");
   for(const id of ["renewal-job-password","renewal-job-consent","renewal-job-exclusive"])assert.ok(timingHTML.includes('id="'+id+'" disabled'));
   const dnsScript=await fetch(origin+"/cloudflare-config.js");assert.equal(dnsScript.status,200);assert.match(await dnsScript.text(),/button.disabled=true/);
   const dnsOperationScript=await fetch(origin+"/dns-operation.js");assert.equal(dnsOperationScript.status,200);assert.match(await dnsOperationScript.text(),/button.disabled=true/);
