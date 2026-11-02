@@ -51,16 +51,20 @@ secretEnvironment.services.maintenance.environment = { RECOVERY_CODE: 'test-only
 assert.throws(() => checkContainerConfig(secretEnvironment));
 
 // Fail closed on packaging drift: broad PEM inclusions must not replace the
-// single reviewed public staging-root exception. The real Docker CI build
+// reviewed public receipt-root exceptions. The real Docker CI build
 // exercises Docker's matcher and go:embed, not a home-grown glob emulator.
 const dockerIgnore = (await readFile(new URL('../.dockerignore', import.meta.url), 'utf8'))
   .split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
 const rootAsset = '!internal/acmecertificate/staging-roots.pem';
+const productionRootAsset = '!internal/acmecertificate/production-roots.pem';
 assert.equal(dockerIgnore[0], '**', 'Build context must deny unknown inputs by default.');
 assert.ok(dockerIgnore.lastIndexOf(rootAsset) > dockerIgnore.lastIndexOf('**/*.pem')
   && dockerIgnore.includes('**/*.pem'), 'Public staging trust needs its exact final build-context exception.');
+assert.ok(dockerIgnore.lastIndexOf(productionRootAsset) > dockerIgnore.lastIndexOf('**/*.pem'),
+  'Public production trust needs its separate exact final build-context exception.');
 const expectedPublicPEM = new Set([
   rootAsset,
+  productionRootAsset,
   '!web/workbench/rootwell-demo-certificate.pem',
   '!web/workbench/rootwell-demo-bundle.pem',
   '!web/workbench/rootwell-verify-demo-root.pem',
