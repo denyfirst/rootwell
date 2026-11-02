@@ -12,7 +12,7 @@
   const valid=data=>{
     if(!data||typeof data!=="object"||Array.isArray(data)||Object.keys(data).sort().join(",")!==fields||data.schema_version!=="rootwell.acme.account-key.v1"||data.provider!==provider||!Number.isSafeInteger(data.generation)||data.generation<1||data.generation>1000000||data.network_used!==false||data.account_created!==false||data.terms_accepted!==false||data.can_issue!==false||data.registration_state!=="not-registered")throw new Error();
     if(data.state==="not-prepared"&&data.saved===false&&data.fingerprint===""&&data.prepared_at==="")return data;
-    if(data.state!=="key-prepared"||data.saved!==true||data.generation<2||typeof data.fingerprint!=="string"||!/^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/.test(data.fingerprint)||typeof data.prepared_at!=="string"||!/^(?:20\d\d|2100)-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(data.prepared_at)||!Number.isFinite(Date.parse(data.prepared_at))||new Date(data.prepared_at).toISOString()!==data.prepared_at.replace("Z",".000Z"))throw new Error();
+    if(data.state!=="key-prepared"||data.saved!==true||data.generation<2||typeof data.fingerprint!=="string"||!/^(?:[A-F0-9]{2}:){31}[A-F0-9]{2}$/.test(data.fingerprint)||typeof data.prepared_at!=="string"||!/^(?:20[2-9]\d|2100)-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(data.prepared_at)||!Number.isFinite(Date.parse(data.prepared_at))||new Date(data.prepared_at).toISOString()!==data.prepared_at.replace("Z",".000Z"))throw new Error();
     return data;
   };
   const run=async writing=>{

@@ -29,7 +29,7 @@ function fixture(){
   f.approve();await f.write();assert.equal(f.requests.length,2);assert.match(f.el('message').textContent,/saved encrypted.*Not registered.*complete backup/);assert.equal(f.el('form').hidden,true);
   f.approve();await f.write();assert.equal(f.requests.length,2,'no overwrite');
 }
-for(const bad of [null,{...saved,provider:'letsencrypt-staging'},{...saved,registration_state:'registered'},{...saved,network_used:true},{...saved,account_created:true},{...saved,terms_accepted:true},{...saved,can_issue:true},{...saved,generation:7},{...saved,private_key:'secret-sentinel'},{...saved,prepared_at:'2026-02-30T00:00:00Z'}]){
+for(const bad of [null,{...saved,provider:'letsencrypt-staging'},{...saved,registration_state:'registered'},{...saved,network_used:true},{...saved,account_created:true},{...saved,terms_accepted:true},{...saved,can_issue:true},{...saved,generation:7},{...saved,private_key:'secret-sentinel'},{...saved,prepared_at:'2026-02-30T00:00:00Z'},{...saved,prepared_at:'2019-01-01T00:00:00Z'}]){
   const f=fixture();await f.read();f.approve();f.setReply(()=>reply(bad,201));await f.write();assert.equal(f.el('password').value,'');assert.equal(f.el('consent').checked,false);assert.doesNotMatch(f.el('message').textContent,/saved encrypted|secret-sentinel/);f.approve();await f.write();assert.equal(f.requests.length,2,'failed write needs fresh status');
 }
 for(const make of [()=>new Response('secret-sentinel',{status:401}),()=>reply(saved,201,{'cache-control':'public'}),()=>new Response('x'.repeat(4097),{headers:{'content-type':'application/json','cache-control':'no-store'}}),()=>{throw Error('secret-sentinel');}]){
