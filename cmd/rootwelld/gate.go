@@ -184,7 +184,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/acme/directory":
 		g.acmeDirectoryEndpoint(w, r, s, signedIn)
 		return
-	case "/api/acme/account/status", "/api/acme/account/prepare":
+	case "/api/acme/account/status", "/api/acme/account/prepare", "/api/acme/production-account/status", "/api/acme/production-account/prepare":
 		g.acmeAccountEndpoint(w, r, s, signedIn)
 		return
 	case "/api/dns/cloudflare/status", "/api/dns/cloudflare/save", "/api/dns/cloudflare/remove":
@@ -229,7 +229,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/production-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -261,6 +261,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme-setup.js", "text/javascript; charset=utf-8")
 		case "/acme-directory.js":
 			g.authAsset(w, r, "auth/acme-directory.js", "text/javascript; charset=utf-8")
+		case "/production-account.js":
+			g.authAsset(w, r, "auth/production-account.js", "text/javascript; charset=utf-8")
 		case "/acme-account.js":
 			g.authAsset(w, r, "auth/acme-account.js", "text/javascript; charset=utf-8")
 		case "/cloudflare-config.js":

@@ -1133,6 +1133,29 @@ Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
 `scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
 and `scripts/test-inventory-demo.mjs`.
 
+## C102 — A local production account key cannot reuse staging identity or grant CA authority
+
+ADR0083 adds one separately purpose-bound encrypted production account record to
+the same complete image. Every reader validates it, including staging/public
+reads; an unselected corrupt record blocks the image. Exact generation, shared
+history/image limits and pending staging completion reserves remain intact.
+Existing keys cannot be replaced; production key status cannot invent account
+registration, terms acceptance or certificate issuance. Fixed local routes use
+fresh authentication, separate consent, existing budgets and Linux atomic
+custody. UI secrets/consent and stale results are cleared; demo cannot prepare.
+
+Guards: `TestProductionAccountSeparateEncryptedKeyAndSharedGeneration`,
+`TestProductionAccountCorruptionBlocksUnselectedScopeAndNoPartialEvidence`,
+`TestProductionAccountPreservesPendingStagingCompletionReserve`,
+`TestProductionAccountParserCannotSelectStagingOrNetworkAuthority`,
+`TestProductionAccountGateOwnerOriginSetupAndNativeRefusal`,
+`TestProductionAccountUnsupportedPlatformCannotReadWriteOrCallPermit`,
+`TestLinuxProductionAccountSeparateCustodyRefusalsAndFullRecovery`,
+`TestLinuxProductionAccountAPIReauthNoNetworkNoPromotionOrReplacement`,
+`FuzzProductionAccountPayload`, `scripts/test-production-account.mjs` and
+`scripts/test-inventory-demo.mjs`. This is local-key preparation, not live CA
+interoperability, production issuance or independent audit evidence.
+
 ## C101 — A production profile cannot promote staging identity or test trust
 
 ADR0081 supplies two immutable fixed-environment descriptions and separate

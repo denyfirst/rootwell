@@ -76,7 +76,7 @@ const assets = new Map([
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
 let automationHTML=replaceOnce(asset("acme.html"),"<main>",'<main><aside class="storage-note" aria-label="Demo mode"><strong>DEMO — fake renewal result, no CA connection or private key</strong><p>Read-only visual preview. Use “Check saved DNS request” to see the example result. All dates, saved/key statuses and renewal identities below are simulated, not a CA receipt or actual saved pairs. Password and consent are disabled; never enter real secrets here. Real test issuance requires your Linux or Linux Docker Rootwell.</p></aside>');
-for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","dns-operation-reviewed","renewal-time-password","renewal-time-consent","watch-password","watch-consent"]){
+for(const id of ["dns-config-zone","dns-config-zone-id","dns-config-token","dns-config-password","dns-config-consent","dns-config-action","dns-operation-password","dns-operation-consent","dns-operation-exclusive","dns-operation-reviewed","renewal-time-password","renewal-time-consent","watch-password","watch-consent","production-account-password","production-account-consent"]){
   automationHTML=replaceOnce(automationHTML,`id="${id}"`, `id="${id}" disabled`);
 }
 let dnsConfigScript=replaceOnce(asset("cloudflare-config.js"),"button.disabled=!!active", "button.disabled=true || !!active");
@@ -89,6 +89,7 @@ let automationScript=replaceOnce(asset("acme-order.js"),"refresh.disabled=!!acti
 automationScript=replaceOnce(automationScript,"submit.disabled=!!active || document.hidden", "submit.disabled=true || !!active || document.hidden");
 assets.set("/automation",["text/html; charset=utf-8",automationHTML]);
 assets.set("/acme-order.js",["text/javascript; charset=utf-8",automationScript]);
+assets.set("/production-account.js",["text/javascript; charset=utf-8",replaceOnce(asset("production-account.js"),"prepare.disabled=!!active","prepare.disabled=true || !!active")]);
 for(const name of ["acme-setup.js","acme-directory.js","acme-account.js","acme-registration.js"])assets.set("/"+name,["text/javascript; charset=utf-8",asset(name)]);
 assets.set("/automation-status.js",["text/javascript; charset=utf-8",asset("automation-status.js")]);
 assets.set("/renewal-timing.js",["text/javascript; charset=utf-8",replaceOnce(asset("renewal-timing.js"),"submit.disabled=!!active","submit.disabled=true || !!active")]);
@@ -119,6 +120,13 @@ const server = http.createServer((request, response) => {
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
+  if(request.method==="POST"&&request.url==="/api/acme/production-account/status"){
+    if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
+    let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>64){oversized=true;body="";}}});
+    request.on("end",()=>{if(oversized||body!==JSON.stringify({provider:"letsencrypt-production"})){response.writeHead(400).end("Fixture status refused");return;}
+      response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.acme.account-key.v1",provider:"letsencrypt-production",generation:40,state:"not-prepared",fingerprint:"",prepared_at:"",saved:false,network_used:false,account_created:false,terms_accepted:false,can_issue:false,registration_state:"not-registered"}));
+    });return;
+  }
   if(request.method==="POST"&&["/api/acme/renewal-job/status","/api/acme/renewal-job/preview"].includes(request.url)){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}
     let body="",oversized=false;request.on("data",chunk=>{if(!oversized){body+=chunk.toString();if(body.length>2048){oversized=true;body="";}}});
