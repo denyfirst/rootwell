@@ -76,3 +76,9 @@ token is available. Continue local/synthetic development; live CA/DNS account,
 terms, issuance and cleanup evidence is pending. These tests are not a live
 interoperability claim. Final-head CI and maintainer review remain merge gates;
 independent release audit is separate.
+
+Integration checkpoint (2026-11-02): PR111's original-session staging renewal
+passed all 13 final-head checks, including full shuffled Linux race, and merged
+as `862aed7`. This branch includes that protected main by signed merge. The
+offline production foundation must pass its own final-head checks after that
+merge; no older/partial CI result is substituted.

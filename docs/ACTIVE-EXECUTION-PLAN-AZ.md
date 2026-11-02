@@ -43,7 +43,7 @@ quraşdırılmayıb; OS-ə səssiz quraşdırma edilmir. Real provider/Linux bro
 sınağı üçün operatorun test mühiti tələb olunur. Sintetik CI real sınaq deyil.
 Müstəqil audit bu implementasiya sessiyasının self-review-u ilə əvəz edilmir.
 
-**Cari ADR 0080 — kod və lokal sınaqlar, CI/merge qapısı açıqdır:** original
+**Tamamlanan ADR 0080 — PR #111, 13/13, merge `862aed7`:** original
 sessiyaya bağlı bir tam staging renewal üçün ayrıca fresh parol, exact-source
 və exclusive-DNS razılığı. Yalnız public scope saxlayan memory job, hər addımda
 current key borrow/clear, bütün locked writer/intent/lease və fixed pinned
@@ -52,6 +52,8 @@ pending timing ehtiyatı götürülmür. 160 action, hər CA read növünə 12 l
 minimum interval və daha uzun provider wait. Xəta pause; unknown order/Accept/
 finalize write replay yoxdur. Owned cleanup təsdiqlənmədən complete deyil.
 Eyni Automation kartı/status/Stop; read-only fake demo real issuer nəticəsi deyil.
+Tam shuffled Linux race və actual Linux transaction/recovery smoke keçib;
+müstəqil audit və canlı CA/DNS sübutu bu development nəticəsinə daxil deyil.
 
 **Tamamlanan ADR 0079 — PR #110, 13/13, merge `13b0ee4`:** bağlanmış sorğular üçün itkisiz saxlanmış səhifələr. 16–32
 qeyd, maksimum dörd səhifə + 32 aktiv yer (cəmi 160); heç nə silinmir. Bütün
