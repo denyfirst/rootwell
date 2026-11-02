@@ -153,6 +153,16 @@ longer saved holds; its five-minute CA floor cannot become an immediate call.
 Affected native and Linux cross-vet/staticcheck/gosec passed before the signed
 follow-up. Final-head Linux CI/full shuffled race still remains the merge gate.
 
+CI follow-up (2026-11-02): run `40861959056` reached the per-package 20-minute
+race-suite alarm in `internal/instanceaccess`. The active test had run for
+13 seconds and its stack was executing production-iteration PBKDF2 during
+password recovery; the package had accumulated 1,200 seconds across the full
+suite. Other packages and the focused Linux renewal smoke had passed. Increase
+the complete shuffled race suite's per-package bound to 40 minutes and the
+enclosing build job to 60 minutes. No test is removed, no KDF iteration or
+runtime deadline is changed, and all final-head checks remain mandatory. This
+is a CI capacity adjustment, not evidence that the final race run passed.
+
 Wait-boundary sabotage (2026-10-29): allowing a later success to clear a prior
 blocked hint failed `TestCAOperationWaitBoundedStickyAndSecretFree` with
 `invalid hint unblocked or shortened`; inverting exact-generation admission

@@ -75,7 +75,7 @@ jobs:
   build:
     name: Build and test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -280,8 +280,10 @@ jobs:
 
       - name: Test with race detector
         # Real password/KDF and recovery tests retain production iterations.
-        # Bound the growing package suite, not each runtime operation's policy.
-        run: go test -race -shuffle=on -timeout=20m -coverprofile=coverage.out ./...
+        # The expanded Linux custody package exceeded 20m under instrumentation
+        # while executing PBKDF2, not waiting on a lock. Keep the entire suite
+        # and its KDF parameters; this bound is per package, not runtime policy.
+        run: go test -race -shuffle=on -timeout=40m -coverprofile=coverage.out ./...
 
       - name: Build
         run: go build -trimpath ./...
