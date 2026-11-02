@@ -68,7 +68,8 @@ build/actionlint and reachable-vulnerability checks passed. The URL parser ran
 bundle and failed the refusal test; inverting receipt error handling refused
 the valid synthetic path and failed the success test. Both compiling sabotages
 were restored and the affected suites passed again. The public root asset has
-an explicit narrow ignore exception so a clean checkout includes both pins.
+explicit narrow Git and Docker ignore exceptions so clean checkouts and
+container build contexts include both pins. No wildcard PEM exception is added.
 
 Operator update (2026-11-02): no dedicated test domain or restricted Cloudflare
 token is available. Continue local/synthetic development; live CA/DNS account,
