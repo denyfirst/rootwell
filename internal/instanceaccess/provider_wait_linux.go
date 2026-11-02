@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/inventorystore"
+	"github.com/denyfirst/rootwell/internal/providerretry"
 )
 
 // Called only while holding the private writer lock. Cache authenticated public
@@ -48,6 +49,39 @@ func stagingProviderPermit(key, id, image []byte, permit func() bool) (func() bo
 		return nil, ErrStaleUpgrade
 	}
 	return allowed, nil
+}
+
+// Called under the same private writer after a failed fixed-provider callback.
+// No pending order/validation/finalize verdict is changed or made replayable.
+func saveCAFailureWait(path string, key, id, image []byte, expected uint64, permit func() bool, cause, transportError error) error {
+	var report interface{ ProviderWait() providerretry.Hint }
+	if !errors.As(transportError, &report) || report == nil {
+		return cause
+	}
+	if permit == nil || !permit() {
+		return ErrStaleUpgrade
+	}
+	hint := report.ProviderWait()
+	if hint.NotBefore.IsZero() && !hint.Blocked {
+		return cause
+	}
+	next, generation, err := inventorystore.SaveStagingCAFailureWait(key, id, image, expected, hint)
+	if err != nil {
+		return ErrInventoryUncertain
+	}
+	if !permit() {
+		return ErrStaleUpgrade
+	}
+	if generation == expected {
+		return cause
+	}
+	if err := replaceInventory(filepath.Join(filepath.Dir(path), inventoryName), next); err != nil {
+		return ErrInventoryUncertain
+	}
+	if !permit() {
+		return ErrInventoryUncertain
+	}
+	return cause
 }
 
 // Covers directory/terms reads on enrolled stores under the same lock/barrier

@@ -55,6 +55,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/automation_status_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/renewal_timing_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/timing_watch_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/renewal_job_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/provider_wait.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_registration_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_order_api.go" && importPath == "net/http") ||
@@ -70,7 +71,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore && !allowedARIRead {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
-				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/timing_watch.go" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_timing_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/dns_operation_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
+				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_job_operations.go" && filepath.ToSlash(relative) != "cmd/rootwelld/timing_watch.go" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_timing_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/dns_operation_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
 					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" && filepath.ToSlash(relative) != "internal/acmestaging/certificate.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
 				}
@@ -114,7 +115,7 @@ func TestCloudflareProtocolHasOnlyReviewedFreshAuthConsumer(t *testing.T) {
 			}
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
-			if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == "CloudflareTXT" && rel != "cmd/rootwelld/dns_operation_api.go" {
+			if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == "CloudflareTXT" && rel != "cmd/rootwelld/dns_operation_api.go" && rel != "cmd/rootwelld/renewal_job_operations.go" {
 				t.Error("DNS connector outside fresh-auth transaction", rel)
 			}
 			if id, ok := node.(*ast.Ident); ok {
@@ -221,6 +222,7 @@ func TestDNSPlanCustodyHasOnlyReviewedLockedConsumers(t *testing.T) {
 	allowed["internal/instanceaccess/dns_operation_linux.go"] = true
 	allowed["internal/instanceaccess/dns_operation_other.go"] = true
 	allowed["cmd/rootwelld/dns_operation_api.go"] = true
+	allowed["cmd/rootwelld/renewal_job_operations.go"] = true // separate scoped grant; transaction-only fence below
 	exports := map[string]bool{"ReadStagingDNSPlan": true, "PrepareStagingDNSPlan": true, "BeginStagingDNSAttempt": true, "DeferStagingDNSAttempt": true}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -269,7 +271,7 @@ func TestDNSPlanCustodyHasOnlyReviewedLockedConsumers(t *testing.T) {
 				if (id.Name == "BeginStagingDNSOperation" || id.Name == "ExecuteStagingDNSAttempt") && relative != "internal/inventorystore/dns_operation.go" && relative != "internal/instanceaccess/dns_operation_linux.go" {
 					t.Error("DNS route bypasses locked transaction", relative)
 				}
-				if (id.Name == "RunStagingDNS" || id.Name == "RunOperatorDNSMaintenance") && relative != "internal/instanceaccess/dns_operation_linux.go" && relative != "internal/instanceaccess/dns_operation_other.go" && relative != "cmd/rootwelld/dns_operation_api.go" {
+				if (id.Name == "RunStagingDNS" || id.Name == "RunOperatorDNSMaintenance") && relative != "internal/instanceaccess/dns_operation_linux.go" && relative != "internal/instanceaccess/dns_operation_other.go" && relative != "cmd/rootwelld/dns_operation_api.go" && !(relative == "cmd/rootwelld/renewal_job_operations.go" && id.Name == "RunStagingDNS") {
 					t.Error("unreviewed DNS transaction consumer", relative)
 				}
 				if relative == "cmd/rootwelld/dns_operation_api.go" && (id.Name == "DNSAttempt" || id.Name == "PrepareStagingDNSPlan" || id.Name == "BeginStagingDNSAttempt" || id.Name == "DeferStagingDNSAttempt") {
@@ -322,7 +324,7 @@ func TestCertificateConnectorFixedStagingBoundary(t *testing.T) {
 				t.Errorf("certificate connector wired outside reviewed boundary: %s", relative)
 			}
 			if selector, ok := n.(*ast.SelectorExpr); ok && selector.Sel.Name == "Certificate" {
-				if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Name == "acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" {
+				if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Name == "acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_job_operations.go" {
 					t.Errorf("certificate transport outside fresh-auth route: %s", relative)
 				}
 			}
@@ -372,7 +374,7 @@ func TestIssuanceExecutionReviewedBoundaries(t *testing.T) {
 			}
 			ast.Inspect(file, func(n ast.Node) bool {
 				id, ok := n.(*ast.Ident)
-				if ok && names[id.Name] && !allowed[relative] {
+				if ok && names[id.Name] && !allowed[relative] && !(relative == "cmd/rootwelld/renewal_job_operations.go" && id.Name == "RunStagingCertificate") {
 					t.Errorf("intent execution wired before pair/receipt/UI review: %s", relative)
 				}
 				if ok && names[id.Name] && relative == "cmd/rootwelld/acme_order_api.go" && id.Name != "RunStagingCertificate" {
@@ -455,7 +457,7 @@ func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T)
 		rel = filepath.ToSlash(rel)
 		ast.Inspect(file, func(node ast.Node) bool {
 			if ident, ok := node.(*ast.Ident); ok {
-				if (ident.Name == "CloseStagingRequest" || ident.Name == "ReadNewStagingRequest") && !allowedClose[rel] {
+				if (ident.Name == "CloseStagingRequest" || ident.Name == "ReadNewStagingRequest") && !allowedClose[rel] && !(rel == "cmd/rootwelld/renewal_job_operations.go" && ident.Name == "CloseStagingRequest") {
 					t.Errorf("unreviewed closed scope consumer: %s", rel)
 				}
 				if (ident.Name == "closedScope" || ident.Name == "openClosedRequest" || ident.Name == "closeStagingRequestAt") && rel != "internal/inventorystore/closed_requests.go" && !(ident.Name == "openClosedRequest" && rel == "internal/inventorystore/renewal.go") {
@@ -484,9 +486,9 @@ func TestManualRenewalConsumersStayInsideReviewedCustodyAndGate(t *testing.T) {
 		"BeginStagingRenewal":      {"internal/inventorystore/renewal.go": true, "internal/instanceaccess/acme_order_linux.go": true},
 		"ReadStagingRenewalSource": {"internal/inventorystore/renewal.go": true, "internal/instanceaccess/acme_renewal_linux.go": true, "internal/instanceaccess/acme_renewal_other.go": true, "cmd/rootwelld/acme_renewal_navigation.go": true, "cmd/rootwelld/acme_order_api.go": true},
 		"ReadStagingRenewalResult": {"internal/inventorystore/renewal_result.go": true, "internal/instanceaccess/acme_renewal_linux.go": true, "internal/instanceaccess/acme_renewal_other.go": true, "cmd/rootwelld/acme_order_api.go": true},
-		"RunStagingRenewalOrder":   {"internal/instanceaccess/acme_order_linux.go": true, "internal/instanceaccess/acme_order_other.go": true, "cmd/rootwelld/acme_order_api.go": true},
+		"RunStagingRenewalOrder":   {"internal/instanceaccess/acme_order_linux.go": true, "internal/instanceaccess/acme_order_other.go": true, "cmd/rootwelld/acme_order_api.go": true, "cmd/rootwelld/renewal_job_operations.go": true},
 		"runStagingOrder":          {"internal/instanceaccess/acme_order_linux.go": true},
-		"renewalSource":            {"internal/inventorystore/renewal.go": true},
+		"renewalSource":            {"internal/inventorystore/renewal.go": true, "internal/inventorystore/renewal_cycle.go": true},
 		"completedRenewalSources":  {"internal/inventorystore/renewal.go": true, "internal/inventorystore/automation_status.go": true, "internal/inventorystore/renewal_timing.go": true, "internal/inventorystore/renewal_timing_operation.go": true},
 		"checkRenewalBinding":      {"internal/inventorystore/renewal.go": true, "internal/inventorystore/closed_requests.go": true},
 		"renewalKeyFingerprint":    {"internal/inventorystore/renewal.go": true, "internal/inventorystore/closed_requests.go": true},

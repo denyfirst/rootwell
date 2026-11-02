@@ -23,7 +23,18 @@ func DNSValidation(ctx context.Context, permit func() bool, signer crypto.Signer
 	return dnsValidation(ctx, permit, liveDependencies(), signer, account, saved, names, refresh)
 }
 
-func dnsValidation(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account string, saved acmeorder.Instructions, names []string, refresh bool) (acmeorder.Validation, error) {
+func dnsValidation(parent context.Context, permit func() bool, deps dependencies, signer crypto.Signer, account string, saved acmeorder.Instructions, names []string, refresh bool) (observation acmeorder.Validation, operationErr error) {
+	var guard *orderTransport
+	defer func() {
+		if guard != nil {
+			if operationErr != nil {
+				observation = acmeorder.Validation{}
+				operationErr = operationWaitFailure(guard.wait)
+			} else {
+				observation.Wait = guard.wait
+			}
+		}
+	}()
 	bad := func() (acmeorder.Validation, error) { return acmeorder.Validation{}, errRefused }
 	if !validAccountSigner(signer) || !acmeorder.ValidInstructions(saved, account, names) || saved.Expires <= time.Now().UTC().Format("2006-01-02T15:04:05Z") {
 		return bad()
@@ -33,7 +44,7 @@ func dnsValidation(parent context.Context, permit func() bool, deps dependencies
 	allowed := func() bool { return ctx.Err() == nil && permit != nil && permit() }
 	transport := pinnedTransport(ctx, allowed, deps)
 	defer transport.CloseIdleConnections()
-	guard := &orderTransport{base: transport, allowed: allowed, account: account, order: saved.URL, names: slices.Clone(names), used: map[string]bool{}, validation: true}
+	guard = &orderTransport{base: transport, allowed: allowed, account: account, order: saved.URL, names: slices.Clone(names), used: map[string]bool{}, validation: true}
 	client := &acme.Client{Key: signer, KID: acme.KeyID(account), DirectoryURL: acmeplan.Directory, UserAgent: "Rootwell-staging-dns-validation",
 		HTTPClient: &http.Client{Transport: guard, CheckRedirect: func(*http.Request, []*http.Request) error { return errRefused }}, RetryBackoff: func(int, *http.Request, *http.Response) time.Duration { return 0 }}
 	directory, err := client.Discover(ctx)

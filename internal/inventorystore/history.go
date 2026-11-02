@@ -104,6 +104,7 @@ func validEvent(event Event) bool {
 	}
 	switch event.Action {
 	case "acme-timing-read-started", "acme-timing-observed", "acme-timing-wait-saved", "acme-timing-interrupted":
+	case "acme-provider-wait-saved":
 	case "acme-dns-plan-prepared", "acme-dns-attempt-started", "acme-dns-wait-saved", "acme-dns-result-saved":
 	case "acme-dns-recovery-started", "acme-dns-recovery-wait", "acme-dns-recovery-result":
 	case "acme-dns-maintenance-started", "acme-dns-maintenance-wait", "acme-dns-maintenance-result":

@@ -65,6 +65,13 @@ func (g *gate) automationStatusEndpoint(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(automationStatusOutput{Schema: "rootwell.automation.status.v1", Provider: acmeplan.Provider,
-		UnlockExpires: s.expires.UTC().Format(time.RFC3339), AutomationStatus: status})
+	cookie, err := r.Cookie(cookieName)
+	if err != nil {
+		http.Error(w, "session unavailable", http.StatusUnauthorized)
+		return
+	}
+	job := g.renewalSnapshot(watchOwner(cookie.Value))
+	_ = json.NewEncoder(w).Encode(automationStatusOutput{Schema: "rootwell.automation.status.v2", Provider: acmeplan.Provider,
+		AutomaticRenewal: job.State == "waiting" || job.State == "running",
+		UnlockExpires:    s.expires.UTC().Format(time.RFC3339), AutomationStatus: status})
 }

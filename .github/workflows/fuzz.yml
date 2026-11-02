@@ -102,6 +102,8 @@ jobs:
             package: ./internal/inventorystore
           - target: FuzzTimingWatchInput
             package: ./cmd/rootwelld
+          - target: FuzzRenewalJobInput
+            package: ./cmd/rootwelld
           - target: FuzzHistoryArchiveInput
             package: ./cmd/rootwelld
           - target: FuzzRenewalTimingRequest
