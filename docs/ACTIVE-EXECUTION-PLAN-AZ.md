@@ -1,6 +1,6 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-10-29. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-11-02. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
@@ -22,6 +22,15 @@ Manual DNS hazırlığı PR #85-ə daxil deyildi; ayrıca ADR 0054 increment-i i
 tamamlanır. Porch repository-sinə dəyişiklik yoxdur.
 
 ## Məhsul prinsipi
+
+**ADR 0082 — release hazırlığı, final CI sübutu açıqdır:** iki ayrı source/cache
+ilə pinned Linux CLI/daemon/WASM build müqayisəsi və altered/missing output
+sabotage. Protected-base fixture ilə köhnə sintetik volume/backup yaradılır,
+namizəd açır/xidmət edir/bərpa edir. Yalnız həmin iki commit uyğunluğu sübut
+oluna bilər. Sadə upgrade/rollback/audit təhvil təlimatı var; publication, real
+operator upgrade və müstəqil audit iddiası yoxdur. Production custody/UI və
+real CA/DNS sınağı ayrıca açıq qalır. İstifadəçinin cavabı: domen/token hazır
+deyil, lokal və sintetik işlərlə davam edirik.
 
 **2026-10-29 — dörd bəndin hamısı təsdiqlənib:** DNS terminal bərpa/capacity →
 sessiyaya bağlı tam renewal → ayrı production profili və real inteqrasiya →

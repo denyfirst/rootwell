@@ -8,14 +8,19 @@ hostun `127.0.0.1:4180` ünvanına bağlanır. `network_mode: host` bu loopback
 azaldır. Rootwell-i internetə çıxarmayın; ayrıca TLS/reverse-proxy sərhədi
 review edilməyib.
 
-ACME provider bağlantısı yalnız ayrıca istifadəçi təsdiqi ilə staging directory
-GET-dir. Image normal public CA trust bundle-ni pinned build base-dən alır;
+ACME ayrıca icazələrlə staging hesabı, DNS-01 sorğusu, yoxlanmış certificate
+və sessiyaya bağlı yeniləmə axınını dəstəkləyir. Directory check bu digər
+əməliyyatların səlahiyyətini vermir. Hazır giriş bitəndə/logout/kilid/restart-da
+fon işi dayanır; parol diskdə saxlanmır. Cloudflare helper ayrıca şifrəli token
+və exact-scope icazəsi tələb edir. Real CA/DNS sınağı və production custody/UI
+hələ açıq mərhələlərdir. Image normal public CA trust bundle-ni pinned build base-dən alır;
 staging/test issuance kökləri sistemə trusted edilmir. Serving və şəbəkəsiz CI
 trust-drill eyni trust-base istifadə edir. Root yenilənməsi reviewed base-image
 update/rebuild ilə olur; runtime root downloader yoxdur. Maintenance yenə
 tam şəbəkəsizdir. ADR 0053 ayrıca razılıq və fresh parolla staging account
 qeydiyyatına imkan verir; directory check özü bu səlahiyyəti vermir. Bu issuance
-və ya production hazır statusu deyil.
+və ya production hazır statusu deyil. Upgrade və müstəqil audit üçün
+[buraxılış məşqi](RELEASE-REHEARSAL-AZ.md) təlimatını izləyin.
 
 ## İlk qurulum
 

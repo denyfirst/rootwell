@@ -6,6 +6,11 @@ if [[ -z "${RUNNER_TEMP:-}" || ! -d "$RUNNER_TEMP" ]]; then
   echo "RUNNER_TEMP is required for an isolated disposable drill" >&2
   exit 1
 fi
+if [[ ! "${ROOTWELL_UPGRADE_BASE:-}" =~ ^[0-9a-f]{40}$ ||
+      "$ROOTWELL_UPGRADE_BASE" == 0000000000000000000000000000000000000000 ]]; then
+  echo "An exact previous protected-base commit is required for the upgrade drill" >&2
+  exit 1
+fi
 docker compose version >/dev/null
 drill_root="$(mktemp -d "${RUNNER_TEMP}/rootwell-volume-XXXXXXXX")"
 if [[ "$drill_root" != "${RUNNER_TEMP}/rootwell-volume-"* ]]; then
@@ -26,6 +31,17 @@ chmod 0700 "$drill_root" "$drill_root/data" "$drill_root/backup" "$drill_root/fr
 export ROOTWELL_UID="$(id -u)" ROOTWELL_GID="$(id -g)"
 export ROOTWELL_DATA_DIR="$drill_root/data" ROOTWELL_BACKUP_DIR="$drill_root/backup"
 
+# Adjacent-version upgrade: seed with the actual previous protected base's
+# fixture binary, then reopen/serve/restore with the candidate. No instance or
+# external provider is contacted. The platform event supplies only an exact SHA.
+git fetch -q --depth 1 origin "$ROOTWELL_UPGRADE_BASE"
+if [[ "$(git rev-parse FETCH_HEAD)" != "$ROOTWELL_UPGRADE_BASE" ]]; then
+  echo "Upgrade baseline revision did not match" >&2
+  exit 1
+fi
+mkdir "$drill_root/baseline-source"
+git archive "$ROOTWELL_UPGRADE_BASE" | tar -xf - -C "$drill_root/baseline-source"
+docker build --target volume-drill -t rootwell-volume-baseline:ci "$drill_root/baseline-source"
 docker build --target volume-drill -t rootwell-volume-drill:ci .
 docker build -t rootwell:local .
 docker build --target ca-trust-drill -t rootwell-ca-trust-drill:ci .
@@ -79,6 +95,7 @@ maintenance_probe_id=''
 
 volume_test() {
   local phase="$1"
+  local fixture_image="${2:-rootwell-volume-drill:ci}"
   docker run --rm --network none --user "${ROOTWELL_UID}:${ROOTWELL_GID}" \
     --read-only --cap-drop ALL --security-opt no-new-privileges \
     --mount "type=bind,src=${drill_root}/data,dst=/data" \
@@ -86,10 +103,10 @@ volume_test() {
     --mount "type=bind,src=${drill_root}/fresh,dst=/fresh" \
     --mount "type=bind,src=${drill_root}/recovery,dst=/recovery" \
     --env "ROOTWELL_VOLUME_DRILL_PHASE=${phase}" \
-    rootwell-volume-drill:ci -test.run '^TestContainerVolumeDrill$' -test.v
+    "$fixture_image" -test.run '^TestContainerVolumeDrill$' -test.v
 }
 
-volume_test seed
+volume_test seed rootwell-volume-baseline:ci
 volume_test reopen
 
 docker compose -f compose.yaml -p rootwell-volume-ci up -d --no-build rootwell
@@ -119,4 +136,4 @@ docker compose -f compose.yaml -p rootwell-volume-ci up -d --no-build --force-re
 curl --ipv4 --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 \
   http://localhost:4180/login >/dev/null
 docker compose -f compose.yaml -p rootwell-volume-ci stop rootwell
-echo "Disposable container volume restart and fresh restore drill passed."
+echo "Disposable container baseline ${ROOTWELL_UPGRADE_BASE} upgrade, restart and fresh restore drill passed."
