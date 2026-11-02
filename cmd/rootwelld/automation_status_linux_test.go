@@ -19,7 +19,7 @@ func TestLinuxAutomationStatusAPINoNetworkMutationOrUnlockedBypass(t *testing.T)
 	}
 	w := accountCall(g, "POST", route, accountStatusInput, cookie, "http://"+localHost, true)
 	var result automationStatusOutput
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Schema != "rootwell.automation.status.v1" || result.Generation != 8 || result.NetworkUsed || result.AutomaticRenewal || result.Request != "active" || !result.AccountReady || !result.DNSSaved || w.Header().Get("Cache-Control") != "no-store" {
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Schema != "rootwell.automation.status.v2" || result.Generation != 8 || result.NetworkUsed || result.AutomaticRenewal || result.Request != "active" || !result.AccountReady || !result.DNSSaved || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("overview not local/current", w.Code, w.Body.String())
 	}
 	for _, secret := range []string{"synthetic-only-credential", "PRIVATE KEY", "acme/order", nextTestPassword} {

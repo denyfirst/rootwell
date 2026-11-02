@@ -61,7 +61,7 @@
     el("watch-next").textContent=job.next_check?"Next check: "+pretty(job.next_check):!job.id&&plan?.next_check?"Saved next check: "+pretty(plan.next_check):"No provider request is queued.";
     el("watch-reason").textContent=reasons[reason][0]+(job.expires?" This watch ends no later than "+pretty(job.expires)+".":"");
     recovery.hidden=step==="none";if(step!=="none"){recovery.href=links[step][0];recovery.textContent=links[step][1];}
-    form.hidden=!source||!plan?.can_start||running();result.hidden=false;message.textContent="Watch status checked. Automatic certificate renewal is not enabled.";clearTimeout(stale);stale=setTimeout(reset,60000);enable();
+    form.hidden=!source||!plan?.can_start||running();result.hidden=false;message.textContent="Timing watch status checked. This watch checks timing only.";clearTimeout(stale);stale=setTimeout(reset,60000);enable();
   };
   const changed=()=>{window.dispatchEvent(new Event("rootwell-watch-changed"));window.dispatchEvent(new Event("rootwell-timing-changed"));};
   const run=async mode=>{
@@ -81,7 +81,7 @@
   status.addEventListener("click",()=>run("status"));preview.addEventListener("click",()=>run("preview"));stop.addEventListener("click",()=>run("stop"));form.addEventListener("submit",event=>{event.preventDefault();return run("start");});
   password.addEventListener("input",()=>{if(active)reset();enable();});consent.addEventListener("change",()=>{if(active)reset();enable();});
   recovery.addEventListener("click",()=>{if(recovery.href.endsWith("#cloudflare-dns")){const details=el("cloudflare-dns");if(details)details.open=true;}});
-  document.addEventListener("visibilitychange",()=>{if(document.hidden)invalidate();});window.addEventListener("pagehide",invalidate);window.addEventListener("rootwell-dns-changed",invalidate);
+  document.addEventListener("visibilitychange",()=>{if(document.hidden)invalidate();});window.addEventListener("pagehide",invalidate);window.addEventListener("rootwell-dns-changed",invalidate);window.addEventListener("rootwell-renewal-job-changed",invalidate);
   for(const id of ["acme-order-form","dns-config-form","dns-operation-form","acme-account-form","acme-registration-form"])el(id)?.addEventListener("submit",invalidate);
   Object.defineProperty(globalThis,"rootwellTimingWatch",{value:Object.freeze({setSource,invalidate})});enable();
 })();

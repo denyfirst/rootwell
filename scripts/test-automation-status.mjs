@@ -6,7 +6,7 @@ assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|send
 assert.match(html,/Renewal overview/);assert.match(html,/not a CA renewal window/);
 const now=Math.floor(Date.now()/1000)*1000,stamp=n=>new Date(n).toISOString().replace(".000Z","Z"),fp=Array(32).fill("AB").join(":");
 const row={fingerprint:fp,name:"mail.example.com",not_after:stamp(now+3600000),review_at:stamp(now-3600000),state:"due"};
-const initial={schema_version:"rootwell.automation.status.v1",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:stamp(now+7200000),generation:13,checked_at:stamp(now),request:"close-needed",dns:"none",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:1012,events_reserved:0,archives_free:32,records_free:499,generations_free:999987,bytes_free:90000000},certificates:[row]};
+const initial={schema_version:"rootwell.automation.status.v2",provider:"letsencrypt-staging",network_used:false,automatic_renewal:false,unlock_expires:stamp(now+7200000),generation:13,checked_at:stamp(now),request:"close-needed",dns:"none",dns_wait_until:"",account_ready:true,dns_saved:true,capacity:{events_free:1012,events_reserved:0,archives_free:32,records_free:499,generations_free:999987,bytes_free:90000000},certificates:[row]};
 const response=(d,status=200,headers={"cache-control":"no-store","content-type":"application/json"})=>new Response(JSON.stringify(d),{status,headers});
 class Element{
   constructor(){this.disabled=false;this.hidden=false;this.textContent="";this.children=[];this.listeners={};}
@@ -38,7 +38,7 @@ for(const [changes,match] of [
   [{request:"none"},/Certificates/],
 ]){const f=fixture({...initial,...changes});await f.refresh();assert.equal(f.el("automation-status-result").hidden,false);assert.match(f.el("automation-status-next").textContent,match);}
 for(const change of [
-  {network_used:true},{automatic_renewal:true},{schema_version:"other"},{provider:"other"},{token:"secret-sentinel"},{generation:0},
+  {network_used:true},{automatic_renewal:1},{schema_version:"other"},{provider:"other"},{token:"secret-sentinel"},{generation:0},
   {checked_at:stamp(now-180000)},{checked_at:"2026-02-30T00:00:00Z"},{unlock_expires:stamp(now)},{unlock_expires:stamp(now+43201000)},
   {dns_wait_until:stamp(now+60000)},{dns:"ready"},{request:"verified"},{account_ready:1},
   {capacity:{...initial.capacity,events_reserved:50}},{capacity:{...initial.capacity,records_free:500}},
@@ -47,6 +47,9 @@ for(const change of [
   {certificates:[{...row,state:"manual"}]},{certificates:[{...row,fingerprint:"a".repeat(64)}]},
   {certificates:[{...row,name:"bad\u0000name"}]},{certificates:[{...row,review_at:row.not_after}]},
 ]){const f=fixture({...initial,...change});await f.refresh();assert.equal(f.el("automation-status-result").hidden,true,JSON.stringify(change));assert.doesNotMatch(f.el("automation-status-message").textContent,/secret-sentinel/);}
+{
+  const f=fixture({...initial,automatic_renewal:true});await f.refresh();assert.equal(f.el("automation-status-result").hidden,false);assert.match(f.el("automation-status-message").textContent,/active in this login/);
+}
 for(const state of ["manual","waiting","expired","not-yet-valid","superseded"]){
   const r={...row,state};if(state==="manual")r.review_at="";if(state==="waiting")r.review_at=stamp(now+1000);if(state==="expired")r.not_after=stamp(now);
   const f=fixture({...initial,certificates:[r]});await f.refresh();assert.equal(f.el("automation-status-result").hidden,false,state);
