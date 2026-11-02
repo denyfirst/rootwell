@@ -138,6 +138,21 @@ reads still wait. `TestRenewalCycleLongCAWaitCannotHideAnAlreadyUncertainWrite`
 and the complete policy suite pass. The first Linux renewal/CA-wait smoke passed
 on `bec68d5`; the changed final head still needs every required check/full race.
 
+The job treats unresolved DNS holds conservatively across its whole fixed
+provider/configuration: the longest saved wait applies before selecting any
+other provision/check/cleanup row. A potentially provider-wide hold is not
+bypassed by using another domain. Terminal flags still stop the grant; no
+counter, stored wait or ordinary/manual writer policy is reset. Covered by
+`TestRenewalCycleCannotBypassDNSHoldByChoosingAnotherRecord`.
+
+Follow-up evidence: bypassing the DNS hold selected `dns-add` instead of the
+required wait and failed its refusal test. Inverting the hold condition also
+failed legitimate DNS progress. Restored complete policy tests pass. The shared
+elapsed-spacing helper is tested against forward wall jumps, busy deferral and
+longer saved holds; its five-minute CA floor cannot become an immediate call.
+Affected native and Linux cross-vet/staticcheck/gosec passed before the signed
+follow-up. Final-head Linux CI/full shuffled race still remains the merge gate.
+
 Wait-boundary sabotage (2026-10-29): allowing a later success to clear a prior
 blocked hint failed `TestCAOperationWaitBoundedStickyAndSecretFree` with
 `invalid hint unblocked or shortened`; inverting exact-generation admission

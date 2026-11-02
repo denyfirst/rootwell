@@ -291,7 +291,7 @@ func DecideRenewalCycle(s RenewalCycle, events, bytes int, at time.Time) CycleDe
 		}
 	}
 	var selected *CycleDecision
-	var earliest time.Time
+	var hold time.Time
 	for i, row := range s.DNS.Records {
 		action, stamp, count, blocked := "", row.NotBefore, row.Attempts, row.Blocked
 		if saved {
@@ -329,8 +329,8 @@ func DecideRenewalCycle(s RenewalCycle, events, bytes int, at time.Time) CycleDe
 				return d
 			}
 			next, _ := time.Parse(time.RFC3339Nano, d.Next)
-			if earliest.IsZero() || next.Before(earliest) {
-				earliest = next
+			if next.After(hold) {
+				hold = next
 			}
 			continue
 		}
@@ -340,13 +340,15 @@ func DecideRenewalCycle(s RenewalCycle, events, bytes int, at time.Time) CycleDe
 			selected = &d
 		}
 	}
+	// The grant uses one provider/configuration. A saved hold must not be
+	// sidestepped by picking a different row; its scope may be provider-wide.
+	if !hold.IsZero() {
+		d := choose("wait")
+		d.Reason, d.Next = "dns-wait", timingStamp(hold)
+		return d
+	}
 	if selected != nil {
 		return *selected
-	}
-	if !earliest.IsZero() {
-		d := choose("wait")
-		d.Reason, d.Next = "dns-wait", timingStamp(earliest)
-		return d
 	}
 	if saved {
 		return choose("complete")

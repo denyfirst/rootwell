@@ -194,6 +194,29 @@ func TestRenewalJobConstructorSessionBoundsAndMutualExclusion(t *testing.T) {
 	}
 }
 
+func TestRenewalJobElapsedSpacingSurvivesWallJumpAndBusyTick(t *testing.T) {
+	now := time.Now().UTC()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	j := &renewalJob{state: "waiting", ctx: ctx, cancel: cancel, issued: time.Now().Add(4 * time.Minute)}
+	wall := now.Add(2 * time.Hour)
+	minimumRenewalSpacing(j, wall)
+	if j.next.Before(wall.Add(4 * time.Minute)) {
+		t.Fatal("wall jump bypassed five elapsed CA minutes")
+	}
+	g := &gate{renewal: j, now: func() time.Time { return wall }}
+	before := j.next
+	g.deferRenewal(j)
+	if j.next.Before(before) {
+		t.Fatal("busy tick shortened floor")
+	}
+	j.next = wall.Add(7 * 24 * time.Hour)
+	minimumRenewalSpacing(j, wall)
+	if j.next.Before(wall.Add(7 * 24 * time.Hour)) {
+		t.Fatal("runtime floor replaced a longer saved wait")
+	}
+}
+
 func FuzzRenewalJobInput(f *testing.F) {
 	f.Add([]byte(renewalJobBody(strings.Repeat("AB:", 31)+"AB", 13, "start")))
 	f.Add([]byte("{}"))

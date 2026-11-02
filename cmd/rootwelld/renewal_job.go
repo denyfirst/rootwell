@@ -155,11 +155,7 @@ func (g *gate) tickRenewalJob(j *renewalJob) {
 		g.mu.Unlock()
 		return
 	}
-	if !j.issued.IsZero() {
-		if remaining := time.Minute - time.Since(j.issued); remaining > 0 {
-			j.next = maxJobTime(j.next, now.Add(remaining))
-		}
-	}
+	minimumRenewalSpacing(j, now)
 	if now.Before(j.next) {
 		j.state = "waiting"
 		g.mu.Unlock()
@@ -298,6 +294,16 @@ func maxJobTime(a, b time.Time) time.Time {
 		return b
 	}
 	return a
+}
+
+// Called with g.mu held. A wall-clock jump or busy tick cannot shorten the
+// elapsed runtime floor, including the longer five-minute CA spacing.
+func minimumRenewalSpacing(j *renewalJob, wall time.Time) {
+	if !j.issued.IsZero() {
+		if remaining := time.Minute - time.Since(j.issued); remaining > 0 {
+			j.next = maxJobTime(j.next, wall.Add(remaining))
+		}
+	}
 }
 func renewalNetworkAction(action string) bool {
 	switch action {

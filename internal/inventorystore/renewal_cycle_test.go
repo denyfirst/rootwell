@@ -195,6 +195,21 @@ func TestRenewalCycleLongCAWaitCannotHideAnAlreadyUncertainWrite(t *testing.T) {
 	cycleNext(t, s, at, "wait") // known same-order reads still respect the hold
 }
 
+func TestRenewalCycleCannotBypassDNSHoldByChoosingAnotherRecord(t *testing.T) {
+	s, at := cycleFixture()
+	s.OrderSource, s.OrderState = s.Fingerprint, "dns-ready"
+	s.DNS = DNSPlanStatus{Prepared: true, Records: []DNSPlanRecordStatus{{State: "new"}, {State: "creating", Attempts: 1, NotBefore: timingStamp(at.Add(time.Hour))}, {State: "creating", Attempts: 2, NotBefore: timingStamp(at.Add(2 * time.Hour))}}}
+	if d := cycleNext(t, s, at, "wait"); d.Reason != "dns-wait" || d.Next != timingStamp(at.Add(2*time.Hour)) {
+		t.Fatal("selected another row or shortened provider hold", d)
+	}
+	cycleNext(t, s, at.Add(2*time.Hour), "dns-add")
+	s.Issuance.State, s.SavedFingerprint = "certificate-saved", strings.Repeat("CD:", 31)+"CD"
+	s.DNS.Records = []DNSPlanRecordStatus{{State: "created"}, {State: "deleting", CleanupAttempts: 1, CleanupNotBefore: timingStamp(at.Add(time.Hour))}}
+	if d := cycleNext(t, s, at, "wait"); d.Next != timingStamp(at.Add(time.Hour)) {
+		t.Fatal("cleanup sidestepped held deletion", d)
+	}
+}
+
 func TestRenewalCycleAuthenticatedMetadataZeroOnFailure(t *testing.T) {
 	key, id, image, fp, at := timingFixture(t)
 	defer clear(key)
