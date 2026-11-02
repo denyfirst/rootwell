@@ -120,6 +120,8 @@ jobs:
             package: ./cmd/rootwelld
           - target: FuzzStagingAccountPayload
             package: ./internal/inventorystore
+          - target: FuzzProductionAccountPayload
+            package: ./internal/inventorystore
           - target: FuzzCloudflareConfigurationPayload
             package: ./internal/inventorystore
           - target: FuzzDNSPlanPayload

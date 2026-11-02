@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
   <title>Automation · Rootwell</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/inventory.css">
-  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/timing-watch.js" defer></script><script src="/renewal-job.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
+  <script src="/theme.js"></script><script src="/acme-setup.js" defer></script><script src="/acme-directory.js" defer></script><script src="/acme-account.js" defer></script><script src="/production-account.js" defer></script><script src="/acme-registration.js" defer></script><script src="/timing-watch.js" defer></script><script src="/renewal-job.js" defer></script><script src="/renewal-timing.js" defer></script><script src="/acme-order.js" defer></script><script src="/cloudflare-config.js" defer></script><script src="/dns-operation.js" defer></script><script src="/automation-status.js" defer></script>
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
@@ -16,7 +16,7 @@
     <p class="rail-caption" id="rail-security">Security</p><nav class="rail-nav" aria-labelledby="rail-security"><a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span>Access</a></nav>
     <div class="rail-foot"><div class="local-state"><span aria-hidden="true"></span>Your Rootwell server</div><button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button></div>
   </aside>
-  <div class="workspace-main"><header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Automation</strong></p><p class="boundary">Staging only · private keys stay here</p></header>
+  <div class="workspace-main"><header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Automation</strong></p><p class="boundary">Staging issuance · account keys stay here</p></header>
   <main>
     <section class="work-heading"><h1>Plan a test certificate</h1><p>Check your names and how you will prove control of them. This does not request a certificate.</p></section>
     <aside class="storage-note" aria-label="Setup boundary"><strong>No external connection for Check setup</strong><p>Check setup sends these names only to your own Rootwell. Nothing is saved. No account, key, DNS change, certificate or renewal is created. The separate optional connection check below contacts staging only after your confirmation.</p></aside>
@@ -120,6 +120,18 @@
         <button id="acme-account-prepare" type="submit" disabled>Prepare and save key</button>
         <p>No domains or email are sent. No CA account or certificate is created. An existing key will never be replaced.</p>
       </form>
+      <details id="production-account-panel"><summary>Advanced: separate production account key (local only)</summary>
+        <p>This prepares a different encrypted key for a future production account. It never reuses your test key. Production registration, certificate requests and renewal are not enabled by this step.</p>
+        <p>No provider connection, terms acceptance or account is created. Linux storage and full recovery are required; make a new complete backup afterwards.</p>
+        <button id="production-account-status" type="button" class="secondary">Check separate key status</button>
+        <p id="production-account-message" role="status" aria-live="polite">Nothing starts automatically.</p>
+        <p id="production-account-identity" hidden></p>
+        <form id="production-account-form" class="csr-form" hidden>
+          <label for="production-account-password">Your current Rootwell password</label><input id="production-account-password" type="password" maxlength="256" autocomplete="off" required>
+          <label class="confirm-row" for="production-account-consent"><input id="production-account-consent" type="checkbox" autocomplete="off"> Generate and save a separate local production account key</label>
+          <button id="production-account-prepare" type="submit" disabled>Prepare separate key</button>
+        </form>
+      </details>
     </section>
     <section class="card"><h2>Register your test account</h2>
       <p>Use the saved key with Let's Encrypt staging. Your Rootwell sends its account public key and a signed request — never the private key, Rootwell password, domains or email. The provider sees your server's network address. This does not request a certificate.</p>

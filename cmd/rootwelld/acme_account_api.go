@@ -23,10 +23,14 @@ type accountInput struct {
 // Separate request shapes: status takes only provider; preparation additionally
 // requires fresh password, exact generation and explicit true confirmation.
 func readAccountInput(w http.ResponseWriter, r *http.Request, prepare bool) (accountInput, bool) {
+	return readAccountInputForProvider(w, r, prepare, acmeplan.Provider)
+}
+
+func readAccountInputForProvider(w http.ResponseWriter, r *http.Request, prepare bool, provider string) (accountInput, bool) {
 	var input accountInput
 	bad := func() (accountInput, bool) { return accountInput{}, false }
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || media != "application/json" {
+	if err != nil || media != "application/json" || len(r.Header.Values("Content-Type")) != 1 || provider != acmeplan.Provider && provider != "letsencrypt-production" {
 		return bad()
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 4096))
@@ -50,7 +54,7 @@ func readAccountInput(w http.ResponseWriter, r *http.Request, prepare bool) (acc
 		switch name {
 		case "provider":
 			var value string
-			if d.Decode(&value) != nil || value != acmeplan.Provider {
+			if d.Decode(&value) != nil || value != provider {
 				return bad()
 			}
 		case "password":
@@ -114,8 +118,13 @@ func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		http.Error(w, "request refused", http.StatusForbidden)
 		return
 	}
-	prepare := r.URL.Path == "/api/acme/account/prepare"
-	input, ok := readAccountInput(w, r, prepare)
+	production := r.URL.Path == "/api/acme/production-account/status" || r.URL.Path == "/api/acme/production-account/prepare"
+	provider := acmeplan.Provider
+	if production {
+		provider = "letsencrypt-production"
+	}
+	prepare := r.URL.Path == "/api/acme/account/prepare" || r.URL.Path == "/api/acme/production-account/prepare"
+	input, ok := readAccountInputForProvider(w, r, prepare, provider)
 	defer func() { input.Password = "" }()
 	if !ok {
 		http.Error(w, "invalid local account-key request", http.StatusBadRequest)
@@ -141,6 +150,7 @@ func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s ses
 			return
 		}
 		setup, err := instanceaccess.Authenticate(g.accessPath, input.Password)
+		input.Password = ""
 		if err != nil || setup {
 			if errors.Is(err, instanceaccess.ErrWrongPassword) {
 				http.Error(w, "password not accepted", http.StatusUnauthorized)
@@ -153,7 +163,7 @@ func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s ses
 	permit := func() bool {
 		current, ready := g.currentSession(r)
 		defer clear(current.dataKey[:])
-		return ready && !current.setup && current.revision == s.revision && r.Context().Err() == nil
+		return ready && !current.setup && current.revision == s.revision && current.expires == s.expires && r.Context().Err() == nil
 	}
 	if !permit() {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
@@ -162,14 +172,18 @@ func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s ses
 	var status inventorystore.AccountStatus
 	var generation uint64
 	var err error
-	if prepare {
+	if production && prepare {
+		status, generation, err = instanceaccess.PrepareProductionAccount(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, permit)
+	} else if production {
+		status, generation, err = instanceaccess.ReadProductionAccount(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	} else if prepare {
 		status, generation, err = instanceaccess.PrepareStagingAccount(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, permit)
 	} else {
 		status, generation, err = instanceaccess.ReadStagingAccount(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
 	}
 	if err != nil {
-		if errors.Is(err, inventorystore.ErrAccountExists) {
-			http.Error(w, "A staging key already exists. Refresh status; no key was replaced.", http.StatusConflict)
+		if errors.Is(err, inventorystore.ErrAccountExists) || errors.Is(err, inventorystore.ErrProductionAccountExists) {
+			http.Error(w, "An account key already exists for this provider. Refresh status; no key was replaced.", http.StatusConflict)
 		} else {
 			inventoryError(w, err)
 		}
@@ -187,7 +201,7 @@ func (g *gate) acmeAccountEndpoint(w http.ResponseWriter, r *http.Request, s ses
 	if prepare {
 		w.WriteHeader(http.StatusCreated)
 	}
-	_ = json.NewEncoder(w).Encode(accountOutput{Schema: "rootwell.acme.account-key.v1", Provider: acmeplan.Provider, Generation: generation,
+	_ = json.NewEncoder(w).Encode(accountOutput{Schema: "rootwell.acme.account-key.v1", Provider: provider, Generation: generation,
 		State: status.State, Fingerprint: status.Fingerprint, PreparedAt: status.PreparedAt, Saved: status.State == "key-prepared", Registration: status.Registration,
 		AccountCreated: status.Registration == "registered", TermsAccepted: status.Registration == "registered"})
 }

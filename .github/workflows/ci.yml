@@ -240,6 +240,7 @@ jobs:
           node scripts/test-acme-setup.mjs
           node scripts/test-acme-directory.mjs
           node scripts/test-acme-account.mjs
+          node scripts/test-production-account.mjs
           node scripts/test-cloudflare-config.mjs
           node scripts/test-dns-operation.mjs
           node scripts/test-automation-status.mjs
@@ -258,6 +259,9 @@ jobs:
 
       - name: Smoke test original-session renewal and durable CA waits
         run: go test -race -run '^TestRenewalCycle|^TestRenewalJob|^TestLinuxSessionRenewal|^TestCAOperationWait|^TestCAFailureWait|^TestLinuxCA' -count=1 -timeout=8m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess ./internal/architecture ./internal/acmestaging
+
+      - name: Smoke test separate local production account custody and recovery
+        run: go test -race -run '^TestProductionAccount|^TestLinuxProductionAccount' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess ./internal/architecture
 
       - name: Smoke test lossless history archive and full recovery
         run: go test -race -run '^TestHistoryArchive|^TestLinuxHistoryArchive' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/instanceaccess

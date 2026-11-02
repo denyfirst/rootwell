@@ -59,6 +59,7 @@ type manifest struct {
 	DNSPlans                  []sealedRecord   `json:"dns_plans,omitempty"`
 	RenewalTimings            []sealedRecord   `json:"renewal_timings,omitempty"`
 	StagingProviderWait       []sealedRecord   `json:"staging_provider_wait,omitempty"`
+	ProductionACMEAccounts    []sealedRecord   `json:"production_acme_accounts,omitempty"`
 	historical                bool
 }
 
@@ -468,6 +469,9 @@ func decode(key, id, image []byte) (manifest, []publicinventory.Record, error) {
 		return manifest{}, nil, ErrInvalid
 	}
 	if _, err := accountStatus(key, id, m); err != nil {
+		return manifest{}, nil, ErrInvalid
+	}
+	if _, err := productionAccountStatus(key, id, m); err != nil {
 		return manifest{}, nil, ErrInvalid
 	}
 	if _, err := openOrder(key, id, m); err != nil {

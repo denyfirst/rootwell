@@ -46,7 +46,7 @@ func TestFixedACMEProfilesCannotBecomeRuntimePromotionOrTrustConfiguration(t *te
 			if rel == production && !productionImports[p] {
 				t.Error("production trust acquired ambient capability", p)
 			}
-			if p == "github.com/denyfirst/rootwell/internal/acmeprofile" && rel != "internal/acmeorder/model.go" {
+			if p == "github.com/denyfirst/rootwell/internal/acmeprofile" && rel != "internal/acmeorder/model.go" && rel != "internal/inventorystore/production_account.go" {
 				t.Error("unreviewed profile consumer", rel)
 			}
 		}
@@ -71,7 +71,9 @@ func TestFixedACMEProfilesCannotBecomeRuntimePromotionOrTrustConfiguration(t *te
 			}
 			if sel, ok := n.(*ast.SelectorExpr); ok {
 				if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "acmeprofile" {
-					if rel != "internal/acmeorder/model.go" || !map[string]bool{"Staging": true, "AccountURL": true, "OrderURL": true, "ResourceURL": true}[sel.Sel.Name] {
+					allowed := rel == "internal/acmeorder/model.go" && map[string]bool{"Staging": true, "AccountURL": true, "OrderURL": true, "ResourceURL": true}[sel.Sel.Name]
+					allowed = allowed || rel == "internal/inventorystore/production_account.go" && sel.Sel.Name == "Production"
+					if !allowed {
 						t.Error("legacy route can select a production profile", rel, sel.Sel.Name)
 					}
 				}

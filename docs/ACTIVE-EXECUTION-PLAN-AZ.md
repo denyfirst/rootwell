@@ -32,11 +32,20 @@ operator upgrade və müstəqil audit iddiası yoxdur. Production custody/UI və
 real CA/DNS sınağı ayrıca açıq qalır. İstifadəçinin cavabı: domen/token hazır
 deyil, lokal və sintetik işlərlə davam edirik.
 
+
+**Tamamlanan ADR 0083 — PR #114, 13/13, merge `b9b447d`:**
+staging açarı dəyişmir, yeni key ayrıca namespace/HKDF/record ilə eyni şifrəli
+image-də saxlanır. Bütün reader-lər hər iki scope-u yoxlayır; ortaq generation/
+history/image və staging completion ehtiyatı qorunur. Eyni Automation account
+kartında bağlı Advanced hissəsi, fresh parol və ayrıca təsdiq var. CA bağlantısı,
+terms, qeydiyyat, production issuance/renewal bu addımda açılmır. Linux atomic
+custody/tam recovery/API/UI/fuzz/refusal və tam shuffled race yoxlamaları keçib.
+
 **Tamamlanan ADR 0081 — PR #112, 13/13, merge `2e72c01`:** iki sabit
 və dəyişməyən mühit kataloqu, cross-environment account/order/resource rəddi,
 legacy axının yalnız staging seçməsi və ayrıca ISRG X1/X2 pin-ləri ilə production
 receipt yoxlayıcısı. Mövcud staging trust hovuzuna production əlavə edilmir;
-prod route, hesab, custody və UI hələ açılmır. Sonra authenticated ayrı ACME
+production qeydiyyat/issuance protokolu hələ açılmır; lokal hesab açarı ADR 0083-dədir. Sonra authenticated ayrı ACME
 namespace-lər, profile-bound grant/writer/backup/restore, fixed connector və
 sadə UI inteqrasiyası tamamlanmalıdır. Real domen/token və operatorun terms
 qərarı tələb edən sınaqlar saxta uğurla əvəz olunmur. Dörd bəndlik iş davam edir.
