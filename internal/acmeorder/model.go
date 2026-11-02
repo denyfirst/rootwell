@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/acmeplan"
+	"github.com/denyfirst/rootwell/internal/acmeprofile"
 	"github.com/denyfirst/rootwell/internal/providerretry"
 )
 
@@ -42,62 +43,17 @@ func CanonicalNames(names []string) bool {
 }
 
 func AccountURL(value string) bool {
-	const prefix = Origin + "/acme/acct/"
-	return strings.HasPrefix(value, prefix) && positive(strings.TrimPrefix(value, prefix))
-}
-
-func positive(value string) bool {
-	if len(value) == 0 || len(value) > 64 || value[0] == '0' {
-		return false
-	}
-	for _, c := range value {
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return true
+	return acmeprofile.Staging.AccountURL(value)
 }
 
 func OrderURL(value, account string) bool {
-	if !AccountURL(account) {
-		return false
-	}
-	prefix := Origin + "/acme/order/" + strings.TrimPrefix(account, Origin+"/acme/acct/") + "/"
-	return strings.HasPrefix(value, prefix) && positive(strings.TrimPrefix(value, prefix))
+	return acmeprofile.Staging.OrderURL(value, account)
 }
 
 // Resource URLs come only from a validated order, never browser input. No
 // credentials, queries, percent escapes, dot segments or other origins.
 func ResourceURL(value, kind string) bool {
-	prefixes := []string{}
-	switch kind {
-	case "authorization":
-		prefixes = []string{"/acme/authz/", "/acme/authz-v3/"}
-	case "challenge":
-		prefixes = []string{"/acme/chall/"}
-	}
-	for _, path := range prefixes {
-		prefix := Origin + path
-		if !strings.HasPrefix(value, prefix) {
-			continue
-		}
-		parts := strings.Split(strings.TrimPrefix(value, prefix), "/")
-		if len(parts) < 1 || len(parts) > 3 {
-			return false
-		}
-		for _, part := range parts {
-			if len(part) < 1 || len(part) > 128 {
-				return false
-			}
-			for _, c := range part {
-				if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
-					return false
-				}
-			}
-		}
-		return true
-	}
-	return false
+	return acmeprofile.Staging.ResourceURL(value, kind)
 }
 
 func Time(value string) bool {
