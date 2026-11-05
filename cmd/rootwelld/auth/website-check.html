@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark light">
+  <title>Check a website · Rootwell</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/website-check.css">
+  <script src="/theme.js"></script>
+  <script src="/website-check.js" defer></script>
+</head>
+<body class="workspace website-workspace">
+  <aside class="rail" aria-label="Primary navigation">
+    <div class="rail-identity"><a class="wordmark" href="/index.html"><span>root</span>well</a><span class="rail-tag">Self-host</span></div>
+    <p class="rail-caption" id="rail-workspace">Workspace</p>
+    <nav class="rail-nav" aria-labelledby="rail-workspace">
+      <a class="rail-item" href="/index.html"><span class="rail-glyph" aria-hidden="true">◇</span>Workbench</a>
+      <a class="rail-item" href="/website-check" aria-current="page"><span class="rail-glyph" aria-hidden="true">⌁</span>Check a website</a>
+      <a class="rail-item" href="/certificates"><span class="rail-glyph" aria-hidden="true">◎</span>Certificates</a>
+      <a class="rail-item" href="/automation"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Setup</span></a>
+    </nav>
+    <p class="rail-caption" id="rail-security">Security</p>
+    <nav class="rail-nav" aria-labelledby="rail-security"><a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span>Access</a></nav>
+    <div class="rail-foot"><div class="local-state"><span aria-hidden="true"></span>Your Rootwell server</div><button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button></div>
+  </aside>
+  <div class="workspace-main">
+    <header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Check a website</strong></p><p class="boundary">One connection · no private key needed</p></header>
+    <main>
+      <section class="work-heading"><div><p class="eyebrow">Certificate health</p><h1>See where the chain breaks.</h1><p class="lede">Check what a website actually serves. Understand the problem, then know what to fix.</p></div></section>
+      <section class="website-input" aria-labelledby="check-title">
+        <h2 id="check-title">Which website?</h2>
+        <form id="website-form">
+          <label for="website-target">Website address</label>
+          <div class="website-target-row"><input id="website-target" type="text" maxlength="270" required autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="https://example.com" aria-describedby="target-help"><button id="website-submit" type="submit">Check certificate <span aria-hidden="true">↗</span></button></div>
+          <p id="target-help">Public websites on HTTPS port 443. Enter a domain or origin, without a page path.</p>
+          <label class="website-consent" for="website-consent"><input id="website-consent" type="checkbox" required> I am authorized to check this website. Connect once from my Rootwell server.</label>
+        </form>
+        <div class="website-examples"><span>See an example</span><button type="button" id="example-valid">Healthy chain</button><button type="button" id="example-missing">Missing intermediate</button><button type="button" id="example-wrong">Wrong intermediate</button></div>
+        <p id="website-status" role="status" aria-live="polite"></p>
+      </section>
+      <section id="website-result" aria-label="Certificate check result" hidden></section>
+      <aside class="website-limits"><strong>A certificate check, from your server.</strong><p>One endpoint at one moment, using your Rootwell server's trust store. No files or private keys are requested. Revocation and every browser's trust decisions are not checked. Nothing is saved by this page.</p></aside>
+    </main>
+  </div>
+</body>
+</html>

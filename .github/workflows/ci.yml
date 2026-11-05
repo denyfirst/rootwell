@@ -171,6 +171,8 @@ jobs:
           node --check scripts/test-browser-csr.mjs
           node --check web/workbench/worker-browser-smoke.js
           node --check cmd/rootwelld/auth/auth.js
+          node --check cmd/rootwelld/auth/website-check.js
+          node --check scripts/test-website-check.mjs
           node --check cmd/rootwelld/auth/inventory.js
           node --check cmd/rootwelld/auth/certificate-library.js
           node --check cmd/rootwelld/auth/saved-key-attachment.js
@@ -234,6 +236,7 @@ jobs:
           node scripts/test-workbench-csr-ui.mjs
           node scripts/test-workbench-csr-worker.mjs
           node scripts/test-rootwelld-auth.mjs
+          node scripts/test-website-check.mjs
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-certificate-library.mjs
           node scripts/test-saved-key-attachment.mjs

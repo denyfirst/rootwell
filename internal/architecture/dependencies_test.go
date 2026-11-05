@@ -68,8 +68,14 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
 				allowedDNSCore := filepath.ToSlash(relative) == "internal/acmestaging/cloudflare.go" && (importPath == "net/http" || importPath == "net/url")
 				allowedARIRead := filepath.ToSlash(relative) == "internal/acmestaging/renewal_info.go" && (importPath == "net/http" || importPath == "net")
-				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore && !allowedARIRead {
+				allowedWebsite := (filepath.ToSlash(relative) == "internal/websiteprobe/probe.go" && (importPath == "net" || importPath == "net/netip")) ||
+					(filepath.ToSlash(relative) == "internal/websiteprobe/target.go" && (importPath == "net/url" || importPath == "net/netip")) ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/website_check_api.go" && importPath == "net/http")
+				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore && !allowedARIRead && !allowedWebsite {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
+				}
+				if importPath == "github.com/denyfirst/rootwell/internal/websiteprobe" && filepath.ToSlash(relative) != "cmd/rootwelld/website_check_api.go" {
+					t.Errorf("website network capability outside authenticated explicit endpoint: %s", relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_job_operations.go" && filepath.ToSlash(relative) != "cmd/rootwelld/timing_watch.go" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_timing_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/dns_operation_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
 					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" && filepath.ToSlash(relative) != "internal/acmestaging/certificate.go" {

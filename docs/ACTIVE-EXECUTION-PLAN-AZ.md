@@ -1,9 +1,25 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-11-02. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-11-05. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
+
+## Yeni prioritet — saytın sertifikat zəncirinin diaqnostikası
+
+2026-11-05 istifadəçi avtomatik yeniləmənin davamını sonrakı mərhələyə ayırmağı
+və URL ilə səhv/çatışmayan intermediate diaqnostikasını təklif etdi. Mövcud merge
+olunmuş avtomatlaşdırma silinmir; production qeydiyyatının tamamlanmamış işi
+ayrı branch/worktree-də saxlanır. Cari prioritet ADR 0084-dür: explicit icazə ilə
+bir public HTTPS endpoint, sərt DNS/SSRF sərhədi, ayrıca kriptoqrafik zəncir
+yoxlaması və eyni Rootwell görünüşündə rəng + mətnlə sadə kartlar. Nümunələr
+sintetikdir, canlı CA/DNS əməliyyatı və müstəqil audit iddiası yoxdur.
+
+İcra sırası: təhlükəsizlik sərhədi və lokal TLS sınaqları → authenticated API →
+sadə zəncir UI-si və generated nümunələr → mənfi/sabotage/static/platform/CI
+yoxlamaları. Real sayt yoxlaması production connector üçün Linux/Linux Docker
+tələb edir; native Windows preview şəbəkəyə çıxmır. Private şəbəkə və xüsusi
+enterprise trust ayrıca gələcək icazə dizaynıdır.
 
 ## Porch-dan uyğunlaşdırılan yanaşmalar — ADR 0055
 

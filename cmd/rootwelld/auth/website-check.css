@@ -1,0 +1,66 @@
+.website-workspace main { max-width: 82rem; }
+.website-workspace .work-heading { margin-bottom: 1.8rem; }
+.website-workspace h1 { font-size: clamp(1.8rem, 3vw, 2.8rem); }
+.website-input { padding: 1.5rem 1.7rem 1rem; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 10px; }
+.website-input h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+.website-input label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: .5rem; }
+.website-target-row { display: flex; gap: .7rem; }
+.website-target-row input { flex: 1; min-width: 0; background: var(--paper); border: 1px solid var(--rule); color: var(--ink); border-radius: 6px; padding: .8rem 1rem; }
+.website-workspace button { font: 600 .83rem var(--sans); cursor: pointer; }
+.website-target-row button { border: 1px solid var(--accent); border-radius: 6px; padding: .8rem 1.2rem; color: #fff; background: var(--accent); }
+.website-target-row button:hover:not(:disabled) { background: var(--accent-hover); }
+.website-workspace button:disabled { cursor: not-allowed; opacity: .6; }
+#target-help, #website-status { color: var(--ink-soft); font-size: .8rem; margin: .6rem 0; }
+#website-status { min-height: 1.5em; }
+.website-input .website-consent { display: flex; align-items: flex-start; gap: .6rem; font-weight: 400; color: var(--ink-soft); margin: 1rem 0; }
+.website-consent input { margin-top: .3rem; accent-color: var(--brand); }
+.website-examples { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: .77rem; color: var(--ink-faint); }
+.website-examples > span { margin-right: .4rem; }
+.website-examples button { font-size: .76rem; padding: .35rem .65rem; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink-soft); background: transparent; }
+.website-examples button:hover { background: var(--paper-sunk); color: var(--ink); }
+#website-result { margin: 1.6rem 0; }
+.chain-banner { display: flex; align-items: flex-start; gap: 1rem; padding: 1.2rem 1.4rem; background: var(--paper-raised); border: 1px solid var(--rule); border-left: 4px solid var(--good); border-radius: 8px; }
+.chain-banner.failed { border-left-color: var(--brand); }
+.chain-banner.attention { border-left-color: var(--warn); }
+.chain-banner .state-icon { color: var(--good); font-size: 1.6rem; line-height: 1.4; }
+.chain-banner.failed .state-icon { color: var(--brand); }
+.chain-banner.attention .state-icon { color: var(--warn); }
+.chain-banner h2 { font-size: 1.2rem; margin: 0 0 .15rem; }
+.chain-banner p { margin: .15rem 0 0; font-size: .84rem; color: var(--ink-soft); }
+.chain-sample { color: var(--warn); font-size: .73rem; font-weight: 650; letter-spacing: .04em; margin: 0 0 .65rem; }
+.chain-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 2rem; margin-top: 1.7rem; }
+.chain-column h3 { margin: 0 0 1rem; font-size: .9rem; }
+.chain-path { list-style: none; padding: 0; margin: 0; }
+.chain-node { position: relative; padding: 1rem 1.1rem; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper-raised); overflow-wrap: anywhere; }
+.chain-node .node-type { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .67rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
+.chain-node strong { display: block; margin: .4rem 0 .25rem; font-size: .95rem; }
+.chain-node p { margin: .2rem 0; color: var(--ink-soft); font-size: .78rem; }
+.chain-badge { color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 20px; padding: .1rem .45rem; font-size: .64rem; letter-spacing: 0; text-transform: none; }
+.chain-badge.trusted { color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, var(--rule)); }
+.chain-badge.failed { color: var(--brand); border-color: var(--brand); }
+.chain-link { display: flex; gap: .6rem; align-items: center; margin: 0 0 0 1.3rem; padding: .55rem 0 .55rem 1rem; border-left: 2px solid var(--good); font-size: .72rem; color: var(--good); }
+.chain-link.failed { border-left: 2px dashed var(--brand); color: var(--brand); }
+.chain-gap { border-style: dashed; border-color: var(--brand); background: color-mix(in srgb, var(--brand) 3%, var(--paper-raised)); }
+.chain-gap strong { color: var(--brand); }
+.chain-finding { padding: 1rem 0; border-top: 1px solid var(--rule); }
+.chain-finding:first-of-type { border-top: 0; padding-top: 0; }
+.chain-finding h4 { margin: 0 0 .4rem; font-size: .86rem; }
+.chain-finding p { margin: .4rem 0; font-size: .8rem; color: var(--ink-soft); }
+.chain-finding .finding-action { padding: .7rem .85rem; border-radius: 5px; background: var(--paper-sunk); color: var(--ink); }
+.chain-legend { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.2rem 0; font-size: .7rem; color: var(--ink-faint); }
+.chain-legend span:nth-child(1) { color: var(--good); }
+.chain-legend span:nth-child(2) { color: var(--warn); }
+.chain-legend span:nth-child(3) { color: var(--brand); }
+.chain-details { border: 1px solid var(--rule); border-radius: 6px; padding: .85rem 1rem; margin-top: 1.5rem; font-size: .8rem; }
+.chain-details summary { cursor: pointer; font-weight: 600; }
+.chain-details dl { display: grid; grid-template-columns: 8rem minmax(0,1fr); gap: .45rem 1rem; }
+.chain-details dt { color: var(--ink-faint); }
+.chain-details dd { margin: 0; overflow-wrap: anywhere; }
+.chain-details li { padding: .6rem 0; overflow-wrap: anywhere; }
+.chain-details code { display: block; font: .7rem var(--mono); margin-top: .3rem; overflow-wrap: anywhere; }
+.website-limits { color: var(--ink-faint); font-size: .76rem; margin: 2rem 0 1rem; max-width: 48rem; }
+.website-limits strong { color: var(--ink-soft); font-weight: 600; }
+.website-limits p { margin: .4rem 0; }
+@media (max-width: 1050px) { .chain-layout { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .website-target-row { flex-direction: column; } .website-input { padding: 1rem; } .chain-details dl { grid-template-columns: 1fr; } .chain-details dd { margin-bottom: .5rem; } }
+@media (forced-colors: active) { .chain-banner, .chain-node, .chain-badge { border-color: CanvasText; } }

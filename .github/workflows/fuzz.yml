@@ -20,6 +20,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - target: FuzzAnalyzePublicChain
+            package: ./internal/websitechain
+          - target: FuzzTarget
+            package: ./internal/websiteprobe
+          - target: FuzzWebsiteConsent
+            package: ./cmd/rootwelld
           - target: FuzzRun
             package: ./internal/cli
           - target: FuzzACMEPlanRequestJSON

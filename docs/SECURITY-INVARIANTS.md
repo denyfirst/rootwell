@@ -8,6 +8,36 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C103 — Website diagnosis has explicit bounded network authority (ADR 0084)
+
+Website observation is a separate explicit ready-session capability, not a
+network path from offline Workbench. Only an HTTPS DNS origin on port 443 is
+accepted; all bounded DNS answers must be public, a numeric address is dialed
+once and the original hostname remains SNI. One global in-flight observation,
+30-second interval, deadline and socket byte bounds apply. No application
+data, credentials, proxy, redirects or certificate-URL retrieval is sent.
+Native non-Linux production calls refuse before network work. Peer roots do
+not become trusted; issuer names alone cannot create a signature link. Path,
+hostname and current dates remain separate facts. No result is published
+after the original session is lost; nothing is persisted. UI examples use
+generated public certificates only and cannot enable real preview requests.
+
+Guarded by `TestTrustedPathDoesNotNeedServerSentRoot`,
+`TestSameIssuerNameCannotForgeSignatureLinkOrTrust`,
+`TestMissingIssuerAndPeerRootCannotCreateTrust`,
+`TestNameAndDatesAreSeparateFromPathLinks`,
+`TestPresentationOrderDoesNotDeterminePath`,
+`TestMalformedAndBoundedInput`, `TestTargetIsAnOriginNotAFetchURL`,
+`TestSpecialUseAndMappedAddressesAreRefused`,
+`TestRealSyntheticTLSIsPinnedSNIOnlyAndSeparatelyVerified`,
+`TestRefusalsHaveNoDialOrPartialReport`, `TestWebsiteConsentExactAndNoSecrets`,
+`TestCancellationAndRevocationAfterDialCloseWithoutHandshake`,
+`TestHandshakeCancellationAndPostHandshakeRevocationPublishNothing`,
+`TestBoundedConnectionStopsUnboundedPeerInputAndWrites`,
+`TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing`,
+`TestWebsiteSetupAndLateSessionCannotPublish`, `FuzzAnalyzePublicChain`,
+`FuzzTarget`, `FuzzWebsiteConsent` and `scripts/test-website-check.mjs`.
+
 ## C1 — Diagnostics do not reflect command input
 
 Unknown commands and invalid argument combinations are attacker-controlled and

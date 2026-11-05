@@ -2,6 +2,15 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-11-05 prioritet dəyişikliyi — ADR 0084:** avtomatik yeniləmənin davamı
+sonrakı mərhələyə ayrılır; hazır kod saxlanır. Cari iş eyni Rootwell daxilində
+URL ilə saytın təqdim etdiyi X.509 zəncirinin təhlükəsiz yoxlanması və sadə
+rəngli kartlarla problem/düzəliş izahıdır. Bu, Porch skanı və ya yeni converter
+deyil. Public HTTPS:443, hazır giriş sessiyası və ayrıca bir əlaqəyə razılıq;
+Linux connector, DNS/SSRF limitləri, ayrıca kriptoqrafik yoxlama. Native preview
+yalnız sintetik nümunələr göstərir. Mövcud Inspect/Verify/Convert/Certificates
+və şifrəli custody sərhədləri dəyişmir.
+
 **2026-10-29 ADR 0080 — icra/CI mərhələsində:** ayrıca parol və DNS razılığı ilə
 bir hazır-sessiya staging renewal: vaxt → sifariş → DNS/CA təsdiqi → yeni açar/
 sertifikat → yalnız owned DNS təmizliyi. Original sessiya/revision/expiry-dən
