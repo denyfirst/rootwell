@@ -21,7 +21,10 @@ import (
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
-//go:embed auth/*
+// The explicit JSON pattern makes a missing container asset a compile error;
+// the wildcard alone would silently omit a filtered-out example file.
+//
+//go:embed auth/* auth/website-examples.json
 var authAssets embed.FS
 
 const cookieName = "__Host-rootwell_session"
@@ -64,6 +67,9 @@ type gate struct {
 	watch               *timingWatch
 	renewal             *renewalJob
 	closed              bool
+	websiteCheck        websiteCheck
+	websiteBusy         bool
+	websiteLast         time.Time
 }
 
 func newGate(accessPath, assetsDir, host string) (*gate, error) {
@@ -136,6 +142,33 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s, signedIn := g.currentSession(r)
 	switch r.URL.Path {
+	case "/api/website-check":
+		g.websiteCheckEndpoint(w, r, s, signedIn)
+		return
+	case "/website-check", "/website-check.js", "/website-check.css", "/website-examples.json":
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			methodNotAllowed(w)
+			return
+		}
+		if !signedIn {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if s.setup {
+			http.Redirect(w, r, "/setup", http.StatusSeeOther)
+			return
+		}
+		switch r.URL.Path {
+		case "/website-check":
+			g.authAsset(w, r, "auth/website-check.html", "text/html; charset=utf-8")
+		case "/website-check.js":
+			g.authAsset(w, r, "auth/website-check.js", "text/javascript; charset=utf-8")
+		case "/website-check.css":
+			g.authAsset(w, r, "auth/website-check.css", "text/css; charset=utf-8")
+		case "/website-examples.json":
+			g.authAsset(w, r, "auth/website-examples.json", "application/json; charset=utf-8")
+		}
+		return
 	case "/auth.css":
 		g.authAsset(w, r, "auth/auth.css", "text/css; charset=utf-8")
 		return

@@ -3,6 +3,10 @@
 **Scope:** development-only `rootwell-probe` executable. This is not the
 offline Workbench, browser UI, self-hosted server, agent, or Porch integration.
 
+ADR 0084 adds a separate authenticated website-diagnosis capability with its
+own [threat model](WEBSITE-CHECK-THREAT-MODEL.md). It does not wrap this CLI or
+change this CLI's strict expected-leaf/pinned-root behavior.
+
 ## Assets and trust
 
 The probe reads public certificate files that can reveal internal identities,

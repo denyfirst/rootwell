@@ -144,6 +144,12 @@ try {
   assert.equal((await fetch(origin+"/workbench",{method:"POST",body:selection.toString()})).status,403);
   assert.equal((await fetch(origin + "/api/inventory")).status, 404);
   assert.equal((await fetch(origin + "/api/inventory", { method: "POST", body: "never save" })).status, 405);
+  const website = await (await fetch(origin + "/website-check")).text();
+  assert.match(website, /id="website-form" data-read-only="true"/);
+  assert.match(website, /id="website-target" disabled/);
+  assert.match(website, /id="website-consent" disabled/);
+  assert.equal((await fetch(origin + "/api/website-check", {method:"POST", body:'{"target":"website.example.org","confirm":true}'})).status, 405);
+  assert.equal((await (await fetch(origin + "/website-examples.json")).json()).synthetic, true);
   for (const route of ["check", "save", "download"]) {
     assert.equal((await fetch(origin + "/api/certificates/" + route, {method:"POST",headers:compareHeaders,body:"{}"})).status,405);
   }

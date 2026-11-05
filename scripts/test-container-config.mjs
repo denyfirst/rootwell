@@ -75,6 +75,7 @@ const expectedPublicPEM = new Set([
 const reviewedSourceIncludes = new Set([
   '!go.mod', '!go.sum', '!cmd/', '!cmd/**/', '!cmd/**/*.go',
   '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
+  '!cmd/rootwelld/auth/website-examples.json',
   '!internal/', '!internal/**/', '!internal/**/*.go', '!web/', '!web/workbench/',
   '!web/workbench/index.html', '!web/workbench/app.js', '!web/workbench/theme.js',
   '!web/workbench/wasm-loader.js', '!web/workbench/style.css', '!web/workbench/favicon.svg',
@@ -83,6 +84,11 @@ for (const rule of dockerIgnore.filter((line) => line.startsWith('!'))) {
   assert.ok(reviewedSourceIncludes.has(rule) || expectedPublicPEM.has(rule),
     'An unreviewed/broad build-context inclusion is not permitted.');
 }
+assert.ok(dockerIgnore.includes('!cmd/rootwelld/auth/website-examples.json'),
+  'Public generated website examples must survive the deny-default context.');
+const gateSource = await readFile(new URL('../cmd/rootwelld/gate.go', import.meta.url), 'utf8');
+assert.match(gateSource, /\/\/go:embed auth\/\* auth\/website-examples\.json/,
+  'The actual Docker compile must refuse a missing generated example asset.');
 assert.deepEqual(new Set(dockerIgnore.filter((line) => line.startsWith('!') && /\.pem$/i.test(line))),
   expectedPublicPEM, 'Only the exact reviewed public PEM assets may be included.');
 

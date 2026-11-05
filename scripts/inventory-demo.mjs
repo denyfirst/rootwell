@@ -66,7 +66,12 @@ function fixture() {
       return { ...record, expiry: { status, days_left: seconds > 0 ? Math.ceil(seconds/86400) : Math.trunc(seconds/86400) } };
     }) });
 }
+const websiteHTML = replaceOnce(asset("website-check.html"), '<form id="website-form">', '<form id="website-form" data-read-only="true">').replace('id="website-target"', 'id="website-target" disabled').replace('id="website-consent"', 'id="website-consent" disabled');
 const assets = new Map([
+  ["/website-check", ["text/html; charset=utf-8", websiteHTML]],
+  ["/website-check.js", ["text/javascript; charset=utf-8", asset("website-check.js")]],
+  ["/website-check.css", ["text/css; charset=utf-8", asset("website-check.css")]],
+  ["/website-examples.json", ["application/json; charset=utf-8", asset("website-examples.json")]],
   ["/inventory", ["text/html; charset=utf-8", html]],
   ["/certificates", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],

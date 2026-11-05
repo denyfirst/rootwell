@@ -1,0 +1,203 @@
+{
+  "examples": {
+    "missing": {
+      "schema_version": "rootwell.website-chain.v1",
+      "hostname": "website.example.org",
+      "address": "192.0.2.10 (example only)",
+      "tls_version": "TLS 1.3",
+      "observed_at": "2026-11-05T12:00:00Z",
+      "state": "failed",
+      "trusted": false,
+      "hostname_matches": true,
+      "path": [
+        {
+          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "subject": "website.example.org",
+          "issuer": "Rootwell Example Issuer",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-02-03T12:00:00Z",
+          "role": "leaf",
+          "sent": true,
+          "position": 1,
+          "in_date": true
+        }
+      ],
+      "presented": [
+        {
+          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "subject": "website.example.org",
+          "issuer": "Rootwell Example Issuer",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-02-03T12:00:00Z",
+          "role": "leaf",
+          "sent": true,
+          "position": 1,
+          "in_date": true
+        }
+      ],
+      "findings": [
+        {
+          "code": "trust",
+          "level": "failed",
+          "title": "Chain does not reach a trusted root",
+          "detail": "An issuer may be missing or unsuitable, or this Rootwell server may not trust the issuing CA.",
+          "action": "Check the CA's matching intermediate bundle. For an internal CA, also check your organization's trust configuration."
+        },
+        {
+          "code": "issuer-not-linked",
+          "level": "failed",
+          "title": "No supplied issuer verifies the site certificate",
+          "detail": "A matching issuer was not established from the server-sent certificates. An issuer can also be a root already in a client's trust store.",
+          "action": "Check whether the correct intermediate was installed. A matching CA name alone does not prove it is the right certificate."
+        }
+      ],
+      "trust_source": "Synthetic example root — not installed",
+      "revocation": "not-checked"
+    },
+    "valid": {
+      "schema_version": "rootwell.website-chain.v1",
+      "hostname": "website.example.org",
+      "address": "192.0.2.10 (example only)",
+      "tls_version": "TLS 1.3",
+      "observed_at": "2026-11-05T12:00:00Z",
+      "state": "verified",
+      "trusted": true,
+      "hostname_matches": true,
+      "path": [
+        {
+          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "subject": "website.example.org",
+          "issuer": "Rootwell Example Issuer",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-02-03T12:00:00Z",
+          "role": "leaf",
+          "sent": true,
+          "position": 1,
+          "in_date": true
+        },
+        {
+          "fingerprint": "cce76dd4b4782be32dc34909049cca3332af9112c90107807025f1e53091b867",
+          "subject": "Rootwell Example Issuer",
+          "issuer": "Rootwell Example Root",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-11-05T12:00:00Z",
+          "role": "intermediate",
+          "sent": true,
+          "position": 2,
+          "in_date": true
+        },
+        {
+          "fingerprint": "68eb8d4d202c79823a357ac0d3f8fb3a2a92c217d46623085ccb59e0aff1356c",
+          "subject": "Rootwell Example Root",
+          "issuer": "Rootwell Example Root",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-11-05T12:00:00Z",
+          "role": "trust-anchor",
+          "sent": false,
+          "position": 0,
+          "in_date": true
+        }
+      ],
+      "presented": [
+        {
+          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "subject": "website.example.org",
+          "issuer": "Rootwell Example Issuer",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-02-03T12:00:00Z",
+          "role": "leaf",
+          "sent": true,
+          "position": 1,
+          "in_date": true
+        },
+        {
+          "fingerprint": "cce76dd4b4782be32dc34909049cca3332af9112c90107807025f1e53091b867",
+          "subject": "Rootwell Example Issuer",
+          "issuer": "Rootwell Example Root",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-11-05T12:00:00Z",
+          "role": "intermediate",
+          "sent": true,
+          "position": 2,
+          "in_date": true
+        }
+      ],
+      "findings": [],
+      "trust_source": "Synthetic example root — not installed",
+      "revocation": "not-checked"
+    },
+    "wrong": {
+      "schema_version": "rootwell.website-chain.v1",
+      "hostname": "website.example.org",
+      "address": "192.0.2.10 (example only)",
+      "tls_version": "TLS 1.3",
+      "observed_at": "2026-11-05T12:00:00Z",
+      "state": "failed",
+      "trusted": false,
+      "hostname_matches": true,
+      "path": [
+        {
+          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "subject": "website.example.org",
+          "issuer": "Rootwell Example Issuer",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-02-03T12:00:00Z",
+          "role": "leaf",
+          "sent": true,
+          "position": 1,
+          "in_date": true
+        }
+      ],
+      "presented": [
+        {
+          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "subject": "website.example.org",
+          "issuer": "Rootwell Example Issuer",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-02-03T12:00:00Z",
+          "role": "leaf",
+          "sent": true,
+          "position": 1,
+          "in_date": true
+        },
+        {
+          "fingerprint": "7ee4f01b00beab25b6cbc1c04bfeba4138a5fdbc3c60b15ce227b829983fd367",
+          "subject": "Rootwell Example Issuer",
+          "issuer": "Rootwell Example Root",
+          "not_before": "2026-11-04T12:00:00Z",
+          "not_after": "2027-11-05T12:00:00Z",
+          "role": "intermediate",
+          "sent": true,
+          "position": 2,
+          "in_date": true
+        }
+      ],
+      "findings": [
+        {
+          "code": "trust",
+          "level": "failed",
+          "title": "Chain does not reach a trusted root",
+          "detail": "An issuer may be missing or unsuitable, or this Rootwell server may not trust the issuing CA.",
+          "action": "Check the CA's matching intermediate bundle. For an internal CA, also check your organization's trust configuration."
+        },
+        {
+          "code": "issuer-not-linked",
+          "level": "failed",
+          "title": "The supplied issuer does not verify this certificate",
+          "detail": "An issuer name matches, but its signature or CA eligibility check fails. The name alone does not make it the correct intermediate.",
+          "action": "Replace it with the matching intermediate bundle provided by the CA for this certificate."
+        },
+        {
+          "code": "unused",
+          "level": "attention",
+          "title": "An additional certificate was sent",
+          "detail": "One server-sent certificate is outside the displayed path. It may be an alternative chain or an unrelated certificate.",
+          "action": "Review the server-sent list before removing anything; cross-signed alternatives may be intentional."
+        }
+      ],
+      "trust_source": "Synthetic example root — not installed",
+      "revocation": "not-checked"
+    }
+  },
+  "synthetic": true
+}
