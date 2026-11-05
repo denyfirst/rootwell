@@ -46,3 +46,15 @@ Source was restored in a `finally` block and both packages passed afterward.
 No weakened implementation is committed. Final-head CI, actual Linux race
 checks and the separately recorded maintainer self-review remain merge gates;
 this local record does not substitute for them.
+
+Separate packaging review caught the deny-default Docker context excluding the
+new JSON examples while the wildcard embed still compiled. The exact generated
+public asset is now allowlisted; an additional explicit go:embed pattern makes
+absence a compile failure. Container-config and embedded-asset tests guard both
+packaging and synthetic/no-live-result semantics. No broad JSON exception is
+introduced.
+
+Actual packaging sabotage also passed: temporarily parking the exact JSON
+caused the intended daemon go:embed compilation failure, and adding a broad
+`*.json` exception failed the container-config assertion. Both files were
+restored and the embedded-asset/container-config tests passed afterward.

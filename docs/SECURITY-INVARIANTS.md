@@ -36,6 +36,7 @@ Guarded by `TestTrustedPathDoesNotNeedServerSentRoot`,
 `TestBoundedConnectionStopsUnboundedPeerInputAndWrites`,
 `TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing`,
 `TestWebsiteSetupAndLateSessionCannotPublish`, `FuzzAnalyzePublicChain`,
+`TestWebsiteEmbeddedExamplesAreSyntheticAndBounded`,
 `FuzzTarget`, `FuzzWebsiteConsent` and `scripts/test-website-check.mjs`.
 
 ## C1 — Diagnostics do not reflect command input

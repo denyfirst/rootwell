@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,32 @@ import (
 )
 
 const websiteConsent = `{"target":"website.example.org","confirm":true}`
+
+func TestWebsiteEmbeddedExamplesAreSyntheticAndBounded(t *testing.T) {
+	body, err := authAssets.ReadFile("auth/website-examples.json")
+	if err != nil || len(body) == 0 || len(body) > 98304 || bytes.Contains(body, []byte("PRIVATE KEY")) {
+		t.Fatal("public example asset missing or unsafe")
+	}
+	var fixture struct {
+		Synthetic bool                           `json:"synthetic"`
+		Examples  map[string]websitechain.Report `json:"examples"`
+	}
+	if json.Unmarshal(body, &fixture) != nil || !fixture.Synthetic || len(fixture.Examples) != 3 {
+		t.Fatal("example wrapper invalid")
+	}
+	for name, r := range fixture.Examples {
+		if r.Schema != websitechain.Schema || r.Revocation != "not-checked" || !strings.Contains(r.TrustSource, "Synthetic") || !strings.Contains(r.Address, "example only") {
+			t.Fatal("example implies live observation")
+		}
+		if name == "valid" {
+			if r.State != "verified" || !r.Trusted || len(r.Path) != 3 || r.Path[2].Sent {
+				t.Fatal("healthy example lost local-root semantics")
+			}
+		} else if (name != "missing" && name != "wrong") || r.State != "failed" || r.Trusted {
+			t.Fatal("broken example implies success")
+		}
+	}
+}
 
 func TestWebsiteConsentExactAndNoSecrets(t *testing.T) {
 	for _, body := range []string{websiteConsent, `{"confirm":true,"target":"https://website.example.org:443/"}`, `{"target":"website.example.org","confirm":null}`, `{"target":"website.example.org","confirm":false}`, `{"target":"website.example.org"}`, `{"Target":"website.example.org","confirm":true}`, websiteConsent + `{}`, `{"target":"website.example.org","confirm":true,"confirm":true}`, `{"target":"website.example.org","confirm":true,"password":"sentinel"}`, `{"target":"http://169.254.169.254","confirm":true}`, `{"target":null,"confirm":true}`, strings.Repeat(" ", 1025), "null", string([]byte{0xff})} {

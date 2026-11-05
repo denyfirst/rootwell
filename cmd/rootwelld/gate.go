@@ -21,7 +21,10 @@ import (
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
-//go:embed auth/*
+// The explicit JSON pattern makes a missing container asset a compile error;
+// the wildcard alone would silently omit a filtered-out example file.
+//
+//go:embed auth/* auth/website-examples.json
 var authAssets embed.FS
 
 const cookieName = "__Host-rootwell_session"

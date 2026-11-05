@@ -8,6 +8,8 @@
 !cmd/rootwelld/auth/*.html
 !cmd/rootwelld/auth/*.css
 !cmd/rootwelld/auth/*.js
+# Exact generated, public-only website examples; never arbitrary JSON data.
+!cmd/rootwelld/auth/website-examples.json
 !internal/
 !internal/**/
 !internal/**/*.go
