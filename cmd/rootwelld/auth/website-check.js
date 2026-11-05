@@ -8,12 +8,12 @@
   const text = (v, max) => typeof v === "string" && v.length <= max;
   const date = v => text(v, 40) && Number.isFinite(Date.parse(v));
   function certificate(c) {
-    return c && /^[a-f0-9]{64}$/.test(c.fingerprint) && text(c.subject, 480) && text(c.issuer, 480) && date(c.not_before) && date(c.not_after) && ["leaf", "intermediate", "trust-anchor"].includes(c.role) && typeof c.sent === "boolean" && Number.isInteger(c.position) && c.position >= 0 && c.position <= 10 && c.sent === (c.position > 0) && typeof c.in_date === "boolean";
+    return c && /^[a-f0-9]{64}$/.test(c.fingerprint) && text(c.subject, 480) && text(c.issuer, 480) && date(c.not_before) && date(c.not_after) && ["leaf", "intermediate", "trust-anchor", "root"].includes(c.role) && typeof c.sent === "boolean" && Number.isInteger(c.position) && c.position >= 0 && c.position <= 10 && c.sent === (c.position > 0) && typeof c.in_date === "boolean";
   }
   function valid(r) {
     return r && r.schema_version === "rootwell.website-chain.v1" && text(r.hostname,253) && r.hostname.length > 0 && text(r.address,64) && ["TLS 1.2","TLS 1.3"].includes(r.tls_version) && date(r.observed_at) && ["verified","attention","failed"].includes(r.state) && typeof r.trusted === "boolean" && typeof r.hostname_matches === "boolean" && Array.isArray(r.path) && r.path.length >= 1 && r.path.length <= 11 && r.path.every(certificate) && r.path[0].role === "leaf" && Array.isArray(r.presented) && r.presented.length >= 1 && r.presented.length <= 10 && r.presented.every(certificate) && Array.isArray(r.findings) && r.findings.length <= 40 && r.findings.every(f => f && text(f.code,64) && ["failed","attention"].includes(f.level) && text(f.title,200) && text(f.detail,800) && text(f.action,800)) && text(r.trust_source,120) && r.revocation === "not-checked" &&
       (r.state === "failed" ? r.findings.some(f => f.level === "failed") : r.trusted && r.hostname_matches && !r.findings.some(f => f.level === "failed")) &&
-      (r.state !== "verified" || r.findings.length === 0) && (!r.trusted || r.path[r.path.length-1].role === "trust-anchor" || r.path.length === 1);
+      (r.state !== "verified" || r.findings.length === 0) && (r.trusted ? r.path.every(c => c.in_date) && (r.path[r.path.length-1].role === "trust-anchor" || r.path.length === 1) : !r.path.some(c => c.role === "trust-anchor"));
   }
   const displayDate = value => new Date(value).toLocaleDateString(undefined, {year:"numeric",month:"short",day:"numeric"});
   function render(r, example) {
@@ -32,9 +32,9 @@
       const item = element("li");
       if (i > 0) item.append(element("div", "✓ Signature matches the issuer below", "chain-link"));
       const card = element("div", undefined, "chain-node"), meta = element("div", undefined, "node-type");
-      meta.append(element("span", c.role === "leaf" ? "01 / Website certificate" : c.role === "trust-anchor" ? "Trust anchor" : "Intermediate certificate"));
-      meta.append(element("span", c.role === "trust-anchor" ? "Trusted locally" : !c.in_date ? "Outside validity" : "Server-sent", "chain-badge" + (c.role === "trust-anchor" ? " trusted" : !c.in_date ? " failed" : "")));
-      card.append(meta, element("strong", c.subject), element("p", "Expires " + displayDate(c.not_after)));
+      meta.append(element("span", c.role === "leaf" ? "01 / Website certificate" : c.role === "trust-anchor" ? "Trust anchor" : c.role === "root" ? "Server-sent root" : "Intermediate certificate"));
+      meta.append(element("span", c.role === "trust-anchor" ? "Trusted locally" : !c.in_date ? "Outside validity" : c.role === "root" ? "Path not verified" : "Server-sent", "chain-badge" + (c.role === "trust-anchor" ? " trusted" : !c.in_date || c.role === "root" ? " failed" : "")));
+      card.append(meta, element("strong", c.subject), element("p", "Valid from " + displayDate(c.not_before)), element("p", "Expires " + displayDate(c.not_after)));
       if (c.role === "trust-anchor") card.append(element("p", c.sent ? "Also sent by the server; trust comes from the local root store." : "From the root store. The server does not need to send it."));
       else card.append(element("p", "Issued by " + c.issuer));
       item.append(card); path.append(item);
@@ -46,7 +46,7 @@
     left.append(path);
     const legend = element("div", undefined, "chain-legend"); legend.append(element("span","✓ Verified link"), element("span","△ Attention"), element("span","! Problem")); left.append(legend);
     right.append(element("h3", r.findings.length ? "What to check next" : "Everything connected"));
-    const focused = r.findings.filter(f => f.code !== "unused" && !(f.code === "trust" && r.findings.some(other => other.code === "issuer-not-linked")));
+    const focused = r.findings.filter(f => f.code !== "unused" && !(f.code === "trust" && r.findings.some(other => ["issuer-not-linked","issuer-ambiguous"].includes(other.code))));
     const findings = focused.length ? focused : r.findings.length ? r.findings : [{title:"No chain problem found in this observation",detail:"The hostname matches and the current server-auth path verifies against this Rootwell server's roots.",action:"No chain repair is needed for this observation. Revocation, other endpoints and every browser's trust are outside this check."}];
     for (const f of findings) { const item = element("article", undefined, "chain-finding"); item.append(element("h4", (f.level === "failed" ? "! " : f.level === "attention" ? "△ " : "✓ ") + f.title), element("p",f.detail),element("p",f.action,"finding-action")); right.append(item); }
     layout.append(left,right); result.append(layout);
@@ -55,7 +55,7 @@
     for (const [k,v] of [["Observed",new Date(r.observed_at).toLocaleString()],["Connected IP",r.address],["Connection",r.tls_version + " · port 443"],["Trust source",r.trust_source],["Revocation","Not checked"]]) dl.append(element("dt",k),element("dd",v));
     if (r.trusted) dl.append(element("dt","Root SHA-256"),element("dd",r.path[r.path.length-1].fingerprint));
     details.append(dl,element("p","Certificates in the order the server sent them. The diagram above follows signature links; it may use a different order."));
-    const sent = element("ol"); for (const c of r.presented) { const li = element("li",c.subject + " · issuer: " + c.issuer); li.append(element("code","SHA-256 " + c.fingerprint)); sent.append(li); } details.append(sent);
+    const sent = element("ol"); for (const c of r.presented) { const li = element("li",c.subject + " · issuer: " + c.issuer); li.append(element("p","Valid from " + c.not_before + " · expires " + c.not_after),element("code","SHA-256 " + c.fingerprint)); sent.append(li); } details.append(sent);
     if (r.findings.length) { details.append(element("h3","All observations")); for (const f of r.findings) details.append(element("p",f.title + ": " + f.detail + " " + f.action)); }
     result.append(details); result.hidden = false; result.scrollIntoView({block:"start"});
   }

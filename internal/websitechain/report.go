@@ -99,6 +99,7 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 	paths, verifyErr := leaf.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, CurrentTime: now, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
 	r.Trusted = verifyErr == nil
 	var path []*x509.Certificate
+	ambiguousIssuer := false
 	if r.Trusted {
 		path = paths[0]
 	} else {
@@ -130,6 +131,7 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 				}
 			}
 			if count != 1 {
+				ambiguousIssuer = count > 1
 				break
 			}
 			path = append(path, issuer)
@@ -145,6 +147,8 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 			role = "leaf"
 		} else if r.Trusted && i == len(path)-1 {
 			role = "trust-anchor"
+		} else if c.CheckSignatureFrom(c) == nil {
+			role = "root"
 		}
 		position := sentPosition(chain, c)
 		if position > 0 {
@@ -158,7 +162,9 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 	}
 	if !r.Trusted {
 		last := path[len(path)-1]
-		if last.CheckSignatureFrom(last) != nil && len(path) == 1 {
+		if ambiguousIssuer {
+			add("issuer-ambiguous", "failed", "More than one supplied issuer matches", "Several supplied CA certificates verify the same child's signature, but a trusted path was not established. The diagram stops before choosing an ambiguous issuer.", "Review the cross-signed alternatives and the intended trusted root. This does not by itself mean either issuer is incorrect.")
+		} else if last.CheckSignatureFrom(last) != nil && len(path) == 1 {
 			namedButInvalid := false
 			for _, c := range chain[1:] {
 				if bytes.Equal(leaf.RawIssuer, c.RawSubject) && leaf.CheckSignatureFrom(c) != nil {

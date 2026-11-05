@@ -94,6 +94,9 @@ func TestMissingIssuerAndPeerRootCannotCreateTrust(t *testing.T) {
 				t.Fatal("peer root promoted")
 			}
 		}
+		if len(input) == 3 && r.Path[2].Role != "root" {
+			t.Fatal("unverified server root mislabeled")
+		}
 	}
 }
 
@@ -114,6 +117,44 @@ func TestPresentationOrderDoesNotDeterminePath(t *testing.T) {
 	r, err := Analyze([]*x509.Certificate{chain[0], chain[2], chain[1]}, roots, "website.example.org", now)
 	if err != nil || !r.Trusted || r.State != "attention" || !has(r, "order") || r.Path[1].Fingerprint == r.Path[2].Fingerprint {
 		t.Fatalf("order affected trust: %+v %v", r, err)
+	}
+}
+
+func TestCrossSignedIssuerAmbiguityIsNotMissingOrWrongSignature(t *testing.T) {
+	chain, roots, now := fixture(t)
+	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := &x509.Certificate{SerialNumber: big.NewInt(50), Subject: pkix.Name{CommonName: "Other synthetic root"}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(365 * 24 * time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
+	rootDER, err := x509.CreateCertificate(rand.Reader, root, root, pub, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err = x509.ParseCertificate(rootDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issuer := *chain[1]
+	issuer.SerialNumber = big.NewInt(51)
+	crossDER, err := x509.CreateCertificate(rand.Reader, &issuer, root, chain[1].PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cross, err := x509.ParseCertificate(crossDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chain[0].CheckSignatureFrom(chain[1]) != nil || chain[0].CheckSignatureFrom(cross) != nil {
+		t.Fatal("fixture does not have two real signing candidates")
+	}
+	r, err := Analyze([]*x509.Certificate{chain[0], chain[1], cross}, x509.NewCertPool(), "website.example.org", now)
+	if err != nil || r.Trusted || r.State != "failed" || len(r.Path) != 1 || !has(r, "issuer-ambiguous") || has(r, "issuer-not-linked") {
+		t.Fatalf("cross-sign ambiguity became false missing/wrong issuer: %+v %v", r, err)
+	}
+	r, err = Analyze([]*x509.Certificate{chain[0], chain[1], cross}, roots, "website.example.org", now)
+	if err != nil || !r.Trusted || r.State != "attention" || len(r.Path) != 3 || has(r, "issuer-ambiguous") || has(r, "issuer-not-linked") {
+		t.Fatal("a verifiable cross-signed alternative was falsely rejected")
 	}
 }
 

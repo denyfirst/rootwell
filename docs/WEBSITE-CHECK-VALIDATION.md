@@ -58,3 +58,17 @@ Actual packaging sabotage also passed: temporarily parking the exact JSON
 caused the intended daemon go:embed compilation failure, and adding a broad
 `*.json` exception failed the container-config assertion. Both files were
 restored and the embedded-asset/container-config tests passed afterward.
+
+Final diagnosis review adds actual cross-signed same-key issuer fixtures: with
+no trusted path, two real signing candidates are reported as ambiguous, not
+falsely as missing/wrong; with a valid trusted alternative, verification still
+succeeds. Unverified self-signed CA candidates have a neutral server-root role,
+never an unconditional trusted/untrusted-root verdict inferred from another
+certificate's date failure. Cards show both validity-start and expiry; exact
+dates remain in technical details. UI tests cover that presentation and refuse
+contradictory trusted/out-of-date metadata.
+
+Two further compiling sabotages hide actual issuer ambiguity or force rejection
+of a verifiable cross-signed alternative. Both failed the intended cross-sign
+test; restored source passed. These complement the four signature/IP-policy
+sabotages and the two packaging-refusal drills above.
