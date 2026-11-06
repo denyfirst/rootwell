@@ -1,11 +1,20 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-11-05. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-11-06. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
 
 ## Yeni prioritet — saytın sertifikat zəncirinin diaqnostikası
+
+2026-11-06 ADR 0085: eyni səhifədə optional “Compare with my certificate”.
+Seçilən public fayl brauzerdə qalır; API-yə yalnız əvvəlki target/confirm gedir.
+Tam SHA-256 uyğunluğu və hər intermediate üçün dəqiq yer/candidate ayrıca
+göstərilir. Local WASM imza qrafı + serverin per-child verified/rejected
+fingerprint-ləri səhv intermediate, çatışmayan hissə və legitim alternativi
+ayırır; root-un göndərilməməsi avtomatik səhv deyil. Fayl server yoxlamasındakı
+boşluğu doldurmur və trust yaratmır. Hazır ADR 0084 PR #115 ilə 13/13 sonrası
+merge olunub; avtomatik yeniləmənin davamı hələ sonraya ayrılıb.
 
 2026-11-05 istifadəçi avtomatik yeniləmənin davamını sonrakı mərhələyə ayırmağı
 və URL ilə səhv/çatışmayan intermediate diaqnostikasını təklif etdi. Mövcud merge

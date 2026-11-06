@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"math/big"
 	"os"
 	"time"
@@ -63,7 +64,11 @@ func main() {
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
-	mustWebsite(encoder.Encode(map[string]any{"synthetic": true, "examples": examples}))
+	var expected []byte
+	for _, c := range chain {
+		expected = append(expected, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.Raw})...)
+	}
+	mustWebsite(encoder.Encode(map[string]any{"synthetic": true, "examples": examples, "expected_certificate_pem": string(expected), "different_certificate_pem": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: other[0].Raw}))}))
 }
 
 func mustWebsite(err error) {

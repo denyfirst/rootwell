@@ -1,4 +1,5 @@
 {
+  "different_certificate_pem": "-----BEGIN CERTIFICATE-----\nMIIBZTCCARegAwIBAgIBAzAFBgMrZXAwIjEgMB4GA1UEAxMXUm9vdHdlbGwgRXhh\nbXBsZSBJc3N1ZXIwHhcNMjYxMTA0MTIwMDAwWhcNMjcwMjAzMTIwMDAwWjAeMRww\nGgYDVQQDExN3ZWJzaXRlLmV4YW1wbGUub3JnMCowBQYDK2VwAyEAoqMX7VYuI46G\nahogJhPhu3jQqtNYH3Zh0ri5bKQm+yOjdjB0MA4GA1UdDwEB/wQEAwIHgDATBgNV\nHSUEDDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFCYYCqd1\nrAXoF+79F4wmpdt9SHfwMB4GA1UdEQQXMBWCE3dlYnNpdGUuZXhhbXBsZS5vcmcw\nBQYDK2VwA0EAtfowU82tk6gdQp55ueoosXkU18xRkaOhikEpCKeu/vq/f38/iyb9\ntrPEV+ewQavzpYsAbap86JZTlD7XDRliAQ==\n-----END CERTIFICATE-----\n",
   "examples": {
     "missing": {
       "schema_version": "rootwell.website-chain.v1",
@@ -11,7 +12,7 @@
       "hostname_matches": true,
       "path": [
         {
-          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "fingerprint": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
           "subject": "website.example.org",
           "issuer": "Rootwell Example Issuer",
           "not_before": "2026-11-04T12:00:00Z",
@@ -24,7 +25,7 @@
       ],
       "presented": [
         {
-          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "fingerprint": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
           "subject": "website.example.org",
           "issuer": "Rootwell Example Issuer",
           "not_before": "2026-11-04T12:00:00Z",
@@ -52,7 +53,15 @@
         }
       ],
       "trust_source": "Synthetic example root — not installed",
-      "revocation": "not-checked"
+      "revocation": "not-checked",
+      "issuer_checks": [
+        {
+          "child": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
+          "verified": [],
+          "rejected": [],
+          "self_signed": false
+        }
+      ]
     },
     "valid": {
       "schema_version": "rootwell.website-chain.v1",
@@ -65,7 +74,7 @@
       "hostname_matches": true,
       "path": [
         {
-          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "fingerprint": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
           "subject": "website.example.org",
           "issuer": "Rootwell Example Issuer",
           "not_before": "2026-11-04T12:00:00Z",
@@ -76,7 +85,7 @@
           "in_date": true
         },
         {
-          "fingerprint": "cce76dd4b4782be32dc34909049cca3332af9112c90107807025f1e53091b867",
+          "fingerprint": "bf15fdda017c27ca57ad12d98267b8eeecd733ad5c482bb6a403dd3c71d65ee7",
           "subject": "Rootwell Example Issuer",
           "issuer": "Rootwell Example Root",
           "not_before": "2026-11-04T12:00:00Z",
@@ -87,7 +96,7 @@
           "in_date": true
         },
         {
-          "fingerprint": "68eb8d4d202c79823a357ac0d3f8fb3a2a92c217d46623085ccb59e0aff1356c",
+          "fingerprint": "f26f735ea630f18445fd2c339cf8a3c561d25b158cf90130bd0e926aaabc4cd1",
           "subject": "Rootwell Example Root",
           "issuer": "Rootwell Example Root",
           "not_before": "2026-11-04T12:00:00Z",
@@ -100,7 +109,7 @@
       ],
       "presented": [
         {
-          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "fingerprint": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
           "subject": "website.example.org",
           "issuer": "Rootwell Example Issuer",
           "not_before": "2026-11-04T12:00:00Z",
@@ -111,7 +120,7 @@
           "in_date": true
         },
         {
-          "fingerprint": "cce76dd4b4782be32dc34909049cca3332af9112c90107807025f1e53091b867",
+          "fingerprint": "bf15fdda017c27ca57ad12d98267b8eeecd733ad5c482bb6a403dd3c71d65ee7",
           "subject": "Rootwell Example Issuer",
           "issuer": "Rootwell Example Root",
           "not_before": "2026-11-04T12:00:00Z",
@@ -124,7 +133,23 @@
       ],
       "findings": [],
       "trust_source": "Synthetic example root — not installed",
-      "revocation": "not-checked"
+      "revocation": "not-checked",
+      "issuer_checks": [
+        {
+          "child": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
+          "verified": [
+            "bf15fdda017c27ca57ad12d98267b8eeecd733ad5c482bb6a403dd3c71d65ee7"
+          ],
+          "rejected": [],
+          "self_signed": false
+        },
+        {
+          "child": "bf15fdda017c27ca57ad12d98267b8eeecd733ad5c482bb6a403dd3c71d65ee7",
+          "verified": [],
+          "rejected": [],
+          "self_signed": false
+        }
+      ]
     },
     "wrong": {
       "schema_version": "rootwell.website-chain.v1",
@@ -137,7 +162,7 @@
       "hostname_matches": true,
       "path": [
         {
-          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "fingerprint": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
           "subject": "website.example.org",
           "issuer": "Rootwell Example Issuer",
           "not_before": "2026-11-04T12:00:00Z",
@@ -150,7 +175,7 @@
       ],
       "presented": [
         {
-          "fingerprint": "3c176caf1d331a9b43e89ef8bcd8b895b7478ec223c244ae19b6ebbc8e73e839",
+          "fingerprint": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
           "subject": "website.example.org",
           "issuer": "Rootwell Example Issuer",
           "not_before": "2026-11-04T12:00:00Z",
@@ -161,7 +186,7 @@
           "in_date": true
         },
         {
-          "fingerprint": "7ee4f01b00beab25b6cbc1c04bfeba4138a5fdbc3c60b15ce227b829983fd367",
+          "fingerprint": "bd52f3c41178d1617f04020b9dcd6853e9ab2013e61a6ea386f99cbaecd0e300",
           "subject": "Rootwell Example Issuer",
           "issuer": "Rootwell Example Root",
           "not_before": "2026-11-04T12:00:00Z",
@@ -196,8 +221,25 @@
         }
       ],
       "trust_source": "Synthetic example root — not installed",
-      "revocation": "not-checked"
+      "revocation": "not-checked",
+      "issuer_checks": [
+        {
+          "child": "3fead82aa15fed3d4fb791482a6dec31a9c6acee36d9c767aecad508ba8d9feb",
+          "verified": [],
+          "rejected": [
+            "bd52f3c41178d1617f04020b9dcd6853e9ab2013e61a6ea386f99cbaecd0e300"
+          ],
+          "self_signed": false
+        },
+        {
+          "child": "bd52f3c41178d1617f04020b9dcd6853e9ab2013e61a6ea386f99cbaecd0e300",
+          "verified": [],
+          "rejected": [],
+          "self_signed": false
+        }
+      ]
     }
   },
+  "expected_certificate_pem": "-----BEGIN CERTIFICATE-----\nMIIBZTCCARegAwIBAgIBAzAFBgMrZXAwIjEgMB4GA1UEAxMXUm9vdHdlbGwgRXhh\nbXBsZSBJc3N1ZXIwHhcNMjYxMTA0MTIwMDAwWhcNMjcwMjAzMTIwMDAwWjAeMRww\nGgYDVQQDExN3ZWJzaXRlLmV4YW1wbGUub3JnMCowBQYDK2VwAyEAMJ25t6oGbKQ2\ndre6uSo8DeWLexIgGW5F/AJSRD+N9z6jdjB0MA4GA1UdDwEB/wQEAwIHgDATBgNV\nHSUEDDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMB8GA1UdIwQYMBaAFGW3ejYV\nZBFG3cUDMf/Mh9drEQABMB4GA1UdEQQXMBWCE3dlYnNpdGUuZXhhbXBsZS5vcmcw\nBQYDK2VwA0EAmCi7s/heQy3PDP0Ai78fhXKmpQJAAjpeSNmQMRyMEj9oVrtHL4Ec\nhxhpfFI0j6Y40Dwh8GdHZvooUdkClkJ3Bw==\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nMIIBVDCCAQagAwIBAgIBAjAFBgMrZXAwIDEeMBwGA1UEAxMVUm9vdHdlbGwgRXhh\nbXBsZSBSb290MB4XDTI2MTEwNDEyMDAwMFoXDTI3MTEwNTEyMDAwMFowIjEgMB4G\nA1UEAxMXUm9vdHdlbGwgRXhhbXBsZSBJc3N1ZXIwKjAFBgMrZXADIQC+DSRKU94r\n76DApRZMnrMxkpzckutsnd7o9pYpxWQZhaNjMGEwDgYDVR0PAQH/BAQDAgIEMA8G\nA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFGW3ejYVZBFG3cUDMf/Mh9drEQABMB8G\nA1UdIwQYMBaAFNNAFN5DbsTdw06ZOJ1BHxAXJ8+OMAUGAytlcANBACJ4Z+lQBNDE\n3otvWsu6TkV2Sh4/widTkgxhKKXmxu1E0SmI3qmQPga4FXK0dswIwqMqAFCfkcr6\n6E4N9RoP3wo=\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nMIIBMDCB46ADAgECAgEBMAUGAytlcDAgMR4wHAYDVQQDExVSb290d2VsbCBFeGFt\ncGxlIFJvb3QwHhcNMjYxMTA0MTIwMDAwWhcNMjcxMTA1MTIwMDAwWjAgMR4wHAYD\nVQQDExVSb290d2VsbCBFeGFtcGxlIFJvb3QwKjAFBgMrZXADIQBIB/zpd//2MDn9\nJCrswd2J58wdPu9UDbxiySZP2WbUKKNCMEAwDgYDVR0PAQH/BAQDAgIEMA8GA1Ud\nEwEB/wQFMAMBAf8wHQYDVR0OBBYEFNNAFN5DbsTdw06ZOJ1BHxAXJ8+OMAUGAytl\ncANBALVdZUBESXm8p8irEngsR9Ah+t9rs58QP166uyt0+ZdpYcKIl2wS7u8swhDO\nMRFu1SsYTgD0/Kk7nMALToHWIgA=\n-----END CERTIFICATE-----\n",
   "synthetic": true
 }

@@ -172,6 +172,8 @@ jobs:
           node --check web/workbench/worker-browser-smoke.js
           node --check cmd/rootwelld/auth/auth.js
           node --check cmd/rootwelld/auth/website-check.js
+          node --check cmd/rootwelld/auth/website-expected.js
+          node --check scripts/test-website-expected.mjs
           node --check scripts/test-website-check.mjs
           node --check cmd/rootwelld/auth/inventory.js
           node --check cmd/rootwelld/auth/certificate-library.js
@@ -237,6 +239,7 @@ jobs:
           node scripts/test-workbench-csr-worker.mjs
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-website-check.mjs
+          node scripts/test-website-expected.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-certificate-library.mjs
           node scripts/test-saved-key-attachment.mjs

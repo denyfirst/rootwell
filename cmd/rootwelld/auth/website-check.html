@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/website-check.css">
   <script src="/theme.js"></script>
+  <script src="/wasm_exec.js" defer></script>
+  <script src="/inventory-engine.js" defer></script>
+  <script src="/website-expected.js" defer></script>
   <script src="/website-check.js" defer></script>
 </head>
 <body class="workspace website-workspace">
@@ -36,13 +39,21 @@
           <label for="website-target">Website address</label>
           <div class="website-target-row"><input id="website-target" type="text" maxlength="270" required autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="https://example.com" aria-describedby="target-help"><button id="website-submit" type="submit">Check certificate <span aria-hidden="true">↗</span></button></div>
           <p id="target-help">Public websites on HTTPS port 443. Enter a domain or origin, without a page path.</p>
+          <label class="website-consent" for="website-compare"><input id="website-compare" type="checkbox"> Compare with my certificate <span>(optional)</span></label>
+          <div id="website-expected" class="website-expected" hidden>
+            <label for="expected-certificate">Your expected website certificate or public bundle</label>
+            <input id="expected-certificate" type="file" accept=".pem,.crt,.cer,.der">
+            <p>Read only in this browser. The file is never uploaded. PEM/CRT/CER/DER, up to 256 KiB / 10 certificates. No private key or PFX.</p>
+            <div id="expected-choice-box" hidden><label for="expected-choice">Which website certificate should be installed?</label><select id="expected-choice"></select></div>
+            <p id="expected-status" role="status" aria-live="polite"></p>
+          </div>
           <label class="website-consent" for="website-consent"><input id="website-consent" type="checkbox" required> I am authorized to check this website. Connect once from my Rootwell server.</label>
         </form>
-        <div class="website-examples"><span>See an example</span><button type="button" id="example-valid">Healthy chain</button><button type="button" id="example-missing">Missing intermediate</button><button type="button" id="example-wrong">Wrong intermediate</button></div>
+        <div class="website-examples"><span>See an example</span><button type="button" id="example-valid">Healthy chain</button><button type="button" id="example-missing">Missing intermediate</button><button type="button" id="example-wrong">Wrong intermediate</button><button type="button" id="example-compare">Compare certificate</button></div>
         <p id="website-status" role="status" aria-live="polite"></p>
       </section>
       <section id="website-result" aria-label="Certificate check result" hidden></section>
-      <aside class="website-limits"><strong>A certificate check, from your server.</strong><p>One endpoint at one moment, using your Rootwell server's trust store. No files or private keys are requested. Revocation and every browser's trust decisions are not checked. Nothing is saved by this page.</p></aside>
+      <aside class="website-limits"><strong>A certificate check, from your server.</strong><p>One endpoint at one moment, using your Rootwell server's trust store. Optional comparison files stay in your browser and cannot repair or establish trust in the server chain. No private key is needed. Revocation and every browser's trust decisions are not checked. Nothing is saved by this page.</p></aside>
     </main>
   </div>
 </body>

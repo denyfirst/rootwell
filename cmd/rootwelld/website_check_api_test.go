@@ -55,6 +55,17 @@ func TestWebsiteConsentExactAndNoSecrets(t *testing.T) {
 	}
 }
 
+func TestWebsiteComparisonCannotUploadCertificatesOrTrustToAPI(t *testing.T) {
+	for _, field := range []string{"certificate", "expected_certificate", "fingerprint", "private_key", "trust_bundle"} {
+		body := `{"target":"website.example.org","confirm":true,"` + field + `":"private-input-sentinel"}`
+		r := httptest.NewRequest("POST", "/api/website-check", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		if _, ok := readWebsiteConsent(httptest.NewRecorder(), r); ok {
+			t.Fatal("file/trust comparison input entered the server API")
+		}
+	}
+}
+
 func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testing.T) {
 	g, cookie, path := readyDirectoryGate(t)
 	before, err := os.ReadFile(path)
@@ -89,7 +100,7 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 			t.Fatal("unauthorized network capability")
 		}
 	}
-	for _, route := range []string{"/website-check", "/website-check.js", "/website-check.css", "/website-examples.json"} {
+	for _, route := range []string{"/website-check", "/website-check.js", "/website-expected.js", "/website-check.css", "/website-examples.json"} {
 		if w := call(g, "GET", route, "", nil); w.Code != 303 {
 			t.Fatal("anonymous asset exposed")
 		}

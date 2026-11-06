@@ -9,12 +9,12 @@
   const controller = new AbortController();
   const deadline = setTimeout(() => { controller.abort(); fail(new Error("Local public certificate engine unavailable.")); }, 20000);
   globalThis.rootwellWasmReady = function () {
-    if (typeof globalThis.rootwellExplore !== "function" || typeof globalThis.rootwellExportBundle !== "function" ||
+    if (typeof globalThis.rootwellExplore !== "function" || typeof globalThis.rootwellAnalyze !== "function" || typeof globalThis.rootwellExportBundle !== "function" ||
         typeof globalThis.rootwellExport !== "function" || typeof globalThis.rootwellCompare !== "function" || globalThis.rootwellInspectMaxBytes !== 16 * 1024 * 1024) {
       fail(new Error("Local public certificate engine unavailable."));
       return;
     }
-    finish(Object.freeze({ explore: globalThis.rootwellExplore, exportBundle: globalThis.rootwellExportBundle,
+    finish(Object.freeze({ explore: globalThis.rootwellExplore, analyze: globalThis.rootwellAnalyze, exportBundle: globalThis.rootwellExportBundle,
       exportPublic: globalThis.rootwellExport, compare: globalThis.rootwellCompare }));
   };
   Object.defineProperty(globalThis, "rootwellInventoryEngineReady", { value: ready.finally(() => {

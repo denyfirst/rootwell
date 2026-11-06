@@ -41,6 +41,15 @@ type Certificate struct {
 	InDate      bool   `json:"in_date"`
 }
 
+// IssuerCheck names the actual server-sent child and candidate issuers by
+// complete fingerprint. These are signature/CA-eligibility facts, not trust.
+type IssuerCheck struct {
+	Child      string   `json:"child"`
+	Verified   []string `json:"verified"`
+	Rejected   []string `json:"rejected"`
+	SelfSigned bool     `json:"self_signed"`
+}
+
 type Report struct {
 	Schema          string        `json:"schema_version"`
 	Hostname        string        `json:"hostname"`
@@ -55,6 +64,7 @@ type Report struct {
 	Findings        []Finding     `json:"findings"`
 	TrustSource     string        `json:"trust_source"`
 	Revocation      string        `json:"revocation"`
+	IssuerChecks    []IssuerCheck `json:"issuer_checks"`
 }
 
 // Analyze uses only the supplied roots and presented intermediates. In
@@ -79,6 +89,23 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 	r := Report{Schema: Schema, Hostname: hostname, ObservedAt: now.UTC().Format(time.RFC3339Nano),
 		State: "verified", Path: []Certificate{}, Presented: []Certificate{}, Findings: []Finding{},
 		TrustSource: "Rootwell server system roots", Revocation: "not-checked"}
+	// At most 10*9 candidate checks, bounded by MaxCertificates above. Never
+	// infer a signature from matching names, and never promote a sent root.
+	for i, child := range chain {
+		check := IssuerCheck{Child: describe(child, "", i+1, now).Fingerprint, Verified: []string{}, Rejected: []string{}, SelfSigned: child.CheckSignatureFrom(child) == nil}
+		for j, parent := range chain {
+			if i == j || !bytes.Equal(child.RawIssuer, parent.RawSubject) {
+				continue
+			}
+			fp := describe(parent, "", j+1, now).Fingerprint
+			if child.CheckSignatureFrom(parent) == nil {
+				check.Verified = append(check.Verified, fp)
+			} else {
+				check.Rejected = append(check.Rejected, fp)
+			}
+		}
+		r.IssuerChecks = append(r.IssuerChecks, check)
+	}
 	add := func(code, level, title, detail, action string) {
 		r.Findings = append(r.Findings, Finding{code, level, title, detail, action})
 		if level == "failed" {

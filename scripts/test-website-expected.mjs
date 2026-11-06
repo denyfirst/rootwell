@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+import { X509Certificate, generateKeyPairSync } from "node:crypto";
+
+const [wasmPath,runtimePath] = process.argv.slice(2);
+if (!wasmPath || !runtimePath) throw Error("usage: test-website-expected.mjs <wasm> <wasm_exec.js>");
+vm.runInThisContext(fs.readFileSync(runtimePath,"utf8"));
+let resolveReady;const ready=new Promise(resolve=>{resolveReady=resolve;});globalThis.rootwellWasmReady=resolveReady;
+const go=new globalThis.Go(), wasm=await WebAssembly.instantiate(fs.readFileSync(wasmPath),go.importObject);void go.run(wasm.instance);
+const timer=setTimeout(()=>{throw Error("WASM readiness timeout");},10000);await ready;clearTimeout(timer);
+const source=fs.readFileSync("cmd/rootwelld/auth/website-expected.js","utf8");
+assert.doesNotMatch(source,/fetch\s*\(|XMLHttpRequest|document\.|localStorage|sessionStorage|innerHTML|sendBeacon/);
+vm.runInThisContext(source);
+const api=globalThis.rootwellWebsiteExpected, engine={explore:globalThis.rootwellExplore,analyze:globalThis.rootwellAnalyze};
+const fixture=JSON.parse(fs.readFileSync("cmd/rootwelld/auth/website-examples.json","utf8"));
+const bytes=value=>new TextEncoder().encode(value);
+const expected=api.prepare(engine,bytes(fixture.expected_certificate_pem));
+const observationBefore=JSON.stringify(fixture.examples);
+const good=api.compare(expected,fixture.examples.valid), broken=api.compare(expected,fixture.examples.wrong), missing=api.compare(expected,fixture.examples.missing);
+assert.equal(JSON.stringify(fixture.examples),observationBefore);
+assert.equal(good.state,"match");assert.deepEqual(good.nodes.map(n=>n.state),["match","match","root-omitted"]);
+assert.equal(broken.state,"match");assert.deepEqual(broken.nodes.map(n=>n.state),["match","wrong-issuer","root-omitted"]);assert.equal(broken.nodes[1].candidates[0],fixture.examples.wrong.presented[1].fingerprint);
+assert.deepEqual(missing.nodes.map(n=>n.state),["match","missing","root-omitted"]);
+assert.equal(fixture.examples.wrong.trusted,false);assert.equal(fixture.examples.missing.trusted,false); // supplied CA material never repairs the observation
+const another=api.prepare(engine,bytes(fixture.different_certificate_pem));assert.equal(api.compare(another,fixture.examples.valid).state,"different");
+const der=new Uint8Array(new X509Certificate(fixture.expected_certificate_pem).raw);assert.equal(api.prepare(engine,der).leaf,expected.leaf);
+const changed=der.slice();changed[changed.length-1]^=1;
+assert.deepEqual(new X509Certificate(changed).publicKey.export({type:"spki",format:"der"}),new X509Certificate(der).publicKey.export({type:"spki",format:"der"}));
+assert.equal(api.compare(api.prepare(engine,changed),fixture.examples.valid).state,"different");
+const multiple=api.prepare(engine,bytes(fixture.expected_certificate_pem+fixture.different_certificate_pem));assert.equal(multiple.leaf,"");assert.equal(multiple.candidates.length,2);assert.equal(api.prepare(engine,bytes(fixture.expected_certificate_pem+fixture.different_certificate_pem),another.leaf).leaf,another.leaf);
+assert.throws(()=>api.prepare(engine,bytes(fixture.expected_certificate_pem),"a".repeat(64)));
+assert.throws(()=>api.compare({...expected,leaf:expected.leaf+"\n"},fixture.examples.valid));
+const privateKey=generateKeyPairSync("ed25519").privateKey.export({type:"pkcs8",format:"pem"});
+for (const input of [privateKey,fixture.expected_certificate_pem+privateKey,"malformed-private-sentinel",fixture.expected_certificate_pem+fixture.expected_certificate_pem]) assert.throws(()=>api.prepare(engine,bytes(input)));
+assert.throws(()=>api.prepare(engine,new Uint8Array(256*1024+1)));
+const caOnly=fixture.expected_certificate_pem.slice(fixture.expected_certificate_pem.indexOf("-----BEGIN CERTIFICATE-----",1));assert.throws(()=>api.prepare(engine,bytes(caOnly)),/expected-site-certificate/);
+// A cryptographically valid alternative issuer is attention, not wrong issuer.
+const alternative=structuredClone(fixture.examples.wrong);alternative.issuer_checks[0].verified=alternative.issuer_checks[0].rejected;alternative.issuer_checks[0].rejected=[];
+assert.equal(api.compare(expected,alternative).nodes[1].state,"alternative");
+const firstPEM=fixture.expected_certificate_pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/)[0];
+const unrelated=api.prepare(engine,bytes(firstPEM+"\n"+fs.readFileSync("web/workbench/rootwell-verify-demo-intermediate.pem","utf8")));
+assert.equal(api.compare(unrelated,fixture.examples.valid).nodes[1].state,"additional");
+console.log("Actual Go WASM expected certificate comparison: PEM/DER identity, same-name mismatch, exact missing/wrong issuer positions, root omission, ambiguity and secret refusal passed.");
+process.exit(0);
