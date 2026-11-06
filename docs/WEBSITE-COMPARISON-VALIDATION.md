@@ -22,6 +22,13 @@ actual WASM/UI and demo tests pass. Final-head CI/full Linux race and separate
 maintainer self-review are still required before merge. No live target,
 production secret, independent audit, release or Porch change is claimed.
 
+The first full Linux CI passed the new handoff checks but exposed a preexisting
+clock-dependent staging validation fixture: recreating `now + 30 minutes` on
+refresh could extend its saved expiry by one second. Only the test is changed
+to retain the original deadline and explicitly reject a one-second extension;
+the production no-extension rule remains unchanged. Native Windows race is
+unavailable without CGO; the full Linux race gate remains required.
+
 2026-11-06, ADR 0085 / C104. No live target, CA/DNS operation, release or
 independent audit is claimed. Porch is unchanged.
 

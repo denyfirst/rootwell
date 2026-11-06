@@ -77,8 +77,19 @@ func TestStagingValidationEncryptedIntentTruthPreservationAndNoReplay(t *testing
 	if err != nil || gen != 11 || status.State != "validation-pending" {
 		t.Fatal("refresh retained old success authority")
 	}
-	result = validationFixture()
+	// Refresh may preserve or shorten the saved expiry, never extend it. A
+	// second time.Now()+30m fixture can cross a second and request an extension.
+	result.Statuses = []string{"valid", "valid"}
 	result.OrderStatus = "pending"
+	extended := result
+	expires, err := time.Parse("2006-01-02T15:04:05Z", result.Expires)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extended.Expires = expires.Add(time.Second).Format("2006-01-02T15:04:05Z")
+	if next, _, _, err := FinishStagingValidation(key, id, refresh, 11, extended); !errors.Is(err, ErrInvalid) || next != nil {
+		t.Fatal("one-second CA expiry extension accepted")
+	}
 	if _, status, _, err := FinishStagingValidation(key, id, refresh, 11, result); err != nil || status.State != "validation-waiting" {
 		t.Fatal("all valid alone falsely means ready")
 	}
