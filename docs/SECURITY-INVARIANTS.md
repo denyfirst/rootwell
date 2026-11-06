@@ -8,6 +8,24 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C105 — Saved navigation cannot grant a website connection (ADR 0086)
+
+The exact-generation native POST selects only one validated public DER record.
+Ready session, same-origin/document navigation, bounded fixed-destination form,
+busy gate and publication revalidation precede inert HTML output. Target,
+private-key and notes input/output are absent. The browser reparses public DER
+and verifies the declared full fingerprint before its separately confirmed
+target-only API request. Invalid selection cannot fall back to no comparison;
+source change/hidden/pagehide clears consent/results and refuses late work.
+The snapshot does not update itself or become server-side trust.
+
+Guarded by `TestSavedWebsiteSelectionCannotAddTargetSecretsOrOtherTools`,
+`TestSavedWebsiteHTMLTransfersOnlyOnePublicSnapshot`,
+`TestSavedWebsiteNavigationRefusesBeforeRead`,
+`TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot`,
+`scripts/test-website-check.mjs` (actual Go WASM),
+`scripts/test-rootwelld-inventory.mjs` and `scripts/test-inventory-demo.mjs`.
+
 ## C104 — Expected files cannot repair or replace a live chain verdict (ADR 0085)
 
 Expected public PEM/DER bytes stay inside the browser and are parsed by the

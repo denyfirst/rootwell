@@ -52,6 +52,14 @@ success. New input clears the previous result. Example data is labeled synthetic
 
 ## Trust and result meaning
 
+ADR 0086 adds a separate native POST navigation from Certificates. It reads
+one exact-generation public snapshot with strict Origin/navigation metadata,
+ready-session and post-read revalidation; it cannot select a target or start
+the connector. Only one public DER record enters inert HTML, then the existing
+browser parser/fingerprint check. Private keys and service notes are absent.
+This snapshot may later differ from the library; it is not a live library link.
+It never fills the server's issuer pool, changes trust or bypasses consent.
+
 TLS intentionally observes invalid certificates with InsecureSkipVerify; this
 is a diagnostic capture boundary, never an authentication success. No
 credentials or application data follow. A separate pure x509 verifier checks

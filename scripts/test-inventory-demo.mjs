@@ -107,6 +107,15 @@ try {
   assert.equal(result.records[3].staging_origin.test_only,true);
   assert.equal(result.records[3].staging_origin.provider,"letsencrypt-staging");
   assert.equal(result.records[3].staging_origin.verified_at,result.records[3].imported_at);
+  const savedWebsiteFields=new URLSearchParams({fingerprint:result.records[3].fingerprint,expected_generation:"5",tool:"website-check"});
+  const savedWebsiteNavigation=(fields,headers={})=>new Promise((resolve,reject)=>{
+    const request=http.request(origin+"/website-check/saved",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded",Origin:origin,"Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-Dest":"document",...headers}},response=>{let text="";response.on("data",chunk=>{text+=chunk;});response.on("end",()=>resolve({status:response.statusCode,text}));});request.on("error",reject);request.end(fields.toString());
+  });
+  const savedWebsitePage=await savedWebsiteNavigation(savedWebsiteFields);assert.equal(savedWebsitePage.status,200);assert.match(savedWebsitePage.text,/rootwell.website-saved.v1/);assert.match(savedWebsitePage.text,/DEMO.*generated public certificate snapshot/);assert.match(savedWebsitePage.text,/id="website-form" data-read-only="true"/);assert.doesNotMatch(savedWebsitePage.text,/PRIVATE KEY|"private_key"/);
+  assert.equal((await savedWebsiteNavigation(savedWebsiteFields,{Origin:"http://evil.invalid"})).status,403);
+  for(const fields of [new URLSearchParams({...Object.fromEntries(savedWebsiteFields),expected_generation:"4"}),new URLSearchParams({...Object.fromEntries(savedWebsiteFields),target:"never-connect.invalid"})]){const refused=await savedWebsiteNavigation(fields);assert.equal(refused.status,400);assert.doesNotMatch(refused.text,/rootwell.website-saved.v1/);}
+  assert.equal((await fetch(origin+"/website-check/saved")).status,404);
+  assert.equal((await fetch(origin+"/api/website-check",{method:"POST",body:JSON.stringify({target:"never-connect.invalid",confirm:true})})).status,405);
   const activity=await fetch(origin+"/api/inventory/activity",{headers:{"X-Rootwell-Request":"1"}});
   assert.equal(activity.status,200);
   const activityData=await activity.json();assert.equal(activityData.monitoring.status,"not-running","fixture cannot claim a running monitor");

@@ -361,6 +361,16 @@
         }
       });
       details.appendChild(openForm);
+	  const websiteForm = document.createElement("form");
+	  websiteForm.method = "post"; websiteForm.action = "/website-check/saved"; websiteForm.className = "workbench-actions";
+	  for (const [name, value] of [["fingerprint",record.fingerprint],["expected_generation",String(snapshotGeneration)],["tool","website-check"]]) {
+		const field = document.createElement("input");field.type="hidden";field.name=name;field.value=value;websiteForm.appendChild(field);
+	  }
+	  const websiteButton=document.createElement("button");websiteButton.type="submit";websiteButton.className="secondary";websiteButton.textContent="Check on website";websiteForm.appendChild(websiteButton);
+	  websiteForm.addEventListener("submit",event=>{
+		if (saving || associating || editingOwner || changingLocation || deleting || document.hidden || displayedGeneration!==snapshotGeneration || snapshotAge()>=120000) {event.preventDefault();listStatus.textContent="Refresh Certificates before checking a saved certificate on a website.";}
+	  });
+	  details.appendChild(websiteForm);
 	  if (record.staging_origin && record.has_private_key && record.key_status === "matched") {
 		const renewForm = document.createElement("form");
 		renewForm.method = "post"; renewForm.action = "/automation/renew#certificate-request"; renewForm.className = "workbench-actions";

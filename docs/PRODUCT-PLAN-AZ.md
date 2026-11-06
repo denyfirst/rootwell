@@ -2,6 +2,12 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-11-06 ADR 0086:** Certificates-dən seçilmiş public sertifikatı təkrar
+download/upload etmədən Check on website-də açmaq. Bir exact-generation
+snapshot, inert public DER və lokal fingerprint/WASM yoxlaması; avtomatik
+sayt seçimi, connection, key/notes ötürülməsi və browser storage yoxdur.
+Sayt bağlantısı əvvəlki ayrıca razılıq və public HTTPS sərhədində qalır.
+
 **2026-11-06 ADR 0085:** Check a website daxilində optional public sertifikat/
 bundle ilə production müqayisəsi. Fayl lokal WASM-də oxunur, API-yə göndərilmir.
 Sayt sertifikatının tam identity-si və hər intermediate üzrə konkret fərq/

@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/websitechain"
 )
 
 func TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot(t *testing.T) {
@@ -111,6 +113,66 @@ func TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot(t *testing.T) 
 	if conversion.Code != http.StatusOK || !strings.Contains(conversion.Body.String(), `"tool":"convert"`) || strings.Contains(conversion.Body.String(), "private-location") || strings.Contains(conversion.Body.String(), "PRIVATE KEY") {
 		t.Fatal("explicit public Convert handoff failed or included non-public material")
 	}
+	// Same encrypted snapshot, separate navigation: no target or private key
+	// enters the website page, and no network observation starts here.
+	form = url.Values{"fingerprint": {saved.Records[0].Fingerprint}, "expected_generation": {"2"}, "tool": {"website-check"}}
+	g.websiteCheck = func(context.Context, string, func() bool) (websitechain.Report, error) {
+		t.Fatal("navigation started a target observation")
+		return websitechain.Report{}, nil
+	}
+	for _, tc := range []struct {
+		change func(*http.Request)
+		want   int
+	}{
+		{func(*http.Request) {}, 200},
+		{func(r *http.Request) { r.Header.Del("Cookie") }, 401},
+		{func(r *http.Request) { r.Header.Del("Origin") }, 403},
+		{func(r *http.Request) { r.Header.Set("Origin", "http://evil.invalid") }, 403},
+		{func(r *http.Request) { r.Header.Del("Sec-Fetch-Site") }, 403},
+		{func(r *http.Request) { r.Header.Set("Sec-Fetch-Mode", "cors") }, 403},
+		{func(r *http.Request) { r.Header.Set("Sec-Fetch-Dest", "iframe") }, 403},
+		{func(r *http.Request) { r.URL.RawQuery = "fingerprint=ignored" }, 400},
+		{func(r *http.Request) { r.Method = "GET" }, 405},
+		{func(r *http.Request) { r.Header.Set("Content-Type", "application/json") }, 415},
+		{func(r *http.Request) {
+			ctx, cancel := context.WithCancel(r.Context())
+			cancel()
+			*r = *r.WithContext(ctx)
+		}, 401},
+	} {
+		r := request()
+		r.URL.Path = "/website-check/saved"
+		tc.change(r)
+		out := httptest.NewRecorder()
+		g.ServeHTTP(out, r)
+		if out.Code != tc.want || out.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("saved website navigation: %d, want %d", out.Code, tc.want)
+		}
+		if out.Code == 200 {
+			if !strings.Contains(out.Body.String(), saved.Records[0].Fingerprint) || strings.Contains(out.Body.String(), saved.Records[1].Fingerprint) || strings.Contains(out.Body.String(), "private-location") || strings.Contains(out.Body.String(), "not-in-handoff") || strings.Contains(out.Body.String(), "PRIVATE KEY") {
+				t.Fatal("saved website leaked another object")
+			}
+		} else if strings.Contains(out.Body.String(), "rootwell.website-saved.v1") {
+			t.Fatal("refusal released snapshot")
+		}
+	}
+	if !g.websiteLast.IsZero() || g.websiteBusy {
+		t.Fatal("navigation acquired connector authority")
+	}
+	g.websiteCheck = nil
+	for _, selection := range []url.Values{
+		{"fingerprint": {saved.Records[0].Fingerprint}, "expected_generation": {"1"}, "tool": {"website-check"}},
+		{"fingerprint": {strings.Repeat("00:", 31) + "00"}, "expected_generation": {"2"}, "tool": {"website-check"}},
+	} {
+		form = selection
+		r := request()
+		r.URL.Path = "/website-check/saved"
+		out := httptest.NewRecorder()
+		g.ServeHTTP(out, r)
+		if out.Code != 409 || strings.Contains(out.Body.String(), "rootwell.website-saved.v1") {
+			t.Fatal("stale/missing/CA selection accepted")
+		}
+	}
 	for _, selection := range []url.Values{
 		{"fingerprint": {saved.Records[1].Fingerprint}, "expected_generation": {"1"}, "tool": {"inspect"}},
 		{"fingerprint": {strings.Repeat("00:", 31) + "00"}, "expected_generation": {"2"}, "tool": {"inspect"}},
@@ -139,6 +201,13 @@ func TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot(t *testing.T) 
 		t.Fatal(err)
 	}
 	g.now = func() time.Time { return time.Now().Add(13 * time.Hour) }
+	savedRequest := request()
+	savedRequest.URL.Path = "/website-check/saved"
+	savedExpired := httptest.NewRecorder()
+	g.ServeHTTP(savedExpired, savedRequest)
+	if savedExpired.Code != 401 || strings.Contains(savedExpired.Body.String(), "rootwell.website-saved.v1") {
+		t.Fatal("expired session released saved website selection")
+	}
 	out := httptest.NewRecorder()
 	g.ServeHTTP(out, request())
 	if out.Code != http.StatusUnauthorized {

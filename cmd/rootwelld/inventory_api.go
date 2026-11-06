@@ -76,6 +76,13 @@ func readWorkbenchSelection(w http.ResponseWriter, r *http.Request) (string, uin
 }
 
 func readPublicNavigationSelection(w http.ResponseWriter, r *http.Request, renewal bool) (string, uint64, string, bool) {
+	if renewal {
+		return readNavigationSelection(w, r, "renew")
+	}
+	return readNavigationSelection(w, r, "inspect", "verify", "convert")
+}
+
+func readNavigationSelection(w http.ResponseWriter, r *http.Request, tools ...string) (string, uint64, string, bool) {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/x-www-form-urlencoded" {
 		http.Error(w, "form body required", http.StatusUnsupportedMediaType)
@@ -89,6 +96,10 @@ func readPublicNavigationSelection(w http.ResponseWriter, r *http.Request, renew
 	}
 	fingerprint, rawGeneration, tool := r.PostForm.Get("fingerprint"), r.PostForm.Get("expected_generation"), r.PostForm.Get("tool")
 	generation, err := strconv.ParseUint(rawGeneration, 10, 64)
+	allowed := false
+	for _, candidate := range tools {
+		allowed = allowed || tool == candidate
+	}
 	validFingerprint := len(fingerprint) == 95
 	for i, c := range fingerprint {
 		if i%3 == 2 {
@@ -98,7 +109,7 @@ func readPublicNavigationSelection(w http.ResponseWriter, r *http.Request, renew
 		}
 	}
 	if err != nil || generation == 0 || generation > 9007199254740991 || strconv.FormatUint(generation, 10) != rawGeneration ||
-		!validFingerprint || (renewal && tool != "renew") || (!renewal && tool != "inspect" && tool != "verify" && tool != "convert") {
+		!validFingerprint || !allowed {
 		http.Error(w, "invalid selection", http.StatusBadRequest)
 		return "", 0, "", false
 	}

@@ -240,6 +240,18 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
+  if(request.method==="POST" && request.url==="/website-check/saved") {
+    if(request.headers.origin!=="http://"+request.headers.host || request.headers["sec-fetch-site"]!=="same-origin" || request.headers["sec-fetch-mode"]!=="navigate" || request.headers["sec-fetch-dest"]!=="document" || request.headers["content-type"]!=="application/x-www-form-urlencoded") {response.writeHead(403).end("Fixture navigation refused");return;}
+    let body="",refused=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){refused=true;body="";}});
+    request.on("end",()=>{
+      const fields=new URLSearchParams(body);
+      if(refused || [...fields].length!==3 || fields.get("fingerprint")!==demoLeaf.fingerprint256 || fields.get("expected_generation")!=="5" || fields.get("tool")!=="website-check") {response.writeHead(400).end("Fixture selection refused");return;}
+      const source=JSON.stringify({schema_version:"rootwell.website-saved.v1",fingerprint:demoLeaf.fingerprint256,generation:5,der:demoLeaf.raw.toString("base64")});
+      let page=replaceOnce(websiteHTML,'<div id="website-saved-source" hidden></div>','<div id="website-saved-source" hidden>'+source+'</div>');
+      page=replaceOnce(page,'<main>','<main><aside class="nonclaim" aria-label="Demo mode"><strong>DEMO — generated public certificate snapshot. Live connections are disabled; examples do not use your selection.</strong></aside>');
+      response.writeHead(200,{"Content-Type":"text/html; charset=utf-8"}).end(page);
+    });return;
+  }
 	if(request.method==="POST" && request.url==="/automation/renew"){
 	  if(request.headers.origin!=="http://"+request.headers.host || request.headers["sec-fetch-site"]!=="same-origin" || request.headers["sec-fetch-mode"]!=="navigate" || request.headers["sec-fetch-dest"]!=="document" || request.headers["content-type"]!=="application/x-www-form-urlencoded"){response.writeHead(403).end("Fixture navigation refused");return;}
 	  let body="",refused=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){refused=true;body="";}});

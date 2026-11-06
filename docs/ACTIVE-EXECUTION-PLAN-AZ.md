@@ -7,6 +7,14 @@ keçir. Porch repository-si bu işin xaricindədir.
 
 ## Yeni prioritet — saytın sertifikat zəncirinin diaqnostikası
 
+2026-11-06 ADR 0086: Certificates → Details and manage → Check on website.
+Native POST yalnız public fingerprint/exact generation/fixed destination
+göndərir. Yeni səhifədə bir public snapshot seçilir; private key və qeydlər
+ötürülmür, sayt avtomatik seçilmir və bağlantı başlamır. Məcburi ayrıca target/
+razılıq, lokal WASM identity yoxlaması, stale/hidden/cancel refusal qalır.
+ADR 0085 PR #116 ilə 13/13 sonrası merge edilib. PFX-in birbaşa kitabxanaya
+importu bu navigation increment-inə daxil deyil; sonra ayrıca nəzərdən keçirilir.
+
 2026-11-06 ADR 0085: eyni səhifədə optional “Compare with my certificate”.
 Seçilən public fayl brauzerdə qalır; API-yə yalnız əvvəlki target/confirm gedir.
 Tam SHA-256 uyğunluğu və hər intermediate üçün dəqiq yer/candidate ayrıca

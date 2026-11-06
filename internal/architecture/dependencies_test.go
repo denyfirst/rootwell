@@ -60,6 +60,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_registration_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_order_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/acme_renewal_navigation.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/website_saved.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/inventory_lifecycle.go" && importPath == "net/http")
 				allowedLoopbackServer = allowedLoopbackServer || (filepath.ToSlash(relative) == "cmd/rootwelld/history_archive_api.go" && importPath == "net/http")
 				// netip only parses immutable address values; it has no DNS/socket API.
@@ -569,6 +570,45 @@ func TestACMESetupHasNoOutboundOrPersistenceImports(t *testing.T) {
 			return true
 		})
 	}
+}
+
+func TestSavedWebsiteNavigationHasOnlyPublicReadAuthority(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(filepath.Dir(current), "..", "..", "cmd", "rootwelld", "website_saved.go"), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	imports := map[string]bool{"bytes": true, "crypto/sha256": true, "crypto/x509": true, "encoding/hex": true, "encoding/json": true, "net/http": true, "runtime": true, "strings": true, "github.com/denyfirst/rootwell/internal/instanceaccess": true, "github.com/denyfirst/rootwell/internal/publicinventory": true}
+	for _, i := range file.Imports {
+		path, err := strconv.Unquote(i.Path.Value)
+		if err != nil || !imports[path] || i.Name != nil {
+			t.Errorf("unreviewed saved-navigation import: %s", i.Path.Value)
+		}
+	}
+	gateFields := map[string]bool{"host": true, "startDerivation": true, "derive": true, "accessPath": true, "currentSession": true}
+	ast.Inspect(file, func(n ast.Node) bool {
+		s, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		id, ok := s.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if id.Name == "http" && !strings.HasPrefix(s.Sel.Name, "Status") && s.Sel.Name != "Request" && s.Sel.Name != "ResponseWriter" && s.Sel.Name != "Error" && s.Sel.Name != "MethodPost" {
+			t.Errorf("outbound HTTP authority in saved navigation: %s", s.Sel.Name)
+		}
+		if id.Name == "instanceaccess" && s.Sel.Name != "ReadInventory" {
+			t.Errorf("non-public-read custody authority: %s", s.Sel.Name)
+		}
+		if id.Name == "g" && !gateFields[s.Sel.Name] {
+			t.Errorf("unreviewed saved-navigation gate capability: %s", s.Sel.Name)
+		}
+		if id.Name == "x509" && s.Sel.Name != "ParseCertificate" {
+			t.Errorf("unreviewed certificate capability: %s", s.Sel.Name)
+		}
+		return true
+	})
 }
 
 func TestACMEAccountPreparationHasNoOutboundHTTPAuthority(t *testing.T) {
