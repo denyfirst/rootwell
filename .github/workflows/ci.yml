@@ -238,7 +238,7 @@ jobs:
           node scripts/test-workbench-csr-ui.mjs
           node scripts/test-workbench-csr-worker.mjs
           node scripts/test-rootwelld-auth.mjs
-          node scripts/test-website-check.mjs
+          node scripts/test-website-check.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-website-expected.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-rootwelld-inventory.mjs
           node scripts/test-certificate-library.mjs

@@ -15,7 +15,9 @@
 .website-expected { padding: 1rem; margin: 1rem 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); }
 .website-expected input, .website-expected select { max-width: 100%; color: var(--ink); font: .82rem var(--sans); }
 .website-expected select { width: 100%; padding: .6rem; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 4px; }
-.website-expected p { font-size: .77rem; color: var(--ink-soft); }
+.website-expected p { font-size: .77rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.website-expected details { font-size: .77rem; margin: .7rem 0; }
+.website-expected summary { cursor: pointer; }
 .expected-result { border: 1px solid var(--rule); border-left: 4px solid var(--good); padding: 1.1rem 1.4rem; border-radius: 8px; background: var(--paper-raised); margin: 0 0 1rem; }
 .expected-result.different { border-left-color: var(--brand); }
 .expected-result.has-issue { border-left-color: var(--brand); }

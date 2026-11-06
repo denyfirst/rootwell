@@ -591,6 +591,11 @@ assert.ok(item.children.some(child=>/Test certificate.*not for production/.test(
 const stagingDetails = item.children.find(child=>child.className==="record-details");
 assert.ok(stagingDetails.children.some(child=>/not ordinary browser trust, revocation or deployment/.test(child.textContent)));
 const renewalForm=stagingDetails.children.find(child=>child.action==="/automation/renew#certificate-request");
+const websiteForm=stagingDetails.children.find(child=>child.action==="/website-check/saved");
+assert.ok(websiteForm);assert.equal(websiteForm.method,"post");assert.equal(websiteForm.children.at(-1).textContent,"Check on website");
+assert.deepEqual(websiteForm.children.filter(node=>node.type==="hidden").map(node=>[node.name,node.value]),[["fingerprint",stagingRecord.fingerprint],["expected_generation",String(response.generation)],["tool","website-check"]]);
+let stoppedWebsite=false;websiteForm.listeners.submit({preventDefault(){stoppedWebsite=true;}});assert.equal(stoppedWebsite,false);
+mockDocument.hidden=true;websiteForm.listeners.submit({preventDefault(){stoppedWebsite=true;}});assert.equal(stoppedWebsite,true);mockDocument.hidden=false;
 assert.ok(renewalForm);assert.equal(renewalForm.method,"post");
 assert.deepEqual(renewalForm.children.filter(node=>node.type==="hidden").map(node=>[node.name,node.value]),[["fingerprint",stagingRecord.fingerprint],["expected_generation",String(response.generation)],["tool","renew"]]);
 assert.equal(renewalForm.children.at(-1).textContent,"Renew test certificate");
@@ -602,5 +607,6 @@ for (const forged of [{...stagingOrigin,test_only:false},{...stagingOrigin,provi
   await elements["refresh-button"].listeners.click();assert.equal(elements.records.children.length,0,"forged provenance returned partial inventory");
   assert.doesNotMatch(elements["list-status"].textContent,/script|do-not-echo/);
 }
+stoppedWebsite=false;websiteForm.listeners.submit({preventDefault(){stoppedWebsite=true;}});assert.equal(stoppedWebsite,true,"old captured generation must not navigate");
 windowListeners.pagehide();
 console.log("Rootwell inventory, test-only provenance, server-clock monitoring, bounded refresh and refusal paths passed.");

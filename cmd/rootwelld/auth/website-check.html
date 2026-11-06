@@ -32,6 +32,7 @@
   <div class="workspace-main">
     <header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Check a website</strong></p><p class="boundary">One connection · no private key needed</p></header>
     <main>
+      <div id="website-saved-source" hidden></div>
       <section class="work-heading"><div><p class="eyebrow">Certificate health</p><h1>See where the chain breaks.</h1><p class="lede">Check what a website actually serves. Understand the problem, then know what to fix.</p></div></section>
       <section class="website-input" aria-labelledby="check-title">
         <h2 id="check-title">Which website?</h2>
@@ -41,9 +42,12 @@
           <p id="target-help">Public websites on HTTPS port 443. Enter a domain or origin, without a page path.</p>
           <label class="website-consent" for="website-compare"><input id="website-compare" type="checkbox"> Compare with my certificate <span>(optional)</span></label>
           <div id="website-expected" class="website-expected" hidden>
+            <div id="expected-saved" hidden><strong>Using your saved certificate</strong><p>No need to upload it again. Enter the website above and confirm one connection to compare.</p><details><summary>Selected certificate details</summary><p id="expected-saved-label"></p><p>This is the public snapshot selected in Certificates. No private key or service notes were transferred. The website check is not saved.</p></details><button id="expected-change" type="button">Choose a file instead</button></div>
+            <div id="expected-file-fields">
             <label for="expected-certificate">Your expected website certificate or public bundle</label>
             <input id="expected-certificate" type="file" accept=".pem,.crt,.cer,.der">
             <p>Read only in this browser. The file is never uploaded. PEM/CRT/CER/DER, up to 256 KiB / 10 certificates. No private key or PFX.</p>
+            </div>
             <div id="expected-choice-box" hidden><label for="expected-choice">Which website certificate should be installed?</label><select id="expected-choice"></select></div>
             <p id="expected-status" role="status" aria-live="polite"></p>
           </div>

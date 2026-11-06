@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const form = $("website-form"), target = $("website-target"), consent = $("website-consent"), submit = $("website-submit"), status = $("website-status"), result = $("website-result");
   const compareEnabled = $("website-compare"), expectedFile = $("expected-certificate"), expectedPanel = $("website-expected"), expectedChoice = $("expected-choice"), choiceBox = $("expected-choice-box"), expectedStatus = $("expected-status");
-  let active = null, epoch = 0;
+  let active = null, epoch = 0, savedSource = null, savedInvalid = false;
   const buttons = [$("example-valid"), $("example-missing"), $("example-wrong"), $("example-compare")];
   const element = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
   const text = (v, max) => typeof v === "string" && v.length <= max;
@@ -107,9 +107,48 @@
     submit.disabled = form.dataset.readOnly === "true"; for (const b of buttons) b.disabled = false;
   }
   function clearExpected() {
+    savedSource?.bytes.fill(0); savedSource = null; savedInvalid = false;
+    $("expected-saved").hidden = true; $("expected-saved-label").textContent = ""; $("expected-file-fields").hidden = false;
     expectedFile.value = ""; expectedChoice.replaceChildren(); expectedChoice.value = ""; choiceBox.hidden = true; expectedStatus.textContent = "";
   }
+  function consumeSaved() {
+    const source = $("website-saved-source"), raw = source?.textContent || "";
+    if (source) source.textContent = "";
+    if (!raw) return;
+    target.value = ""; consent.checked = false;
+    compareEnabled.checked = true; expectedPanel.hidden = false; $("expected-saved").hidden = false; $("expected-file-fields").hidden = true;
+    try {
+      if (raw.length > 90*1024) throw new Error();
+      const data = JSON.parse(raw);
+      if (!data || Object.keys(data).sort().join(",") !== "der,fingerprint,generation,schema_version" || data.schema_version !== "rootwell.website-saved.v1" ||
+          typeof data.fingerprint !== "string" || data.fingerprint.length !== 95 || !/^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(data.fingerprint) ||
+          !Number.isSafeInteger(data.generation) || data.generation < 1 || typeof data.der !== "string" || !data.der.length || data.der.length > 87384 ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data.der)) throw new Error();
+      const decoded = atob(data.der);
+      if (!decoded.length || decoded.length > 65536 || btoa(decoded) !== data.der) throw new Error();
+      savedSource = {fingerprint:data.fingerprint.replaceAll(":","").toLowerCase(),bytes:Uint8Array.from(decoded,c=>c.charCodeAt(0))};
+      $("expected-saved-label").textContent = "Selected public snapshot · generation " + data.generation + " · SHA-256 " + data.fingerprint;
+      status.textContent = "Saved certificate selected. Enter the website and confirm one connection. Nothing has been checked yet.";
+    } catch {
+      savedInvalid = true; $("expected-saved-label").textContent = "Saved selection unavailable. Return to Certificates and select again, or choose a public file instead.";
+      status.textContent = "No website was contacted. The saved selection could not be read.";
+    }
+  }
   async function prepareExpected(current) {
+    if (savedInvalid) throw new Error("expected-saved");
+    const saved = savedSource;
+    if (saved) {
+      let engine;
+      try { engine = await globalThis.rootwellInventoryEngineReady; if (!engine) throw new Error(); } catch { throw new Error("expected-engine"); }
+      if (!current() || savedSource !== saved) throw new Error("stale");
+      const copy = saved.bytes.slice();
+      try {
+        const prepared = globalThis.rootwellWebsiteExpected.prepare(engine,copy,saved.fingerprint);
+        if (prepared.leaf !== saved.fingerprint || prepared.certificates.length !== 1) throw new Error();
+        return prepared;
+      } catch { throw new Error("expected-saved"); }
+      finally { copy.fill(0); }
+    }
     const files = Array.from(expectedFile.files || []), file = files[0];
     if (files.length !== 1 || !Number.isSafeInteger(file?.size) || file.size < 1 || file.size > 256*1024) throw new Error("expected-file");
     let engine;
@@ -170,6 +209,7 @@
       if (id === epoch && !document.hidden) {
         result.replaceChildren(); result.hidden = true;
         status.textContent = error?.message === "expected-selection" ? "Several site certificates are in this file. Choose the intended certificate, confirm and check again. No website was contacted." :
+          error?.message === "expected-saved" ? "Saved selection unavailable or invalid. Return to Certificates and select again, or choose a public file. No website was contacted." :
           error?.message === "expected-engine" ? "The local certificate engine is unavailable. Reload and try again. No website was contacted." :
           ["expected-file","expected-site-certificate"].includes(error?.message) ? "Choose a valid public site certificate or bundle (PEM/CRT/CER/DER, up to 256 KiB / 10 certificates). Private keys, PFX and CA-only files are not accepted. No website was contacted." :
           "No result available. Check your sign-in, the public HTTPS address and Linux server availability. Wait 30 seconds before trying again. No successful check is implied.";
@@ -183,10 +223,12 @@
   target.addEventListener("input", () => { consent.checked = false; reset(); });
   consent.addEventListener("change", () => reset());
   compareEnabled.addEventListener("change", () => { consent.checked = false; clearExpected(); expectedPanel.hidden = !compareEnabled.checked; reset(); });
+  $("expected-change").addEventListener("click", () => { consent.checked = false; clearExpected(); reset("Choose one public certificate or bundle. Confirm again before checking the website."); });
   expectedFile.addEventListener("change", () => { expectedChoice.replaceChildren(); expectedChoice.value = ""; choiceBox.hidden = true; expectedStatus.textContent = ""; consent.checked = false; reset(); });
   expectedChoice.addEventListener("change", () => { consent.checked = false; reset(); });
   const leave = () => { consent.checked = false; target.value = ""; compareEnabled.checked = false; expectedPanel.hidden = true; clearExpected(); reset(); };
   document.addEventListener("visibilitychange", () => { if (document.hidden) leave(); });
   addEventListener("pagehide", leave);
   reset(form.dataset.readOnly === "true" ? "Visual preview · live checks are disabled. Choose a generated example below." : "");
+  consumeSaved();
 })();

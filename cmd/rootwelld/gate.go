@@ -261,6 +261,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/workbench":
 		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
 		return
+	case "/website-check/saved":
+		g.savedWebsiteEndpoint(w, r, s, signedIn)
+		return
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
