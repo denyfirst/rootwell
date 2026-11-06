@@ -12,6 +12,27 @@
 .website-workspace button:disabled { cursor: not-allowed; opacity: .6; }
 #target-help, #website-status { color: var(--ink-soft); font-size: .8rem; margin: .6rem 0; }
 #website-status { min-height: 1.5em; }
+.website-expected { padding: 1rem; margin: 1rem 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); }
+.website-expected input, .website-expected select { max-width: 100%; color: var(--ink); font: .82rem var(--sans); }
+.website-expected select { width: 100%; padding: .6rem; background: var(--paper-raised); border: 1px solid var(--rule); border-radius: 4px; }
+.website-expected p { font-size: .77rem; color: var(--ink-soft); }
+.expected-result { border: 1px solid var(--rule); border-left: 4px solid var(--good); padding: 1.1rem 1.4rem; border-radius: 8px; background: var(--paper-raised); margin: 0 0 1rem; }
+.expected-result.different { border-left-color: var(--brand); }
+.expected-result.has-issue { border-left-color: var(--brand); }
+.expected-result.has-difference { border-left-color: var(--warn); }
+.expected-result h2 { margin: 0 0 .4rem; font-size: 1.1rem; }
+.expected-result p, .expected-result details { font-size: .8rem; color: var(--ink-soft); }
+.expected-result summary { cursor: pointer; margin-top: .7rem; }
+.expected-result code { font: .7rem var(--mono); overflow-wrap: anywhere; display: block; margin: .3rem 0 .7rem; }
+.expected-result li { margin: .5rem 0; overflow-wrap: anywhere; }
+.expected-result h3 { font-size: .9rem; margin: 1.1rem 0 .6rem; }
+.expected-nodes { list-style: none; margin: 0; padding: 0; }
+.expected-node { padding: .8rem 1rem; border: 1px solid var(--rule); border-left: 3px solid var(--ink-faint); border-radius: 5px; }
+.expected-node strong { font-size: .83rem; }
+.expected-node.match { border-left-color: var(--good); }
+.expected-node.different,.expected-node.wrong-issuer,.expected-node.missing { border-left-color: var(--brand); }
+.expected-node.alternative { border-left-color: var(--warn); }
+.chain-node code { font: .7rem var(--mono); overflow-wrap: anywhere; }
 .website-input .website-consent { display: flex; align-items: flex-start; gap: .6rem; font-weight: 400; color: var(--ink-soft); margin: 1rem 0; }
 .website-consent input { margin-top: .3rem; accent-color: var(--brand); }
 .website-examples { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding-top: 1rem; border-top: 1px solid var(--rule); font-size: .77rem; color: var(--ink-faint); }

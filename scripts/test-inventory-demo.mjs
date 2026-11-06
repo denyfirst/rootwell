@@ -148,6 +148,9 @@ try {
   assert.match(website, /id="website-form" data-read-only="true"/);
   assert.match(website, /id="website-target" disabled/);
   assert.match(website, /id="website-consent" disabled/);
+  assert.match(website, /id="website-compare" disabled/);
+  assert.match(website, /id="expected-certificate" disabled/);
+  assert.equal((await fetch(origin+"/website-expected.js")).status,200);
   assert.equal((await fetch(origin + "/api/website-check", {method:"POST", body:'{"target":"website.example.org","confirm":true}'})).status, 405);
   assert.equal((await (await fetch(origin + "/website-examples.json")).json()).synthetic, true);
   for (const route of ["check", "save", "download"]) {

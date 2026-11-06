@@ -4,9 +4,14 @@ import vm from "node:vm";
 
 const source = fs.readFileSync("cmd/rootwelld/auth/website-check.js","utf8");
 const examples = JSON.parse(fs.readFileSync("cmd/rootwelld/auth/website-examples.json","utf8"));
+const helperSource=fs.readFileSync("cmd/rootwelld/auth/website-expected.js","utf8");
+const colon=hash=>hash.toUpperCase().match(/../g).join(":");
+const baseExpected=examples.examples.valid.path.map(c=>({sha256:colon(c.fingerprint),subject:c.subject,is_ca:c.role!=="leaf"}));
+const expectedEntries=bytes=>bytes[0]===2?[{...baseExpected[0],sha256:colon("f".repeat(64))}]:bytes[0]===4?[baseExpected[0],{...baseExpected[0],sha256:colon("f".repeat(64))}]:bytes[0]===5?baseExpected.slice(1):baseExpected;
+const engine={explore(bytes){return JSON.stringify(bytes[0]===3?{schema_version:"rootwell.browser.explore.v1",ok:false,result:null,error:{code:"unsupported-public-bundle"}}:{schema_version:"rootwell.browser.explore.v1",ok:true,error:null,result:{verification:"not-performed",trust_anchor:"not-selected",count:expectedEntries(bytes).length,certificates:expectedEntries(bytes)}});},analyze(inputs){const bytes=inputs[0],entries=expectedEntries(bytes);return JSON.stringify({schema_version:"rootwell.browser.chain.v1",ok:true,error:"",result:{verification:"not-performed",trust_anchor:"not-selected",certificates:entries.map((c,i)=>({sha256:c.sha256,self_signed:c.is_ca&&i===entries.length-1,parents:bytes[0]!==4&&i<entries.length-1?[i+1]:[]}))}});}};
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|WebSocket|XMLHttpRequest|sendBeacon/);
 class Element {
-  constructor(){ this.value="";this.checked=false;this.hidden=false;this.disabled=false;this.dataset={};this.listeners={};this.children=[];this.textContent=""; }
+  constructor(){ this.value="";this.files=[];this.checked=false;this.hidden=false;this.disabled=false;this.dataset={};this.listeners={};this.children=[];this.textContent=""; }
   addEventListener(n,f){this.listeners[n]=f;} append(...children){this.children.push(...children);} replaceChildren(...children){this.children=children;} scrollIntoView(){}
 }
 const allText = node => node.textContent + " " + node.children.map(allText).join(" ");
@@ -14,12 +19,13 @@ function fixture(readOnly=false){
   const nodes={}, byId=id=>nodes[id]??=new Element(), events={}, windows={}, timers=new Map(), requests=[];let next=null,timerId=0;
   byId("website-target").value="website.example.org";if(readOnly)byId("website-form").dataset.readOnly="true";
   const document={hidden:false,getElementById:byId,createElement:()=>new Element(),addEventListener(n,f){events[n]=f;}};
-  vm.runInNewContext(source,{document,TextDecoder,AbortController,URL,Date,
+  const context=vm.createContext({document,TextEncoder,TextDecoder,Uint8Array,AbortController,URL,Date,rootwellInventoryEngineReady:Promise.resolve(engine),
     addEventListener(n,f){windows[n]=f;},setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);},
     fetch:async(url,options)=>{requests.push({url,options});assert.equal(options.cache,"no-store");assert.equal(options.credentials,"same-origin");assert.equal(options.redirect,"error");if(next){const fn=next;next=null;return fn();}return new Response(JSON.stringify(url==="/website-examples.json"?examples:examples.examples.valid),{headers:{"Content-Type":"application/json"}});}
   });
+  vm.runInContext(helperSource,context);vm.runInContext(source,context);
   const settle=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
-  return {byId,document,events,windows,timers,requests,settle,override(fn){next=fn;},approve(){byId("website-consent").checked=true;},async submit(){byId("website-form").listeners.submit({preventDefault(){}});await settle();},async example(name){byId("example-"+name).listeners.click();await settle();}};
+  return {byId,document,events,windows,timers,requests,settle,override(fn){next=fn;},approve(){byId("website-consent").checked=true;},select(marker=1,read){byId("website-compare").checked=true;byId("website-compare").listeners.change();byId("expected-certificate").files=[{size:1,name:"private-name-must-never-be-sent",arrayBuffer:read||async function(){return Uint8Array.of(marker).buffer;}}];byId("expected-certificate").listeners.change();},async submit(){byId("website-form").listeners.submit({preventDefault(){}});await settle();},async example(name){byId("example-"+name).listeners.click();await settle();}};
 }
 {
   const f=fixture();assert.equal(f.requests.length,0);await f.submit();assert.equal(f.requests.length,0);
@@ -44,6 +50,11 @@ for(const make of [
   ()=>new Response(JSON.stringify({...examples.examples.valid,hostname:"another.example.org"}),{headers:{"Content-Type":"application/json"}}),
   ()=>new Response(JSON.stringify({...examples.examples.valid,state:"failed"}),{headers:{"Content-Type":"application/json"}}),
   ()=>{const r=structuredClone(examples.examples.valid);r.path[0].in_date=false;return new Response(JSON.stringify(r),{headers:{"Content-Type":"application/json"}});},
+  ()=>{const r=structuredClone(examples.examples.valid);delete r.issuer_checks;return new Response(JSON.stringify(r),{headers:{"Content-Type":"application/json"}});},
+  ()=>{const r=structuredClone(examples.examples.valid);r.issuer_checks[0].verified=["f".repeat(64)];return new Response(JSON.stringify(r),{headers:{"Content-Type":"application/json"}});},
+  ()=>{const r=structuredClone(examples.examples.valid);r.issuer_checks[1].child=r.issuer_checks[0].child;return new Response(JSON.stringify(r),{headers:{"Content-Type":"application/json"}});},
+  ()=>{const r=structuredClone(examples.examples.valid);r.issuer_checks[0].rejected=[...r.issuer_checks[0].verified];return new Response(JSON.stringify(r),{headers:{"Content-Type":"application/json"}});},
+  ()=>{const r=structuredClone(examples.examples.valid);r.presented[0].fingerprint+="\n";return new Response(JSON.stringify(r),{headers:{"Content-Type":"application/json"}});},
   ()=>{throw Error("secret-sentinel");}
 ]){const f=fixture();f.approve();f.override(make);await f.submit();assert.equal(f.byId("website-result").hidden,true);assert.match(f.byId("website-status").textContent,/No result/);assert.doesNotMatch(f.byId("website-status").textContent,/secret-sentinel/);}
 for(const boundary of [
@@ -56,3 +67,17 @@ for(const boundary of [
   const f=fixture();f.approve();let release;f.override(()=>new Promise(resolve=>{release=resolve;}));await f.submit();assert.ok(release);f.approve();await f.submit();assert.equal(f.requests.length,1);boundary(f);release(new Response(JSON.stringify(examples.examples.valid),{headers:{"Content-Type":"application/json"}}));await f.settle();assert.equal(f.byId("website-result").hidden,true);
 }
 console.log("Website check UI: bounded/strict responses, single-use consent, synthetic-only examples, no raw errors and cancellation/late results passed.");
+{
+  const f=fixture();f.select();f.approve();f.override(()=>new Response(JSON.stringify(examples.examples.wrong),{headers:{"Content-Type":"application/json"}}));await f.submit();assert.equal(f.requests.length,1);assert.deepEqual(JSON.parse(f.requests[0].options.body),{target:"website.example.org",confirm:true});assert.doesNotMatch(f.requests[0].options.body,/private-name|fingerprint|BEGIN|certificate/);
+  const output=allText(f.byId("website-result"));assert.match(output,/Your certificate matches, but the website check fails/);assert.match(output,/Intermediate certificate/);assert.match(output,/sent as its issuer cannot verify/);assert.match(output,/This issuer cannot verify the certificate above/);assert.match(output,/Server-sent certificate #2/);assert.match(output,/Root not sent/);assert.match(output,/needs a fix/);
+  const mismatch=fixture();mismatch.select(2);mismatch.approve();await mismatch.submit();assert.match(allText(mismatch.byId("website-result")),/serves a different certificate/);assert.match(allText(mismatch.byId("website-result")),/chain checks out/);
+}
+for(const marker of [3,5]){const f=fixture();f.select(marker);f.approve();await f.submit();assert.equal(f.requests.length,0);assert.match(f.byId("website-status").textContent,/No website was contacted/);}
+{
+  const f=fixture();f.select(4);f.approve();await f.submit();assert.equal(f.requests.length,0);assert.equal(f.byId("expected-choice-box").hidden,false);assert.match(f.byId("website-status").textContent,/Several site certificates/);f.byId("expected-choice").value=baseExpected[0].sha256.replaceAll(":","").toLowerCase();f.byId("expected-choice").listeners.change();f.approve();await f.submit();assert.equal(f.requests.length,1);assert.match(allText(f.byId("website-result")),/serves your certificate/);
+}
+for(const boundary of [f=>f.windows.pagehide(),f=>{f.document.hidden=true;f.events.visibilitychange();},f=>f.byId("expected-certificate").listeners.change(),f=>[...f.timers.values()][0]()]){
+  const f=fixture();let release;f.select(1,()=>new Promise(resolve=>{release=resolve;}));f.approve();await f.submit();assert.ok(release);assert.equal(f.requests.length,0);boundary(f);release(Uint8Array.of(1).buffer);await f.settle();assert.equal(f.requests.length,0);assert.equal(f.byId("website-result").hidden,true);
+}
+{const f=fixture(true);await f.example("compare");assert.equal(f.requests.length,1);assert.equal(f.requests[0].url,"/website-examples.json");assert.match(allText(f.byId("website-result")),/Your certificate matches, but the website check fails/);assert.match(allText(f.byId("website-result")),/Server-sent certificate #2/);}
+console.log("Expected certificate UI: local-only file processing, exact per-node mismatch, wrong/missing CA localization, ambiguous selection, unchanged request and late-read refusal passed.");

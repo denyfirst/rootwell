@@ -145,7 +145,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/website-check":
 		g.websiteCheckEndpoint(w, r, s, signedIn)
 		return
-	case "/website-check", "/website-check.js", "/website-check.css", "/website-examples.json":
+	case "/website-check", "/website-check.js", "/website-expected.js", "/website-check.css", "/website-examples.json":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -163,6 +163,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/website-check.html", "text/html; charset=utf-8")
 		case "/website-check.js":
 			g.authAsset(w, r, "auth/website-check.js", "text/javascript; charset=utf-8")
+		case "/website-expected.js":
+			g.authAsset(w, r, "auth/website-expected.js", "text/javascript; charset=utf-8")
 		case "/website-check.css":
 			g.authAsset(w, r, "auth/website-check.css", "text/css; charset=utf-8")
 		case "/website-examples.json":

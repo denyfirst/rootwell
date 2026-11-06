@@ -6,8 +6,10 @@ strict expected-leaf CLI probe. No independent security audit is claimed.
 The operator authorizes one public website origin from a ready, revision-bound
 Rootwell session. The site's name is sent to the configured DNS resolver and
 as TLS SNI; the peer sees the Rootwell server's connection address. Neither
-private keys nor certificate files are requested. The page does not save the
-target or results, use browser storage, or add a server history record. The
+private keys nor certificate files enter the API. ADR 0085 adds an optional
+public file comparison entirely within the browser; only the original target
+and consent JSON are sent. The page does not save the target, file or results,
+use browser storage for them, or add a server history record. The
 operator's network, resolver, peer and local host may retain their own records.
 
 ## Untrusted input and SSRF
@@ -67,6 +69,13 @@ only unambiguous supplied signature links are shown. Unknown trust is not
 automatically diagnosed as a missing intermediate or attack. Multiple valid
 cross-signed paths may exist; the displayed path is one verifier-selected path,
 not an assertion of a unique universal chain.
+
+ADR 0085 also publishes per-child verified/rejected issuer candidate
+fingerprints, bounded to ten children / nine other sent candidates each.
+Matching names cannot make a verified link. The optional local expected chain
+uses the existing WASM signature graph, identifies exact missing/wrong
+intermediate positions, and leaves root omission informational. Comparison
+never supplies the verifier with uploaded issuers/roots or changes its verdict.
 
 A verified result means this hostname and current server-auth path passed this
 observation under this host's trust roots. It says nothing about every browser,

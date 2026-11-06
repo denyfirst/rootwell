@@ -2,6 +2,13 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-11-06 ADR 0085:** Check a website daxilində optional public sertifikat/
+bundle ilə production müqayisəsi. Fayl lokal WASM-də oxunur, API-yə göndərilmir.
+Sayt sertifikatının tam identity-si və hər intermediate üzrə konkret fərq/
+qırılan imza əlaqəsi göstərilir. Uyğun leaf, problemli server chain və legitim
+alternativ ayrı cavablardır. Private key, yeni export və avtomatik yeniləmə
+bu increment-ə daxil deyil; əvvəlki SSRF/session/trust sərhədləri qalır.
+
 **2026-11-05 prioritet dəyişikliyi — ADR 0084:** avtomatik yeniləmənin davamı
 sonrakı mərhələyə ayrılır; hazır kod saxlanır. Cari iş eyni Rootwell daxilində
 URL ilə saytın təqdim etdiyi X.509 zəncirinin təhlükəsiz yoxlanması və sadə

@@ -78,6 +78,25 @@ func TestSameIssuerNameCannotForgeSignatureLinkOrTrust(t *testing.T) {
 	}
 }
 
+func TestIssuerChecksLocateExactBrokenSignatureAtEachDepth(t *testing.T) {
+	chain, roots, now := fixture(t)
+	other, _, _ := fixture(t)
+	good, err := Analyze(chain[:2], roots, "website.example.org", now)
+	if err != nil || len(good.IssuerChecks) != 2 || len(good.IssuerChecks[0].Verified) != 1 || good.IssuerChecks[0].Verified[0] != good.Presented[1].Fingerprint || len(good.IssuerChecks[0].Rejected) != 0 {
+		t.Fatal("valid child/issuer edge lost")
+	}
+	for _, input := range [][]*x509.Certificate{{chain[0], other[1]}, {chain[0], chain[1], other[2]}} {
+		r, err := Analyze(input, x509.NewCertPool(), "website.example.org", now)
+		depth := len(input) - 2
+		if err != nil || len(r.IssuerChecks) != len(input) || r.IssuerChecks[depth].Child != r.Presented[depth].Fingerprint || len(r.IssuerChecks[depth].Rejected) != 1 || r.IssuerChecks[depth].Rejected[0] != r.Presented[depth+1].Fingerprint || len(r.IssuerChecks[depth].Verified) != 0 || r.Trusted {
+			t.Fatalf("wrong edge localization at depth %d: %+v %v", depth, r, err)
+		}
+		if depth == 1 && (len(r.IssuerChecks[0].Verified) != 1 || !r.IssuerChecks[2].SelfSigned) {
+			t.Fatal("good lower edge or self-signed root fact lost")
+		}
+	}
+}
+
 func TestMissingIssuerAndPeerRootCannotCreateTrust(t *testing.T) {
 	chain, roots, now := fixture(t)
 	for _, input := range [][]*x509.Certificate{chain[:1], chain} {

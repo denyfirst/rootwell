@@ -8,6 +8,24 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C104 — Expected files cannot repair or replace a live chain verdict (ADR 0085)
+
+Expected public PEM/DER bytes stay inside the browser and are parsed by the
+existing public-only WASM parser and issuer-signature graph. Only one explicit
+non-CA leaf is compared; ambiguous selections cannot trigger a website request.
+The API still accepts only target and consent, not certificates/fingerprints/
+keys/trust. Full DER SHA-256 identity is independent of hostname and trust.
+Per-child server-sent candidate fingerprints locate the failed signature at
+the correct depth; matching names do not verify it. Missing expected issuers,
+legitimate alternatives and normal root omission remain separate. Selection,
+timeout, hidden/pageexit and late-file-read boundaries cannot publish or send a
+stale selection. No comparison is persisted and no new trust source is added.
+
+Guarded by `TestIssuerChecksLocateExactBrokenSignatureAtEachDepth`,
+`TestWebsiteComparisonCannotUploadCertificatesOrTrustToAPI`,
+`scripts/test-website-expected.mjs` (actual Go WASM),
+`scripts/test-website-check.mjs` and `scripts/test-inventory-demo.mjs`.
+
 ## C103 — Website diagnosis has explicit bounded network authority (ADR 0084)
 
 Website observation is a separate explicit ready-session capability, not a
