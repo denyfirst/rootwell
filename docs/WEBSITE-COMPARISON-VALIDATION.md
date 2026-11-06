@@ -28,6 +28,10 @@ independent audit is claimed. Porch is unchanged.
 - The existing API still rejects any certificate/key/fingerprint/trust input.
   Preview file/consent inputs and live POSTs remain disabled; the dedicated
   example uses generated public bytes and clearly synthetic server data.
+- The first CI run found an outdated inventory loader test double missing
+  `rootwellAnalyze`. It now uses the actual WASM function, asserts the loaded
+  reference, and explicitly rejects an engine without analysis support.
+  Product code and the engine's fail-closed requirement are unchanged.
 
 ## Actual sabotage, restored after every run
 

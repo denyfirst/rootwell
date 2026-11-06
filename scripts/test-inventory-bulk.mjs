@@ -22,11 +22,12 @@ vm.runInNewContext(helperSource, helperContext);
 const helper = helperContext.rootwellInventoryImport;
 const loaderSource=fs.readFileSync("cmd/rootwelld/auth/inventory-engine.js","utf8");
 let assetRequest=null;
-const loader={rootwellExplore:engine.explore,rootwellExport:engine.exportPublic,rootwellExportBundle:engine.exportBundle,rootwellCompare,rootwellInspectMaxBytes:16*1024*1024,
+const loader={rootwellExplore:engine.explore,rootwellAnalyze,rootwellExport:engine.exportPublic,rootwellExportBundle:engine.exportBundle,rootwellCompare,rootwellInspectMaxBytes:16*1024*1024,
   AbortController,setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assetRequest={url,options};return {ok:true};},
   Go:class {constructor(){this.importObject={};}async run(){loader.rootwellWasmReady();}},WebAssembly:{async instantiateStreaming(){return {instance:{}};}}};
 vm.runInNewContext(loaderSource,loader);
-await loader.rootwellInventoryEngineReady;
+const loadedEngine=await loader.rootwellInventoryEngineReady;
+assert.equal(loadedEngine.analyze,rootwellAnalyze);
 assert.equal(assetRequest.url,"/rootwell.wasm");
 assert.equal(assetRequest.options.credentials,"same-origin");
 assert.equal(assetRequest.options.redirect,"error");
@@ -34,6 +35,11 @@ assert.equal(assetRequest.options.body,undefined,"asset loader has no file uploa
 const unavailable={AbortController,setTimeout:()=>1,clearTimeout(){}};
 vm.runInNewContext(loaderSource,unavailable);
 await assert.rejects(unavailable.rootwellInventoryEngineReady,/unavailable/);
+const missingAnalysis={...loader,rootwellAnalyze:undefined,
+  Go:class {constructor(){this.importObject={};}async run(){missingAnalysis.rootwellWasmReady();}}};
+delete missingAnalysis.rootwellInventoryEngineReady;
+vm.runInNewContext(loaderSource,missingAnalysis);
+await assert.rejects(missingAnalysis.rootwellInventoryEngineReady,/unavailable/);
 const cert = name => new X509Certificate(fs.readFileSync("web/workbench/rootwell-verify-demo-" + name + ".pem"));
 const leaf = cert("leaf"), issuer = cert("intermediate"), root = cert("root");
 const inputs = [new File([leaf.toString()], "leaf.crt"), new File([issuer.raw], "issuer.cer")];
