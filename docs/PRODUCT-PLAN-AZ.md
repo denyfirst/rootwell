@@ -2,6 +2,13 @@
 
 **Status:** ilkin plan, v0.1
 
+**2026-11-08 ADR 0087:** Certificates-in eyni Add kartında bir modern PFX/P12.
+Parol və container brauzerdə işlənir; mövcud API yalnız hazırlanmış public
+sertifikat/bundle və müvəqqəti parolla şifrəli key alır. Server və locked writer
+yenidən yoxlayır, eyni encrypted material/full backup saxlayır. Original PFX,
+onun parolu, əlavə plaintext export, vendor/legacy universal profil və trust
+iddiası yoxdur. Clear selection və ayrıca worker deadline/cancellation qalır.
+
 **2026-11-06 ADR 0086:** Certificates-dən seçilmiş public sertifikatı təkrar
 download/upload etmədən Check on website-də açmaq. Bir exact-generation
 snapshot, inert public DER və lokal fingerprint/WASM yoxlaması; avtomatik

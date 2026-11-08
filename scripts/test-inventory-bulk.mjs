@@ -22,12 +22,14 @@ vm.runInNewContext(helperSource, helperContext);
 const helper = helperContext.rootwellInventoryImport;
 const loaderSource=fs.readFileSync("cmd/rootwelld/auth/inventory-engine.js","utf8");
 let assetRequest=null;
+const compiledPFXModule={fixedPublicAsset:true};
 const loader={rootwellExplore:engine.explore,rootwellAnalyze,rootwellExport:engine.exportPublic,rootwellExportBundle:engine.exportBundle,rootwellCompare,rootwellInspectMaxBytes:16*1024*1024,
   AbortController,setTimeout:()=>1,clearTimeout(){},fetch:async(url,options)=>{assetRequest={url,options};return {ok:true};},
-  Go:class {constructor(){this.importObject={};}async run(){loader.rootwellWasmReady();}},WebAssembly:{async instantiateStreaming(){return {instance:{}};}}};
+  Go:class {constructor(){this.importObject={};}async run(){loader.rootwellWasmReady();}},WebAssembly:{async instantiateStreaming(){return {instance:{},module:compiledPFXModule};}}};
 vm.runInNewContext(loaderSource,loader);
 const loadedEngine=await loader.rootwellInventoryEngineReady;
 assert.equal(loadedEngine.analyze,rootwellAnalyze);
+assert.equal(loadedEngine.module,compiledPFXModule);
 assert.equal(assetRequest.url,"/rootwell.wasm");
 assert.equal(assetRequest.options.credentials,"same-origin");
 assert.equal(assetRequest.options.redirect,"error");

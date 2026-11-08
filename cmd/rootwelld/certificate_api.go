@@ -147,6 +147,18 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		inventoryError(w, err)
 		return
 	}
+	g.publishCertificateSave(w, r, s, record, generation)
+}
+
+func (g *gate) publishCertificateSave(w http.ResponseWriter, r *http.Request, s session, record publicinventory.Record, generation uint64) {
+	current, ready := g.currentSession(r)
+	clear(current.dataKey[:])
+	if !ready || current.setup || current.revision != s.revision || r.Context().Err() != nil {
+		// The commit may already be durable. Never turn publication loss into a
+		// definite pre-write refusal that would encourage a blind duplicate Save.
+		http.Error(w, "Save outcome uncertain; sign in and refresh before retrying.", http.StatusServiceUnavailable)
+		return
+	}
 	g.writeInventoryJSON(w, http.StatusCreated, []publicinventory.Record{record}, generation)
 }
 

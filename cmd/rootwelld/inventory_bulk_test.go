@@ -24,7 +24,7 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 	if err := g.issueSession(setup, true, revision, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/inventory", "/certificates", "/certificate-library.js", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js"} {
+	for _, path := range []string{"/inventory", "/certificates", "/certificate-library.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js"} {
 		anonymous := call(g, "GET", path, "", nil)
 		if anonymous.Code != http.StatusSeeOther || anonymous.Header().Get("Location") != "/login" {
 			t.Fatal("anonymous access to bulk assets")
@@ -36,6 +36,9 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 		ready := call(g, "GET", path, "", cookie)
 		if ready.Code != http.StatusOK || ready.Header().Get("Cache-Control") != "no-store" || ready.Body.Len() == 0 {
 			t.Fatal("ready bulk asset unavailable")
+		}
+		if path == "/certificate-pfx-worker.js" && (!strings.Contains(ready.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(ready.Header().Get("Content-Security-Policy"), "worker-src 'none'")) {
+			t.Fatal("PFX import worker gained network or child-worker capability")
 		}
 		if call(g, "POST", path, "{}", cookie).Code != http.StatusMethodNotAllowed ||
 			call(g, "GET", path+"?certificate=not-allowed", "", cookie).Code != http.StatusBadRequest {

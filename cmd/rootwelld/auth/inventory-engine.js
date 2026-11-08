@@ -7,6 +7,7 @@
   let fail;
   const ready = new Promise((resolve, reject) => { finish = resolve; fail = reject; });
   const controller = new AbortController();
+  let module;
   const deadline = setTimeout(() => { controller.abort(); fail(new Error("Local public certificate engine unavailable.")); }, 20000);
   globalThis.rootwellWasmReady = function () {
     if (typeof globalThis.rootwellExplore !== "function" || typeof globalThis.rootwellAnalyze !== "function" || typeof globalThis.rootwellExportBundle !== "function" ||
@@ -15,7 +16,7 @@
       return;
     }
     finish(Object.freeze({ explore: globalThis.rootwellExplore, analyze: globalThis.rootwellAnalyze, exportBundle: globalThis.rootwellExportBundle,
-      exportPublic: globalThis.rootwellExport, compare: globalThis.rootwellCompare }));
+      exportPublic: globalThis.rootwellExport, compare: globalThis.rootwellCompare, module }));
   };
   Object.defineProperty(globalThis, "rootwellInventoryEngineReady", { value: ready.finally(() => {
     clearTimeout(deadline);
@@ -30,6 +31,7 @@
       const response = await fetch("/rootwell.wasm", { credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
       if (!response.ok) throw new Error();
       const result = await WebAssembly.instantiateStreaming(response, go.importObject);
+      module = result.module;
       if (controller.signal.aborted) return;
       void go.run(result.instance).catch(() => fail(new Error("Local public certificate engine unavailable.")));
     } catch { fail(new Error("Local public certificate engine unavailable.")); }

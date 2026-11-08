@@ -207,6 +207,9 @@ jobs:
           node --check scripts/test-saved-key-attachment.mjs
           node --check scripts/test-certificate-library.mjs
           node --check cmd/rootwelld/auth/inventory-engine.js
+          node --check cmd/rootwelld/auth/certificate-pfx.js
+          node --check cmd/rootwelld/auth/certificate-pfx-worker.js
+          node --check scripts/test-certificate-pfx-worker.mjs
           node --check cmd/rootwelld/auth/inventory-import.js
           node --check scripts/test-inventory-bulk.mjs
           node --check cmd/rootwelld/auth/inventory-lifecycle.js
@@ -241,7 +244,8 @@ jobs:
           node scripts/test-website-check.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-website-expected.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-rootwelld-inventory.mjs
-          node scripts/test-certificate-library.mjs
+          node scripts/test-certificate-library.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
+          node scripts/test-certificate-pfx-worker.mjs
           node scripts/test-saved-key-attachment.mjs
           node scripts/test-acme-setup.mjs
           node scripts/test-acme-directory.mjs
@@ -259,6 +263,9 @@ jobs:
           node scripts/test-acme-order.mjs
           node scripts/test-key-match-ui.mjs
           node scripts/test-inventory-demo.mjs
+
+      - name: Smoke test PFX preparation and certificate custody recovery
+        run: go test -race -run '^TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey$|^TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial$|^TestLinuxMaterialMismatchExportAndBundleFullRestore$|^TestPFXImportPreparationHasNoNetworkOrCustodyAuthority$' -count=1 -timeout=8m ./internal/browserpfximport ./cmd/rootwelld ./internal/architecture
 
       - name: Smoke test session timing watch and recovery fences
         run: go test -race -run '^TestTimingWatch|^TestLinuxTimingWatch' -count=1 -timeout=5m ./cmd/rootwelld ./internal/inventorystore ./internal/architecture
@@ -450,6 +457,7 @@ jobs:
           set -eu
           go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
           "$(go env GOPATH)/bin/govulncheck" ./...
+          GOOS=js GOARCH=wasm "$(go env GOPATH)/bin/govulncheck" ./cmd/rootwell-browser
 
   staticcheck:
     name: Static analysis
