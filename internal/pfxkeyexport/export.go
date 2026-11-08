@@ -1,6 +1,6 @@
 // Package pfxkeyexport extracts one authenticated, matching private key from
 // the bounded offline PFX profile and returns only encrypted PKCS#8 PEM.
-// It does not export plaintext, establish trust, or support browser/server use.
+// It exports no plaintext or trust verdict and performs no storage/network I/O.
 package pfxkeyexport
 
 import (
@@ -24,7 +24,7 @@ var (
 
 const outputIterations = 600_000
 
-// Export accepts one immutable PFX snapshot, its terminal-entered password,
+// Export accepts one immutable PFX snapshot, its current password,
 // the exact inspected leaf fingerprint, and a fresh output password. It uses
 // explicit PBES2/PBKDF2-HMAC-SHA-256/AES-256-CBC parameters, never the
 // dependency's weaker defaults. The caller must clear the encrypted output

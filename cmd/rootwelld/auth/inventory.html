@@ -15,6 +15,7 @@
   <script src="/inventory-import.js" defer></script>
   <script src="/inventory-lifecycle.js" defer></script>
   <script src="/certificate-library.js" defer></script>
+  <script src="/certificate-pfx.js" defer></script>
   <script src="/saved-key-attachment.js" defer></script>
   <script src="/inventory.js" defer></script>
 </head>
@@ -62,13 +63,16 @@
       <details class="card library-add">
         <summary><h2>Add a certificate</h2><span>Certificate or bundle + optional key</span></summary>
         <form id="certificate-pair-form">
-          <label for="pair-certificate">Certificate <span>(includes its public key) — or public PEM bundle</span></label>
-          <input id="pair-certificate" type="file" accept=".pem,.crt,.cer,.der" multiple required>
-          <p>One bundle, or the separate certificate and issuer files for the same chain. Up to 8 files; unrelated certificates belong under Advanced.</p>
+          <label for="pair-certificate">Certificate <span>(includes its public key), public bundle or PFX/P12</span></label>
+          <input id="pair-certificate" type="file" accept=".pem,.crt,.cer,.der,.pfx,.p12" multiple required>
+          <p>One PFX/P12, one public bundle, or up to 8 related public files. A PFX already includes its private key.</p>
+          <p id="pair-pfx-help" hidden>PFX selected. Enter its password below. It opens locally; only public certificates and a temporarily encrypted key go to your own Rootwell. The PFX password stays in this browser.</p>
+          <div id="pair-key-fields">
           <label for="pair-key">Private key <span>(optional — skip if you do not have it)</span></label>
           <input id="pair-key" type="file" accept=".pem,.key,.der">
-          <details id="pair-password-options"><summary>My private key has a password</summary>
-            <label for="pair-key-password">Current key password</label>
+          </div>
+          <details id="pair-password-options"><summary id="pair-password-summary">My private key has a password</summary>
+            <label id="pair-password-label" for="pair-key-password">Current key password</label>
             <input id="pair-key-password" type="password" maxlength="256" autocomplete="off">
           </details>
           <button id="pair-check" type="button">Check first (optional)</button>
@@ -81,7 +85,8 @@
           <label for="pair-note">Where is it used? <span>(optional note — you can add it later)</span></label>
           <input id="pair-note" type="text" maxlength="128" autocomplete="off" placeholder="e.g. Nginx, Exchange, production website">
           <button id="pair-save" type="submit" disabled>Save certificate</button>
-          <details class="optional-fields"><summary>Supported files</summary><p>One PEM/DER certificate or related public PEM bundle (up to 16 certificates / 768 KiB), with an optional PKCS#8, RSA PKCS#1 or EC SEC1 key up to 64 KiB. Supported modern encrypted PKCS#8 requires its current password. PFX is handled in Workbench. Included roots are not automatically trusted.</p></details>
+          <button id="pair-clear" type="button" class="secondary">Clear selection</button>
+          <details class="optional-fields"><summary>Supported files</summary><p>Public PEM/DER certificate or related bundle (up to 16 certificates / 768 KiB), with an optional PKCS#8, RSA PKCS#1 or EC SEC1 key up to 64 KiB. Or one modern password-protected PFX/P12 up to 1 MiB with one matching RSA/EC key and related certificates. The existing bounded Modern2023 profile is supported; PFX passwords use 1–128 printable ASCII characters without spaces. Legacy containers may need re-export from their source application. Included roots are not automatically trusted.</p></details>
         </form>
       </details>
       <details class="card import-card">

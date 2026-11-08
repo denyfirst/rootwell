@@ -77,7 +77,7 @@ const assets = new Map([
   ["/certificates", ["text/html; charset=utf-8", html]],
   ["/inventory.css", ["text/css; charset=utf-8", asset("inventory.css")]],
   ["/inventory.js", ["text/javascript; charset=utf-8", script]],
-  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js", "certificate-library.js", "saved-key-attachment.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
+  ...["inventory-engine.js", "inventory-import.js", "inventory-lifecycle.js", "certificate-library.js", "certificate-pfx.js", "certificate-pfx-worker.js", "saved-key-attachment.js"].map(name => ["/"+name, ["text/javascript; charset=utf-8", asset(name)]])
 ]);
 // Visual QA only: one FAKE completed status, no account/order/key or CA I/O.
 // The actual source renders the next step; every mutation still returns 405.
@@ -125,6 +125,7 @@ const server = http.createServer((request, response) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
   response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
+  if(request.url==="/certificate-pfx-worker.js")response.setHeader("Content-Security-Policy","default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
   if(request.method==="POST"&&request.url==="/api/acme/production-account/status"){
     if(request.headers.origin!=="http://"+request.headers.host||request.headers["x-rootwell-request"]!=="1"||request.headers["content-type"]!=="application/json"){response.writeHead(403).end("Fixture status refused");return;}

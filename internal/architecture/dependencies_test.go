@@ -78,6 +78,9 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				if importPath == "github.com/denyfirst/rootwell/internal/websiteprobe" && filepath.ToSlash(relative) != "cmd/rootwelld/website_check_api.go" {
 					t.Errorf("website network capability outside authenticated explicit endpoint: %s", relative)
 				}
+				if importPath == "github.com/denyfirst/rootwell/internal/browserpfximport" && filepath.ToSlash(relative) != "cmd/rootwell-browser/pfx_import_js.go" {
+					t.Errorf("PFX library decoder outside the browser bridge: %s", relative)
+				}
 				if importPath == "github.com/denyfirst/rootwell/internal/acmestaging" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_job_operations.go" && filepath.ToSlash(relative) != "cmd/rootwelld/timing_watch.go" && filepath.ToSlash(relative) != "cmd/rootwelld/renewal_timing_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/dns_operation_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_directory_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_registration_api.go" && filepath.ToSlash(relative) != "cmd/rootwelld/acme_order_api.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_linux.go" && filepath.ToSlash(relative) != "internal/instanceaccess/acme_certificate_other.go" ||
 					importPath == "golang.org/x/crypto/acme" && filepath.ToSlash(relative) != "internal/acmestaging/directory.go" && filepath.ToSlash(relative) != "internal/acmestaging/registration.go" && filepath.ToSlash(relative) != "internal/acmestaging/order.go" && filepath.ToSlash(relative) != "internal/acmestaging/validation.go" && filepath.ToSlash(relative) != "internal/acmestaging/certificate.go" {
 					t.Errorf("ACME network authority outside reviewed directory connector: %s", relative)
@@ -570,6 +573,38 @@ func TestACMESetupHasNoOutboundOrPersistenceImports(t *testing.T) {
 			return true
 		})
 	}
+}
+
+func TestPFXImportPreparationHasNoNetworkOrCustodyAuthority(t *testing.T) {
+	_, current, _, _ := runtime.Caller(0)
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(filepath.Dir(current), "..", "browserpfximport", "prepare.go"), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{"bytes": true, "crypto/rand": true, "crypto/subtle": true, "encoding/base64": true, "errors": true, "github.com/denyfirst/rootwell/internal/certificatepair": true, "github.com/denyfirst/rootwell/internal/pfxinspect": true, "github.com/denyfirst/rootwell/internal/pfxkeyexport": true}
+	for _, i := range file.Imports {
+		path, err := strconv.Unquote(i.Path.Value)
+		if err != nil || !allowed[path] || i.Name != nil {
+			t.Errorf("unreviewed PFX preparation import: %s", i.Path.Value)
+		}
+	}
+	ast.Inspect(file, func(n ast.Node) bool {
+		s, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		id, ok := s.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if id.Name == "certificatepair" && s.Sel.Name != "PrepareBundle" && s.Sel.Name != "PublicPEM" {
+			t.Error("PFX preparation gained extra material authority", s.Sel.Name)
+		}
+		if id.Name == "pfxkeyexport" && s.Sel.Name != "Export" {
+			t.Error("PFX preparation gained plaintext export", s.Sel.Name)
+		}
+		return true
+	})
 }
 
 func TestSavedWebsiteNavigationHasOnlyPublicReadAuthority(t *testing.T) {

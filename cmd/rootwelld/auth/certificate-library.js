@@ -19,7 +19,15 @@
   const readOnly = form.dataset.readOnly === "true";
   if (readOnly) for (const input of [cert, key, keyPassword, note, primary, acknowledgement]) input.disabled = true;
   const hex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
-  const fingerprint = value => typeof value === "string" && /^(?:[A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}$/.test(value);
+  const fingerprint = value => typeof value === "string" && value.length === 95 && /^(?:[A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}$/.test(value);
+  const isPFX = file => typeof file?.name === "string" && /\.(?:pfx|p12)$/i.test(file.name);
+  function sourceMode(pfx = Array.from(cert.files || []).some(isPFX)) {
+    byId("pair-key-fields").hidden = pfx; byId("pair-pfx-help").hidden = !pfx; key.disabled = pfx || readOnly;
+    byId("pair-password-summary").textContent = pfx ? "PFX password" : "My private key has a password";
+    byId("pair-password-label").textContent = pfx ? "Current PFX password" : "Current key password";
+    keyPassword.maxLength = pfx ? 128 : 256;
+    byId("pair-password-options").open = pfx;
+  }
 
   function controls() {
     check.disabled = busy || document.hidden || !generation || readOnly;
@@ -39,6 +47,8 @@
   function boundary() {
     invalidate(); keyPassword.value = ""; cert.value = ""; key.value = ""; note.value = "";
     primary.replaceChildren(); primary.value = ""; byId("pair-choice-box").hidden = true;
+    sourceMode(false);
+    controls();
     status.textContent = ""; downloadStatus.textContent = "";
   }
   async function body(response, max) {
@@ -70,8 +80,29 @@
     for (let offset = 0; offset < bytes.length; offset += 8192) value += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
     return btoa(value);
   }
-  async function selection(current) {
+  async function selection(current, signal) {
     const files = Array.from(cert.files || []), c = files[0], k = key.files?.[0];
+    if (files.some(isPFX)) {
+      if (files.length !== 1 || !Number.isSafeInteger(c.size) || c.size < 1 || c.size > 1<<20 || key.files?.length || !keyPassword.value || encoder.encode(keyPassword.value).length > 128) {
+        throw new LibraryError("Choose one PFX/P12 up to 1 MiB and enter its current password. Do not add a separate key or other files.");
+      }
+      let source, secret, prepared;
+      try {
+        const engine = await globalThis.rootwellInventoryEngineReady;
+        if (!current()) throw new LibraryError("Selection changed.");
+        source = new Uint8Array(await c.arrayBuffer()); secret = encoder.encode(keyPassword.value);
+        if (!current() || source.length !== c.size || cert.files?.length !== 1 || cert.files[0] !== c || key.files?.length) throw new LibraryError("Selection changed.");
+        const digest = "pfx:" + hex(new Uint8Array(await crypto.subtle.digest("SHA-256",source)));
+        if (!current()) throw new LibraryError("Selection changed.");
+        prepared = await globalThis.rootwellCertificatePFX.run(engine.module,source,secret,signal);
+        if (!current() || cert.files?.length !== 1 || cert.files[0] !== c || key.files?.length) throw new LibraryError("Selection changed.");
+        if (!prepared || !fingerprint(prepared.fingerprint) || ![prepared.certificate,prepared.private_key,prepared.key_password].every((b,i) => b instanceof Uint8Array && b.length > 0 && b.length <= [768<<10,64<<10,128][i]) ||
+            !new TextDecoder().decode(prepared.private_key).startsWith("-----BEGIN ENCRYPTED PRIVATE KEY-----")) throw new LibraryError("PFX preparation was not recognized.");
+        return {certificate:base64(prepared.certificate),private_key:base64(prepared.private_key),key_password:base64(prepared.key_password),digest,c,k:c,files,pfx:true,expectedFingerprint:prepared.fingerprint};
+      } catch (error) {
+        throw error instanceof LibraryError ? error : new LibraryError("PFX could not be opened locally. Check the password and supported modern profile; nothing was uploaded or saved.");
+      } finally { source?.fill(0); secret?.fill(0); if(prepared) for(const name of ["certificate","private_key","key_password"]) {const b=prepared[name];if(b instanceof Uint8Array)b.fill(0);} }
+    }
     if (!files.length || files.length > 8 || files.some(f => !Number.isSafeInteger(f.size) || f.size < 1) || files.reduce((n,f) => n + f.size,0) > 768 * 1024 || key.files?.length > 1 || (k && (!Number.isSafeInteger(k.size) || k.size === 0 || k.size > 64 * 1024)) || encoder.encode(keyPassword.value).length > 256) {
       throw new LibraryError("Select one bundle or 1–8 related public files (up to 768 KiB), and an optional private key (up to 64 KiB).");
     }
@@ -110,9 +141,10 @@
     busy = true; controls();
     const current = () => serial === ticket && !document.hidden && generation === gen && !ownController.signal.aborted;
     let posted = false;
-    const timeout = setTimeout(() => { if (serial === ticket) { invalidate(); status.textContent = posted && action === "save" ? "Save outcome is uncertain. Refresh before retrying." : "Check timed out. Check the selection again."; } }, 30000);
+    const timeout = setTimeout(() => { if (serial === ticket) { invalidate(); keyPassword.value = ""; status.textContent = posted && action === "save" ? "Save outcome is uncertain. Refresh before retrying." : "Check timed out. Check the selection again."; } }, Array.from(cert.files || []).some(isPFX) ? 150000 : 30000);
     try {
-      const input = await selection(current);
+      if(Array.from(cert.files || []).some(isPFX)) status.textContent = "Opening PFX locally and preparing an encrypted key… nothing is saved yet.";
+      const input = await selection(current,ownController.signal);
       if (!current()) return;
       if (action === "save" && (!checked || checked.digest !== input.digest || checked.c !== input.c || checked.k !== input.k || checked.files.length !== input.files.length || checked.files.some((f,i) => f !== input.files[i]) || checked.generation !== gen || Date.now() - checked.at >= 120000 || Date.now() < checked.at)) {
         throw new LibraryError("Selection or checked result changed. Check the files again.");
@@ -123,13 +155,14 @@
       else if (primary.value) request.primary_fingerprint = primary.value;
       status.textContent = action === "check" ? "Checking on your own Rootwell… nothing is saved yet." : "Saving certificate and optional key together…";
       posted = true;
-      const response = await fetch("/api/certificates/" + action, { method: "POST", credentials: "same-origin", cache: "no-store", signal: ownController.signal,
+      const response = await fetch("/api/certificates/" + action, { method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error", signal: ownController.signal,
         headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" }, body: JSON.stringify(request) });
       const bytes = await body(response, 4 * 1024 * 1024);
       let result;
       try { result = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } finally { bytes.fill(0); }
       if (!current()) return;
       if (action === "check" && response.headers.get("X-Rootwell-Selection") === "required") {
+        if(input.pfx) throw new LibraryError("PFX must contain one unambiguous matching certificate. Nothing was saved.");
         if (result.verification !== "not-performed" || result.generation !== gen || !Array.isArray(result.records) || result.records.length < 2 || result.records.length > 16 || result.records.some(r => !fingerprint(r.fingerprint) || typeof r.subject !== "string" || r.subject.length > 4096)) throw new LibraryError("Certificate choices were not recognized.");
         primary.replaceChildren(); const placeholder = document.createElement("option"); placeholder.value = ""; placeholder.textContent = "Choose a certificate"; primary.appendChild(placeholder);
         const seen = new Set();
@@ -145,6 +178,7 @@
           result.generation !== (action === "check" ? gen : gen + 1) || (action === "save" && record.fingerprint !== checked.fingerprint)) {
         throw new LibraryError("Response did not match the selected certificate. Refresh before retrying.");
       }
+      if(input.pfx && (record.fingerprint !== input.expectedFingerprint || record.key_status !== "matched")) throw new LibraryError("PFX certificate/key identity was not confirmed. Nothing was saved.");
       if (action === "check") {
         pending = { fingerprint: record.fingerprint, digest: input.digest, c: input.c, k: input.k, files: input.files, generation: gen, at: Date.now(), keyStatus: record.key_status };
         byId("pair-name").textContent = record.subject || "Certificate";
@@ -159,6 +193,7 @@
     } catch (error) {
       if (current()) {
         invalidate();
+        if(Array.from(cert.files || []).some(isPFX)) keyPassword.value = "";
         status.textContent = posted && action === "save" && !(error instanceof LibraryError && error.refused) ?
           "Save was not confirmed and may have completed. Refresh before retrying." :
           error instanceof LibraryError ? error.message : "Check refused; nothing was saved. Check the files and try again.";
@@ -166,11 +201,12 @@
       }
     } finally { clearTimeout(timeout); if (serial === ticket) { busy = false; controller = null; controls(); } }
   }
-  function sourceChanged() { invalidate(); keyPassword.value = ""; primary.value = ""; primary.replaceChildren(); byId("pair-choice-box").hidden = true; status.textContent = ""; }
-  cert.addEventListener("change", sourceChanged);
+  function sourceChanged() { invalidate(); keyPassword.value = ""; primary.value = ""; primary.replaceChildren(); byId("pair-choice-box").hidden = true; status.textContent = ""; sourceMode(); }
+  cert.addEventListener("change", () => { if(Array.from(cert.files || []).some(isPFX)) key.value = ""; sourceChanged(); });
   key.addEventListener("change", sourceChanged);
   primary.addEventListener("change", () => { invalidate(); status.textContent = "Selection changed. Check or Save to revalidate."; });
   keyPassword.addEventListener("input", () => { invalidate(); status.textContent = "Check the files with this password before saving."; });
+  byId("pair-clear").addEventListener("click", boundary);
   check.addEventListener("click", () => run("check"));
   form.addEventListener("submit", event => { event.preventDefault(); return run("save"); });
   function privateOptions() {
@@ -198,7 +234,7 @@
       if (kind.value === "bundle") request.bundle = true;
       if (secret) { request.password = password.value; const p = encoder.encode(outputPassword.value); try { request.output_password = base64(p); } finally { p.fill(0); } }
       password.value = ""; outputPassword.value = ""; confirm.value = "";
-      const response = await fetch("/api/certificates/download", { method: "POST", credentials: "same-origin", cache: "no-store", signal: ownController.signal,
+      const response = await fetch("/api/certificates/download", { method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error", signal: ownController.signal,
         headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" }, body: JSON.stringify(request) });
       const name = response.headers.get("content-disposition")?.match(/^attachment; filename="(rootwell-certificate-[a-f0-9]{32}\.(?:pem|zip))"$/)?.[1];
       bytes = await body(response, 1200 * 1024);
@@ -213,7 +249,7 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) boundary(); });
   window.addEventListener("pagehide", boundary);
   globalThis.rootwellCertificateLibrary = Object.freeze({
-    snapshot(value) { globalThis.rootwellSavedKey?.snapshot(value); if (!Number.isSafeInteger(value) || value < 1) { generation = 0; boundary(); return; } if (generation !== value) invalidate(); generation = value; controls(); },
+    snapshot(value) { globalThis.rootwellSavedKey?.snapshot(value); if (!Number.isSafeInteger(value) || value < 1) { generation = 0; boundary(); return; } if (generation !== value) { if(Array.from(cert.files || []).some(isPFX)) keyPassword.value = ""; invalidate(); } generation = value; controls(); },
     isEditing() { return busy || pending !== null || !download.hidden || Boolean(cert.files?.length) || Boolean(key.files?.length) || globalThis.rootwellSavedKey?.isEditing() === true; },
     openAttach(record, gen) {
       if (busy || document.hidden || readOnly || gen !== generation || !fingerprint(record.fingerprint) || record.has_private_key === true) return;
@@ -227,5 +263,5 @@
       download.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   });
-  controls();
+  sourceMode(); controls();
 })();

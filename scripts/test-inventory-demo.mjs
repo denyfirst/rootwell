@@ -85,9 +85,10 @@ try {
   assert.match(homeHTML, /No certificate uploads/);
   assert.doesNotMatch(homeHTML, /rootwell\.inventory\.workbench\.v1/, "GET must not hand off any saved certificate");
   assert.equal((await fetch(origin + "/")).url, origin + "/index.html");
-  for (const asset of ["style.css", "theme.js", "inventory.css", "certificate-library.js", "saved-key-attachment.js"]) {
+  for (const asset of ["style.css", "theme.js", "inventory.css", "certificate-library.js", "certificate-pfx.js", "certificate-pfx-worker.js", "saved-key-attachment.js"]) {
     const response = await fetch(origin + "/" + asset); assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
+    if(asset==="certificate-pfx-worker.js"){assert.match(response.headers.get("content-security-policy"),/connect-src 'none'/);assert.match(response.headers.get("content-security-policy"),/worker-src 'none'/);}
   }
   assert.equal((await fetch(origin + "/index.html", { method: "POST" })).status, 405);
   assert.equal((await fetch(origin + "/index.html?certificate=unexpected")).status, 404);

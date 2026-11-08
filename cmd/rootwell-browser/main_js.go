@@ -46,6 +46,7 @@ func main() {
 	js.Global().Set("rootwellPrivateExport", privateExportFunction)
 	js.Global().Set("rootwellPFXInspect", pfxInspectFunction)
 	js.Global().Set("rootwellPFXOutput", pfxOutputFunction)
+	js.Global().Set("rootwellPFXImport", js.FuncOf(pfxImport))
 	js.Global().Set("rootwellCSROperate", csrFunction)
 	js.Global().Set("rootwellCompare", js.FuncOf(compareCertificates))
 	js.Global().Set("rootwellCertificateKeyMatch", js.FuncOf(certificateKeyMatch))

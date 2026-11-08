@@ -4,7 +4,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -16,10 +18,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/browserpfximport"
 	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/denyfirst/rootwell/internal/certificatepair"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
 	"github.com/denyfirst/rootwell/internal/keymatch"
+	"github.com/denyfirst/rootwell/internal/publicinventory"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 func TestLinuxMaterialMismatchExportAndBundleFullRestore(t *testing.T) {
@@ -154,6 +159,79 @@ func TestLinuxMaterialMismatchExportAndBundleFullRestore(t *testing.T) {
 		t.Fatal("bundle public export lost material or leaked key")
 	}
 	snapshot := filepath.Join(backups, "complete.rwfull")
+	// Simulate the worker's output with the real PFX preparation core. The
+	// HTTP API still receives only its existing PEM/encrypted-key contract.
+	pfxKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keymatch.ClearParsedKey(pfxKey)
+	template.SerialNumber = big.NewInt(3)
+	template.Subject.CommonName = "pfx-library.synthetic.invalid"
+	pfxLeafDER, err := x509.CreateCertificate(rand.Reader, template, rt, pfxKey.Public(), rk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pfxLeaf, err := x509.ParseCertificate(pfxLeafDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pfxRoot, err := x509.ParseCertificate(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := pkcs12.Modern2023.Encode(pfxKey, pfxLeaf, []*x509.Certificate{pfxRoot}, "synthetic-library-pfx-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clear(container)
+	prepared, err := browserpfximport.Prepare(container, []byte("synthetic-library-pfx-password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.Clear()
+	if raw := invoke("/api/certificates/check", map[string]any{"pfx": container, "pfx_password": "synthetic-library-pfx-password", "expected_generation": 4}); raw.code != 400 {
+		t.Fatal("raw PFX authority entered server API")
+	}
+	pfxRequest := map[string]any{"certificate": prepared.Certificate, "private_key": prepared.PrivateKey, "key_password": prepared.KeyPassword, "expected_generation": 4}
+	imagePath := filepath.Join(filepath.Dir(path), "inventory.json")
+	pfxBefore, err := os.ReadFile(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checked := invoke("/api/certificates/check", pfxRequest); checked.code != 200 || !bytes.Contains(checked.body, []byte(`"key_status":"matched"`)) || bytes.Contains(checked.body, prepared.KeyPassword) {
+		t.Fatal("PFX prepared check failed or leaked a secret")
+	}
+	pfxRequest["fingerprint"] = prepared.Fingerprint
+	pfxRequest["key_password"] = []byte("wrong-transient-password")
+	if refused := invoke("/api/certificates/save", pfxRequest); refused.code != 400 {
+		t.Fatal("PFX save skipped independent key validation")
+	}
+	pfxAfter, err := os.ReadFile(imagePath)
+	if err != nil || !bytes.Equal(pfxBefore, pfxAfter) {
+		t.Fatal("PFX refusal/Check changed disk")
+	}
+	pfxRequest["key_password"] = prepared.KeyPassword
+	// Expire this test session precisely once the image changed, not by
+	// sleeping or relying on a particular number of clock reads.
+	clock := time.Now()
+	g.now = func() time.Time {
+		image, err := os.ReadFile(imagePath)
+		if err == nil && !bytes.Equal(image, pfxBefore) {
+			return clock.Add(13 * time.Hour)
+		}
+		return clock
+	}
+	saved := invoke("/api/certificates/save", pfxRequest)
+	g.now = time.Now
+	if saved.code != 503 || !bytes.Contains(saved.body, []byte("outcome uncertain")) || bytes.Contains(saved.body, []byte(`"fingerprint"`)) {
+		t.Fatal("post-commit permission loss falsely confirmed or classified as no write")
+	}
+	cookie = sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
+	pfxRequest["expected_generation"] = 5
+	if duplicate := invoke("/api/certificates/save", pfxRequest); duplicate.code != 409 {
+		t.Fatal("PFX duplicate overwrote a record")
+	}
 	if err := instanceaccess.ExportFullSnapshot(path, snapshot, nextTestPassword, code); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +253,16 @@ func TestLinuxMaterialMismatchExportAndBundleFullRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	records, gen, err := instanceaccess.ReadInventory(freshPath, dataKey, id, revision)
-	if err != nil || gen != 4 || len(records) != 2 || records[0].KeyStatus != "mismatch" || records[1].KeyStatus != "matched" || len(records[1].BundleDER) != 2 {
+	if err != nil || gen != 5 || len(records) != 3 || records[0].KeyStatus != "mismatch" || records[1].KeyStatus != "matched" || len(records[1].BundleDER) != 2 || records[2].Fingerprint != prepared.Fingerprint || records[2].KeyStatus != "matched" || len(records[2].BundleDER) != 2 {
 		t.Fatal("full restore changed status or lost bundle/key")
+	}
+	if err := instanceaccess.WithCertificate(freshPath, dataKey, id, revision, 5, prepared.Fingerprint, func(record publicinventory.Record, key []byte) error {
+		matched, err := keymatch.Match(pfxLeafDER, key)
+		if err != nil || !matched.Match || record.KeyStatus != "matched" {
+			t.Fatal("restored PFX lost its matching private key")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

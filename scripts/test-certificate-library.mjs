@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import { webcrypto } from "node:crypto";
+import { webcrypto,createPrivateKey,createPublicKey,X509Certificate } from "node:crypto";
+import { execFileSync } from "node:child_process";
 
 const source = fs.readFileSync(new URL("../cmd/rootwelld/auth/certificate-library.js",import.meta.url),"utf8");
 const html = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.html",import.meta.url),"utf8");
 assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|console\.|WebSocket|XMLHttpRequest|sendBeacon/);
+assert.doesNotMatch(source,/rootwellPFXImport|rootwellPFXOutput|rootwellPFXInspect/,'PFX KDF/decoder must not run directly in the main UI');
 assert.match(html,/Certificate <span>\(includes its public key\)/);
 assert.match(html,/Private key <span>\(optional/);
 assert.match(html,/id="pair-save" type="submit" disabled/);
@@ -21,18 +23,20 @@ class Element {
   replaceChildren() {} appendChild() {}
 }
 const fingerprint=Array.from({length:32},()=>"AB").join(":");
-function fixture(readOnly=false,savedKey=null) {
+function fixture(readOnly=false,savedKey=null,pfxPrepare=null) {
   const elements={}; const byId=id=>elements[id]??=new Element(id);
   byId("certificate-pair-form").dataset.readOnly=String(readOnly);
   const listeners={}, windowListeners={}, requests=[], downloads=[], timers=new Map(); let timerId=0, next=null;
   const record={fingerprint,subject:"<certificate-name>",not_after:"2027-01-01T00:00:00Z",has_private_key:true,key_status:"matched",bundle_count:1,expiry:{days_left:45}};
   const document={hidden:false,getElementById:byId,addEventListener(e,f){listeners[e]=f;},createElement(){return new Element();},body:{appendChild(el){ downloads.push(el); }}};
   const context=vm.createContext({document,window:{addEventListener(e,f){windowListeners[e]=f;}},TextEncoder,TextDecoder,Uint8Array,AbortController,Blob,Date,crypto:webcrypto,rootwellSavedKey:savedKey,
+    rootwellInventoryEngineReady:Promise.resolve({module:"compiled-module-fixture"}),rootwellCertificatePFX:{async run(...args){if(!pfxPrepare)throw Error("unexpected PFX worker");return pfxPrepare(...args);}},
     btoa:s=>Buffer.from(s,"binary").toString("base64"),URL:{createObjectURL(){return "blob:fixture";},revokeObjectURL(){}},
     rootwellInventoryImport:{async preview(files,current){ assert.equal(files.length,2);assert.equal(current(),true);return [{sha256:fingerprint}]; },async prepare(files,expected,current){assert.equal(files.length,2);assert.deepEqual([...expected],[fingerprint]);assert.equal(current(),true);return Uint8Array.from([7,8,9]);}},
     setTimeout(fn,ms){ const id=++timerId; timers.set(id,{fn,ms}); return id; },clearTimeout(id){timers.delete(id);},
     fetch:async(url,options)=>{
       assert.equal(options.method,"POST"); assert.equal(options.credentials,"same-origin"); assert.equal(options.cache,"no-store");
+      assert.equal(options.redirect,"error");
       assert.equal(options.headers["X-Rootwell-Request"],"1"); assert.ok(options.signal);
       const body=JSON.parse(options.body); requests.push({url,options,body});
       if(next) { const fn=next; next=null; return await fn(url,options); }
@@ -212,4 +216,75 @@ console.log("Certificate material: automatic validation, explicit ambiguous sele
   const f=fixture();f.byId("pair-certificate").files.push(f.file([8,9]));
   await f.byId("certificate-pair-form").listeners.submit(event);
   assert.equal(f.requests.length,2);assert.equal(f.requests[0].body.certificate,Buffer.from([7,8,9]).toString("base64"));assert.equal(f.requests[1].body.certificate,f.requests[0].body.certificate);
+}
+
+// PFX preparation is local; the normal API receives an independently encrypted
+// key and temporary password, never the selected container or its password.
+const textBytes=value=>new TextEncoder().encode(value);
+const pfxPassword='synthetic-PFX-password-must-stay-local';
+let pfxCounter=0;
+function preparedPFX(){return {certificate:Uint8Array.of(7,8,9),private_key:textBytes('-----BEGIN ENCRYPTED PRIVATE KEY-----\n'+(++pfxCounter)),key_password:textBytes('temporary-synthetic-password-'+pfxCounter),fingerprint};}
+function selectPFX(f,bytes=[81,82,83]){
+  const file=f.file(bytes);file.name='synthetic-import.PFX';f.byId('pair-certificate').files=[file];f.byId('pair-key').files=[];f.byId('pair-certificate').listeners.change();f.byId('pair-key-password').value=pfxPassword;return file;
+}
+{
+  const outputs=[];const f=fixture(false,null,async(module,input,password,signal)=>{assert.equal(module,'compiled-module-fixture');assert.equal(signal.aborted,false);assert.equal(new TextDecoder().decode(password),pfxPassword);assert.equal(input.length,3);const out=preparedPFX();outputs.push(out);return out;});
+  selectPFX(f);assert.equal(f.byId('pair-key-fields').hidden,true);assert.equal(f.byId('pair-password-options').open,true);assert.match(f.byId('pair-password-label').textContent,/PFX/);
+  await f.byId('pair-check').click();assert.equal(f.requests.length,1);assert.match(f.byId('pair-match').textContent,/matches/);
+  await f.byId('certificate-pair-form').listeners.submit(event);assert.equal(f.requests.length,2);assert.match(f.byId('pair-status').textContent,/Saved/);
+  assert.notEqual(f.requests[0].body.private_key,f.requests[1].body.private_key,'fresh encryption may change without changing the selected PFX');
+  for(const request of f.requests){assert.equal(request.body.certificate,Buffer.from([7,8,9]).toString('base64'));assert.notEqual(request.body.key_password,Buffer.from(pfxPassword).toString('base64'));assert.doesNotMatch(request.options.body,/synthetic-import|must-stay-local|"pfx"/);}
+  for(const output of outputs)for(const key of ['certificate','private_key','key_password'])assert.ok(output[key].every(b=>b===0),'owned preparation not cleared');
+  assert.equal(f.byId('pair-key-password').value,'');
+}
+{
+  const f=fixture(false,null,async()=>preparedPFX());selectPFX(f);await f.byId('certificate-pair-form').listeners.submit(event);assert.equal(f.requests.length,2);assert.match(f.byId('pair-status').textContent,/Saved/,'PFX direct Save must automatically check');
+}
+for(const invalid of [f=>{f.byId('pair-key-password').value='';},f=>{f.byId('pair-certificate').files.push(f.file([1]));},f=>{f.byId('pair-key').files=[f.file([2])];},f=>{f.byId('pair-certificate').files[0].size=(1<<20)+1;}]){
+  let called=0;const f=fixture(false,null,async()=>{called++;return preparedPFX();});selectPFX(f);invalid(f);await f.byId('certificate-pair-form').listeners.submit(event);assert.equal(f.requests.length,0);assert.equal(called,0);
+}
+for(const prepare of [async()=>{throw Error('secret-password-sentinel');},async()=>({...preparedPFX(),private_key:textBytes('-----BEGIN PRIVATE KEY-----\nsecret')}),async()=>({...preparedPFX(),fingerprint:'bad'}),async()=>({...preparedPFX(),fingerprint:fingerprint+'\n'})]){
+  const f=fixture(false,null,prepare);selectPFX(f);await f.byId('pair-check').click();assert.equal(f.requests.length,0);assert.equal(f.byId('pair-key-password').value,'');assert.doesNotMatch(f.byId('pair-status').textContent,/secret-password-sentinel/);
+}
+for(const mutate of [r=>({...r,key_status:'mismatch'}),r=>({...r,fingerprint:'CD:'.repeat(31)+'CD'})]){
+  const f=fixture(false,null,async()=>preparedPFX());selectPFX(f);f.override(async()=>new Response(JSON.stringify({verification:'not-performed',generation:1,records:[mutate(f.record)]}),{headers:{'cache-control':'no-store'}}));await f.byId('pair-check').click();assert.equal(f.requests.length,1);assert.equal(f.byId('pair-preview').hidden,true);assert.equal(f.byId('pair-mismatch-box').hidden,true);
+}
+for(const boundary of [f=>f.windowListeners.pagehide(),f=>f.byId('pair-clear').listeners.click(),f=>{f.document.hidden=true;f.listeners.visibilitychange();},f=>f.byId('pair-certificate').listeners.change(),f=>f.library.snapshot(2),f=>[...f.timers.values()].find(t=>t.ms===150000).fn()]){
+  let release,started;const startReady=new Promise(resolve=>{started=resolve;});
+  const f=fixture(false,null,()=>new Promise(resolve=>{release=resolve;started();}));selectPFX(f);const pending=f.byId('pair-check').click();
+  let startTimer;try{await Promise.race([startReady,new Promise((_,reject)=>{startTimer=setTimeout(()=>reject(Error('PFX preparation did not start')),5000);})]);}finally{clearTimeout(startTimer);}
+  assert.ok(release);assert.equal(f.requests.length,0);boundary(f);const output=preparedPFX();release(output);await pending;assert.equal(f.requests.length,0);for(const key of ['certificate','private_key','key_password'])assert.ok(output[key].every(b=>b===0),'late output not cleared');
+}
+{
+  const f=fixture(false,null,async()=>preparedPFX());const file=selectPFX(f);await f.byId('pair-check').click();file.arrayBuffer=async()=>Uint8Array.of(91,92,93).buffer;await f.byId('certificate-pair-form').listeners.submit(event);assert.equal(f.requests.length,1,'same-size replacement must not reach Save');
+  const readOnly=fixture(true,null,async()=>{throw Error('must not prepare');});selectPFX(readOnly);await readOnly.byId('certificate-pair-form').listeners.submit(event);assert.equal(readOnly.requests.length,0);
+}
+console.log('PFX library UI: local preparation, password privacy, randomized encrypted-key direct Save, exact source/identity, no mixed input and late/hidden/timeout refusal passed.');
+
+const [pfxWasmPath,pfxRuntimePath]=process.argv.slice(2);
+if(pfxWasmPath&&pfxRuntimePath){
+  vm.runInThisContext(fs.readFileSync(pfxRuntimePath,'utf8'));let ready;const loaded=new Promise(resolve=>{ready=resolve;});globalThis.rootwellWasmReady=ready;
+  const go=new globalThis.Go(),compiled=await WebAssembly.instantiate(fs.readFileSync(pfxWasmPath),go.importObject);void go.run(compiled.instance);await loaded;
+  const generated=JSON.parse(execFileSync('go',['run','./scripts/generate-browser-pfx-fixture.go'],{encoding:'utf8'}));
+  const source=Uint8Array.from(Buffer.from(generated.pfx,'base64')),pw=new TextEncoder().encode(generated.password);
+  const before=source.slice(),expected=new X509Certificate(Buffer.from(generated.certificate,'base64'));
+  const tempPasswords=[];
+  const f=fixture(false,null,async(_module,input,password)=>{
+    const answer=globalThis.rootwellPFXImport(input,password);assert.equal(answer.ok,true,'actual Go WASM PFX preparation failed');
+    f.override(async(url,options)=>{
+      const request=JSON.parse(options.body),cert=new X509Certificate(Buffer.from(request.certificate,'base64'));
+      const encrypted=Buffer.from(request.private_key,'base64'),temporary=Buffer.from(request.key_password,'base64');
+      const parsed=createPrivateKey({key:encrypted,passphrase:temporary});
+      assert.ok(createPublicKey(parsed).export({type:'spki',format:'der'}).equals(cert.publicKey.export({type:'spki',format:'der'})),'prepared key/certificate do not match independently');
+      assert.equal(cert.fingerprint256,expected.fingerprint256);assert.ok(temporary.toString()!==generated.password,'PFX password left the browser');assert.equal(temporary.length,43);tempPasswords.push(temporary.toString());temporary.fill(0);
+      assert.ok(request.certificate!==generated.pfx,'raw PFX sent as certificate');assert.ok(!options.body.includes(generated.password)&&!options.body.includes(Buffer.from(generated.password).toString('base64')),'original PFX password sent');
+      return new Response(JSON.stringify({verification:'not-performed',generation:request.expected_generation+(url.endsWith('save')?1:0),records:[f.record]}),{headers:{'cache-control':'no-store'}});
+    });
+    return answer.result;
+  });
+  f.record.fingerprint=expected.fingerprint256;selectPFX(f,source);f.byId('pair-key-password').value=generated.password;
+  await f.byId('certificate-pair-form').listeners.submit(event);assert.equal(f.requests.length,2);assert.match(f.byId('pair-status').textContent,/Saved/);assert.ok(tempPasswords[0]!==tempPasswords[1],'temporary encryption password reused across preparations');assert.equal(f.byId('pair-key-password').value,'');assert.ok(source.every((b,i)=>b===before[i]),'caller-owned container changed');
+  for(const args of [[source,new TextEncoder().encode('wrong')],[new Uint8Array((1<<20)+1),pw],[source,new Uint8Array(129)],[Uint8Array.of(1,2,3),pw]]){const bad=globalThis.rootwellPFXImport(...args);assert.equal(bad.ok,false);assert.equal(bad.result,null);assert.equal(bad.error,'pfx-import-failed');}
+  source.fill(0);pw.fill(0);before.fill(0);
+  console.log('Actual Go WASM PFX -> library UI -> independent Node key validation: direct Check/Save, exact identity, fresh encrypted transport and original-password privacy passed.');process.exit(0);
 }

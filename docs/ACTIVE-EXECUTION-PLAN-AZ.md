@@ -1,11 +1,20 @@
 # Rootwell — aktiv icra sırası
 
-**Yenilənib:** 2026-11-06. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
+**Yenilənib:** 2026-11-08. Bu sənəd vaxt cədvəli və ya fon rejimində işləyən
 avtomatlaşdırma deyil. Bir iş sessiyasında bir neçə uyğun increment ardıcıl
 icra oluna bilər; hər increment ayrıca imzalı PR, test və self-review qapısından
 keçir. Porch repository-si bu işin xaricindədir.
 
 ## Yeni prioritet — saytın sertifikat zəncirinin diaqnostikası
+
+2026-11-08 ADR 0087: Certificates-də bir PFX/P12 importu. Mövcud bounded
+modern parser ayrıca worker-də işləyir; original PFX/parolu serverə getmir.
+Worker təsadüfi müvəqqəti parolla şifrəli PKCS#8 hazırlayır; mövcud Check/Save
+API-si cert/key uyğunluğunu və tam public kolleksiyanı yenidən yoxlayır.
+Yeni storage formatı, server PFX parseri və dependency yoxdur. Yeni Clear
+selection, late/hidden/cancel refusal və eyni şifrəli full backup/restore.
+ADR 0086 PR #117-də 13/13 ilə merge edilib; bu addımda avtomatik yeniləmə
+sonraya ayrılmış qalır. Real-user custody və release üçün müstəqil audit qalır.
 
 2026-11-06 ADR 0086: Certificates → Details and manage → Check on website.
 Native POST yalnız public fingerprint/exact generation/fixed destination

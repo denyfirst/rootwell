@@ -88,6 +88,8 @@ jobs:
             package: ./internal/browserprivateconvert
           - target: FuzzPFXPreflight
             package: ./internal/pfxinspect
+          - target: FuzzPFXImportNoPartialSecret
+            package: ./internal/browserpfximport
           - target: FuzzInspectCSR
             package: ./internal/csrworkbench
           - target: FuzzPublicComparison

@@ -25,10 +25,27 @@ preserve these semantics. Authenticated complete-image rollback is still possibl
 Matching-pair ZIP refuses loose mismatch. Encrypted key-only PEM uses the same
 fresh instance authentication, shared attempt/KDF budgets, exact generation and
 separate output-password policy. Public bundle download includes supplied roots
-without assigning trust. The archive remains unencrypted. No PFX custody,
-plaintext custody export, remote listener, multiuser policy or production claim.
+without assigning trust. The archive remains unencrypted. ADR 0087 prepares
+PFX contents locally; original PFX containers are not stored. Plaintext custody
+export, remote listener, multiuser policy and production claims remain excluded.
 
 ## Assets and trust
+
+ADR 0087 adds browser-only preparation of one bounded modern PFX/P12 in the
+same Add form. Original container/password never enter the normal API. A
+separate one-shot worker authenticates the exact input, preserves every related
+public certificate and returns a newly encrypted PKCS#8 key with a random
+temporary password. The trusted UI sends both to the existing API for independent
+match/chain and locked writer checks; this does not isolate keys from a
+compromised UI/server. No raw key view, server PFX decoder, storage format or
+extra network authority is introduced. Public-only bulk still rejects PFX.
+The source digest/file identity binds Check/Save; randomized encrypted output
+is not used as source identity. Ready-first transfer, 90s worker/150s operation
+deadlines, Clear selection/hidden/pagehide/source/generation/error clearing and
+late output refusal apply. Current password remains in the form for explicit
+Check/Save, not preview state or persistence. Legacy/empty/non-ASCII passwords,
+ambiguous/multiple matching keys/certificates, CA keys and unrelated collections
+refuse. Same host/runtime/hidden-KDF/backup/rollback residuals remain. See ADR 0087.
 
 ADR 0062 now connects the trusted fixed staging receipt path to the same locked
 intent/lease/Check/pair transaction through fresh-auth explicit UI. No arbitrary

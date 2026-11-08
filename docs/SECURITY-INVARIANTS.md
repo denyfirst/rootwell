@@ -8,6 +8,29 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C106 — PFX import cannot bypass public/key custody boundaries (ADR 0087)
+
+The bounded modern PFX decoder runs in a dedicated one-shot browser worker;
+the server accepts only the existing certificate/encrypted-key contract.
+Raw PFX byte copies, passwords, plaintext keys and private metadata never enter
+pending preview or public output; file references/digests bind the source.
+All related certificates are retained, included roots
+are not trusted, and both worker and server recompute matching identity.
+Temporary encryption uses the existing reviewed exporter and crypto/rand;
+source/file digest, not randomized ciphertext, binds Check/Save. Ready-first
+transfer, no network/storage, scoped deadlines, strict output, cancellation and
+owned-buffer clearing protect the browser boundary; invalid/stale/late work
+cannot publish or start a Save. Same encrypted image/full recovery is preserved.
+
+Guarded by `TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey`,
+`TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial`,
+`FuzzPFXImportNoPartialSecret`, `TestPFXImportPreparationHasNoNetworkOrCustodyAuthority`,
+`TestInventoryBulkAssetsRemainBehindReadyAccess`,
+`TestLinuxMaterialMismatchExportAndBundleFullRestore`,
+`TestCertificateSavePublicationNeedsCurrentSessionAndCancellation`,
+`scripts/test-certificate-library.mjs`, `scripts/test-certificate-pfx-worker.mjs`
+and `scripts/test-inventory-demo.mjs`.
+
 ## C105 — Saved navigation cannot grant a website connection (ADR 0086)
 
 The exact-generation native POST selects only one validated public DER record.
