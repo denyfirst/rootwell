@@ -223,11 +223,19 @@ func TestLinuxMaterialMismatchExportAndBundleFullRestore(t *testing.T) {
 		return clock
 	}
 	saved := invoke("/api/certificates/save", pfxRequest)
-	g.now = time.Now
+	// Keep the synthetic clock moving forward after expiry. Rewinding to the
+	// real clock would retain this scenario's earlier fresh-auth attempts and
+	// correctly hit the ordinary five-attempt/minute login limit.
+	resumedAt := clock.Add(13 * time.Hour)
+	g.now = func() time.Time { return resumedAt }
 	if saved.code != 503 || !bytes.Contains(saved.body, []byte("outcome uncertain")) || bytes.Contains(saved.body, []byte(`"fingerprint"`)) {
 		t.Fatal("post-commit permission loss falsely confirmed or classified as no write")
 	}
-	cookie = sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
+	resumed := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
+	if resumed.Code != 200 {
+		t.Fatalf("post-expiry sign-in refused: status %d", resumed.Code)
+	}
+	cookie = sessionCookie(t, resumed)
 	pfxRequest["expected_generation"] = 5
 	if duplicate := invoke("/api/certificates/save", pfxRequest); duplicate.code != 409 {
 		t.Fatal("PFX duplicate overwrote a record")
