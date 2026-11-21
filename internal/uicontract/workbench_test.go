@@ -244,7 +244,7 @@ func TestWorkbenchSeparatesFileAndNetworkCapabilities(t *testing.T) {
 func TestWorkbenchProcessingClaimsAreBounded(t *testing.T) {
 	html := workbenchAssets(t)["index.html"]
 	for _, statement := range []string{
-		"Selected file bytes stay inside this browser process",
+		"Everything here runs in this browser. The files you choose never leave it",
 		"Local public-file inspection · not a trust verdict",
 		"Legacy encrypted RSA/EC PEM is unsupported",
 		"Modern AES-256/PBKDF2 profile only",
