@@ -66,7 +66,7 @@
           <label for="pair-certificate">Certificate <span>(includes its public key), public bundle or PFX/P12</span></label>
           <input id="pair-certificate" type="file" accept=".pem,.crt,.cer,.der,.pfx,.p12" multiple required>
           <p>One PFX/P12, one public bundle, or up to 8 related public files. A PFX already includes its private key.</p>
-          <p id="pair-pfx-help" hidden>PFX selected. Enter its password below. It opens locally; only public certificates and a temporarily encrypted key go to your own Rootwell. The PFX password stays in this browser.</p>
+          <p id="pair-pfx-help" hidden>PFX selected. Enter its password below. It opens in this browser; the certificates and the key then go to your own Rootwell over this local connection. The PFX password stays in this browser.</p>
           <div id="pair-key-fields">
           <label for="pair-key">Private key <span>(optional — skip if you do not have it)</span></label>
           <input id="pair-key" type="file" accept=".pem,.key,.der">
@@ -185,7 +185,7 @@
         <form id="delete-form">
           <label for="delete-fingerprint">Type the complete SHA-256 fingerprint shown above</label>
           <input id="delete-fingerprint" type="text" autocomplete="off" spellcheck="false" required>
-          <label class="confirm-row" for="confirm-delete"><input id="confirm-delete" type="checkbox"> I understand that this removes only the current inventory record and older backups may retain it.</label>
+          <label class="confirm-row" for="confirm-delete"><input id="confirm-delete" type="checkbox"> I understand that this deletes the certificate and its private key, if it has one. Older backups may still hold them.</label>
           <button id="delete-button" class="danger" type="submit">Delete this inventory record</button>
           <button id="delete-cancel" class="secondary" type="button">Cancel</button>
           <p id="delete-status" role="status" aria-live="polite"></p>

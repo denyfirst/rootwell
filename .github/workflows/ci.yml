@@ -11,7 +11,8 @@ permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded pull-request runs, never a run on main.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # This workflow uses no third-party GitHub actions. The runner's git client
 # checks out the exact event SHA, and pinned Go tools are verified through the
@@ -21,6 +22,7 @@ jobs:
   windows-pfx:
     name: Windows ephemeral PFX interoperability
     runs-on: windows-2025
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -56,6 +58,7 @@ jobs:
   container-volume:
     name: Linux container volume recovery
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -72,6 +75,7 @@ jobs:
           ROOTWELL_UPGRADE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           node scripts/test-container-config.mjs
+          bash scripts/test-build-context.sh
           node scripts/test-release-guards.mjs
           bash scripts/test-container-volume.sh
 
@@ -314,6 +318,7 @@ jobs:
   invariants:
     name: Security invariants
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -345,6 +350,7 @@ jobs:
   fuzz-targets:
     name: Fuzz target inventory
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -384,6 +390,7 @@ jobs:
     name: Commit signatures
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -441,6 +448,7 @@ jobs:
   vulncheck:
     name: Known vulnerabilities
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -455,13 +463,14 @@ jobs:
       - name: Run govulncheck
         run: |
           set -eu
-          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           "$(go env GOPATH)/bin/govulncheck" ./...
           GOOS=js GOARCH=wasm "$(go env GOPATH)/bin/govulncheck" ./cmd/rootwell-browser
 
   staticcheck:
     name: Static analysis
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -476,7 +485,7 @@ jobs:
       - name: Run staticcheck
         run: |
           set -eu
-          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
           "$(go env GOPATH)/bin/staticcheck" ./...
 
       - name: Validate GitHub workflows
@@ -488,6 +497,7 @@ jobs:
   gosec:
     name: Security linter
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -502,5 +512,5 @@ jobs:
       - name: Run gosec
         run: |
           set -eu
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
           "$(go env GOPATH)/bin/gosec" -severity medium -confidence medium ./...

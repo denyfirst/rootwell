@@ -11,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
@@ -23,6 +25,10 @@ const localHost = "localhost:4180"
 func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
+	if err := hardenProcess(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if isOfflineCommand(args) {
 		if !terminal(os.Stdin) || !terminal(os.Stdout) {
 			fmt.Fprintln(os.Stderr, "offline recovery commands require an interactive local terminal; no secret was read")
@@ -132,11 +138,36 @@ func serve(dir, assetsDir string) error {
 		WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second,
 		MaxHeaderBytes: 8192,
 	}
-	listener, err := net.Listen("tcp4", "127.0.0.1:4180")
+	listeners, err := listenLoopback(4180)
 	if err != nil {
-		return errors.New("loopback listener could not be opened")
+		return err
 	}
-	defer listener.Close()
 	fmt.Fprintln(os.Stdout, "Rootwell is available at http://localhost:4180 (this host only)")
-	return server.Serve(listener)
+	served := make(chan error, len(listeners))
+	for _, listener := range listeners {
+		go func() { served <- server.Serve(listener) }()
+	}
+	err = <-served
+	_ = server.Close()
+	return err
+}
+
+// listenLoopback opens the port on both loopback addresses. Browsers often try
+// [::1] first for localhost, so leaving it free would let another local account
+// serve this origin and collect the password (audit RW-03). A host without IPv6
+// keeps IPv4 alone; a taken IPv6 port refuses the start.
+func listenLoopback(port int) ([]net.Listener, error) {
+	v4, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		return nil, errors.New("loopback listener could not be opened")
+	}
+	v6, err := net.Listen("tcp6", net.JoinHostPort("::1", strconv.Itoa(port)))
+	if err == nil {
+		return []net.Listener{v4, v6}, nil
+	}
+	if errors.Is(err, syscall.EADDRNOTAVAIL) || errors.Is(err, syscall.EAFNOSUPPORT) || errors.Is(err, syscall.EPROTONOSUPPORT) {
+		return []net.Listener{v4}, nil
+	}
+	_ = v4.Close()
+	return nil, errors.New("the IPv6 loopback port could not be opened; if another program holds it, stop that program, because Rootwell will not share its address")
 }

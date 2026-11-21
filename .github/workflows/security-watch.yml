@@ -11,6 +11,7 @@ jobs:
   vulnerabilities:
     name: Known vulnerabilities
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -28,5 +29,6 @@ jobs:
       - name: Run govulncheck
         run: |
           set -eu
-          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           "$(go env GOPATH)/bin/govulncheck" ./...
+          GOOS=js GOARCH=wasm "$(go env GOPATH)/bin/govulncheck" ./cmd/rootwell-browser

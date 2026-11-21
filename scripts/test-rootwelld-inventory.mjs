@@ -22,7 +22,7 @@ assert.match(html, /<strong>Background checks and history<\/strong><p id="backgr
 assert.match(html, /<aside class="storage-note" aria-label="Storage boundary">/,
   "the narrow-screen Workbench boundary rule must not hide Inventory's upload notice");
 assert.match(html, /Saved encrypted on your own Rootwell[\s\S]*Check sends your selected certificate and optional key/);
-assert.doesNotMatch(html, /No certificate uploads|src="\/(?:app|private-key|pfx|csr)\.js"/,
+assert.doesNotMatch(html, /Files stay in this browser|src="\/(?:app|private-key|pfx|csr)\.js"/,
   "shared appearance must not misrepresent Inventory as offline or run Workbench processors");
 assert.match(html, /id="save-button" type="submit" disabled/);
 const inventoryCSS = fs.readFileSync(new URL("../cmd/rootwelld/auth/inventory.css", import.meta.url), "utf8");
