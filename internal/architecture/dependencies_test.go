@@ -68,11 +68,13 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				allowedDirectoryConnector := (filepath.ToSlash(relative) == "internal/acmestaging/directory.go" || filepath.ToSlash(relative) == "internal/acmestaging/registration.go" || filepath.ToSlash(relative) == "internal/acmestaging/order.go" || filepath.ToSlash(relative) == "internal/acmestaging/validation.go" || filepath.ToSlash(relative) == "internal/acmestaging/certificate.go") &&
 					(importPath == "net" || importPath == "net/http" || importPath == "net/netip" || importPath == "net/url")
 				allowedDNSCore := filepath.ToSlash(relative) == "internal/acmestaging/cloudflare.go" && (importPath == "net/http" || importPath == "net/url")
+				// Address values and IPNet for the local CA's name constraints; no sockets.
+				allowedServeCert := filepath.ToSlash(relative) == "internal/servecert/servecert.go" && (importPath == "net" || importPath == "net/netip")
 				allowedARIRead := filepath.ToSlash(relative) == "internal/acmestaging/renewal_info.go" && (importPath == "net/http" || importPath == "net")
 				allowedWebsite := (filepath.ToSlash(relative) == "internal/websiteprobe/probe.go" && (importPath == "net" || importPath == "net/netip")) ||
 					(filepath.ToSlash(relative) == "internal/websiteprobe/target.go" && (importPath == "net/url" || importPath == "net/netip")) ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/website_check_api.go" && importPath == "net/http")
-				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore && !allowedARIRead && !allowedWebsite {
+				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore && !allowedARIRead && !allowedWebsite && !allowedServeCert {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
 				if importPath == "github.com/denyfirst/rootwell/internal/websiteprobe" && filepath.ToSlash(relative) != "cmd/rootwelld/website_check_api.go" {
