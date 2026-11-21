@@ -36,10 +36,10 @@ while IFS= read -r file; do
     go.mod | go.sum) ;;
     cmd/*.go | internal/*.go) ;;
     cmd/rootwelld/auth/*.html | cmd/rootwelld/auth/*.css | cmd/rootwelld/auth/*.js) ;;
-    cmd/rootwelld/auth/website-examples.json) ;;
+    cmd/rootwelld/auth/website-examples.json | cmd/rootwelld/auth/schibsted-grotesk.woff2) ;;
     internal/acmecertificate/staging-roots.pem | internal/acmecertificate/production-roots.pem) ;;
     web/workbench/index.html | web/workbench/style.css | web/workbench/favicon.svg) ;;
-    web/workbench/app.js | web/workbench/theme.js | web/workbench/wasm-loader.js) ;;
+    web/workbench/app.js | web/workbench/theme.js | web/workbench/session.js | web/workbench/wasm-loader.js) ;;
     web/workbench/certificate-key-match.js | web/workbench/secret-view.js) ;;
     web/workbench/private-key.js | web/workbench/private-worker-client.js | web/workbench/private-key-worker.js) ;;
     web/workbench/pfx.js | web/workbench/pfx-worker-client.js | web/workbench/pfx-worker.js) ;;

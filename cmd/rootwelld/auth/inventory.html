@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="same-origin">
-  <title>Saved certificates · Rootwell</title>
+  <title>Certificates · Rootwell</title>
+  <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/inventory.css">
   <script src="/theme.js"></script>
+  <script src="/session.js" defer></script>
   <script src="/history-archive.js" defer></script>
   <script src="/request-archive.js" defer></script>
   <script src="/wasm_exec.js" defer></script>
@@ -21,43 +23,39 @@
 </head>
 <body class="workspace inventory-workspace">
   <aside class="rail" aria-label="Primary navigation">
-    <div class="rail-identity">
-      <a class="wordmark" href="/index.html" aria-label="Rootwell home"><span>root</span>well</a>
-      <span class="rail-tag">Self-host</span>
-    </div>
+    <div class="rail-identity"><a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a></div>
     <p class="rail-caption" id="rail-workspace">Workspace</p>
     <nav class="rail-nav" aria-labelledby="rail-workspace">
-      <a class="rail-item" href="/index.html"><span class="rail-glyph" aria-hidden="true">◇</span>Workbench</a>
-      <a class="rail-item" href="/website-check"><span class="rail-glyph" aria-hidden="true">⌁</span>Check a website</a>
-      <a class="rail-item" href="/certificates" aria-current="page"><span class="rail-glyph" aria-hidden="true">◎</span>Certificates</a>
-      <a class="rail-item" href="/automation"><span class="rail-glyph" aria-hidden="true">↻</span>Automation<span class="rail-soon">Setup</span></a>
+      <a class="rail-item" href="/certificates" aria-current="page"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="g-soft" d="M6 3.5h8.5l4 4v13H6z"/><path d="M14.5 3.5v4h4M9 12h6.5M9 15.5h4"/></svg>Certificates</a>
+      <a class="rail-item" href="/automation"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="g-soft" cx="12" cy="12" r="5"/><path d="M19.5 12a7.5 7.5 0 0 1-13.4 4.6M4.5 12a7.5 7.5 0 0 1 13.4-4.6"/><path d="M18.2 3.8v3.8h-3.8M5.8 20.2v-3.8h3.8"/></svg>Renewals</a>
+      <a class="rail-item" href="/website-check"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="g-soft" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/></svg>Website check</a>
+      <a class="rail-item" href="/index.html"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect class="g-soft" x="3.5" y="8" width="17" height="11.5" rx="2"/><path d="M9 8V5.5h6V8M3.5 13h17M10.5 12v2.5h3V12"/></svg>Tools</a>
     </nav>
-    <p class="rail-caption" id="rail-security">Security</p>
-    <nav class="rail-nav" aria-labelledby="rail-security">
-      <a class="rail-item" href="/account"><span class="rail-glyph" aria-hidden="true">◈</span> Access <span class="rail-soon">Self-host</span></a>
-      <span class="rail-item rail-item-planned" aria-disabled="true"><span class="rail-glyph" aria-hidden="true">≡</span>Audit log<span class="rail-soon">Later</span></span>
+    <p class="rail-caption" id="rail-you">You</p>
+    <nav class="rail-nav" aria-labelledby="rail-you">
+      <a class="rail-item" href="/account"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="g-soft" cx="12" cy="12" r="8.5"/><circle cx="12" cy="10" r="3"/><path d="M6.7 18.2c1.3-1.9 3.1-2.9 5.3-2.9s4 1 5.3 2.9"/></svg>Account</a>
     </nav>
     <div class="rail-foot">
-      <div class="local-state"><span aria-hidden="true"></span>Your Rootwell server</div>
-      <button class="theme-toggle" id="theme-toggle" type="button" hidden>Dark</button>
+      <button class="shell-button theme-toggle" id="theme-toggle" type="button" hidden aria-label="Switch the colour scheme"><svg class="theme-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="theme-sun"><circle class="g-soft" cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></g><path class="theme-moon g-soft" d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/></svg><span>Colour scheme</span></button>
+      <button class="shell-button" id="rail-sign-out" type="button" hidden><svg class="button-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></svg><span>Sign out</span></button>
+      <p>rootwell, by denyfirst<span class="credit-stop">.</span></p>
     </div>
   </aside>
   <div class="workspace-main">
     <header class="topbar">
       <p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Certificates</strong></p>
-      <p class="boundary">Your certificates · your server</p>
+      <p class="boundary">Stored encrypted on this server</p>
     </header>
   <main>
     <section class="work-heading" aria-labelledby="inventory-title">
       <div>
-        <p class="eyebrow">Your certificate library</p>
-        <h1 id="inventory-title">Your certificates.</h1>
-        <p class="lede">Certificates, optional keys and service notes. One place to save them and see what expires next.</p>
+        <h1 id="inventory-title">Your certificates</h1>
+        <p class="lede">Every certificate, its key and where it is used, with the days it has left.</p>
       </div>
     </section>
     <aside class="storage-note" aria-label="Storage boundary">
       <strong>Saved encrypted on your own Rootwell</strong>
-      <p>Check sends your selected certificate and optional key to your own server; bundles are supported too. Save always checks them before storing. No third-party service is contacted. Key contents stay hidden in the list. A matching key does not prove trust.</p>
+      <p>Check sends your selected certificate and optional key to your own server, and nowhere else. Save checks them again and stores them encrypted. Keys never appear in the list.</p>
     </aside>
     <div class="layout">
       <details class="card library-add">
@@ -135,7 +133,7 @@
         <ol id="records" aria-label="Saved public certificates ordered by action priority"></ol>
       </section>
       <section id="location-panel" class="card location-panel" aria-labelledby="location-heading" hidden>
-        <p class="eyebrow">04 / MANUAL ASSOCIATION</p>
+        <p class="eyebrow">Server note</p>
         <h2 id="location-heading">Add a server note</h2>
         <p id="location-target"></p>
         <p>This is your note about where the certificate may be used. Rootwell has not contacted or verified that server.</p>
@@ -148,7 +146,7 @@
         </form>
       </section>
       <section id="owner-panel" class="card metadata-panel" aria-labelledby="owner-heading" hidden>
-        <p class="eyebrow">05 / MANUAL OWNER NOTE</p>
+        <p class="eyebrow">Owner</p>
         <h2 id="owner-heading">Change owner</h2>
         <p id="owner-target"></p>
         <p>Owner is your manual note, not verified ownership. Leave the new owner blank to clear the note. This does not remove the certificate.</p>
@@ -161,7 +159,7 @@
         </form>
       </section>
       <section id="location-manage-panel" class="card metadata-panel" aria-labelledby="location-manage-heading" hidden>
-        <p class="eyebrow">06 / MANUAL LOCATION NOTES</p>
+        <p class="eyebrow">Server notes</p>
         <h2 id="location-manage-heading">Change server notes</h2>
         <p id="location-manage-target"></p>
         <p>These are your notes, not verified deployments. Changing or removing a note does not change the certificate on a server. Older backups can retain the previous note.</p>
@@ -178,7 +176,7 @@
         </form>
       </section>
       <section id="delete-panel" class="card metadata-panel" aria-labelledby="delete-heading" hidden>
-        <p class="eyebrow">07 / EXPLICIT RECORD DELETION</p>
+        <p class="eyebrow">Delete</p>
         <h2 id="delete-heading">Remove from saved list</h2>
         <p id="delete-target"></p>
         <p>This removes the saved certificate, its attached private key (if any), and notes from the current encrypted library only. It does not revoke the certificate or remove it from a server. Older snapshots may restore them; this is not secure erasure.</p>

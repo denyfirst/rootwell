@@ -167,7 +167,9 @@
   for (const format of ["pem", "der"]) get("csr-download-" + format).addEventListener("click", () => operation("convert", format));
   function boundary() { cancel(); clearSecrets(); }
   for (const id of ["inspect-tab", "convert-tab", "verify-tab", "request-tab"]) get(id).addEventListener("click", boundary);
-  for (const name of ["blur", "pagehide", "hashchange"]) globalThis.addEventListener(name, boundary);
+  // Leaving the page clears secrets; a blur does not, because a password
+  // manager or the file chooser takes focus while a person types (audit RW-16).
+  for (const name of ["pagehide", "hashchange"]) globalThis.addEventListener(name, boundary);
   document.addEventListener("visibilitychange", () => { if (document.hidden) boundary(); });
   updateMode(); buttons();
   rootwellWorkbenchReady.then(ready => {

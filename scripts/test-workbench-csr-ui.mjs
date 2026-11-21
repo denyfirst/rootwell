@@ -104,7 +104,8 @@ const pendingCreate = get("csr-create-button").listeners.click(); await new Prom
 document.hidden = true; docEvents.visibilitychange(); release(); await pendingCreate; document.hidden = false; held = false;
 assert.equal(downloads, 3, "hidden page downloaded late key package"); assert.equal(output.bytes[0], 0); assert.equal(output.csr[0], 0);
 assert.equal(get("csr-result").hidden, true); assert.equal(get("csr-create-button").disabled, false);
-for (const name of ["blur", "pagehide", "hashchange"]) { get("csr-password").value = "synthetic-secret"; boundaries[name](); assert.equal(get("csr-password").value, ""); }
+assert.equal(boundaries.blur, undefined, "a blur must not clear what a person is typing (audit RW-16)");
+for (const name of ["pagehide", "hashchange"]) { get("csr-password").value = "synthetic-secret"; boundaries[name](); assert.equal(get("csr-password").value, ""); }
 await get("csr-open-button").listeners.click();
 csrOutputSize = 90 << 10;
 await get("csr-download-pem").listeners.click(); assert.equal(downloads, 4, "bounded DER expansion was refused");

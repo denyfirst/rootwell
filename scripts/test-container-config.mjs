@@ -75,10 +75,10 @@ const expectedPublicPEM = new Set([
 const reviewedSourceIncludes = new Set([
   '!go.mod', '!go.sum', '!cmd/**/*.go',
   '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
-  '!cmd/rootwelld/auth/website-examples.json', '!internal/**/*.go',
+  '!cmd/rootwelld/auth/website-examples.json', '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
   ...['index.html', 'app.js', 'certificate-key-match.js', 'secret-view.js', 'private-key.js',
     'private-worker-client.js', 'private-key-worker.js', 'pfx.js', 'pfx-worker-client.js',
-    'pfx-worker.js', 'csr.js', 'csr-worker-client.js', 'csr-worker.js', 'theme.js',
+    'pfx-worker.js', 'csr.js', 'csr-worker-client.js', 'csr-worker.js', 'theme.js', 'session.js',
     'wasm-loader.js', 'style.css', 'favicon.svg'].map((name) => `!web/workbench/${name}`),
 ]);
 for (const rule of dockerIgnore.filter((line) => line.startsWith('!'))) {

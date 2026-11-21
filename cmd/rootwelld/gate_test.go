@@ -47,7 +47,7 @@ func testWorkbenchAssets(t *testing.T) string {
 		"private-worker-client.js": "protected worker client", "private-key-worker.js": "protected key worker",
 		"pfx.js": "protected PFX UI", "pfx-worker-client.js": "protected PFX worker client", "pfx-worker.js": "protected PFX worker",
 		"csr.js": "protected CSR UI", "csr-worker-client.js": "protected CSR worker client", "csr-worker.js": "protected CSR worker", "certificate-key-match.js": "protected match UI",
-		"style.css": "protected css", "theme.js": "protected theme", "wasm-loader.js": "protected loader", "wasm_exec.js": "protected runtime",
+		"style.css": "protected css", "theme.js": "protected theme", "session.js": "protected session", "wasm-loader.js": "protected loader", "wasm_exec.js": "protected runtime",
 	} {
 		if err := os.WriteFile(filepath.Join(assets, name), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
