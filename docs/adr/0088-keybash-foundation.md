@@ -66,9 +66,10 @@ installation exists, so the old paths are replaced, not migrated.
   public records only (RW-11).
 - **History** is a rolling log of the last 2,000 events. It never refuses a
   write (RW-01).
-- **Generations:** a sealed meta record carries the store's generation. A
-  record older than the meta generation is refused (part of RW-13; a whole
-  older file is still a documented limit).
+- **Generations:** the meta record counts every committed write, and history
+  and backups name the generation they hold. Swapping in a whole older file
+  is not detected; RW-13 stays a documented limit until there is an outside
+  anchor.
 - **Backups:**
   - A backup is a consistent copy made in one read transaction, so the
     service keeps running. It is started from the Installation page or by
