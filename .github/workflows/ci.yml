@@ -37,6 +37,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git checkout -q FETCH_HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          $goVersion = (Select-String -Path go.mod -Pattern '^go ').Line.Substring(3)
+          "GOTOOLCHAIN=go$goVersion" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Import a synthetic PFX without persisting its key
         shell: pwsh
         run: ./scripts/test-windows-pfx-interop.ps1
@@ -69,6 +72,8 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Exercise isolated persistent volumes and fresh restore
         env:
@@ -93,6 +98,8 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Report toolchain
         run: |
@@ -332,6 +339,8 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Verify every cited test exists
         run: |
@@ -364,6 +373,8 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Verify every fuzz target is scheduled
         run: |
@@ -462,10 +473,15 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Run govulncheck
         run: |
           set -eu
+          # An analyser must be built by at least the Go version it reads.
+          GOTOOLCHAIN="$(awk '$1 == "go" {print "go" $2}' go.mod)"
+          export GOTOOLCHAIN
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           "$(go env GOPATH)/bin/govulncheck" ./...
           GOOS=js GOARCH=wasm "$(go env GOPATH)/bin/govulncheck" ./cmd/rootwell-browser
@@ -484,10 +500,15 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Run staticcheck
         run: |
           set -eu
+          # An analyser must be built by at least the Go version it reads.
+          GOTOOLCHAIN="$(awk '$1 == "go" {print "go" $2}' go.mod)"
+          export GOTOOLCHAIN
           go install honnef.co/go/tools/cmd/staticcheck@v0.8.2
           "$(go env GOPATH)/bin/staticcheck" ./...
 
@@ -511,9 +532,14 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Run gosec
         run: |
           set -eu
+          # An analyser must be built by at least the Go version it reads.
+          GOTOOLCHAIN="$(awk '$1 == "go" {print "go" $2}' go.mod)"
+          export GOTOOLCHAIN
           go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
           "$(go env GOPATH)/bin/gosec" -severity medium -confidence medium ./...
