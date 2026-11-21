@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readdirSync } from 'node:fs';
 import { checkContainerConfig } from './check-container-config.mjs';
 
 const restricted = {
@@ -76,6 +77,7 @@ const reviewedSourceIncludes = new Set([
   '!go.mod', '!go.sum', '!cmd/**/*.go',
   '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
   '!cmd/rootwelld/auth/website-examples.json', '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
+  '!internal/account/password-blocklist.txt',
   ...['index.html', 'app.js', 'certificate-key-match.js', 'secret-view.js', 'private-key.js',
     'private-worker-client.js', 'private-key-worker.js', 'pfx.js', 'pfx-worker-client.js',
     'pfx-worker.js', 'csr.js', 'csr-worker-client.js', 'csr-worker.js', 'theme.js', 'session.js',
@@ -93,6 +95,20 @@ for (const name of gateWorkbenchAssets(await readFile(new URL('../cmd/rootwelld/
   if (name === 'wasm_exec.js' || name === 'rootwell.wasm') continue; // built inside the image
   assert.ok(reviewedSourceIncludes.has(`!web/workbench/${name}`) && dockerIgnore.includes(`!web/workbench/${name}`),
     `The gate requires web/workbench/${name}; the build context must include it.`);
+}
+
+// Every file a package under internal/ embeds must reach the build context by
+// name, or the image fails to compile.
+for (const entry of readdirSync(new URL('../internal/', import.meta.url), { recursive: true })) {
+  const file = String(entry).replaceAll('\\', '/');
+  if (!file.endsWith('.go') || file.endsWith('_test.go')) continue;
+  const source = await readFile(new URL('../internal/' + file, import.meta.url), 'utf8');
+  for (const [, names] of source.matchAll(/^\/\/go:embed (.+)$/gm)) {
+    for (const name of names.trim().split(/\s+/)) {
+      const path = 'internal/' + file.slice(0, file.lastIndexOf('/') + 1) + name;
+      assert.ok(dockerIgnore.includes('!' + path), `the build context must include the embedded file ${path}`);
+    }
+  }
 }
 
 function gateWorkbenchAssets(source) {
