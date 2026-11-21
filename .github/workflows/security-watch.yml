@@ -22,6 +22,8 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Verify module checksums
         run: go mod verify
@@ -29,6 +31,9 @@ jobs:
       - name: Run govulncheck
         run: |
           set -eu
+          # An analyser must be built by at least the Go version it reads.
+          GOTOOLCHAIN="$(awk '$1 == "go" {print "go" $2}' go.mod)"
+          export GOTOOLCHAIN
           go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
           "$(go env GOPATH)/bin/govulncheck" ./...
           GOOS=js GOARCH=wasm "$(go env GOPATH)/bin/govulncheck" ./cmd/rootwell-browser
