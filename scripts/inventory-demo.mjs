@@ -115,16 +115,23 @@ const workbenchTypes = new Map([
   ["worker-browser-smoke.html","text/html; charset=utf-8"], ["worker-browser-smoke.js","text/javascript; charset=utf-8"],
   ["style.css","text/css; charset=utf-8"], ["favicon.svg","image/svg+xml"], ["rootwell.wasm","application/wasm"],
   ...["app.js","wasm-loader.js","wasm_exec.js","theme.js","secret-view.js","private-key.js","private-worker-client.js",
-    "private-key-worker.js","pfx.js","pfx-worker-client.js","pfx-worker.js","csr.js","csr-worker-client.js","csr-worker.js","certificate-key-match.js"].map(name=>[name,"text/javascript; charset=utf-8"]),
+    "private-key-worker.js","pfx.js","pfx-worker-client.js","pfx-worker.js","csr.js","csr-worker-client.js","csr-worker.js","certificate-key-match.js","session.js"].map(name=>[name,"text/javascript; charset=utf-8"]),
   ...["rootwell-demo-certificate.pem","rootwell-demo-bundle.pem","rootwell-verify-demo-leaf.pem","rootwell-verify-demo-intermediate.pem",
     "rootwell-verify-demo-root.pem","rootwell-verify-demo-ca-files.pem"].map(name=>[name,"application/x-pem-file"])
 ]);
+// The sign-in and Account pages, for the eye only: every field is disabled.
+let accountHTML = asset("account.html");
+for (const id of ["password", "next", "confirm"]) accountHTML = replaceOnce(accountHTML, `id="${id}"`, `id="${id}" disabled`);
+assets.set("/account", ["text/html; charset=utf-8", accountHTML]);
+assets.set("/login", ["text/html; charset=utf-8", replaceOnce(asset("login.html"), 'id="password"', 'id="password" disabled')]);
+assets.set("/auth.css", ["text/css; charset=utf-8", asset("auth.css")]);
+assets.set("/auth.js", ["text/javascript; charset=utf-8", asset("auth.js")]);
 const workbenchHTML = () => readFileSync(new URL("../web/workbench/index.html",import.meta.url),"utf8");
 const server = http.createServer((request, response) => {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", request.url === "/inventory" ? "same-origin" : "no-referrer");
-  response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
+  response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action " + (["/inventory", "/certificates"].includes(request.url) ? "'self'" : "'none'") + "; frame-ancestors 'none'");
   if(request.url==="/certificate-pfx-worker.js")response.setHeader("Content-Security-Policy","default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'");
   if (request.headers.host !== "127.0.0.1:"+server.address().port) { response.writeHead(400).end("Fixture host refused"); return; }
   if(request.method==="POST"&&request.url==="/api/acme/production-account/status"){
@@ -286,6 +293,10 @@ const server = http.createServer((request, response) => {
     let body="",oversized=false;request.on("data",chunk=>{body+=chunk.toString();if(body.length>1024){oversized=true;body="";}});
     request.on("end",()=>{if(oversized||body!==JSON.stringify({fingerprint:demoLeaf.fingerprint256,expected_generation:5})){response.writeHead(400).end("Fixture source refused");return;}
       response.writeHead(200,{"Content-Type":"application/json; charset=utf-8"}).end(JSON.stringify({schema_version:"rootwell.inventory.comparison-source.v1",fingerprint:demoLeaf.fingerprint256,generation:5,der:demoLeaf.raw.toString("base64")}));});return;
+  }
+  if (request.method === "GET" && request.url === "/schibsted-grotesk.woff2") {
+    response.writeHead(200, { "Content-Type": "font/woff2" }).end(readFileSync(new URL("../cmd/rootwelld/auth/schibsted-grotesk.woff2", import.meta.url)));
+    return;
   }
   const selected = request.method === "GET" ? assets.get(request.url) : null;
   if (selected) response.writeHead(200, { "Content-Type": selected[0] }).end(selected[1]);

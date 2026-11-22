@@ -262,8 +262,12 @@ Guarded by `TestWorkbenchPreviewIsSelfContained`,
 `TestWorkbenchInspectFileHintMatchesParserBoundary`, and
 `TestWorkbenchElementReferencesResolve`. Browser Verify requires explicit
 trust and cannot silently promote a source root; this is guarded by
-`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`. Text contrast in both themes is
-guarded by `TestWorkbenchTextContrast`.
+`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`. Text contrast in both themes, for every colour
+text is set in, is guarded by `TestEveryColourTextIsSetInIsLegible`; the one
+pinned typeface by `TestTheTypefaceIsTheOneChosenAndCarriesItsLicence`; and the
+shared rail on every page by `TestEveryWorkspacePageCarriesTheSharedShell`.
+Sign out reads no file and talks only to `/api/session`
+(`scripts/test-session.mjs`).
 
 ## C17 — Browser inspection is bounded, versioned, and secret-free
 

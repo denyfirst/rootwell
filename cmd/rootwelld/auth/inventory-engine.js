@@ -28,7 +28,7 @@
     try {
       if (typeof Go !== "function") throw new Error();
       const go = new Go();
-      const response = await fetch("/rootwell.wasm", { credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
+      const response = await fetch("/rootwell.wasm", { credentials: "same-origin", cache: "no-cache", redirect: "error", signal: controller.signal });
       if (!response.ok) throw new Error();
       const result = await WebAssembly.instantiateStreaming(response, go.importObject);
       module = result.module;

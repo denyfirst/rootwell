@@ -77,7 +77,7 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"index.html", "app.js", "certificate-key-match.js", "secret-view.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "csr.js", "csr-worker-client.js", "csr-worker.js", "style.css", "theme.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"index.html", "app.js", "certificate-key-match.js", "secret-view.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "csr.js", "csr-worker-client.js", "csr-worker.js", "style.css", "theme.js", "session.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -128,7 +128,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	w.Header().Set("Permissions-Policy", "camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'self'; object-src 'none'; frame-src 'none'; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	if r.URL.Path == "/private-key-worker.js" || r.URL.Path == "/pfx-worker.js" || r.URL.Path == "/csr-worker.js" || r.URL.Path == "/certificate-pfx-worker.js" {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'")
 	}
@@ -170,6 +170,11 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "/website-examples.json":
 			g.authAsset(w, r, "auth/website-examples.json", "application/json; charset=utf-8")
 		}
+		return
+	case "/schibsted-grotesk.woff2":
+		// The one typeface, the file Porch and Keybash pin; public, so sign-in uses it too.
+		w.Header().Set("Cache-Control", "no-cache")
+		g.authAsset(w, r, "auth/schibsted-grotesk.woff2", "font/woff2")
 		return
 	case "/auth.css":
 		g.authAsset(w, r, "auth/auth.css", "text/css; charset=utf-8")
@@ -698,7 +703,7 @@ var workbenchFiles = map[string]string{
 	"/pfx.js": "pfx.js", "/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",
 	"/csr.js": "csr.js", "/csr-worker-client.js": "csr-worker-client.js", "/csr-worker.js": "csr-worker.js",
 	"/certificate-key-match.js": "certificate-key-match.js",
-	"/style.css":                "style.css", "/theme.js": "theme.js", "/wasm-loader.js": "wasm-loader.js",
+	"/style.css":                "style.css", "/theme.js": "theme.js", "/session.js": "session.js", "/wasm-loader.js": "wasm-loader.js",
 	"/wasm_exec.js": "wasm_exec.js", "/rootwell.wasm": "rootwell.wasm",
 	"/favicon.svg": "favicon.svg", "/rootwell-demo-bundle.pem": "rootwell-demo-bundle.pem",
 	"/rootwell-demo-certificate.pem":         "rootwell-demo-certificate.pem",
@@ -727,6 +732,12 @@ func (g *gate) workbenchAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(name, ".wasm") {
 		w.Header().Set("Content-Type", "application/wasm")
+	}
+	// The engine is public code of several megabytes: the browser keeps it and
+	// asks again with If-Modified-Since, instead of downloading it on every page
+	// (audit RW-21). Everything else stays no-store.
+	if name == "rootwell.wasm" || name == "wasm_exec.js" {
+		w.Header().Set("Cache-Control", "no-cache")
 	}
 	http.ServeContent(w, r, name, info.ModTime(), f)
 }

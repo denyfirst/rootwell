@@ -11,7 +11,7 @@ assert.match(html, /<meta name="referrer" content="same-origin">/);
 assert.doesNotMatch(html, /Export selected records|preview-export-button|download-export-button/);
 assert.match(html, /<body class="workspace inventory-workspace">/);
 assert.match(html, /<link rel="stylesheet" href="\/style.css">[\s\S]*<link rel="stylesheet" href="\/inventory.css">/);
-assert.match(html, /<a class="rail-item" href="\/index.html">[\s\S]*?Workbench<\/a>/);
+assert.match(html, /<a class="rail-item" href="\/index.html">[\s\S]*?Tools<\/a>/);
 assert.match(html, /<a class="rail-item" href="\/certificates" aria-current="page">/);
 assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
 assert.match(html, /<details class="card import-card">\s*<summary><h2 id="save-heading">Advanced<\/h2><span>Import many unrelated public certificates/,
@@ -40,7 +40,7 @@ function themeFixture(stored, broken = false) {
   const root = { dataset: {} };
   const storage = { getItem(key) { assert.equal(key, "rootwell-workbench-theme"); if (broken) throw new Error(); return stored; },
     setItem(key, value) { assert.equal(key, "rootwell-workbench-theme"); assert.ok(["light", "dark"].includes(value)); if (broken) throw new Error(); stored = value; writes.push([key, value]); } };
-  vm.runInNewContext(themeSource, { document: { documentElement: root, getElementById(id) { assert.equal(id, "theme-toggle"); return button; },
+  vm.runInNewContext(themeSource, { document: { documentElement: root, getElementById(id) { if (id === "rail-sign-out") return null; assert.equal(id, "theme-toggle"); return button; },
     addEventListener(name, fn) { assert.equal(name, "DOMContentLoaded"); fn(); } }, window: { localStorage: storage, matchMedia: () => ({ matches: false }) } });
   return { root, button, writes, click: () => listeners.click() };
 }

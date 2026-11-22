@@ -50,7 +50,7 @@
 
     const go = new Go();
     fetch("rootwell.wasm", {
-      cache: "no-store",
+      cache: "no-cache",
       credentials: "omit",
       redirect: "error"
     }).then(function (response) {

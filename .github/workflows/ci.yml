@@ -154,6 +154,8 @@ jobs:
         run: |
           set -eu
           node --check web/workbench/theme.js
+          node --check web/workbench/session.js
+          node --check scripts/test-session.mjs
           node --check web/workbench/wasm-loader.js
           node --check web/workbench/app.js
           node --check scripts/test-browser-wasm.mjs
@@ -252,6 +254,7 @@ jobs:
           node scripts/test-workbench-csr-ui.mjs
           node scripts/test-workbench-csr-worker.mjs
           node scripts/test-rootwelld-auth.mjs
+          node scripts/test-session.mjs
           node scripts/test-website-check.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-website-expected.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-rootwelld-inventory.mjs

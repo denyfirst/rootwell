@@ -64,7 +64,7 @@ func assertInventoryWorkspace(t *testing.T, page *httptest.ResponseRecorder) {
 	for _, required := range []string{
 		`class="workspace inventory-workspace"`, `href="/style.css"`,
 		`href="/certificates" aria-current="page"`, `aria-label="Storage boundary"`,
-		"Check sends your selected certificate and optional key", "Saved encrypted", "Key contents stay hidden",
+		"Check sends your selected certificate and optional key", "Saved encrypted", "Keys never appear in the list",
 		`id="pair-save" type="submit" disabled`,
 	} {
 		if !strings.Contains(body, required) {
