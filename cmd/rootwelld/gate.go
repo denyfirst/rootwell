@@ -170,8 +170,13 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
 		g.authAsset(w, r, "auth/schibsted-grotesk.woff2", "font/woff2")
 		return
-	case "/auth.css":
-		g.authAsset(w, r, "auth/auth.css", "text/css; charset=utf-8")
+	case "/rootwell.css", "/theme.js", "/favicon.svg":
+		// The look every page shares, public so sign-in and setup wear it too.
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			methodNotAllowed(w)
+			return
+		}
+		g.workbenchAsset(w, r)
 		return
 	case "/auth.js":
 		g.authAsset(w, r, "auth/auth.js", "text/javascript; charset=utf-8")

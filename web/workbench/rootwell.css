@@ -482,3 +482,6 @@ button.stat:hover { border-color: var(--rule-strong); }
 .stat[aria-pressed="true"] { border-color: var(--tool); box-shadow: 0 0 0 1px var(--tool); }
 .gap-bottom { margin-bottom: var(--sp-4); }
 .status-line:not(:empty) { margin-bottom: var(--sp-4); }
+.center { text-align: center; }
+.narrow-page { max-width: 640px; }
+.signin-box > * + * { margin-top: var(--sp-4); }
