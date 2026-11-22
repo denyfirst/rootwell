@@ -24,7 +24,7 @@ import (
 // The explicit JSON pattern makes a missing container asset a compile error;
 // the wildcard alone would silently omit a filtered-out example file.
 //
-//go:embed auth/* auth/website-examples.json
+//go:embed auth/*
 var authAssets embed.FS
 
 const cookieName = "__Host-rootwell_session"
@@ -145,7 +145,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/website-check":
 		g.websiteCheckEndpoint(w, r, s, signedIn)
 		return
-	case "/website-check", "/website-check.js", "/website-expected.js", "/website-check.css", "/website-examples.json":
+	case "/website-check", "/website-check.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -163,12 +163,6 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/website-check.html", "text/html; charset=utf-8")
 		case "/website-check.js":
 			g.authAsset(w, r, "auth/website-check.js", "text/javascript; charset=utf-8")
-		case "/website-expected.js":
-			g.authAsset(w, r, "auth/website-expected.js", "text/javascript; charset=utf-8")
-		case "/website-check.css":
-			g.authAsset(w, r, "auth/website-check.css", "text/css; charset=utf-8")
-		case "/website-examples.json":
-			g.authAsset(w, r, "auth/website-examples.json", "application/json; charset=utf-8")
 		}
 		return
 	case "/schibsted-grotesk.woff2":
@@ -697,6 +691,7 @@ func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentTy
 }
 
 var workbenchFiles = map[string]string{
+	"/inspect": "inspect.html", "/inspect.js": "inspect.js", "/ui.js": "ui.js", "/rootwell.css": "rootwell.css",
 	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/private-key.js": "private-key.js",
 	"/secret-view.js":           "secret-view.js",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",

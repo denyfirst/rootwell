@@ -9,8 +9,6 @@
 !cmd/rootwelld/auth/*.html
 !cmd/rootwelld/auth/*.css
 !cmd/rootwelld/auth/*.js
-# Exact generated, public-only website examples; never arbitrary JSON data.
-!cmd/rootwelld/auth/website-examples.json
 # The shared typeface, the file Porch and Keybash pin (OFL-1.1).
 !cmd/rootwelld/auth/schibsted-grotesk.woff2
 !internal/**/*.go

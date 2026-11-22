@@ -38,10 +38,9 @@ func repositoryFile(t *testing.T, parts ...string) string {
 // plus the page sheets that build on the workspace one.
 func designSheets(t *testing.T) map[string]string {
 	return map[string]string{
-		"style.css":         repositoryFile(t, "web", "workbench", "style.css"),
-		"auth.css":          repositoryFile(t, "cmd", "rootwelld", "auth", "auth.css"),
-		"inventory.css":     repositoryFile(t, "cmd", "rootwelld", "auth", "inventory.css"),
-		"website-check.css": repositoryFile(t, "cmd", "rootwelld", "auth", "website-check.css"),
+		"style.css":     repositoryFile(t, "web", "workbench", "style.css"),
+		"auth.css":      repositoryFile(t, "cmd", "rootwelld", "auth", "auth.css"),
+		"inventory.css": repositoryFile(t, "cmd", "rootwelld", "auth", "inventory.css"),
 	}
 }
 

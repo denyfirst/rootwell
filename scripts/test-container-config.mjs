@@ -75,7 +75,7 @@ const expectedPublicPEM = new Set([
 const reviewedSourceIncludes = new Set([
   '!go.mod', '!go.sum', '!cmd/**/*.go',
   '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
-  '!cmd/rootwelld/auth/website-examples.json', '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
+  '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
   ...['index.html', 'app.js', 'certificate-key-match.js', 'secret-view.js', 'private-key.js',
     'private-worker-client.js', 'private-key-worker.js', 'pfx.js', 'pfx-worker-client.js',
     'pfx-worker.js', 'csr.js', 'csr-worker-client.js', 'csr-worker.js', 'theme.js', 'session.js',
@@ -100,11 +100,6 @@ function gateWorkbenchAssets(source) {
   assert.ok(list, 'The gate lists the Workbench assets it requires.');
   return [...list[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }
-assert.ok(dockerIgnore.includes('!cmd/rootwelld/auth/website-examples.json'),
-  'Public generated website examples must survive the deny-default context.');
-const gateSource = await readFile(new URL('../cmd/rootwelld/gate.go', import.meta.url), 'utf8');
-assert.match(gateSource, /\/\/go:embed auth\/\* auth\/website-examples\.json/,
-  'The actual Docker compile must refuse a missing generated example asset.');
 assert.deepEqual(new Set(dockerIgnore.filter((line) => line.startsWith('!') && /\.pem$/i.test(line))),
   expectedPublicPEM, 'Only the exact reviewed public PEM assets may be included.');
 
