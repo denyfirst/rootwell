@@ -35,6 +35,7 @@
   const download = $("convert-download");
   const downloadName = $("convert-download-name");
   const contents = $("convert-contents");
+  const protection = $("convert-protection");
   const status = $("convert-status");
   const error = $("convert-error");
   const encoder = new TextEncoder();
@@ -360,19 +361,19 @@
     const key = !!(source.pfx || source.key);
     if (chain()) {
       return [
-        key ? { id: "pem-files", title: "PEM files", hint: "nginx, Apache, most Linux servers", secret: "optional" }
+        key ? { id: "pem-files", title: "PEM files", hint: "nginx, Apache, most Linux servers", secret: "optional", key: true }
           : { id: "pem", title: "PEM", hint: chain().intermediates.length ? "Full chain · nginx, Apache" : ".pem · nginx, Apache" },
         { id: "crt", title: "Certificate only", hint: ".crt · Windows, browsers" },
         { id: "der", title: "DER", hint: ".cer · Java, older systems" },
-        { id: "pfx", title: source.pfx ? "New PFX" : "PFX", hint: source.pfx ? "Same contents, new password" : key ? "With the key · IIS, Windows" : "With the key · add it next", secret: "required", needsKey: !key },
+        { id: "pfx", title: source.pfx ? "New PFX" : "PFX", hint: source.pfx ? "Same contents, new password" : key ? "With the key · IIS, Windows" : "With the key · add it next", secret: "required", key: true, needsKey: !key },
       ];
     }
     const list = [
-      { id: "key-pem", title: "PEM", hint: ".key · nginx, Apache", secret: "optional" },
-      { id: "key-der", title: "DER", hint: ".der · Java, older systems" },
+      { id: "key-pem", title: "PEM", hint: ".key · nginx, Apache", secret: "optional", key: true },
+      { id: "key-der", title: "DER", hint: ".der · Java, older systems", key: true },
     ];
     const algorithm = source.key.info.algorithm;
-    if (algorithm === "RSA" || algorithm === "ECDSA") list.push({ id: "key-traditional", title: "Older PEM", hint: algorithm === "RSA" ? "RSA PRIVATE KEY · older software" : "EC PRIVATE KEY · older software" });
+    if (algorithm === "RSA" || algorithm === "ECDSA") list.push({ id: "key-traditional", title: "Older PEM", hint: algorithm === "RSA" ? "RSA PRIVATE KEY · older software" : "EC PRIVATE KEY · older software", key: true });
     return list;
   }
 
@@ -451,7 +452,18 @@
     go.hidden = waiting;
     downloadName.textContent = "Download " + target.name;
     contents.textContent = target.files ? target.files.join(" · ") : "";
+    mark();
     say();
+  }
+
+  // A file that carries the private key shows whether a password locks it.
+  function mark() {
+    const choice = selected();
+    protection.hidden = !choice.key;
+    if (!choice.key) return;
+    const locked = choice.secret === "required" || (choice.secret === "optional" && secret.value !== "");
+    protection.className = "pill " + (locked ? "pill-good" : "pill-soon");
+    protection.textContent = locked ? "Key locked" : "Key not locked";
   }
 
   // ── Making the file ────────────────────────────────────────────────────
@@ -582,6 +594,7 @@
   generate.addEventListener("click", () => {
     secret.value = ui.strongPassword();
     secret.type = "text";
+    mark();
     // Once made, the one button copies it; typing brings Generate back.
     const canCopy = !!(navigator.clipboard && navigator.clipboard.writeText);
     copy.hidden = !canCopy;
@@ -603,6 +616,7 @@
     copy.hidden = true;
     generate.hidden = false;
     if (!secret.value) { secret.type = "password"; secretNote.hidden = true; }
+    if (source && !source.pending) mark();
   });
 
   ui.dropZone(zone, input, open);

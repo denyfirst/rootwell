@@ -159,6 +159,9 @@ assert.match($("convert-chip-info").textContent, /^shop\.test\.pfx · Certificat
 assert.deepEqual(choices(), ["pem-files", "crt", "der", "pfx"]);
 assert.match($("convert-download-name").textContent, /^Download shop\.test\.zip$/);
 assert.equal($("convert-contents").textContent, "fullchain.pem · cert.pem · chain.pem · privkey.pem");
+// Whatever carries the key says whether a password locks it.
+const lock = () => ($("convert-protection").hidden ? "none" : $("convert-protection").textContent + " " + $("convert-protection").className);
+assert.equal(lock(), "Key not locked pill pill-soon");
 {
   const zip = await save();
   assert.equal(zip.name, "shop.test.zip");
@@ -177,12 +180,17 @@ assert.equal($("convert-contents").textContent, "fullchain.pem · cert.pem · ch
   assert.match((await save()).status, /20 to 128/);
   const password = "Separate-Key-Password-2026-zz";
   $("convert-secret").value = password;
+  $("convert-secret").listeners.input();
+  assert.equal(lock(), "Key locked pill pill-good");
   const files = unzip((await save()).bytes);
   assert.match(text(files["privkey.pem"]), /^-----BEGIN ENCRYPTED PRIVATE KEY-----\n/);
   assert.equal(createPrivateKey({ key: Buffer.from(files["privkey.pem"]), passphrase: password }).asymmetricKeyType, "ec");
   $("convert-secret").value = "";
+  $("convert-secret").listeners.input();
+  assert.equal(lock(), "Key not locked pill pill-soon");
 }
 pick("crt");
+assert.equal(lock(), "none", "a certificate alone carries no key");
 {
   const crt = await save();
   assert.equal(crt.name, "shop.test.crt");
@@ -196,6 +204,7 @@ pick("der");
   assert.deepEqual(certificates(der.bytes).map((c) => c.encoding), ["der"]);
 }
 pick("pfx");
+assert.equal(lock(), "Key locked pill pill-good");
 assert.equal($("convert-secret-row").hidden, false);
 assert.equal($("convert-secret-optional").hidden, true);
 assert.match((await save()).status, /20 to 128/, "a new PFX needs a password");
@@ -284,7 +293,9 @@ assert.deepEqual(choices(), ["key-pem", "key-der", "key-traditional"]);
   assert.match(text(pem.bytes), /^-----BEGIN PRIVATE KEY-----\n/);
   pick("key-traditional");
   assert.match(text((await save()).bytes), /^-----BEGIN RSA PRIVATE KEY-----\n/);
+  assert.equal(lock(), "Key not locked pill pill-soon");
   pick("key-der");
+  assert.equal(lock(), "Key not locked pill pill-soon");
   const der = await save();
   assert.equal(der.name, "server-key.der");
   assert.equal(createPrivateKey({ key: Buffer.from(der.bytes), format: "der", type: "pkcs8" }).asymmetricKeyType, "rsa");
@@ -343,6 +354,16 @@ assert.equal($("convert-choices").children.length, 0);
   assert.equal(seen.size, 50);
   const empty = unzip(ui.zip([{ name: "a.txt", bytes: new Uint8Array() }, { name: "ü.pem", bytes: new TextEncoder().encode("x") }]));
   assert.deepEqual(Object.keys(empty), ["a.txt", "ü.pem"]);
+  // Download names come from certificate names, which anyone can write.
+  assert.equal(ui.friendlyName("*.shop.test", "certificate"), "wildcard.shop.test");
+  assert.equal(ui.friendlyName("../../etc/passwd", "certificate"), "etc-passwd");
+  assert.equal(ui.friendlyName(String.raw`..\..\Windows\win.ini`, "certificate"), "Windows-win.ini");
+  assert.equal(ui.friendlyName("\u202egnp.exe", "certificate"), "gnp.exe");
+  assert.equal(ui.friendlyName("a\u0000b\r\nc", "certificate"), "a-b-c");
+  assert.equal(ui.friendlyName("....", "certificate"), "certificate");
+  assert.equal(ui.friendlyName("", "request"), "request");
+  assert.equal(ui.friendlyName("a".repeat(79) + "-b", "certificate"), "a".repeat(79));
+  assert.equal(ui.friendlyName("x".repeat(200), "certificate").length, 80);
 }
 
 console.log("Convert opens PFX files, certificates and keys, and makes every format with the real engine.");

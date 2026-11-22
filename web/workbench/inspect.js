@@ -169,7 +169,7 @@
           const kind = kindOf(files[i].name, data.parts[i]);
           return fail(kind === "pfx" ? "This is a PFX file. Open it in Convert to see what is inside." :
             kind === "key" ? "This is a private key, not a certificate. Use Check a private key after opening its certificate." :
-            kind === "csr" ? "This is a certificate request. Open it in Request." :
+            kind === "csr" ? "This is a certificate request. Send it to your certificate provider." :
             messages[answer.error && answer.error.code] || "This is not a certificate file Rootwell can read.");
         }
         certificates.push(...answer.result.certificates);

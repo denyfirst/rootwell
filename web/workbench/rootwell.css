@@ -328,6 +328,16 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .input::placeholder { color: var(--ink-faint); }
 .input-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 .input-row .input { flex: 1 1 12rem; min-width: 0; }
+/* A file field: the button wears the secondary look, the chosen name sits beside it. */
+.input[type="file"] { display: flex; align-items: center; min-height: 0; padding: 0; color: var(--ink-soft); background: none; border: 0; border-radius: 0; font-size: var(--fs-14); }
+.input[type="file"]:focus { box-shadow: none; }
+.input[type="file"]:focus-visible::file-selector-button { outline: 2px solid var(--tool); outline-offset: 2px; }
+.input[type="file"]::file-selector-button {
+  min-height: var(--control); margin-right: var(--sp-3); padding: 0 var(--sp-4); cursor: pointer;
+  color: var(--ink); background: var(--card); border: 1px solid var(--rule-strong); border-radius: var(--r);
+  font: inherit; font-size: var(--fs-16); font-weight: 600;
+}
+.input[type="file"]::file-selector-button:hover { background: var(--paper-sunk); border-color: var(--ink-faint); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; min-height: var(--control); padding: 6px var(--sp-3); background: var(--card); border: 1px solid var(--rule-strong); border-radius: var(--r); }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 var(--sp-2) 0 var(--sp-3); background: var(--tool-wash); color: var(--ink); border-radius: var(--r-sm); font-size: var(--fs-14); }
 .chip button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; color: var(--ink-faint); background: none; border: 0; cursor: pointer; }
@@ -441,12 +451,15 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
   .card-body { padding: var(--sp-4); }
   h1 { font-size: 1.625rem; }
   .list-head { display: none; }
-  .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pill" "where key"; gap: var(--sp-2) var(--sp-3); padding: var(--sp-4); }
+  /* On a phone the name gets the whole width; days left and the key sit under it. */
+  .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "pill key"; gap: var(--sp-3); padding: var(--sp-4); }
   .row > :nth-child(1) { grid-area: name; }
-  .row > :nth-child(2) { grid-area: where; }
-  .row > :nth-child(3) { grid-area: pill; justify-self: end; }
+  .row > :nth-child(2) { grid-column: 1 / -1; grid-row: 3; }
+  .row > :nth-child(3) { grid-area: pill; justify-self: start; }
   .row > :nth-child(4) { grid-area: key; justify-self: end; }
   .row > :nth-child(5) { display: none; }
+  .row-name strong { white-space: normal; overflow-wrap: anywhere; }
+  .row-empty { display: none; }
   .page-head .btn { width: 100%; }
   .page-actions { width: 100%; }
   .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }

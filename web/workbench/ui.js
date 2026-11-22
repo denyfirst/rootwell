@@ -129,7 +129,7 @@
 
   // A file name a person recognises: the certificate's own name, made safe.
   function friendlyName(name, fallback) {
-    const base = String(name || "").replace(/^\*\./, "wildcard.").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 80);
+    const base = String(name || "").replace(/^\*\./, "wildcard.").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 80).replace(/[-.]+$/, "");
     return base || fallback;
   }
 

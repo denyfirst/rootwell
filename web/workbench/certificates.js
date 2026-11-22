@@ -131,7 +131,7 @@
     name.appendChild(words);
     link.appendChild(name);
     const places = record.locations && record.locations.length ? record.locations : [];
-    link.appendChild(ui.el("span", "row-cell", places.length ? places.join(", ") : "—"));
+    link.appendChild(ui.el("span", places.length ? "row-cell" : "row-cell row-empty", places.length ? places.join(", ") : "—"));
     const pill = ui.el("span");
     pill.appendChild(ui.pill(record.not_after, now));
     link.appendChild(pill);

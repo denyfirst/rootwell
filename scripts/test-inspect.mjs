@@ -190,7 +190,7 @@ assert.match((await checkKey(file("shop.test.key", "key"))).text(), /Choose the 
 for (const [name, fixtureName, message] of [
   ["shop.test.pfx", "pfx", "This is a PFX file. Open it in Convert to see what is inside."],
   ["shop.test.key", "key", "This is a private key, not a certificate. Use Check a private key after opening its certificate."],
-  ["shop.test.csr", "csr", "This is a certificate request. Open it in Request."],
+  ["shop.test.csr", "csr", "This is a certificate request. Send it to your certificate provider."],
 ]) {
   again();
   await drop(file(name, fixtureName));
