@@ -5,15 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"math/big"
-	"os"
 	"strings"
 	"testing"
 	"time"
 )
 
-func fixture(t *testing.T) (chain []*x509.Certificate, roots *x509.CertPool, now time.Time) {
+func fixture(t testing.TB) (chain []*x509.Certificate, roots *x509.CertPool, now time.Time) {
 	t.Helper()
 	now = time.Date(2026, 11, 5, 0, 0, 0, 0, time.UTC)
 	var parent *x509.Certificate
@@ -195,15 +193,8 @@ func TestMalformedAndBoundedInput(t *testing.T) {
 func FuzzAnalyzePublicChain(f *testing.F) {
 	f.Add([]byte{0x30, 0})
 	f.Add([]byte{})
-	public, err := os.ReadFile("../../web/workbench/rootwell-verify-demo-leaf.pem")
-	if err != nil {
-		f.Fatal(err)
-	}
-	block, _ := pem.Decode(public)
-	if block == nil {
-		f.Fatal("missing public fixture")
-	}
-	f.Add(block.Bytes)
+	chain, _, _ := fixture(f)
+	f.Add(chain[0].Raw)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) > MaxCertificateBytes {
 			return

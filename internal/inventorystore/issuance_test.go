@@ -307,7 +307,7 @@ func TestIssuancePreflightStaleExpiryClockAndLeaseImageBinding(t *testing.T) {
 		t.Fatal("unused valid lease refused")
 	}
 	before, _, _ := Open(key, id, next)
-	added, _, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "owner", "service")
+	added, _, err := Append(key, id, next, testCertificate(t), "owner", "service")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +338,7 @@ func TestIssuanceReservesCompletionAndReadOnlySurvivesLastSlot(t *testing.T) {
 	if out, _, _, err := ObserveStagingIssuance(key, id, next, gen, "processing"); !errors.Is(err, ErrLimit) || out != nil {
 		t.Fatal("observation consumed completion generation")
 	}
-	if out, _, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "", ""); !errors.Is(err, ErrLimit) || out != nil {
+	if out, _, err := Append(key, id, next, testCertificate(t), "", ""); !errors.Is(err, ErrLimit) || out != nil {
 		t.Fatal("generic write consumed completion generation")
 	}
 	if out, token, _, _, err := BeginStagingIssuance(key, id, next, gen, true); err != nil || out != nil || token == nil {
@@ -359,7 +359,7 @@ func TestIssuanceReservesCompletionAndReadOnlySurvivesLastSlot(t *testing.T) {
 
 func TestIssuanceHistoryAndRecordCompletionReservations(t *testing.T) {
 	key, id, image := issuanceFixture(t)
-	image, records, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	image, records, err := Append(key, id, image, testCertificate(t), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +429,7 @@ func TestIssuanceHistoryAndRecordCompletionReservations(t *testing.T) {
 	if err != nil {
 		t.Fatal("last safe certificate slot refused")
 	}
-	if out, _, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "", ""); !errors.Is(err, ErrLimit) || out != nil {
+	if out, _, err := Append(key, id, next, testCertificate(t), "", ""); !errors.Is(err, ErrLimit) || out != nil {
 		t.Fatal("ordinary import consumed pending certificate slot")
 	}
 	// The reserve remains, but read/status still work and existing data survives.

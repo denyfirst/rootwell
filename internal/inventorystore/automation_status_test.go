@@ -61,7 +61,7 @@ func TestAutomationStatusWholeImageLifetimeAndNoMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	imported, _, err := Append(key, id, blank, demo(t, "rootwell-demo-certificate.pem"), "private-owner-sentinel", "private-note-sentinel")
+	imported, _, err := Append(key, id, blank, testCertificate(t), "private-owner-sentinel", "private-note-sentinel")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -86,7 +86,7 @@ func TestCertificateRequestPreparationEncryptedBoundAtomicAndPreserved(t *testin
 	if _, _, _, err := PrepareStagingCertificateRequest(key, id, image, 9); !errors.Is(err, ErrStaleGeneration) {
 		t.Fatal("stale preparation accepted")
 	}
-	added, _, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "owner", "service")
+	added, _, err := Append(key, id, next, testCertificate(t), "owner", "service")
 	if err != nil {
 		t.Fatal(err)
 	}

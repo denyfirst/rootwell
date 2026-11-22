@@ -150,7 +150,7 @@ func TestLinuxRegistrationProofIsSingleUseSessionGenerationAndTimeBound(t *testi
 				cookie = sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
 			case "generation":
 				image, _ := os.ReadFile(path)
-				next, _, err := inventorystore.Append(s.dataKey[:], s.installationID[:], image, readGateDemo(t), "", "service")
+				next, _, err := inventorystore.Append(s.dataKey[:], s.installationID[:], image, testCertificate(t), "", "service")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -166,15 +166,6 @@ func TestLinuxRegistrationProofIsSingleUseSessionGenerationAndTimeBound(t *testi
 			}
 		})
 	}
-}
-
-func readGateDemo(t *testing.T) []byte {
-	t.Helper()
-	body, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return body
 }
 
 func TestLinuxRegistrationBudgetsAndConfirmedCreation(t *testing.T) {
@@ -254,7 +245,7 @@ func TestLinuxRegistrationPreviewProviderBusyCooldownAndStoreChange(t *testing.T
 	g.directoryLast = time.Time{}
 	g.registrationTerms = func(context.Context, func() bool) (string, error) {
 		image, _ := os.ReadFile(path)
-		next, _, err := inventorystore.Append(s.dataKey[:], s.installationID[:], image, readGateDemo(t), "", "changed during preview")
+		next, _, err := inventorystore.Append(s.dataKey[:], s.installationID[:], image, testCertificate(t), "", "changed during preview")
 		if err != nil {
 			t.Fatal(err)
 		}

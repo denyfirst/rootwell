@@ -59,10 +59,8 @@ func TestContainerVolumeDrill(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cert, err := os.ReadFile("/demo.pem")
-		if err != nil {
-			t.Fatal(err)
-		}
+		// Generated from fixed seeds, so every container phase sees the same certificate.
+		cert := testCertificate(t)
 		added, generation, err := AppendInventory(data, key, id, revision, cert, "Operations", "test/nginx")
 		if err != nil || len(added) != 1 || generation != 2 {
 			t.Fatalf("volume import failed: %v", err)
@@ -193,18 +191,9 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 	if err != nil || backedUp != account {
 		t.Fatal("container restored a different account key")
 	}
-	if _, _, err := AppendInventory(accessPath, key, id, revision, mustReadDrillCertificate(t), "", ""); !errors.Is(err, publicinventory.ErrDuplicate) {
+	if _, _, err := AppendInventory(accessPath, key, id, revision, testCertificate(t), "", ""); !errors.Is(err, publicinventory.ErrDuplicate) {
 		t.Fatalf("restored duplicate was not refused: %v", err)
 	}
-}
-
-func mustReadDrillCertificate(t *testing.T) []byte {
-	t.Helper()
-	body, err := os.ReadFile("/demo.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return body
 }
 
 func writeDrillCode(t *testing.T, code string) {

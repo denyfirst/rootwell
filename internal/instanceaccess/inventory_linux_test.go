@@ -42,10 +42,7 @@ func TestLinuxInventoryDurableImportAndFreshFullRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	added, gen, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
 	if err != nil || len(added) != 1 || gen != 2 {
 		t.Fatalf("append: %d %v", gen, err)
@@ -122,10 +119,7 @@ func TestLinuxInventoryAssociationsSurviveRestartAndFullRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
 	if err != nil || generation != 2 {
 		t.Fatalf("initial import: %v", err)
@@ -184,10 +178,7 @@ func TestLinuxInventoryOwnerCorrectionIsDurableAndRestorable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
 	if err != nil || generation != 2 {
 		t.Fatalf("initial import: %v", err)
@@ -241,10 +232,7 @@ func TestLinuxLocationCorrectionsSurviveFullRestoreAndRejectStaleWrites(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "first")
 	if err != nil || generation != 2 {
 		t.Fatalf("import: %v", err)
@@ -312,10 +300,7 @@ func TestLinuxInventoryExplicitDeletionAndOldSnapshotRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	added, generation, err := AppendInventory(path, key, id, revision, cert, "Platform", "production/nginx")
 	if err != nil || generation != 2 {
 		t.Fatalf("import: %v", err)
@@ -429,10 +414,7 @@ func TestLinuxInventoryPostRenameSyncFaultIsUncertain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	next, _, err := inventorystore.Append(key, id, image, cert, "", "")
 	if err != nil {
 		t.Fatal(err)

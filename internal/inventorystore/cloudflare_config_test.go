@@ -41,7 +41,7 @@ func TestCloudflareConfigEncryptedAtomicRotationRemovalAndPreservation(t *testin
 		}
 	}
 	m, _, _ := decode(key, id, image)
-	withCert, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "team", "service")
+	withCert, added, err := Append(key, id, image, testCertificate(t), "team", "service")
 	if err != nil {
 		t.Fatal(err)
 	}
