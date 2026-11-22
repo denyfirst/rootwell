@@ -128,10 +128,8 @@ storage and an explicit user-facing loopback API are separate boundaries below.
    Inventory UI after user testing: it confused saved-record management with
    certificate conversion and disclosed internal notes as a plain download.
    The historical decision is in [ADR 0027](adr/0027-explicit-public-inventory-export.md).
-   Certificate download remains in the Workbench Explore/Verify flows;
-   encrypted full inventory backup is a separate offline operation. The
-   fake-data development demo binds loopback only and rejects all writes;
-   it is not authenticated storage.
+   Certificate downloads are on the Certificates page; encrypted full
+   inventory backup is a separate offline operation.
    Deleting one public record requires a ready session, exact same-origin
    request, duplicated typed fingerprint, fixed confirmation phrase, and the
    displayed generation. The complete encrypted image authenticates before
@@ -168,6 +166,9 @@ cannot notify the operator. See [ADR 0041](adr/0041-server-clock-inventory-remin
 
 ## Explicit Workbench opening (ADR 0042)
 
+Retired on 22 November 2026 with the page rebuild: the opening route and the
+old Tools page are gone. The boundary below is kept as history.
+
 Inventory card Inspect/Verify buttons send only an exact public fingerprint,
 displayed generation and destination via native same-tab POST. This route has
 mandatory same-origin navigation metadata instead of the JSON custom header;
@@ -182,6 +183,10 @@ objects; browser/OS memory/history erasure is not promised. See
 [ADR 0042](adr/0042-explicit-inventory-workbench-handoff.md).
 
 ## Local public bulk preview (ADR 0043)
+
+Replaced on 22 November 2026: the Add dialog on Certificates takes several
+files at once and saves them through the same atomic append; the separate
+preview section is gone. The boundary below is kept as history.
 
 The later lifecycle wave below adds comparison, history and session-bound
 background checks; this earlier bulk increment alone granted none of them.

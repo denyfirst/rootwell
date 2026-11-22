@@ -17,8 +17,12 @@ import (
 // somebody writes down here, never a side effect.
 const fontSHA256 = "4c8b93f431d462c696e12b9d6a033feb3394d36e66e781357c496b95d8a75e05"
 
-// The ratio text needs at the sizes these pages use.
-const readableContrast = 4.5
+// The ratio text needs at the sizes these pages use, and the ratio a mark that
+// is not text needs (WCAG 2.2, 1.4.3 and 1.4.11).
+const (
+	readableContrast = 4.5
+	markContrast     = 3.0
+)
 
 func repositoryFile(t *testing.T, parts ...string) string {
 	t.Helper()
@@ -34,15 +38,29 @@ func repositoryFile(t *testing.T, parts ...string) string {
 	return string(content)
 }
 
-// The sheets every page draws with: the workspace sheet and the sign-in sheet,
-// plus the page sheets that build on the workspace one.
-func designSheets(t *testing.T) map[string]string {
+// The one stylesheet every page uses.
+func sharedSheet(t *testing.T) string {
+	return repositoryFile(t, "web", "workbench", "rootwell.css")
+}
+
+// The six pages in the menu.
+func menuPages(t *testing.T) map[string]string {
 	return map[string]string{
-		"style.css":         repositoryFile(t, "web", "workbench", "style.css"),
-		"auth.css":          repositoryFile(t, "cmd", "rootwelld", "auth", "auth.css"),
-		"inventory.css":     repositoryFile(t, "cmd", "rootwelld", "auth", "inventory.css"),
-		"website-check.css": repositoryFile(t, "cmd", "rootwelld", "auth", "website-check.css"),
+		"Certificates":  repositoryFile(t, "web", "workbench", "certificates.html"),
+		"Website check": repositoryFile(t, "cmd", "rootwelld", "auth", "website-check.html"),
+		"Inspect":       repositoryFile(t, "web", "workbench", "inspect.html"),
+		"Convert":       repositoryFile(t, "web", "workbench", "convert.html"),
+		"Request":       repositoryFile(t, "web", "workbench", "request.html"),
+		"Account":       repositoryFile(t, "cmd", "rootwelld", "auth", "account.html"),
 	}
+}
+
+// The menu pages, and the sign-in and setup pages that come before them.
+func designedPages(t *testing.T) map[string]string {
+	pages := menuPages(t)
+	pages["Sign in"] = repositoryFile(t, "cmd", "rootwelld", "auth", "login.html")
+	pages["Setup"] = repositoryFile(t, "cmd", "rootwelld", "auth", "setup.html")
+	return pages
 }
 
 var (
@@ -115,11 +133,17 @@ func TestTheTypefaceIsTheOneChosenAndCarriesItsLicence(t *testing.T) {
 			t.Errorf("the typeface's licence does not say %q", want)
 		}
 	}
-	// One face, from this server; no sheet loads anything else.
-	for name, sheet := range designSheets(t) {
+	// One face, from this server; no sheet loads anything else. The hidden
+	// Renewals page still draws with its older sheets until it is rebuilt.
+	sheets := map[string]string{
+		"rootwell.css":  sharedSheet(t),
+		"style.css":     repositoryFile(t, "web", "workbench", "style.css"),
+		"inventory.css": repositoryFile(t, "cmd", "rootwelld", "auth", "inventory.css"),
+	}
+	for name, sheet := range sheets {
 		for _, u := range regexp.MustCompile(`url\(([^)]*)\)`).FindAllStringSubmatch(sheet, -1) {
-			if (name != "style.css" && name != "auth.css") || u[1] != `"/schibsted-grotesk.woff2"` {
-				t.Errorf("%s loads %s; only style.css and auth.css may load the typeface, from this server", name, u[1])
+			if (name != "rootwell.css" && name != "style.css") || u[1] != `"/schibsted-grotesk.woff2"` {
+				t.Errorf("%s loads %s; only the typeface may be loaded, from this server", name, u[1])
 			}
 		}
 		if strings.Contains(sheet, "@import") {
@@ -128,29 +152,36 @@ func TestTheTypefaceIsTheOneChosenAndCarriesItsLicence(t *testing.T) {
 	}
 }
 
-// The sign-in sheet repeats the workspace tokens because the workspace sheet is
-// served only after sign-in; the two must never drift apart.
-func TestTheSignInSheetUsesTheWorkspaceColours(t *testing.T) {
-	sheets := designSheets(t)
-	workspace := schemes(t, "style.css", sheets["style.css"])
-	signin := schemes(t, "auth.css", sheets["auth.css"])
+// Rootwell is graphite: a near-black control in light, a near-white one in
+// dark, and a grey full stop after the wordmark. Its label must read on it.
+func TestRootwellIsGraphiteAndItsControlsAreLegible(t *testing.T) {
+	tables := schemes(t, "rootwell.css", sharedSheet(t))
+	for scheme, want := range map[string]map[string]string{
+		"light": {"accent": "#1f2329", "accent-hover": "#3a3f47", "on-accent": "#ffffff", "stop": "#7a828e"},
+		"dark":  {"accent": "#eceef1", "on-accent": "#16181d"},
+	} {
+		for token, value := range want {
+			if got := tables[scheme][token]; got != value {
+				t.Errorf("%s: --%s is %s, the graphite design has %s", scheme, token, got, value)
+			}
+		}
+	}
 	for _, scheme := range []string{"light", "dark"} {
-		for token, value := range signin[scheme] {
-			if workspace[scheme][token] != value {
-				t.Errorf("%s: auth.css --%s is %s, style.css has %s", scheme, token, value, workspace[scheme][token])
+		tokens := tables[scheme]
+		for _, face := range []string{"accent", "accent-hover"} {
+			if got := contrastRatio(t, tokens["on-accent"], tokens[face]); got < readableContrast {
+				t.Errorf("%s: --on-accent on --%s is %.2f:1, below %.1f:1", scheme, face, got, readableContrast)
 			}
 		}
 	}
 }
 
 func TestEveryColourTextIsSetInIsLegible(t *testing.T) {
-	sheets := designSheets(t)
-	tables := schemes(t, "style.css", sheets["style.css"])
+	sheet := sharedSheet(t)
+	tables := schemes(t, "rootwell.css", sheet)
 	used := map[string]bool{}
-	for _, sheet := range sheets {
-		for _, m := range textColourPattern.FindAllStringSubmatch(sheet, -1) {
-			used[m[1]] = true
-		}
+	for _, m := range textColourPattern.FindAllStringSubmatch(sheet, -1) {
+		used[m[1]] = true
 	}
 	if len(used) < 8 {
 		t.Fatalf("only %d text colours were found, which is too few to be right", len(used))
@@ -163,27 +194,29 @@ func TestEveryColourTextIsSetInIsLegible(t *testing.T) {
 				t.Errorf("%s: text is set in --%s, which is not defined", scheme, token)
 				continue
 			}
-			if token == "rule" || token == "edge" {
+			switch token {
+			case "rule", "rule-strong":
 				t.Errorf("text is set in --%s, a line colour", token)
-				continue
-			}
-			// The one inversion: a busy button prints the paper on soft ink.
-			if token == "paper" {
-				if got := contrastRatio(t, value, tokens["ink-soft"]); got < readableContrast {
-					t.Errorf("%s: --paper on --ink-soft is %.2f:1", scheme, got)
+			case "on-accent":
+				// Checked on the accent by TestRootwellIsGraphiteAndItsControlsAreLegible.
+			case "paper":
+				// The one inversion: a disabled button prints the paper on faint ink.
+				if got := contrastRatio(t, value, tokens["ink-faint"]); got < readableContrast {
+					t.Errorf("%s: --paper on --ink-faint is %.2f:1", scheme, got)
 				}
-				continue
-			}
-			for _, surface := range []string{"paper", "paper-sunk", "card"} {
-				if got := contrastRatio(t, value, tokens[surface]); got < readableContrast {
-					t.Errorf("%s: --%s (%s) on --%s (%s) is %.2f:1, below %.1f:1", scheme, token, value, surface, tokens[surface], got, readableContrast)
+			case "stop":
+				// The wordmark's full stop is a mark, not text.
+				for _, surface := range []string{"paper", "paper-sunk", "card"} {
+					if got := contrastRatio(t, value, tokens[surface]); got < markContrast {
+						t.Errorf("%s: --stop on --%s is %.2f:1, below %.1f:1", scheme, surface, got, markContrast)
+					}
 				}
-			}
-		}
-		// Button labels are white on the accent, resting and hovered.
-		for _, face := range []string{"accent", "accent-hover"} {
-			if got := contrastRatio(t, "#ffffff", tokens[face]); got < readableContrast {
-				t.Errorf("%s: white on --%s is %.2f:1", scheme, face, got)
+			default:
+				for _, surface := range []string{"paper", "paper-sunk", "card"} {
+					if got := contrastRatio(t, value, tokens[surface]); got < readableContrast {
+						t.Errorf("%s: --%s (%s) on --%s (%s) is %.2f:1, below %.1f:1", scheme, token, value, surface, tokens[surface], got, readableContrast)
+					}
+				}
 			}
 		}
 	}
@@ -192,9 +225,9 @@ func TestEveryColourTextIsSetInIsLegible(t *testing.T) {
 // Rootwell's colour is not a verdict's: good, close to expiry and broken are
 // said in green, amber and red, and no control may look like one of them.
 func TestTheToolColourIsNeverAVerdictColour(t *testing.T) {
-	sheets := designSheets(t)
-	for scheme, tokens := range schemes(t, "style.css", sheets["style.css"]) {
-		for _, control := range []string{"tool", "link", "accent", "accent-hover"} {
+	sheet := sharedSheet(t)
+	for scheme, tokens := range schemes(t, "rootwell.css", sheet) {
+		for _, control := range []string{"tool", "link", "accent", "accent-hover", "stop"} {
 			for _, verdict := range []string{"strong", "weak", "insecure", "brand"} {
 				if tokens[control] == tokens[verdict] {
 					t.Errorf("%s: --%s is the same colour as --%s", scheme, control, verdict)
@@ -203,30 +236,24 @@ func TestTheToolColourIsNeverAVerdictColour(t *testing.T) {
 		}
 	}
 	// The organisation's red marks only the denyfirst credit.
-	for name, sheet := range sheets {
-		for _, line := range strings.Split(sheet, "\n") {
-			if strings.Contains(line, "var(--brand)") && !strings.HasPrefix(strings.TrimSpace(line), ".credit-stop") {
-				t.Errorf("%s draws something other than the credit in the brand red: %s", name, strings.TrimSpace(line))
-			}
+	for _, line := range strings.Split(sheet, "\n") {
+		if strings.Contains(line, "var(--brand)") && !strings.HasPrefix(strings.TrimSpace(line), ".credit-stop") {
+			t.Errorf("rootwell.css draws something other than the credit in the brand red: %s", strings.TrimSpace(line))
 		}
 	}
 }
 
-// Every page carries the same rail, the wordmark and the shared typeface.
+// Every page in the menu carries the same rail: the wordmark, the six pages
+// with the current one marked, the colour scheme, Sign out and the credit.
 func TestEveryWorkspacePageCarriesTheSharedShell(t *testing.T) {
-	pages := map[string]string{
-		"Tools":         repositoryFile(t, "web", "workbench", "index.html"),
-		"Certificates":  repositoryFile(t, "cmd", "rootwelld", "auth", "inventory.html"),
-		"Renewals":      repositoryFile(t, "cmd", "rootwelld", "auth", "acme.html"),
-		"Website check": repositoryFile(t, "cmd", "rootwelld", "auth", "website-check.html"),
-		"Account":       repositoryFile(t, "cmd", "rootwelld", "auth", "account.html"),
-	}
-	for current, page := range pages {
+	paths := map[string]string{"Certificates": "/certificates", "Website check": "/website-check", "Inspect": "/inspect",
+		"Convert": "/convert", "Request": "/request", "Account": "/account"}
+	for current, page := range menuPages(t) {
 		if !strings.Contains(page, `<a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a>`) {
 			t.Errorf("%s: the rail does not carry the wordmark", current)
 		}
-		for _, label := range []string{"Certificates", "Renewals", "Website check", "Tools", "Account"} {
-			item := regexp.MustCompile(`<a class="rail-item" href="[^"]+"( aria-current="page")?><svg class="rail-glyph"[^>]*>.*?</svg>` + regexp.QuoteMeta(label) + `</a>`)
+		for label, path := range paths {
+			item := regexp.MustCompile(`<a class="nav-item" href="` + regexp.QuoteMeta(path) + `"( aria-current="page")?><svg class="icon"[^>]*>.*?</svg>` + regexp.QuoteMeta(label) + `</a>`)
 			match := item.FindStringSubmatch(page)
 			if match == nil {
 				t.Errorf("%s: the rail has no %s item", current, label)
@@ -236,13 +263,35 @@ func TestEveryWorkspacePageCarriesTheSharedShell(t *testing.T) {
 				t.Errorf("%s: the rail marks %s wrongly as the current place", current, label)
 			}
 		}
-		if !strings.Contains(page, `id="theme-toggle"`) || !strings.Contains(page, `id="rail-sign-out"`) {
-			t.Errorf("%s: the rail lacks the colour scheme or Sign out", current)
+		if strings.Count(page, `aria-current="page"`) != 1 {
+			t.Errorf("%s: the rail marks more or fewer than one current place", current)
 		}
-		for _, gone := range []string{"rail-tag", "rail-soon", "Audit log", "Self-host"} {
+		for _, part := range []string{`id="theme-toggle"`, `id="rail-sign-out"`, `<p class="credit">rootwell, by denyfirst<span class="credit-stop">.</span></p>`} {
+			if !strings.Contains(page, part) {
+				t.Errorf("%s: the rail lacks %s", current, part)
+			}
+		}
+		for _, gone := range []string{"Renewals", "Tools", "rail-tag", "rail-soon", "Audit log", "Self-host"} {
 			if strings.Contains(page, gone) {
 				t.Errorf("%s still shows %q", current, gone)
 			}
+		}
+	}
+}
+
+// Every page, sign-in and setup included, draws with the shared sheet alone
+// and carries no style of its own.
+func TestEveryPageWearsTheSharedSheetAndNoInlineStyle(t *testing.T) {
+	stylesheet := regexp.MustCompile(`<link rel="stylesheet"[^>]*>`)
+	for name, page := range designedPages(t) {
+		if got := stylesheet.FindAllString(page, -1); len(got) != 1 || got[0] != `<link rel="stylesheet" href="/rootwell.css">` {
+			t.Errorf("%s: stylesheets %q, want only /rootwell.css", name, got)
+		}
+		if regexp.MustCompile(`(?i)\sstyle\s*=`).MatchString(page) || strings.Contains(page, "<style") {
+			t.Errorf("%s carries an inline style", name)
+		}
+		if !strings.Contains(page, `<script src="/theme.js"></script>`) || !strings.Contains(page, `<link rel="icon" href="/favicon.svg" type="image/svg+xml">`) {
+			t.Errorf("%s lacks the colour scheme script or the icon", name)
 		}
 	}
 }

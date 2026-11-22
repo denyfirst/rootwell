@@ -25,6 +25,11 @@
   if (initial) root.dataset.theme = initial;
 
   document.addEventListener("DOMContentLoaded", function () {
+    // On a phone the menu is one row that scrolls; keep the current page in view.
+    const current = document.querySelector('.nav-item[aria-current="page"]');
+    if (current && window.matchMedia && window.matchMedia("(max-width: 960px)").matches && current.scrollIntoView) {
+      current.scrollIntoView({ block: "nearest", inline: "center" });
+    }
     const button = document.getElementById("theme-toggle");
     if (button) {
       const updateLabel = function () {

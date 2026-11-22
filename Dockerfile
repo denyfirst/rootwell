@@ -19,7 +19,6 @@ COPY . /
 
 FROM scratch AS volume-drill
 COPY --from=build /out/volume-drill.test /volume-drill.test
-COPY --from=build /src/web/workbench/rootwell-demo-certificate.pem /demo.pem
 USER 65532:65532
 ENTRYPOINT ["/volume-drill.test"]
 

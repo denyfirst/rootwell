@@ -37,7 +37,7 @@ func fillArchiveHistory(t *testing.T, key, id, image []byte, count int) []byte {
 func TestHistoryArchiveLosslessAtFullLimitAndContinues(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)
-	image, _, _ = Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "private-owner-sentinel", "private-location-sentinel")
+	image, _, _ = Append(key, id, image, testCertificate(t), "private-owner-sentinel", "private-location-sentinel")
 	image = fillArchiveHistory(t, key, id, image, maxHistory)
 	beforeRecords, g, _ := Open(key, id, image)
 	beforeEvents, _, _ := History(key, id, image)
@@ -106,7 +106,7 @@ func TestHistoryArchiveLosslessAtFullLimitAndContinues(t *testing.T) {
 func TestHistoryArchiveAdmissionNeverResetsOrDiscards(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)
-	image, _, _ = Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	image, _, _ = Append(key, id, image, testCertificate(t), "", "")
 	image = fillArchiveHistory(t, key, id, image, minArchiveEvents)
 	_, g, _ := Open(key, id, image)
 	if out, _, err := ArchiveHistory(key, id, image, g-1); !errors.Is(err, ErrStaleGeneration) || out != nil {

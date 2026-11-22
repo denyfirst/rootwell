@@ -62,7 +62,7 @@ func TestProductionAccountSeparateEncryptedKeyAndSharedGeneration(t *testing.T) 
 	}
 	// Generic mutations must keep the separate production key, with one shared
 	// root generation. It is not a second vault or a separate quota counter.
-	certificate := demo(t, "rootwell-demo-certificate.pem")
+	certificate := testCertificate(t)
 	appended, _, err := Append(key, id, next, certificate, "", "")
 	if err != nil {
 		t.Fatal(err)

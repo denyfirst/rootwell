@@ -13,7 +13,7 @@ func TestHistoryIsAtomicEncryptedCompleteAndRetainsDeletionIdentity(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert := demo(t, "rootwell-demo-certificate.pem")
+	cert := testCertificate(t)
 	image, records, err := Append(key, id, image, cert, "private-owner-marker", "private-location-marker")
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestHistoryIsAtomicEncryptedCompleteAndRetainsDeletionIdentity(t *testing.T
 func TestHistoryLegacyBoundaryContinuityCapacityAndContext(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)
-	image, records, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	image, records, err := Append(key, id, image, testCertificate(t), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

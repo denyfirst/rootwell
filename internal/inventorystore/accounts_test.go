@@ -96,7 +96,7 @@ func TestStagingAccountPreparationIsEncryptedAtomicAndPreserved(t *testing.T) {
 	if result, _, _, err := PrepareStagingAccount(key, id, next, 2); !errors.Is(err, ErrAccountExists) || result != nil {
 		t.Fatal("existing key replaced")
 	}
-	withCertificate, added, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "team", "service")
+	withCertificate, added, err := Append(key, id, next, testCertificate(t), "team", "service")
 	if err != nil {
 		t.Fatal(err)
 	}

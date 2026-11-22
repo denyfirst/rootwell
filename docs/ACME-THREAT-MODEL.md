@@ -169,8 +169,8 @@ Full decode revalidates all links before public output. Historical authenticated
 origin is NOT current issuer trust; list/restore must remain usable after expiry
 or trust changes. Delete current pair/CSR but retain a no-replay public tombstone.
 V4 order/key/issuance status is one snapshot; old DNS/key actions stop before
-provider work once issuance started. Test-only UI and fake read-only browser demo
-do not establish live CA interoperability. Production entry rejects the synthetic
+provider work once issuance started. Test-only UI does not establish
+live CA interoperability. Production entry rejects the synthetic
 custody fixture. Live fetch/lease/receipt/commit/fresh-auth/consent/budgets and
 interactive issuance, oversized/duplicate/expired receipt policy, retention,
 renewal/DNS and independent audit remain. Existing material-size limit may refuse
@@ -401,8 +401,7 @@ Confirmed/uncertain failure pauses; no auto retirement or error retry chain.
 Status/Stop are local; Stop requires no crypto slot/password and preserves pending
 intent. Restart/full restore cannot recreate memory authority. Same optional UI,
 fixed recovery links and strict bounded/stale/hidden/late refusal; page hiding
-does not revoke an explicitly granted browser-independent watch. Fake demo does
-not run a worker or accept credentials. Actual Linux cancellation/pending tests,
+does not revoke an explicitly granted browser-independent watch. Actual Linux cancellation/pending tests,
 full race and all final-head checks are mandatory. No real CA/DNS, production or
 independent audit claim. See ADR0076/C96; earlier no-worker boundaries are historical.
 

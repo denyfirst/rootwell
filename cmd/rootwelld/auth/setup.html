@@ -6,29 +6,28 @@
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
   <title>Choose your password · Rootwell</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/auth.css">
+  <link rel="stylesheet" href="/rootwell.css">
+  <script src="/theme.js"></script>
   <script src="/auth.js" defer></script>
 </head>
 <body data-mode="setup">
-  <main class="shell">
-    <p class="wordmark">rootwell<span class="wordmark-stop">.</span></p>
-    <section class="card" aria-labelledby="title">
-      <h1 id="title">Choose your password</h1>
-      <p class="hint">Replace the first password before you start. Use at least 15 characters, and keep it in your password manager.</p>
-      <form id="auth-form" method="post" action="/api/password">
-        <label for="password">First password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
-        <label for="next">New password</label>
-        <input id="next" name="next" type="password" autocomplete="new-password" minlength="15" required>
-        <label for="confirm">New password again</label>
-        <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="15" required>
-        <button type="submit">Save password</button>
-        <p id="status" role="alert" aria-live="polite"></p>
-      </form>
-    </section>
-    <button class="secondary" type="button" id="sign-out">Sign out</button>
-  </main>
-  <footer class="colophon"><strong>rootwell</strong>, by <strong>denyfirst<span class="credit-stop">.</span></strong></footer>
+<main class="signin"><div class="signin-box">
+  <p class="wordmark">rootwell<span class="wordmark-stop">.</span></p>
+  <section class="card" aria-labelledby="title"><div class="card-body">
+    <h1 id="title">Choose your password</h1>
+    <p class="soft">Replace the first password before you start. Keep the new one in your password manager.</p>
+    <form class="stack" id="auth-form" method="post" action="/api/password">
+      <div class="field"><label for="password">First password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required autofocus></div>
+      <div class="field"><label for="next">New password<span class="muted">At least 15 characters</span></label><input class="input" id="next" name="next" type="password" autocomplete="new-password" minlength="15" required></div>
+      <div class="field"><label for="confirm">New password again</label><input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="15" required></div>
+      <button class="btn btn-block" type="submit">Save password</button>
+      <p class="error-text" id="status" role="alert" aria-live="polite"></p>
+    </form>
+  </div></section>
+  <button class="btn btn-ghost btn-block" type="button" id="sign-out">Sign out</button>
+  <p class="credit center">rootwell, by denyfirst<span class="credit-stop">.</span></p>
+</div></main>
 </body>
 </html>

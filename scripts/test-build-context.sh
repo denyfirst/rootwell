@@ -36,16 +36,15 @@ while IFS= read -r file; do
     go.mod | go.sum) ;;
     cmd/*.go | internal/*.go) ;;
     cmd/rootwelld/auth/*.html | cmd/rootwelld/auth/*.css | cmd/rootwelld/auth/*.js) ;;
-    cmd/rootwelld/auth/website-examples.json | cmd/rootwelld/auth/schibsted-grotesk.woff2) ;;
+    cmd/rootwelld/auth/schibsted-grotesk.woff2) ;;
     internal/acmecertificate/staging-roots.pem | internal/acmecertificate/production-roots.pem) ;;
-    web/workbench/index.html | web/workbench/style.css | web/workbench/favicon.svg) ;;
-    web/workbench/app.js | web/workbench/theme.js | web/workbench/session.js | web/workbench/wasm-loader.js) ;;
-    web/workbench/certificate-key-match.js | web/workbench/secret-view.js) ;;
-    web/workbench/private-key.js | web/workbench/private-worker-client.js | web/workbench/private-key-worker.js) ;;
-    web/workbench/pfx.js | web/workbench/pfx-worker-client.js | web/workbench/pfx-worker.js) ;;
-    web/workbench/csr.js | web/workbench/csr-worker-client.js | web/workbench/csr-worker.js) ;;
-    web/workbench/rootwell-demo-certificate.pem | web/workbench/rootwell-demo-bundle.pem) ;;
-    web/workbench/rootwell-verify-demo-*.pem) ;;
+    web/workbench/certificates.html | web/workbench/certificates.js | web/workbench/inspect.html | web/workbench/inspect.js) ;;
+    web/workbench/convert.html | web/workbench/convert.js | web/workbench/request.html | web/workbench/request.js) ;;
+    web/workbench/ui.js | web/workbench/rootwell.css | web/workbench/style.css | web/workbench/favicon.svg) ;;
+    web/workbench/theme.js | web/workbench/session.js | web/workbench/wasm-loader.js) ;;
+    web/workbench/private-worker-client.js | web/workbench/private-key-worker.js) ;;
+    web/workbench/pfx-worker-client.js | web/workbench/pfx-worker.js) ;;
+    web/workbench/csr-worker-client.js | web/workbench/csr-worker.js) ;;
     *)
       echo "unreviewed file in the Docker build context: $file" >&2
       status=1
@@ -59,7 +58,7 @@ for path in "${planted[@]}"; do
     status=1
   fi
 done
-for required in go.mod cmd/rootwelld/main.go web/workbench/csr-worker.js internal/acmecertificate/staging-roots.pem; do
+for required in go.mod cmd/rootwelld/main.go web/workbench/certificates.html web/workbench/rootwell.css web/workbench/csr-worker.js internal/acmecertificate/staging-roots.pem; do
   if [[ ! -f "$work/context/$required" ]]; then
     echo "required file is missing from the build context: $required" >&2
     status=1

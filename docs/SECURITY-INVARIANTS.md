@@ -25,52 +25,32 @@ cannot publish or start a Save. Same encrypted image/full recovery is preserved.
 Guarded by `TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey`,
 `TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial`,
 `FuzzPFXImportNoPartialSecret`, `TestPFXImportPreparationHasNoNetworkOrCustodyAuthority`,
-`TestInventoryBulkAssetsRemainBehindReadyAccess`,
+`TestCertificatesPageAndItsScriptsRemainBehindReadyAccess`,
 `TestLinuxMaterialMismatchExportAndBundleFullRestore`,
 `TestCertificateSavePublicationNeedsCurrentSessionAndCancellation`,
-`scripts/test-certificate-library.mjs`, `scripts/test-certificate-pfx-worker.mjs`
-and `scripts/test-inventory-demo.mjs`.
+`scripts/test-certificates.mjs` and `scripts/test-certificate-pfx-worker.mjs`.
 
 ## C105 — Saved navigation cannot grant a website connection (ADR 0086)
 
-The exact-generation native POST selects only one validated public DER record.
-Ready session, same-origin/document navigation, bounded fixed-destination form,
-busy gate and publication revalidation precede inert HTML output. Target,
-private-key and notes input/output are absent. The browser reparses public DER
-and verifies the declared full fingerprint before its separately confirmed
-target-only API request. Invalid selection cannot fall back to no comparison;
-source change/hidden/pagehide clears consent/results and refuses late work.
-The snapshot does not update itself or become server-side trust.
-
-Guarded by `TestSavedWebsiteSelectionCannotAddTargetSecretsOrOtherTools`,
-`TestSavedWebsiteHTMLTransfersOnlyOnePublicSnapshot`,
-`TestSavedWebsiteNavigationRefusesBeforeRead`,
-`TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot`,
-`scripts/test-website-check.mjs` (actual Go WASM),
-`scripts/test-rootwelld-inventory.mjs` and `scripts/test-inventory-demo.mjs`.
+Retired on 22 November 2026 with the page rebuild: the handoff of a saved
+certificate from Certificates into Website check is gone. Certificates now only
+links to Website check with the name after `#`, which fills in the name
+(`scripts/test-website-check.mjs`); the check itself stays under C103.
 
 ## C104 — Expected files cannot repair or replace a live chain verdict (ADR 0085)
 
-Expected public PEM/DER bytes stay inside the browser and are parsed by the
-existing public-only WASM parser and issuer-signature graph. Only one explicit
-non-CA leaf is compared; ambiguous selections cannot trigger a website request.
-The API still accepts only target and consent, not certificates/fingerprints/
-keys/trust. Full DER SHA-256 identity is independent of hostname and trust.
-Per-child server-sent candidate fingerprints locate the failed signature at
-the correct depth; matching names do not verify it. Missing expected issuers,
-legitimate alternatives and normal root omission remain separate. Selection,
-timeout, hidden/pageexit and late-file-read boundaries cannot publish or send a
-stale selection. No comparison is persisted and no new trust source is added.
-
-Guarded by `TestIssuerChecksLocateExactBrokenSignatureAtEachDepth`,
-`TestWebsiteComparisonCannotUploadCertificatesOrTrustToAPI`,
-`scripts/test-website-expected.mjs` (actual Go WASM),
-`scripts/test-website-check.mjs` and `scripts/test-inventory-demo.mjs`.
+Retired on 22 November 2026 with the page rebuild: Website check no longer
+compares expected files. The API still accepts only a target and confirmation,
+never certificates, fingerprints, keys or trust
+(`TestWebsiteComparisonCannotUploadCertificatesOrTrustToAPI`), and issuer
+checks still locate a broken signature at its exact depth
+(`TestIssuerChecksLocateExactBrokenSignatureAtEachDepth`).
 
 ## C103 — Website diagnosis has explicit bounded network authority (ADR 0084)
 
 Website observation is a separate explicit ready-session capability, not a
-network path from offline Workbench. Only an HTTPS DNS origin on port 443 is
+network path from the file pages (Inspect, Convert, Request) or the offline
+`rootwell` Workbench. Only an HTTPS DNS origin on port 443 is
 accepted; all bounded DNS answers must be public, a numeric address is dialed
 once and the original hostname remains SNI. One global in-flight observation,
 30-second interval, deadline and socket byte bounds apply. No application
@@ -78,8 +58,9 @@ data, credentials, proxy, redirects or certificate-URL retrieval is sent.
 Native non-Linux production calls refuse before network work. Peer roots do
 not become trusted; issuer names alone cannot create a signature link. Path,
 hostname and current dates remain separate facts. No result is published
-after the original session is lost; nothing is persisted. UI examples use
-generated public certificates only and cannot enable real preview requests.
+after the original session is lost; nothing is persisted. The page has no
+sample websites; each press of Check sends one request with the fixed
+confirmation the API requires, and an empty entry sends nothing.
 
 Guarded by `TestTrustedPathDoesNotNeedServerSentRoot`,
 `TestSameIssuerNameCannotForgeSignatureLinkOrTrust`,
@@ -96,7 +77,6 @@ Guarded by `TestTrustedPathDoesNotNeedServerSentRoot`,
 `TestBoundedConnectionStopsUnboundedPeerInputAndWrites`,
 `TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing`,
 `TestWebsiteSetupAndLateSessionCannotPublish`, `FuzzAnalyzePublicChain`,
-`TestWebsiteEmbeddedExamplesAreSyntheticAndBounded`,
 `FuzzTarget`, `FuzzWebsiteConsent` and `scripts/test-website-check.mjs`.
 
 ## C1 — Diagnostics do not reflect command input
@@ -248,24 +228,29 @@ Guarded by `TestVerifyCommand`, `TestVerifyDoesNotEchoSensitiveInput`,
 
 ## C16 — Browser file access and asset loading are capability-separated
 
-Workbench assets are self-hosted and contain no third-party subresources. Only
-the WebAssembly loader can fetch, and it has no DOM or selected-file access.
-The application script can read an explicitly selected certificate but has no
-network, service-worker, dynamic-code, markup-injection, or input-persistence
-capability. Same-origin CSP access exists only so the loader can obtain the
-WebAssembly program.
+Page assets are self-hosted and contain no third-party subresources, inline
+script or inline event handler. Every page, signed in or not, is served under
+one strict policy: scripts, styles, images, fonts and connections only from
+this server, WebAssembly compilation allowed, nothing inline and no framing.
+The WebAssembly loader fetches only the engine and has no DOM or selected-file
+access. The scripts that read chosen files (Inspect, Convert, Request and the
+shared `ui.js`) have no network, storage, worker, dynamic-code or HTML-writing
+capability. Certificates talks only to its own API and writes no HTML or
+browser storage. The private-key, PFX and CSR/key-match worker paths are
+bounded, cancellable and clear their bytes.
 
-Guarded by `TestWorkbenchPreviewIsSelfContained`,
-`TestWorkbenchContentSecurityPolicyRestrictsConnections`,
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`,
-`TestWorkbenchProcessingClaimsAreBounded`,
-`TestWorkbenchInspectFileHintMatchesParserBoundary`, and
-`TestWorkbenchElementReferencesResolve`. Browser Verify requires explicit
-trust and cannot silently promote a source root; this is guarded by
-`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`. Text contrast in both themes, for every colour
-text is set in, is guarded by `TestEveryColourTextIsSetInIsLegible`; the one
-pinned typeface by `TestTheTypefaceIsTheOneChosenAndCarriesItsLicence`; and the
-shared rail on every page by `TestEveryWorkspacePageCarriesTheSharedShell`.
+Guarded by `TestPagesAreSelfContained`,
+`TestEveryPageIsServedUnderTheStrictContentSecurityPolicy`,
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`TestInspectFileHintMatchesItsLimit`, and `TestPageElementReferencesResolve`.
+Every page wears the one shared sheet and no inline style
+(`TestEveryPageWearsTheSharedSheetAndNoInlineStyle`). Text contrast in both
+themes, for every colour text is set in, is guarded by
+`TestEveryColourTextIsSetInIsLegible`; legible controls by
+`TestRootwellIsGraphiteAndItsControlsAreLegible`; a control colour never
+doubling as a verdict colour by `TestTheToolColourIsNeverAVerdictColour`; the
+one pinned typeface by `TestTheTypefaceIsTheOneChosenAndCarriesItsLicence`; and
+the shared rail on every page by `TestEveryWorkspacePageCarriesTheSharedShell`.
 Sign out reads no file and talks only to `/api/session`
 (`scripts/test-session.mjs`).
 
@@ -281,9 +266,8 @@ basis, but this public-certificate boundary makes no browser-wide erasure claim.
 Guarded by `TestProcessCertificate`,
 `TestProcessClassifiesFailuresWithoutEchoingInput`,
 `TestProcessRejectsOversizedInput`,
-`TestFailureResponseFailsClosedForUnknownCode`, and
-`FuzzProcessReturnsJSON`. The downloadable non-production input is guarded by
-`TestWorkbenchDemoCertificateIsPublicAndInspectable`.
+`TestFailureResponseFailsClosedForUnknownCode`, `FuzzProcessReturnsJSON`, and
+`scripts/test-browser-wasm.mjs`.
 
 ## C18 — Private-key matching is strict, bounded, and secret-free
 
@@ -334,150 +318,103 @@ Guarded by `TestParsePublicCertificateAndBundle`,
 
 ## C20 — Browser bundle exploration stays public, bounded, and untrusted
 
-Explore accepts up to eight selected files, each a public DER certificate or a
-strict PEM collection through the same Go parser as CLI `explore`. The browser
-enforces a 16 MiB combined and 64-certificate combined limit, rejects
-fingerprint duplicates across files, and reveals no partial list if any file
-fails. It rejects secret-bearing, mixed,
-malformed, duplicate, excessive, and trailing input without partial results or
-reflected certificate text or raw bytes. The response is versioned, bounded, and contains public
+Inspect accepts up to eight chosen files, at most 16 MiB together, each a
+public DER certificate or a strict PEM collection read through the same Go
+parser as CLI `explore`. The engine's chain analysis then bounds the whole
+selection to eight files, 16 MiB and 64 certificates and refuses a certificate
+repeated across files. Secret-bearing, mixed, malformed, duplicate, excessive,
+and trailing input shows no partial result and no reflected certificate text
+or raw bytes; a private key, PFX or CSR is refused with a fixed message naming
+the page that takes it. The response is versioned, bounded, and contains public
 metadata only. Its explicit status is `not-performed` with trust anchor
-`not-selected`; the UI uses text nodes and never turns a CA flag into trust.
-Cross-file duplicate diagnostics identify the two local file positions and
-display-safe bounded filenames plus the full fingerprint; within-file
-duplicates identify the file only. No duplicate is silently discarded.
-The file-reading script has no network or storage capability.
+`not-selected`; the page uses text nodes and never turns a CA flag into trust.
+The file-reading scripts have no network or storage capability, and the page
+forgets the certificate and any typed key password when it is hidden or left.
 
 Guarded by `TestProcessPublicCertificateAndBundle`,
 `TestProcessRejectsUnsafeInputWithoutEchoOrPartialOutput`,
 `TestProcessEnforcesCertificateCountWithoutPartialResult`,
 `TestFailureResponseFailsClosed`, `FuzzProcessPublicBundleReturnsJSON`,
-`TestWorkbenchExploreIsPublicOnlyAndFunctional`,
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
-`TestWorkbenchDemoCertificateIsPublicAndInspectable`, and
-`TestWorkbenchDemoBundleIsPublicAndExplorable`, plus the browser-state
-regressions in `scripts/test-workbench-multifile.mjs` for successful
-aggregation, cross-file and within-file duplicate diagnostics, unsafe filenames,
-malformed second input, stale-selection
-suppression, and size/count/UTF-8 metadata refusals.
+`TestProcessRejectsUnsafeCollectionsWithoutEcho`,
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`TestInspectFileHintMatchesItsLimit`, `scripts/test-browser-wasm.mjs`, and
+`scripts/test-inspect.mjs` for a chain spread over files, the refusal of more
+than eight files and of PFX, key and CSR files, and forgetting on leaving.
 
 ## C21 — Browser export contains only the explicitly chosen public certificate
 
-Export re-parses one bounded public source and selects a certificate by its
-full fingerprint, not bundle position, subject text, or filename. It rejects
-changed, secret-bearing, malformed, duplicate, excessive, and unmatched
-input without partial output. PEM and DER output are re-parsed and must match
-the selected DER bytes and fingerprint. Generated filenames contain only a
-fixed prefix, fingerprint fragment, random suffix, and allowlisted extension.
-The UI makes encoding and extension separate explicit choices: `.crt`/`.cer`
-may name PEM or DER bytes; `.pem` is PEM-only and `.der` is DER-only.
-The browser validates the versioned response and output again, requests a
-browser-managed download, and does not write directly to the filesystem or
-transmit certificate bytes to an API. Browser/OS overwrite policy is outside
-this guarantee; private key and PFX are never accepted here.
+The engine's export re-parses one bounded public source and selects a
+certificate by its full fingerprint, not bundle position, subject text, or
+filename. It rejects changed, secret-bearing, malformed, duplicate, excessive,
+and unmatched input without partial output. PEM and DER output are re-parsed
+and must match the selected DER bytes and fingerprint. A private key or PFX is
+never accepted by this export. Convert builds its certificate files from these
+exports, one certificate at a time in chain order: PEM (`.pem`, the full chain
+without the root), Certificate only (`.crt`, PEM) and DER (`.cer`). Downloads
+are browser-managed; the page does not write directly to the filesystem or
+send certificate bytes to an API. Browser/OS overwrite policy is outside this
+guarantee.
 
 Guarded by `TestPrepareExportsOnlySelectedCertificate`,
 `TestPrepareRejectsChangedOrUnsafeSource`,
 `FuzzPrepareNeverReturnsUnselectedCertificate`,
-`TestWorkbenchPublicExportIsLocalAndExplicit`,
-`TestWorkbenchDemoBundleIsPublicAndExplorable`, and
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`.
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`scripts/test-browser-wasm.mjs`, and `scripts/test-convert.mjs`.
 
 ## C22 — Issuer candidates are signed relationships, never trust verdicts
 
-The separate browser analysis accepts only a bounded, strict public
-collection. It checks raw issuer/subject name equality, CA constraints, and
-the certificate signature before listing a possible issuer. Ambiguous
-parents remain separate candidates; a self-signed CA is not a trust anchor.
-There is no hostname, time, complete path, algorithm-policy, revocation, or
-private-key verdict. Signature work is capped at 256 checks. Malformed,
-changed, duplicate, excessive, or secret-bearing input hides the entire
-Explore result. The UI validates ordered full fingerprints and index bounds
-before rendering relationships as text, and no network path is introduced.
+The engine's chain analysis accepts only a bounded, strict public collection.
+It checks raw issuer/subject name equality, CA constraints, and the certificate
+signature before listing a possible issuer. Ambiguous parents remain separate
+candidates; a self-signed CA is not a trust anchor. There is no hostname, time,
+complete path, algorithm-policy, revocation, or private-key verdict. Signature
+work is capped at 256 checks. Malformed, changed, duplicate, excessive, or
+secret-bearing input hides the entire Inspect result. Inspect and Convert use
+these links only to order and label the chain, drawn as text; Inspect calls a
+chain complete when it ends at a self-signed certificate, which describes the
+files, not trust. No network path is introduced.
 
 Guarded by `TestProcessFindsSignedCandidatesWithoutTrust`,
 `TestProcessRejectsUnsafeCollectionsWithoutEcho`,
 `TestProcessBoundsSignatureWork`,
 `FuzzProcessNeverReturnsTrust`,
-`TestWorkbenchExploreIsPublicOnlyAndFunctional`, and the browser-state
-regressions in `scripts/test-workbench-multifile.mjs`.
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`scripts/test-browser-wasm.mjs`, and `scripts/test-inspect.mjs`.
 
 ## C23 — Selected public bundle export cannot add or reorder certificates
 
-The browser downloads only an explicitly checked, order-preserving subset
-of the current Explore fingerprint snapshot. At export time the Go bridge
-re-parses every 1–8 public source under combined 16 MiB/64-certificate
-limits, rejects changed or unsafe input, and re-parses the output. Every
-output DER byte string must match the corresponding selected original.
-The UI validates the versioned response, ordered fingerprints, generated
-filename, and output again before a browser-managed download. No private
-key, automatic chain/trust verdict, network path, or direct filesystem
-write is added; browser/OS save and overwrite behavior is outside scope.
-
-Guarded by `TestPrepareExportsExplicitOrderedSubset`,
+Retired on 22 November 2026 with the page rebuild: no page offers the old
+Explore selection export. The engine's bundle export still refuses changed,
+unsafe and unselected input (`TestPrepareExportsExplicitOrderedSubset`,
 `TestPrepareRejectsChangedUnsafeAndUnselectedInput`,
 `FuzzPrepareBundleNeverExportsUnselectedCertificate`,
-`TestWorkbenchPublicBundleExportIsExplicit`, and the browser WebAssembly
-regressions in `scripts/test-browser-wasm.mjs`.
+`scripts/test-browser-wasm.mjs`).
 
 ## C24 — Browser Verify uses only explicit trust and the CLI policy
 
-Simple and Advanced use the same `certverify.Verify` TLS server core, with a
-separately selected PEM trust bundle, hostname, evaluation time, and no system
-roots or network. Simple accepts bounded strict public sources and requires
-one non-CA leaf; it never promotes a self-signed source root into trust or
-silently selects between multiple leaves. Advanced explicitly selects one
-leaf and optional intermediate bundle. The browser bridge rejects oversized
-combined input before allocating extra Go copies. A versioned success must
-identify explicit-file trust and the requested hostname; changed selections
-or failures hide the result. Revocation, live endpoint, and private-key
-possession are not claimed.
-
-Guarded by `TestSimpleAndExplicitUseSameTrustVerdict`,
-`TestSimpleNeverTrustsSourceRoot`,
-`TestSimpleRejectsAmbiguousAndSecretSources`,
+Retired on 22 November 2026 with the page rebuild: the browser Verify panel is
+gone. The engine's verifier still uses only an explicit trust file and the CLI
+policy (`TestSimpleAndExplicitUseSameTrustVerdict`,
+`TestSimpleNeverTrustsSourceRoot`, `TestSimpleRejectsAmbiguousAndSecretSources`,
 `TestExplicitClassifiesRefusalsWithoutPartialChain`,
-`FuzzSimpleNeverUsesSourceAsTrust`,
-`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`, and the real
-WebAssembly regressions in `scripts/test-browser-wasm.mjs`.
+`FuzzSimpleNeverUsesSourceAsTrust`, `scripts/test-browser-wasm.mjs`).
 
 ## C25 — Verified fullchain export re-verifies and excludes the root
 
-A visible Verified result alone does not authorize a download. The export
-path re-reads bounded public inputs and requires the complete new verified
-path to match the displayed ordered fingerprint snapshot under the same
-hostname, explicit trust, mode, and evaluation time. Any refusal or changed
-path returns no bytes and invalidates the browser's earlier verdict. The
-output is canonical PEM in leaf/intermediate path order; the trust root,
-private key, unrelated certificates, and unverified candidates are absent.
-Go and browser code re-parse and compare the output before requesting a
-browser-managed download. The file is a verdict at the displayed evaluation
-time, not proof of current validity or live deployment.
-
-Guarded by `TestPrepareVerifiedFullchainExcludesRootAndPreservesVerifiedOrder`,
+Retired on 22 November 2026 with the page rebuild: no page offers the verified
+fullchain download. The engine's export still re-verifies the same path and
+leaves the root out
+(`TestPrepareVerifiedFullchainExcludesRootAndPreservesVerifiedOrder`,
 `TestPrepareRefusesUnverifiedChangedAndUnsafeInputs`,
 `TestPrepareExplicitNeedsSameVerifiedPath`,
-`FuzzPrepareNeverExportsUnverifiedSource`,
-`TestWorkbenchVerifyDemoIsPublicAndExportsOnlyVerifiedPath`, and the real
-WebAssembly and browser-state regressions in `scripts/test-browser-wasm.mjs`
-and `scripts/test-workbench-multifile.mjs`.
+`FuzzPrepareNeverExportsUnverifiedSource`, `scripts/test-browser-wasm.mjs`).
 
 ## C26 — Optional root pin binds the offline verdict to a full fingerprint
 
-Browser Verify accepts an optional 32-byte SHA-256 certificate fingerprint,
-written as 64 hex digits or 32 colon-separated hex bytes. The Go verification
-core compares it against the final trust anchor in the verified path, not the
-first item in a bundle or a self-signed root in source files. A malformed or
-mismatched pin returns no chain or Verified result. Both Simple and Advanced
-use this rule. Editing the field invalidates the current verdict and export;
-the existing export re-verifies the complete ordered fingerprint path, including
-that root. An absent pin is reported as `not-provided`, never as authenticated
-root identity. A matching pin proves agreement with the supplied fingerprint
-only: independent authentication of its source is the operator's task.
-
-Guarded by `TestRootPinMatchesOnlyCompleteVerifiedPathAnchor`,
-`scripts/test-browser-wasm.mjs`, `scripts/test-workbench-multifile.mjs`, and
-`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`.
+Retired on 22 November 2026 with the page rebuild, together with the browser
+Verify panel. The engine still compares a pin only with the final anchor of
+the verified path (`TestRootPinMatchesOnlyCompleteVerifiedPathAnchor`,
+`scripts/test-browser-wasm.mjs`).
 
 ## C27 — A live TLS observation has a separate, explicit network boundary
 
@@ -502,60 +439,25 @@ Guarded by `TestWorkbenchHasNoNetworkOrProcessImports`,
 
 ## C28 — Local expiry overview cannot become a trust or renewal verdict
 
-Explore returns both X.509 validity endpoints as canonical UTC timestamps.
-The browser rejects malformed dates before showing any result and classifies
-all selected public certificates against one browser-clock snapshot. It
-distinguishes expired, not-yet-valid, invalid ranges, 0–30 days, 31–90 days,
-and later expiry without treating CA certificates as trusted. The 30/90-day
-thresholds are fixed 24-hour intervals; the X.509 end instant is inclusive.
-Results are in-memory only, cleared on selection or failure, and never imply
-alerts, renewal, revocation, server deployment, or clock authenticity.
-
-Guarded by `TestProcessPublicCertificateAndBundle`,
-`TestWorkbenchExploreIsPublicOnlyAndFunctional`, and
-`scripts/test-workbench-multifile.mjs`.
+Retired on 22 November 2026 with the page rebuild: the Explore expiry overview
+is gone. Inspect shows days left for each certificate from the engine's UTC
+validity dates (`TestProcessPublicCertificateAndBundle`,
+`scripts/test-inspect.mjs`); that is not a trust, renewal or deployment verdict.
 
 ## C29 — Guided handoff cannot choose trust or conceal changed sources
 
-Explore's plain-language guide is based only on validated public metadata
-and signature-backed possible issuer links. It never says a candidate is
-trusted or verified. Only an explicit click transfers selected File references,
-and only when exactly one certificate lacks the CA flag. The user must still
-provide a hostname and a separate trust file. Before invoking the unchanged
-Go Simple verifier, the browser re-parses every guided source and compares
-its ordered full SHA-256 certificate fingerprints with the Explore snapshot.
-Changed or malformed files, new selection, and manual source replacement
-invalidate the handoff. No source root becomes a trust anchor. Verification
-failure guidance is fixed by allowlisted error code, not raw input text.
-
-Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional`,
-`TestWorkbenchVerifyRequiresExplicitTrustAndRemovesPreview`, and
-`scripts/test-workbench-multifile.mjs`.
+Retired on 22 November 2026 with the page rebuild: the guided handoff from
+Explore to Verify is gone with both panels. Nothing replaces it.
 
 ## C30 — Possible signing links never become a trust path
 
-The Explore link guide renders validated signature-backed possible-parent
-indices as text only. It neither chooses a signer when multiple candidates
-exist nor infers a trusted root from a self-signed certificate. Missing
-parents remain visible. Changing source order only changes card numbers;
-new selection or failed analysis clears old rows. The explicit Verify trust
-file remains untouched.
-
-Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional` and
-`scripts/test-workbench-multifile.mjs`.
+Retired on 22 November 2026 with the page rebuild: the Explore link guide is
+gone. The issuer links Inspect draws remain under C22.
 
 ## C31 — Public report is explicit, bounded, and snapshot-bound
 
-A report is requested only by the user after a successful public Explore.
-Every source is re-read and its ordered full certificate fingerprints must
-match the displayed snapshot. Selection changes, parse failure, oversized
-inputs or report output, and stale work prevent the browser download. The JSON
-contains public metadata and explicit non-verification markers, not source
-filenames, private keys or a trusted-root verdict. The browser controls final
-file saving; internal certificate names may still be sensitive to the owner.
-
-Guarded by `TestWorkbenchExploreIsPublicOnlyAndFunctional` and
-`scripts/test-workbench-multifile.mjs`.
+Retired on 22 November 2026 with the page rebuild: the public JSON report
+download is gone. Nothing replaces it.
 
 ## C32 — Initial installation password cannot open stored data
 
@@ -575,8 +477,8 @@ Guarded by `TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable`,
 
 Only a local interactive init can show a new per-installation setup password.
 An initial-password session can see the password-change page, never the
-Workbench or its assets. A successful change invalidates every prior session;
-normal access requires fresh sign-in with the replacement password. The server
+workspace pages or their assets. A successful change invalidates every prior
+session; normal access requires fresh sign-in with the replacement password. The server
 binds loopback only and rejects unexpected Host, cross-origin mutation,
 malformed requests, oversized bodies and excess password attempts. No vault or
 remote transport is implied.
@@ -803,26 +705,27 @@ Guarded by `TestFullSnapshotPasswordAndCodeRoundTrip`,
 
 ## C47 — Public inventory upload is explicit, authenticated, and non-verifying
 
-The offline Workbench retains its no-upload boundary. A separate self-hosted
-Inventory page discloses that Save sends public certificate bytes to the
-loopback daemon. The API requires a ready revision-bound session; POST also
-requires exact same-origin and a custom header, rejects duplicate JSON fields
-and oversized bodies, and reuses the strict public parser before any atomic
-write. GET requires the custom header and refuses cross-site fetch metadata.
-Legacy/setup sessions and unsupported platforms cannot write. Responses omit
-DER/private bytes, label every list as unverified, and show import generation,
-server-clock save time, and browser-clock expiry without audit claims. No automatic backup, trust, deployment,
-revocation, notification, or private-key support is implied. A ready Linux
-session holds the data key in process memory until revoked/expired; map erasure
-is best effort and a compromised process is outside this boundary.
+Inspect, Convert and Request upload nothing. Certificates reach the loopback
+daemon only through the inventory and certificate APIs, which the Certificates
+page calls when the person adds one. The API requires a ready revision-bound
+session; POST also requires exact same-origin and a custom header, rejects
+duplicate JSON fields and oversized bodies, and reuses the strict public parser
+before any atomic write. GET requires the custom header and refuses cross-site
+fetch metadata. Legacy/setup sessions and unsupported platforms cannot write.
+Responses omit DER/private bytes, label every list as unverified, and carry
+import generation and server-clock save time without audit claims. No
+automatic backup, trust, deployment, revocation, notification, or private-key
+support is implied. A ready Linux session holds the data key in process memory
+until revoked/expired; map erasure is best effort and a compromised process is
+outside this boundary.
 
 Guarded by `TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
 `TestInventoryInputRejectsDuplicateUnknownAndOversizedJSON`,
 `TestInventoryOutputNeverSerializesCertificateBytes`,
 `TestCreateAppendOpenAndRejectDuplicate`,
 `TestOlderImageWithoutImportTimeStillOpens`,
-`TestWorkbenchPreviewIsSelfContained`, and
-`scripts/test-rootwelld-inventory.mjs`.
+`TestPagesAreSelfContained`, `TestPagesSeparateFileAndNetworkCapabilities`,
+and `scripts/test-certificates.mjs`.
 
 ## C48 — Linux container volumes keep recovery separate and reject unsafe reuse
 
@@ -857,9 +760,9 @@ reseals only that certificate under a fresh generation. Original import
 generation/time and DER remain unchanged. Old images without additional
 locations remain readable. Stale generation, missing certificate, duplicate,
 malformed or excessive labels, corrupt image, and cross-origin or anonymous
-requests do not write. API and UI say locations are operator notes, not
-verified deployments. Each successful note needs a new full snapshot;
-existing snapshots do not acquire it automatically.
+requests do not write. Locations are operator notes, not verified
+deployments. Each successful note needs a new full snapshot; existing
+snapshots do not acquire it automatically.
 
 Guarded by `TestAssociateLocationIsBoundedExplicitAndDetached`,
 `TestAssociateLocationPreservesOneCertificateAndImportProvenance`,
@@ -869,7 +772,7 @@ Guarded by `TestAssociateLocationIsBoundedExplicitAndDetached`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
 `TestLocationInputRejectsMalformedAndDuplicateFields`,
 `TestInventoryOutputNeverSerializesCertificateBytes`,
-`TestContainerVolumeDrill`, and `scripts/test-rootwelld-inventory.mjs`.
+`TestContainerVolumeDrill`, and `scripts/test-certificates.mjs`.
 
 ## C50 — Owner correction is explicit, generation-bound, and non-verifying
 
@@ -888,7 +791,7 @@ Guarded by `TestUpdateOwnerChangesOnlyDetachedManualNote`,
 `TestLinuxInventoryOwnerCorrectionIsDurableAndRestorable`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
 `TestOwnerInputRequiresExplicitBoundedStringAndGeneration`, and
-`scripts/test-rootwelld-inventory.mjs`.
+`scripts/test-certificates.mjs`.
 
 ## C51 — Manual location correction cannot become deployment or certificate deletion
 
@@ -899,50 +802,47 @@ unknown, duplicate, no-op, cross-origin, and unauthorized requests cannot
 write. Only the selected record is resealed. DER, fingerprint, owner, original
 import provenance, and other records remain unchanged. Removing the first
 label promotes the next; removing the last leaves an unknown location and
-does not delete the certificate or touch a server. UI removal requires an
-explicit confirmation checkbox. Older snapshots can restore old notes.
+does not delete the certificate or touch a server. On the Certificates page a
+place is removed from its chip, which changes only that note. Older snapshots
+can restore old notes.
 
 Guarded by `TestRenameAndRemoveLocationPreserveCertificateAndUnknownState`,
 `TestChangeLocationPreservesCertificateAndImportProvenance`,
 `TestLinuxLocationCorrectionsSurviveFullRestoreAndRejectStaleWrites`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
 `TestLocationChangeInputRequiresExactActionAndFields`, `TestContainerVolumeDrill`,
-and `scripts/test-rootwelld-inventory.mjs`.
+and `scripts/test-certificates.mjs`.
 
 ## C52 — Expiry triage is a local view, not a trust verdict
 
-The saved public inventory response is fully validated before local-only
-priority sorting, text search, and expiry or missing-note filters. At the exact
-NotAfter instant the certificate is expired. Counts include all records even
-when filtered; the shown count states the distinction. Filtering neither
-transmits metadata nor rereads selected files, stores search terms, changes
-the encrypted image, or opens a correction panel for a stale selection. The
-original browser-clock view is superseded by one server-clock observation
-(ADR 0041, C64). Search and filters remain browser-memory-only. Next-action
-text does not claim verified deployment, trust or renewal. Incorrect clocks
-remain a residual risk; reminders are page-only, not guaranteed delivery.
+The Certificates page counts saved certificates as good, expiring soon (30
+days or less) or expired against the browser clock, sorts them by end date,
+and filters or searches them in the page only. Counts cover every record even
+when a filter is pressed. Filters and search terms are not sent or stored and
+change nothing saved. Server-clock expiry stays with the API (ADR 0041, C64).
+The counts are not a deployment, trust or renewal verdict; an incorrect browser
+clock remains a residual risk, and nothing is sent as a reminder.
 
-Guarded by `scripts/test-rootwelld-inventory.mjs`.
+Guarded by `scripts/test-certificates.mjs`.
 
 ## C53 — Inventory UI does not export sensitive metadata
 
-The earlier selected-record JSON download is retired from the Inventory UI.
-The page has no bulk-selection or download path; searching and opening
-details do not transmit inventory notes. Certificate download stays in the
-public-only Workbench flows, and encrypted full backup stays offline. The
-development visual demo uses generated fake records, binds loopback only,
-disables writes, and never demonstrates durable storage or authentication.
+The Certificates page has no bulk selection and no bulk export. Its only
+downloads are one saved certificate, its full chain, the certificate with its
+key, or the key alone, through the certificate API under C68's password rules.
+Encrypted full backup stays offline. The development visual demo was retired
+on 22 November 2026 with the page rebuild.
 
-Guarded by `scripts/test-rootwelld-inventory.mjs` and
-`scripts/test-inventory-demo.mjs`.
+Guarded by `scripts/test-certificates.mjs`.
 
 ## C54 — Record deletion is exact, explicit, and never a revocation claim
 
 One saved public certificate and its manual notes can be removed from the
 current encrypted image only by an authenticated ready same-origin POST with
 the displayed generation, a duplicated exact fingerprint, and a fixed
-confirmation phrase. The UI additionally requires the operator to type the
-full displayed fingerprint and check a backup warning. The whole image is
+confirmation phrase. The Certificates page asks first in a dialog that says
+servers are not changed, then sends the exact fingerprint twice with the fixed
+phrase. The whole image is
 authenticated before deletion and atomically replaced; all surviving records
 retain their bytes, notes, and import provenance. Stale, absent, malformed,
 anonymous, cross-origin, and headerless attempts do not write. Removing the
@@ -955,7 +855,7 @@ Guarded by `TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage`,
 `TestLinuxInventoryExplicitDeletionAndOldSnapshotRetention`,
 `TestInventoryDeleteInputRequiresTypedFingerprintConfirmationAndGeneration`,
 `TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`, and
-`scripts/test-rootwelld-inventory.mjs`.
+`scripts/test-certificates.mjs`.
 
 ## C55 — Public CLI conversion cannot become key export or overwrite
 
@@ -1074,98 +974,98 @@ Guarded by `TestExportProducesOnlyEncryptedMatchingPKCS8`,
 
 ## C60 — Browser private conversion is separate and bounded
 
-Only the explicit private-key Convert picker accepts one strict unencrypted
-PKCS#8, RSA PKCS#1, or EC SEC1 PEM/DER key or a bounded modern encrypted
-PKCS#8 PEM/DER key up to 64 KiB. Inspection returns public metadata only.
-Encrypted input requires its current password on inspection and again on
-export. Export re-reads the file and binds it to the full displayed public
-fingerprint. Encrypted PKCS#8 output with a fresh 20–128 printable-character
-password is default; plaintext compatible targets require separate visible
-selection and confirmation. Malformed, changed, oversized, wrong-fingerprint,
-wrong-password, unsupported target/profile, and PFX input publish no key.
-The browser script cannot upload or persist selected bytes;
-buffers and password fields are cleared best-effort. The public Inspect,
-Verify, and certificate Convert inputs remain public-only. The browser and OS
-may retain memory/download copies and control file permissions; no vault or
-per-user key authorization is claimed.
+Convert takes one private key alone, at most 64 KiB: a strict unencrypted
+PKCS#8, RSA PKCS#1, or EC SEC1 PEM/DER key, or a bounded modern encrypted
+PKCS#8 PEM/DER key. Inspection returns public metadata only. An encrypted key
+needs its current password before any format is offered, and again on export;
+a wrong password publishes nothing. Export binds the full displayed public
+fingerprint. The PEM choice is encrypted PKCS#8 when the person types or
+generates a new 20–128 character password, which must differ from the key's
+current password; left empty, it is unprotected PKCS#8. The DER and older PEM
+choices are unprotected. A generated password reaches the clipboard only when
+the person presses Copy. Malformed, changed, oversized, wrong-fingerprint, wrong-password,
+unsupported target/profile, and PFX input to the key reader publish no key.
+The page script cannot upload or persist selected bytes; buffers and password
+fields are cleared best-effort, and everything is forgotten after ten idle
+minutes or on leaving the page. Inspect's certificate reader stays public-only.
+The browser and OS may retain memory/download copies and control file
+permissions; no vault or per-user key authorization is claimed.
 
 Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
 `TestPrivateConversionRefusesMalformedChangedAndWeakPassword`,
 `FuzzInspectPrivateKeyNoSecretEcho`,
 `TestEncryptedInputAndPlaintextTargets`,
 `TestEncryptedInputRefusesUnsafeProfilesAndNoPartialExport`,
-`TestWorkbenchPrivateConversionSeparatesInputAndOutputPasswords`,
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
+`TestPagesSeparateFileAndNetworkCapabilities`, and
 `TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
-`scripts/test-browser-wasm.mjs` and `scripts/test-workbench-private.mjs`.
+`scripts/test-browser-wasm.mjs`, `scripts/test-convert.mjs` and
+`scripts/test-workbench-private-worker.mjs`.
 
 ## C61 — Browser PFX stays isolated, bounded, and honest
 
-Only the separate PFX picker accepts a password-protected PFX, at most 1 MiB,
-with the authenticated modern profile and pre-decryption KDF caps. Inspection
-returns public certificate metadata only and labels additional certificates
-as included, not trusted. Each extraction re-reads and reauthenticates the
-selected file; public extraction binds its displayed full fingerprint, while
-private extraction binds the matching certificate and outputs only newly
-encrypted PKCS#8 PEM under a distinct new password. Creation accepts one
-strict matching RSA/ECDSA key (unencrypted or bounded encrypted PKCS#8), non-CA certificate, and optional
-ordered issuer PEM. Wrong passwords, tampering, changed selection, mismatch,
-unsupported profiles, malformed inputs, stale UI operations, and worker
-timeout request no download. Neither path writes Inventory or Vault.
+Convert opens one password-protected PFX on its own, at most 1 MiB, with the
+authenticated modern profile and pre-decryption KDF caps. Inspection returns
+public certificate metadata only; additional certificates are included, not
+trusted. Every output reauthenticates the held PFX bytes with its password in
+the worker. Certificate outputs bind their full fingerprints. The private key
+comes out as unprotected PKCS#8 PEM, or as newly encrypted PKCS#8 PEM under a
+new password that must differ from the PFX password. A new PFX always needs a
+new 20–128 character password, different from the current one. Creation
+accepts one strict matching RSA/ECDSA key (unencrypted or bounded encrypted
+PKCS#8), a non-CA certificate, and optional ordered issuers; a key that belongs
+to another certificate is refused. Wrong passwords, tampering, changed
+selection, mismatch, unsupported profiles, malformed inputs, stale operations,
+and worker timeout request no download. Neither path writes the Certificates
+store or any vault.
 
 The one-shot PFX worker receives bounded transferred buffers only after
 readiness. The authenticated gateway denies worker network connections and
-the file-reading script has no network/storage/markup-injection capability.
-Best-effort buffer clearing and browser download restrictions do not promise
-memory erasure, private filesystem permissions, no overwrite, or protection
-from a malicious extension or compromised host. A release still requires
-independent security audit.
+child workers, and the file-reading script has no network/storage/markup-
+injection capability. Best-effort buffer clearing and browser download
+restrictions do not promise memory erasure, private filesystem permissions, no
+overwrite, or protection from a malicious extension or compromised host. A
+release still requires independent security audit.
 
 Guarded by `TestCreateInspectExtractAndRefuse`,
 `TestCreatePFXFromEncryptedKey`, `TestEncryptedPFXCreationRefusesUnsafeInputs`,
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`, and
+`TestPFXRevealReauthenticatesAndMatches`,
+`TestPagesSeparateFileAndNetworkCapabilities`, and
 `TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
-`scripts/test-browser-pfx.mjs` and
-`scripts/test-workbench-pfx-worker.mjs` and
-`scripts/test-workbench-pfx-ui.mjs`.
+`scripts/test-browser-pfx.mjs`, `scripts/test-workbench-pfx-worker.mjs` and
+`scripts/test-convert.mjs`.
 
 ## C62 — Private-key display is explicit, transient and separate
 
-Normal summaries contain no private key. A separate eye action requires fresh
-file authentication for encrypted PKCS#8/PFX and binds the inspected identity.
-Plaintext input needs renewed screen-exposure consent, not a fake password.
-Viewing adds no download, clipboard, logging, storage or network capability.
-Text is cleared after 30 seconds and at page/tool/source boundaries; pending
-operations are cancelled to prevent revival. Only one view is visible; print
-CSS excludes it. Saved Vault keys need future separate instance reauthentication.
-Screen capture, extensions and runtime copies remain residual risks.
-
-Guarded by `TestPFXRevealReauthenticatesAndMatches`,
-`TestPFXRevealRefusesUnsafeInputs`,
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`,
-`TestWorkbenchPrivateViewHasNoPersistenceOrDownload`, plus
-`scripts/test-browser-pfx.mjs`, `scripts/test-workbench-private.mjs`,
-`scripts/test-workbench-pfx-ui.mjs` and `scripts/test-workbench-secret-view.mjs`.
+Retired on 22 November 2026 with the page rebuild: no page shows a private key
+on screen, so the 30-second view is gone. The PFX worker's reveal step, which
+now produces Convert's unprotected key download (C61), still reauthenticates
+and binds the inspected identity (`TestPFXRevealReauthenticatesAndMatches`,
+`TestPFXRevealRefusesUnsafeInputs`).
 
 ## C63 — Offline key + CSR work is bounded and never issuance or trust
 
-New RSA/ECDSA keys use crypto/rand and leave the worker only encrypted as
-PKCS#8 in a ZIP with the public signed CSR; the ZIP is not encrypted. Existing
-supported keys produce only a CSR. Every request is reparsed, signature-checked
-and subject/SAN/public-key checked under the modern policy. Import consumes one
-complete PEM/DER request at most 64 KiB; unknown attributes/extensions, ignored
-email/URI names, duplicate/malformed names and weak signatures fail closed.
-Public export binds the full displayed request fingerprint. Returned-certificate
-comparison separately reports canonical public-key identity, literal SAN
-differences, subject encoding/value changes and CA status, with trust false.
-A fake certificate can copy a public key; issuer/chain/time/purpose/revocation
-and deployment must not be inferred. One-shot worker deadlines, selection and
-page cancellation prevent stale downloads; secrets never enter UI persistence,
-network, clipboard, logs or public summaries.
-Both directions reject foreign/missing dedicated-worker event metadata before
-initialization or secret transfer; this is not a Window message allowlist.
-Browser/OS copies and actual
-download permissions remain outside the best-effort memory-clearing claim.
+Request makes a new RSA/ECDSA key with crypto/rand in a one-shot worker; the
+key leaves the worker only encrypted as PKCS#8 under the person's new 20–128
+character password, in a ZIP with the public signed CSR; the ZIP is not
+encrypted. An existing supported key, opened with its password when it has
+one, produces only a CSR. Every request is reparsed, signature-checked and
+subject/SAN/public-key checked under the modern policy. The engine's CSR import
+consumes one complete PEM/DER request at most 64 KiB; unknown attributes/
+extensions, ignored email/URI names, duplicate/malformed names and weak
+signatures fail closed. Its public export binds the full request fingerprint,
+and returned-certificate comparison separately reports canonical public-key
+identity, literal SAN differences, subject encoding/value changes and CA
+status, with trust false; no page offers import, export or comparison since
+22 November 2026. A fake certificate can copy a public key; issuer/chain/time/
+purpose/revocation and deployment must not be inferred. One-shot worker
+deadlines and page cancellation prevent stale downloads; the request and its
+key are forgotten after ten idle minutes or on leaving the page. Secrets never
+enter UI persistence, network, logs or public summaries; a generated password
+reaches the clipboard only when the person presses Copy. Both directions
+reject foreign/missing dedicated-worker event metadata before initialization
+or secret transfer; this is not a Window message allowlist. Browser/OS copies
+and actual download permissions remain outside the best-effort memory-clearing
+claim.
 
 Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,
 `TestExistingKeyCSRFormatsAndEncryptedInput`,
@@ -1174,9 +1074,9 @@ Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,
 `TestReturnedCertificateComparisonDoesNotImplyTrust`,
 `TestCSRRefusesMalformedUnsafeAndIgnoredFields`,
 `TestCSRNameSubjectPasswordAndFormatRefusal`, `FuzzInspectCSR`,
-`TestWorkbenchCSRBoundaryIsExplicit`,
+`TestPagesSeparateFileAndNetworkCapabilities`,
 `TestWorkbenchHasNoNetworkOrProcessImports`, plus
-`scripts/test-browser-csr.mjs`, `scripts/test-workbench-csr-ui.mjs` and
+`scripts/test-browser-csr.mjs`, `scripts/test-request.mjs` and
 `scripts/test-workbench-csr-worker.mjs`.
 
 ## C64 — Saved-certificate reminders bind one server instant and fail visibly
@@ -1187,46 +1087,23 @@ generation or ciphertext. Exact NotAfter is expired; malformed or zero/reversed
 ranges are invalid; long dates cannot saturate a duration. The API still omits
 certificate bytes and explicitly says verification was not performed.
 
-The page validates the whole response and agreement of every expiry field
-before rendering. Missing/inconsistent metadata, malformed UTF-8/JSON, more
-than 4 MiB, read timeout or refused authentication clears cards and pauses
-automatic retries. Visible-page reads are minute-spaced and do not extend a
-session or interrupt pending edits. Hidden/pagehide views clear metadata,
-abort reads, discard late results and stop timers; BFCache return reauthenticates.
-At 120 seconds the snapshot is stale, including during disabled refresh or an
-open editor. Clock disagreement is warned about, never silently corrected.
-7/14/30/90-day windows are local ephemeral views; expired/invalid/future records
-always need attention. Reminder counts cover the entire snapshot, not only
-the current search. There is no secret custody, outbound notification,
+The old Certificates page's minute-spaced refresh, 120-second stale snapshot,
+clock-disagreement warning and 7/14/30/90-day reminder windows were retired on
+22 November 2026 with the page rebuild; the new page counts days left against
+the browser clock (C52). There is no secret custody, outbound notification,
 guaranteed closed-page alert, discovery, trust, renewal or Porch change.
 
 Guarded by `TestObserveExpiryExactBoundariesAndNoTrust`,
 `TestObserveExpiryRejectsMalformedAndHandlesLongDates`,
-`TestInventoryMonitoringBindsOneServerClockAndNeverMutates`,
-`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
-`scripts/test-rootwelld-inventory.mjs` and `scripts/test-inventory-demo.mjs`.
+`TestInventoryMonitoringBindsOneServerClockAndNeverMutates`, and
+`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`.
 
 ## C65 — Saved public handoff is exact, transient, and never implicit trust
 
-Only an authenticated ready Linux same-origin native navigation can open one
-saved public DER in Workbench. Mandatory Origin/fetch metadata, bounded exact
-form fields, whole-image authentication, displayed generation and full
-fingerprint lookup precede release. No query, key, credential, owner/location
-note, new storage, write or session extension is introduced. The bounded
-inert HTML payload is removed and reparsed against its fingerprint before
-rendering. Manual replacement/page exit cancels pending processing and clears
-saved-source state. Workbench still has no upload or persistence capability.
-Guided Verify requires hostname/separate trust, never trusts a saved CA, and
-can accept explicitly added bounded issuer files under unchanged verifier
-policy. Browser/OS copies, already-open local snapshots, compromised code and
-authenticated filesystem rollback remain residual risks (ADR 0042).
-
-Guarded by `TestWorkbenchSelectionIsExactBoundedAndNonUploading`,
-`TestInventoryWorkbenchHTMLContainsOnlySelectedPublicObject`,
-`TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot`,
-`TestWorkbenchSeparatesFileAndNetworkCapabilities`,
-`scripts/test-inventory-workbench.mjs`, `scripts/test-rootwelld-inventory.mjs`
-and `scripts/test-inventory-demo.mjs`.
+Retired on 22 November 2026 with the page rebuild: the handoff of one saved
+certificate from Certificates into the old Tools page is gone. Nothing
+replaces it; saved certificates are downloaded through the certificate API
+under C68.
 
 ## C102 — A local production account key cannot reuse staging identity or grant CA authority
 
@@ -1237,7 +1114,7 @@ history/image limits and pending staging completion reserves remain intact.
 Existing keys cannot be replaced; production key status cannot invent account
 registration, terms acceptance or certificate issuance. Fixed local routes use
 fresh authentication, separate consent, existing budgets and Linux atomic
-custody. UI secrets/consent and stale results are cleared; demo cannot prepare.
+custody. UI secrets/consent and stale results are cleared.
 
 Guards: `TestProductionAccountSeparateEncryptedKeyAndSharedGeneration`,
 `TestProductionAccountCorruptionBlocksUnselectedScopeAndNoPartialEvidence`,
@@ -1247,8 +1124,8 @@ Guards: `TestProductionAccountSeparateEncryptedKeyAndSharedGeneration`,
 `TestProductionAccountUnsupportedPlatformCannotReadWriteOrCallPermit`,
 `TestLinuxProductionAccountSeparateCustodyRefusalsAndFullRecovery`,
 `TestLinuxProductionAccountAPIReauthNoNetworkNoPromotionOrReplacement`,
-`FuzzProductionAccountPayload`, `scripts/test-production-account.mjs` and
-`scripts/test-inventory-demo.mjs`. This is local-key preparation, not live CA
+`FuzzProductionAccountPayload` and `scripts/test-production-account.mjs`.
+This is local-key preparation, not live CA
 interoperability, production issuance or independent audit evidence.
 
 ## C101 — A production profile cannot promote staging identity or test trust
@@ -1344,11 +1221,11 @@ any network work. No pruning, byte reclamation, abandonment or historical replay
 
 Fresh password/exact generation/separate `lossless-request-archive` scope and
 backup/compatible-version acknowledgement precede local Linux writer/permit/
-revision/atomic-publication checks. Status and strict bounded UI expose counts,
-never keys/provider URLs. Older binaries refuse the new manifest fields; manual
-DNS v9 distinguishes the larger total retained count from active capacity. The
-optional existing storage section and disabled fake preview grant no network or
-worker authority. A result lost after commit requires status, never blind replay.
+revision/atomic-publication checks. Status exposes counts, never keys/provider
+URLs. Older binaries refuse the new manifest fields; manual DNS v9 distinguishes
+the larger total retained count from active capacity. The page section for
+this archive was retired on 22 November 2026 with the page rebuild; the API
+remains. A result lost after commit requires status, never blind replay.
 
 Guarded by `TestRequestArchiveFullActiveLosslessAndNextClosure`,
 `TestRequestArchiveRefusesStaleClockMalformedOrDroppedPages`,
@@ -1361,8 +1238,8 @@ Guarded by `TestRequestArchiveFullActiveLosslessAndNextClosure`,
 `TestRequestArchiveStrictScopeAndAccessBoundary`,
 `TestRequestArchiveNativeRefusesBeforePermit`,
 `TestRequestArchiveHasOnlyReviewedLocalConsumers`, inherited historical-closure
-architecture guards, shared archive-input fuzzing, request/manual-DNS/demo/history
-WASM UI tests and all inherited platform/full-recovery gates. Compiling two-way
+architecture guards, shared archive-input fuzzing and all inherited
+platform/full-recovery gates. Compiling two-way
 sabotage: ADR0079. This is development evidence, not independent release audit.
 
 ## C98 — Operator observations cannot revive terminal DNS mutation policy
@@ -1391,7 +1268,7 @@ Guarded by `TestDNSMaintenanceSeparateReadOnlyAuthorityPreservesTerminalPolicy`,
 `TestLinuxDNSMaintenanceReadOnlyIntentFullRestoreAndNoOrdinaryAuthority`,
 `TestLinuxDNSMaintenanceAPIFreshScopeNoWriteAndNoCounterReset`,
 `TestNativeDNSMaintenanceRefusesBeforePermissionAndSecretBorrow`, strict request/
-origin/setup tests, `FuzzDNSOperationRequest`, architecture and DNS/demo UI tests.
+origin/setup tests, `FuzzDNSOperationRequest`, architecture and DNS UI tests.
 This is synthetic evidence; live provider interoperability and release audit
 remain separate. Indefinitely empty creation, closed-request storage capacity
 and complete automatic renewal are still open; retained evidence is not pruned.
@@ -1415,9 +1292,10 @@ Guarded by `TestHistoryArchiveLosslessAtFullLimitAndContinues`,
 `TestLinuxHistoryArchiveAPISeparateConsentAndFreshPassword`,
 `TestHistoryArchiveAccessBoundaryBeforeStorage`,
 `TestHistoryArchiveStrictInputAndNoPartialSecret`,
-`TestHistoryArchiveNativeRefusesBeforePermit`, `FuzzHistoryArchiveInput`,
-`scripts/test-history-archive.mjs`, `scripts/test-inventory-lifecycle.mjs`
-and inherited image/backup/platform gates. Two-way sabotage: ADR 0077.
+`TestHistoryArchiveNativeRefusesBeforePermit`, `FuzzHistoryArchiveInput`
+and inherited image/backup/platform gates. Two-way sabotage: ADR 0077. The
+page section for this archive was retired on 22 November 2026 with the page
+rebuild; the API remains.
 
 ## C96 — Session timing watch cannot become signing, replay or unlock authority
 
@@ -1442,7 +1320,7 @@ Guards: `TestTimingWatchReadinessRecoveryIsReadOnlyAndExactSource`,
 `TestLinuxTimingWatchSeparateConsentIntentAndStopWithoutSecret`,
 `TestLinuxTimingWatchRevocationRetainsPendingAndNeverAutoRetires`,
 `TestNativeTimingReadinessRefusesBeforeFiles`, `FuzzTimingWatchInput`,
-`scripts/test-timing-watch.mjs`, `scripts/test-inventory-demo.mjs`.
+`scripts/test-timing-watch.mjs`.
 No full terminal maintenance/retention solution or automatic renewal/production
 claim; no anti-rollback, trusted host clock or reliable heap erasure guarantee.
 
@@ -1455,7 +1333,7 @@ DNS or uploaded-source authority. Fresh password/one-check consent, exact image/
 revision, live session, shared budgets and bounded API/protocol are mandatory.
 Only public timing metadata is returned. No automatic check/renewal, scheduler,
 extra unlock lifetime or raw provider error. Browser clears hidden/stale/late/
-changed-source authority and secrets; demo cannot accept credentials/mutate.
+changed-source authority and secrets.
 
 Guards: `TestStagingProviderBarrierPresentInEveryNetworkWriter`,
 `TestLinuxProviderWaitCoversEveryCAPathBeforeIntentAndSurvivesRestore`,
@@ -1467,7 +1345,7 @@ Guards: `TestStagingProviderBarrierPresentInEveryNetworkWriter`,
 `TestRenewalTimingRequestStrictShapesAndNoPartialSecret`,
 `TestRenewalTimingGateOriginSetupNativeAndBoundedResponse`,
 `TestARIScopedReceiptBindsUnsupportedAndFixedFailure`, `FuzzRenewalTimingRequest`,
-`scripts/test-renewal-timing.mjs`, `scripts/test-inventory-demo.mjs`.
+`scripts/test-renewal-timing.mjs`.
 Legacy non-ARI errors do not gain new durable hint persistence in this step.
 Independent audit/live CA QA/worker/production remain separate gates.
 
@@ -1500,8 +1378,8 @@ Guards: `TestRenewalTimingDurableExactSourceSingleChoiceAndNoSecretBorrow`,
 `TestLinuxRenewalTimingIntentLockSourceAndFullRecovery`,
 `TestLinuxRenewalTimingRevocationPendingSnapshotAndNoRetryReset`,
 `TestNativeRenewalTimingRefusesBeforeFilesOrCallback`,
-`TestRenewalTimingHasOnlyLockedInternalConsumers`, `FuzzRenewalTimingPayload`,
-`scripts/test-inventory-lifecycle.mjs`. Actual compiling two-way sabotage in
+`TestRenewalTimingHasOnlyLockedInternalConsumers` and `FuzzRenewalTimingPayload`.
+Actual compiling two-way sabotage in
 ADR0074; Linux race/complete recovery and every final-head check remain gates.
 
 ## C93 — Staging ARI protocol cannot gain credentials or arbitrary endpoints
@@ -1694,47 +1572,35 @@ password through the shared attempt/concurrency budget. Certificate, supplied
 bundle, order, import provenance and notes remain intact. Limits refuse with
 no partial image; atomic history/full restore preserve the attachment.
 
-Browser Check is optional, but Save revalidates. File identity/reread digest,
-preview lifetime and generation bind the choice; changed/hidden/cancel/deadline
-state clears owned secrets and discards late output. Transmitted Save may still
-commit; uncertainty is shown, not claimed rollback. Fixed errors prevent raw
-secret reflection. The existing native Convert handoff contains selected public
-DER only and requires actual WASM identity reinspection; key/bundle/notes/trust
-are never auto-transferred. Key/PFX conversion needs explicit encrypted export
-and file selection. No CA/network/production claim follows.
+The Certificates page adds a key to a saved certificate only with the
+Rootwell password, which is emptied after each try. It checks the key first
+and stops on a mismatch, and its Save never asks to keep one, so a key that
+belongs to another certificate is not saved; Save revalidates on the server.
+Errors are fixed messages, never server or file text. Key/bundle/notes/trust
+are never auto-transferred to another page; key/PFX conversion needs explicit
+file selection in Convert. No CA/network/production claim follows.
 
 Guarded by `TestAttachKeyPreservesRecordAndRefusesOverwrite`,
 `TestAttachEncryptedKeyAndCapacityRefusals`, `TestKeyAttachmentRequestModesAreStrict`,
 `TestLinuxSavedKeyRequiresFreshAuthenticationAndPreservesRefusedImage`,
-`TestLinuxMaterialMismatchExportAndBundleFullRestore`,
-`TestLinuxInventoryWorkbenchRequiresAuthorityAndExactSnapshot`,
-`scripts/test-saved-key-attachment.mjs` and `scripts/test-inventory-workbench.mjs`.
+`TestLinuxMaterialMismatchExportAndBundleFullRestore`, and
+`scripts/test-certificates.mjs`.
 
 ## C66 — Bulk preview is local and Save is exact and atomic
 
-Inventory public bulk preview does not upload selected bytes. Save is explicit,
-requires a current successful duplicate-free preview and rereads exact files
-against all ordered fingerprints. Only the reparsed canonical public PEM plus
-shared manual notes enters one existing authenticated atomic append request.
-All-or-nothing duplicate/private/malformed/capacity refusal is unchanged.
-Late/changed/hidden source work cannot initiate POST or restore preview. Saved
-duplicates are explained, not silently skipped. No new trust, formats, private
-custody or outbound destination is granted. After a sent request, an uncertain
-outcome requires refresh, not an assertion that nothing was saved. ADR 0043
-records bounds, advisory snapshot semantics and browser residual risks.
-
-Guarded by `TestInventoryBulkAssetsRemainBehindReadyAccess`,
-`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
-`scripts/test-inventory-bulk.mjs`, `scripts/test-rootwelld-inventory.mjs`
-and `scripts/test-inventory-demo.mjs`.
+Retired on 22 November 2026 with the page rebuild: the bulk-import section of
+the old Certificates page is gone. The all-or-nothing multi-certificate append
+in the inventory API it used is still guarded by
+`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`.
 
 ## C67 — Public lifecycle comparison/history and background checks stay scoped
 
-An exact generation/fingerprint ready-session request releases one saved
-public DER, never notes or keys. A single bounded local candidate is reparsed
-and compared in actual Go WASM without upload, save, replacement or trust.
-SAN/key/issuer/date changes remain informational. Changed/hidden/refreshed
-sources and late results fail closed; response sizes and errors are bounded.
+An exact generation/fingerprint ready-session request to the comparison-source
+API releases one saved public DER, never notes or keys. The comparison core
+treats SAN/key/issuer/date changes as information, never trust, and refuses
+private, mixed and malformed input; response sizes and errors are bounded. The
+comparison and activity panels of the old Certificates page were retired on
+22 November 2026 with the page rebuild; the APIs remain.
 
 Every successful inventory mutation commits one authenticated encrypted event
 in the same complete image; rejected mutations commit neither. Fixed actions,
@@ -1760,11 +1626,8 @@ Guarded by `TestComparisonTracksAllNamesKeyAndDatesWithoutTrust`,
 `TestHistoryLegacyBoundaryContinuityCapacityAndContext`,
 `TestBackgroundMonitorWithoutBrowserExpiresClearsAndRejectsLateLogout`,
 `TestBackgroundMonitorInvalidRevisionClearsSessionsAndLateResult`,
-`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
-`TestLinuxInventoryDurableImportAndFreshFullRestore`,
-`TestInventoryBulkAssetsRemainBehindReadyAccess`,
-`scripts/test-inventory-lifecycle.mjs`, `scripts/test-rootwelld-inventory.mjs`
-and `scripts/test-inventory-demo.mjs`.
+`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`, and
+`TestLinuxInventoryDurableImportAndFreshFullRestore`.
 
 ## C74 — Access UI cannot claim a timed-out write or navigate on late results
 
@@ -1976,7 +1839,7 @@ Guarded by `TestCompletionAtomicMoveProvenanceNotesExportDeleteAndNoReplay`,
 `TestLinuxCompletedSyntheticPairFullRestorePasswordRecoveryAndDeletion`,
 `TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement`,
 `FuzzStagingCompletionPayload`, inherited receipt/intent/architecture/native tests
-and v4/library/history/real-WASM/demo UI scripts. Actual sabotage: ADR 0061.
+and `scripts/test-acme-order.mjs`. Actual sabotage: ADR 0061.
 Live integration/consent/budgets are C82; renewal/DNS, retention/new-order policy
 and independent production audit remain required; host/rollback/heap risks persist.
 
@@ -2041,7 +1904,7 @@ Guarded by `TestLinuxCertificateTransactionDurableIntentNoReplayAndCheckedRead`,
 `TestCertificateTransactionProductionCompletionIsFixed`,
 `TestCertificateConnectorFixedStagingBoundary`,
 `TestIssuanceExecutionReviewedBoundaries`, inherited receipt/protocol/restore
-tests and `scripts/test-acme-order.mjs` / `scripts/test-inventory-demo.mjs`.
+tests and `scripts/test-acme-order.mjs`.
 Compiling two-way sabotage and final evidence are recorded in ADR 0062/PR.
 
 ## C83 — A new request never revives or discards prior custody
@@ -2059,7 +1922,7 @@ deletion updates archive and pair atomically. Full restore/password recovery
 keeps scope; old snapshots retain secrets. No silent pruning/export/reopen/reset.
 V6 exposes availability/reason/count only, fresh action-scoped consent and fixed
 human messages; hidden/late/error results cannot restore authority. Native
-refusal and fake read-only browser preview are not real Linux/CA issuance proof.
+refusal is not real Linux/CA issuance proof.
 
 Guards: `TestClosedCompletedRequestPreservesPairOriginNotesDeleteAndNewOrder`,
 `TestClosedExpiredRequestPreservesKeyButCannotReopenLease`,
@@ -2070,22 +1933,25 @@ Guards: `TestClosedCompletedRequestPreservesPairOriginNotesDeleteAndNewOrder`,
 `TestLinuxNewRequestAtomicRevisionPermissionFullRestoreAndPairDeletion`,
 `TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
 `TestNativeNewRequestRefusesBeforeFilesAndPermit`,
-`TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority` and strict
-API/UI/lifecycle/demo tests. Two-way compiling sabotage evidence: ADR 0063.
+`TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority`, strict API
+tests and `scripts/test-acme-order.mjs`. Two-way compiling sabotage evidence:
+ADR 0063.
 
 ## C84 — Manual renewal never borrows or replaces the original key
 
 ADR 0064 limits source selection to an authenticated saved Rootwell staging
-completion. Exact-generation same-tab navigation exposes only names/fingerprint,
-no URI/key/DER/notes or authority. Separate closure, fresh consent/password and
+completion. The renewal request names its source by exact generation and full
+fingerprint only, never a URI, key, DER, notes or authority; the same-tab
+navigation from the old Certificates page was retired on 22 November 2026
+with the page rebuild. Separate closure, fresh consent/password and
 generation precede new intent; existing writer/revision/permit and bounded fixed
 protocol remain. Chronological closed-scope graph validation proves earlier
 source, exact account/names and different new key, rejects orphan/self/forward
 and deleted active source before any output. Active source deletion refuses;
 later deletion preserves authenticated historical tombstones after closure.
 New and original pairs/notes coexist, full recovery preserves linkage. V7
-strict source/generation/consent/cancellation UI; native early refusal and fake
-read-only preview are not real CA proof. No auto-retry/scheduler/ARI, replacement,
+strict source/generation/consent/cancellation UI; native early refusal is not
+real CA proof. No auto-retry/scheduler/ARI, replacement,
 revocation, deployment, validity extension or renewal-rate exemption claim.
 
 Guards: `TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeletion`,
@@ -2095,9 +1961,9 @@ Guards: `TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDe
 `TestLinuxRenewalIntentBeforeIOReadOnlyResumeAndFullRecovery`,
 `TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
 `TestNativeRenewalRefusesBeforeFilesAndPermit`,
-`TestRenewalRequestAndNavigationStrictShapeNoPartialSelection`,
-`TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`, strict V7 UI,
-inventory/history/demo tests and inherited pinned receipt/no-replay tests.
+`TestRenewalRequestStrictShapeNoPartialSelection`,
+`TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`,
+`scripts/test-acme-order.mjs` and inherited pinned receipt/no-replay tests.
 Actual compiling two-way sabotage and final evidence are recorded in ADR 0064/PR.
 
 ## C85 — A renewal result cannot fabricate extension or replacement
@@ -2118,7 +1984,8 @@ Guards: `TestRenewalResultRefusesStaleTamperedAndIncompleteWithoutPartialOutput`
 `TestLinuxRenewalResultAPIIsPublicReadOnlyAndSessionBound`,
 `TestNativeRenewalRefusesBeforeFilesAndPermit`,
 `TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`,
-`FuzzPublicComparison`, strict V8 UI/demo and inherited graph/receipt tests.
+`FuzzPublicComparison`, `scripts/test-acme-order.mjs` and inherited
+graph/receipt tests.
 Actual two-way sabotage and evidence are recorded in ADR 0065/PR.
 
 ## C86 — Retry and DNS components cannot silently gain replay or cleanup authority
@@ -2176,7 +2043,7 @@ Guarded by `TestCloudflareConfigEncryptedAtomicRotationRemovalAndPreservation`,
 `TestLinuxCloudflareConfigAPIReauthStaleSharedBudgetAndSecretFreeStatus`,
 `TestLinuxCloudflareConfigLogoutCancellationAndFetchMetadataCannotWrite`,
 `TestCloudflareCredentialCannotEscapeConfigurationBoundary`,
-`scripts/test-cloudflare-config.mjs`, `scripts/test-inventory-demo.mjs`.
+`scripts/test-cloudflare-config.mjs`.
 Two-way compiling sabotage outcomes are in ADR 0067/PR.
 
 ## C88 — DNS attempts remain bound, durable and uncertain across recovery
@@ -2205,7 +2072,7 @@ Guards: `TestDNSPlanExactSourceEncryptionUncertainIntentAndPersistentWait`,
 `TestNativeDNSPlanRefusesBeforeBorrowingPermission`,
 `TestDNSPlanCustodyHasOnlyReviewedLockedConsumers`,
 `TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority`,
-`scripts/test-acme-order.mjs`, `scripts/test-inventory-lifecycle.mjs`.
+`scripts/test-acme-order.mjs`.
 
 ## C89 — Explicit Cloudflare operations retain exact owned scope and uncertainty
 
@@ -2228,9 +2095,9 @@ Cleanup requires explicit exclusive-editing acknowledgement: provider GET and
 DELETE are not atomic against external edits. UI is optional in the existing
 request card, one domain per click, no automatic provider/CA requests. Read-only
 local status differs from live provider I/O. Late/hidden/source/clock/schema/
-direction/counter mismatches clear authority and secrets. Visual demo remains
-synthetic/read-only; successful fake TLS/CI is not live Cloudflare interoperability
-or production audit. A pre-I/O crash can still require manual provider cleanup.
+direction/counter mismatches clear authority and secrets. Successful fake
+TLS/CI is not live Cloudflare interoperability or production audit. A pre-I/O
+crash can still require manual provider cleanup.
 
 Guards: `TestDNSOperationCreateOwnedCleanupExpiryArchiveAndSecretBoundary`,
 `TestDNSOperationBorrowedNeverCleanupAndLeaseCannotReplay`,
@@ -2248,7 +2115,7 @@ Guards: `TestDNSOperationCreateOwnedCleanupExpiryArchiveAndSecretBoundary`,
 `TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`,
 `TestCloudflareProtocolHasOnlyReviewedFreshAuthConsumer`,
 `TestDNSPlanCustodyHasOnlyReviewedLockedConsumers`, `FuzzDNSPlanPayload`,
-`scripts/test-dns-operation.mjs`, `scripts/test-inventory-demo.mjs`, and inherited
+`scripts/test-dns-operation.mjs`, and inherited
 Cloudflare fake-TLS ownership, permission, malformed-response and no-replay tests.
 Actual compiling two-way source/direction sabotage is in ADR 0069; inherited
 exact-image handle sabotage is in ADR 0068/PR.
@@ -2297,13 +2164,13 @@ Guards: `TestDNSRecoveryExactReadOnlyCreationAndCleanup`,
 `TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore`,
 `TestDNSOperationStrictRequestNoPartialAuthority`,
 `TestDNSOperationGateOriginSetupAndNativeRefusal`, `FuzzDNSOperationRequest`,
-`TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`, `scripts/test-dns-operation.mjs`,
-`scripts/test-inventory-demo.mjs` and C89's inherited protocol/writer guards.
+`TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`, `scripts/test-dns-operation.mjs`
+and C89's inherited protocol/writer guards.
 
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate
-certificate-library API. Offline Workbench/public bulk import still reject
+certificate-library API. Inspect and the public inventory import still reject
 secret-bearing public input. Ready Linux sessions may explicitly Check/Save
 one certificate and an optional mathematically matching non-CA private key.
 Files, JSON and KDF concurrency are bounded; Save revalidates identity and
@@ -2319,17 +2186,17 @@ remain readable; old binaries refuse attachment-bearing images.
 Private download requires fresh instance password under the shared attempt
 budget, exact session revision/generation/fingerprint and a final session check.
 Only encrypted PKCS#8 key in an unencrypted ZIP is exposed here; no plaintext
-custody export/reveal. Separate output-password policy is mandatory. Browser
-selections must be checked before Save; changing/hidden/late/uncertain work
-cannot restore authority. Untrusted parser/network/file error text is never
-rendered. Backups are manual; old images, compromised hosts, runtime copies and
-authenticated rollback remain risks, not erased by this UI simplification.
+custody export/reveal. Separate output-password policy is mandatory. The
+Certificates page checks each selection before Save and forgets it on leaving
+the page. Untrusted parser/network/file error text is never rendered. Backups
+are manual; old images, compromised hosts, runtime copies and authenticated
+rollback remain risks, not erased by this UI simplification.
 This is single-operator development custody, not audited production or RBAC.
 
 ADR 0047 supersedes the preceding matched-only import/export scope: the new
 material attachment holds one selected certificate, its bounded related public
-bundle and optional strictly parsed key. Check is optional in the UI; Save
-always revalidates. A computed mismatch is retained only with explicit sealed
+bundle and optional strictly parsed key. The page checks first; Save always
+revalidates. A computed mismatch is retained only with explicit sealed
 acknowledgement, not labeled unchecked or matched. Ambiguous selection requires
 an exact supplied fingerprint; issuer signatures are not trust. Material
 authentication recomputes selection/status before any metadata output; note,
@@ -2337,16 +2204,17 @@ delete and full restore preserve/remove/restore the attachment as a whole.
 Legacy matched-key attachments still require match. Matched-pair downloads
 refuse mismatch; encrypted key-only download has the same fresh-password,
 attempt-limit and strong separate-password gates. Included public bundle export
-does not establish trust. A distinct Inspect secret picker uses a one-shot
-offline worker with no save/export/network capability; malformed/password errors
-are never mismatch results. Public pickers still refuse secret-bearing input.
+does not establish trust. Inspect's Check a private key uses a one-shot
+offline worker with no save/export/network capability; a locked or unreadable
+key is never reported as a mismatch. Inspect's certificate picker still
+refuses secret-bearing input.
 
 Additional guards: `TestBundleSelectionMatchMismatchAndIssuerRefusals`,
 `FuzzBundleMatchRefusesMalformedKey`,
 `TestMaterialMismatchAcknowledgementPreservationAndTamper`,
 `TestLinuxMaterialMismatchExportAndBundleFullRestore`,
-`scripts/test-key-match-ui.mjs` and actual key-match Go WASM assertions in
-`scripts/test-browser-csr.mjs`.
+`scripts/test-inspect.mjs`, `scripts/test-convert.mjs` and actual key-match Go
+WASM assertions in `scripts/test-browser-csr.mjs`.
 
 Guarded by `TestPrepareCertificatePairsAndRefusals`,
 `TestEncryptedKeyPairRequiresCorrectPassword`,
@@ -2354,6 +2222,5 @@ Guarded by `TestPrepareCertificatePairsAndRefusals`,
 `TestCertificateKeyCustodyAtomicityPreservationAndDeletion`,
 `TestAttachmentTamperAndIdentitySwapFailBeforeOutput`,
 `TestCertificateRequestModesRejectMalformedAndAmbiguousJSON`,
-`TestLinuxCertificateLibraryCustodyDownloadAndFullRestore`,
-`scripts/test-certificate-library.mjs`, `scripts/test-rootwelld-inventory.mjs`
-and `scripts/test-inventory-demo.mjs`.
+`TestLinuxCertificateLibraryCustodyDownloadAndFullRestore` and
+`scripts/test-certificates.mjs`.

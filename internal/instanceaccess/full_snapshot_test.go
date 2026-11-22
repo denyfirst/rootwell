@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/denyfirst/rootwell/internal/inventorystore"
@@ -26,10 +25,7 @@ func fullFixture(t *testing.T) ([]byte, []byte, string, string, []byte, []byte) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	image, _, err = inventorystore.Append(key, id, image, cert, "Platform", "prod")
 	if err != nil {
 		t.Fatal(err)
@@ -119,10 +115,7 @@ func TestFullSnapshotRefusesWrongCredentialsAndIncompletePairs(t *testing.T) {
 	if opened, _, _, _, err := openFullSnapshot(changed, password, SnapshotPassword); err == nil || opened != nil {
 		t.Fatal("tampered image opened")
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	other, err := inventorystore.Create(key, id)
 	if err != nil {
 		t.Fatal(err)

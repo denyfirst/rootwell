@@ -9,7 +9,6 @@ import (
 	"encoding/asn1"
 	"errors"
 	"math/big"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -19,17 +18,8 @@ import (
 	"github.com/denyfirst/rootwell/internal/publicbundle"
 )
 
-func demo(t *testing.T, name string) []byte {
-	t.Helper()
-	body, err := os.ReadFile("../../web/workbench/" + name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return body
-}
-
 func TestImportPublicCertificateAndDetachResults(t *testing.T) {
-	input := demo(t, "rootwell-demo-certificate.pem")
+	input := testCertificate(t)
 	var c Catalog
 	added, err := c.Add(input, "Platform team", "production/nginx")
 	if err != nil || len(added) != 1 {
@@ -64,7 +54,7 @@ func TestImportPublicCertificateAndDetachResults(t *testing.T) {
 
 func TestAssociateLocationIsBoundedExplicitAndDetached(t *testing.T) {
 	var c Catalog
-	added, err := c.Add(demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	added, err := c.Add(testCertificate(t), "Platform", "production/nginx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +84,7 @@ func TestAssociateLocationIsBoundedExplicitAndDetached(t *testing.T) {
 	if result, err := AssociateLocation(second, "one-too-many"); !errors.Is(err, ErrLocationCapacity) || result.Fingerprint != "" {
 		t.Fatalf("location cap bypassed: %v", err)
 	}
-	unknown, err := c.Add(demo(t, "rootwell-verify-demo-root.pem"), "", "")
+	unknown, err := c.Add(testRoot(t), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +96,7 @@ func TestAssociateLocationIsBoundedExplicitAndDetached(t *testing.T) {
 
 func TestUpdateOwnerChangesOnlyDetachedManualNote(t *testing.T) {
 	var c Catalog
-	added, err := c.Add(demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	added, err := c.Add(testCertificate(t), "Platform", "production/nginx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +126,7 @@ func TestUpdateOwnerChangesOnlyDetachedManualNote(t *testing.T) {
 
 func TestRenameAndRemoveLocationPreserveCertificateAndUnknownState(t *testing.T) {
 	var c Catalog
-	added, err := c.Add(demo(t, "rootwell-demo-certificate.pem"), "Platform", "first")
+	added, err := c.Add(testCertificate(t), "Platform", "first")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,8 +173,8 @@ func TestRenameAndRemoveLocationPreserveCertificateAndUnknownState(t *testing.T)
 }
 
 func TestDuplicateAndMalformedImportsAreAtomic(t *testing.T) {
-	leaf := demo(t, "rootwell-demo-certificate.pem")
-	root := demo(t, "rootwell-verify-demo-root.pem")
+	leaf := testCertificate(t)
+	root := testRoot(t)
 	var c Catalog
 	if _, err := c.Add(leaf, "", ""); err != nil {
 		t.Fatal(err)
@@ -244,7 +234,7 @@ func TestOversizedSingleCertificateIsRejectedWithoutMutation(t *testing.T) {
 }
 
 func TestLabelsAndCapacityFailClosed(t *testing.T) {
-	input := demo(t, "rootwell-demo-certificate.pem")
+	input := testCertificate(t)
 	for _, label := range []string{" leading", "trailing ", "bad\nline", "bad\u2028line", "bidirectional\u202e", string([]byte{0xff}), strings.Repeat("x", maxLabel+1)} {
 		var c Catalog
 		if _, err := c.Add(input, label, ""); !errors.Is(err, ErrLabel) || len(c.List()) != 0 {
@@ -259,7 +249,7 @@ func TestLabelsAndCapacityFailClosed(t *testing.T) {
 }
 
 func TestConcurrentDuplicateImportHasOneWinner(t *testing.T) {
-	input := demo(t, "rootwell-demo-certificate.pem")
+	input := testCertificate(t)
 	var c Catalog
 	var wg sync.WaitGroup
 	results := make(chan error, 8)
@@ -290,7 +280,7 @@ func TestConcurrentDuplicateImportHasOneWinner(t *testing.T) {
 }
 
 func TestBundledPublicCertificatesRemainUnverified(t *testing.T) {
-	input := demo(t, "rootwell-verify-demo-ca-files.pem")
+	input := testChainFiles(t)
 	entries, err := publicbundle.Parse(input)
 	if err != nil {
 		t.Fatal(err)

@@ -16,7 +16,7 @@ func TestLinuxHistoryArchiveAtomicRetainedAndFullRestore(t *testing.T) {
 	path, password, code, key, id, _ := inventoryFixture(t)
 	defer clear(key)
 	rev, _ := Revision(path)
-	cert, _ := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
+	cert := testCertificate(t)
 	rows, _, err := AppendInventory(path, key, id, rev, cert, "owner", "service")
 	if err != nil {
 		t.Fatal(err)

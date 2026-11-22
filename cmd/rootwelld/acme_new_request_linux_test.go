@@ -78,7 +78,6 @@ func TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder(t *testing.T)
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &output) != nil || !output.NewRequest.Available || output.NewRequest.Reason != "complete" || output.Generation != 13 {
 		t.Fatalf("completed status refused: %d", w.Code)
 	}
-	assertRenewalNavigation(t, g, cookie, fixture.Fingerprint, 13)
 	originalKey := output.CertificateKey
 	before, err := os.ReadFile(store)
 	if err != nil {

@@ -37,11 +37,11 @@ func inventoryCall(g *gate, method, route, body string, cookie *http.Cookie, ori
 
 func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	g, path := testGate(t)
-	if w := inventoryCall(g, "GET", "/inventory", "", nil, "", true); w.Code != http.StatusSeeOther {
-		t.Fatal("anonymous inventory page opened")
+	if w := inventoryCall(g, "GET", "/certificates", "", nil, "", true); w.Code != http.StatusSeeOther {
+		t.Fatal("anonymous Certificates page opened")
 	}
-	if w := inventoryCall(g, "GET", "/inventory.js", "", nil, "", false); w.Code != http.StatusSeeOther {
-		t.Fatal("anonymous inventory script opened")
+	if w := inventoryCall(g, "GET", "/certificates.js", "", nil, "", false); w.Code != http.StatusSeeOther {
+		t.Fatal("anonymous Certificates script opened")
 	}
 	if w := inventoryCall(g, "GET", "/api/inventory", "", nil, "", true); w.Code != http.StatusUnauthorized {
 		t.Fatal("anonymous inventory API opened")
@@ -117,10 +117,7 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if w := inventoryCall(g, "GET", "/api/inventory", "", readyCookie, "", true); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"generation":1`) {
 		t.Fatalf("empty inventory: %d %s", w.Code, w.Body.String())
 	}
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	payload, err := json.Marshal(map[string]any{"certificate": cert, "owner": "Platform", "location": "production/nginx"})
 	if err != nil {
 		t.Fatal(err)
@@ -152,8 +149,8 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	if strings.Contains(listed.Body.String(), "PRIVATE KEY") || bytes.Contains(listed.Body.Bytes(), cert) {
 		t.Fatal("API leaked source bytes or key")
 	}
-	assertInventoryWorkspace(t, inventoryCall(g, "GET", "/inventory", "", readyCookie, "", false))
-	for _, asset := range []string{"/inventory.js", "/inventory.css"} {
+	assertCertificatesPage(t, inventoryCall(g, "GET", "/certificates", "", readyCookie, "", false))
+	for _, asset := range []string{"/certificates.js", "/certificate-pfx.js"} {
 		if w := inventoryCall(g, "GET", asset, "", readyCookie, "", false); w.Code != http.StatusOK {
 			t.Fatalf("protected asset %s unavailable: %d", asset, w.Code)
 		}
@@ -184,10 +181,7 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 	g.now = originalClock
 	// A canonical multi-file UI batch still passes this unchanged API. Both
 	// duplicate and malformed trailing content refuse the entire transaction.
-	fresh, err := os.ReadFile("../../web/workbench/rootwell-verify-demo-leaf.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	fresh, issuer, _ := testChain(t)
 	for _, batch := range [][]byte{append(bytes.Clone(fresh), cert...), append(bytes.Clone(fresh), []byte("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n")...)} {
 		body, _ := json.Marshal(map[string]any{"certificate": batch})
 		refused := inventoryCall(g, "POST", "/api/inventory", string(body), readyCookie, "http://"+localHost, true)
@@ -195,10 +189,6 @@ func TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave(t *testing.T) {
 		if refused.Code < 400 || readErr != nil || !bytes.Equal(encrypted, unchanged) {
 			t.Fatal("rejected mixed batch partially changed inventory")
 		}
-	}
-	issuer, err := os.ReadFile("../../web/workbench/rootwell-verify-demo-intermediate.pem")
-	if err != nil {
-		t.Fatal(err)
 	}
 	batchBody, _ := json.Marshal(map[string]any{"certificate": append(bytes.Clone(fresh), issuer...), "owner": "Bulk owner"})
 	batchResult := inventoryCall(g, "POST", "/api/inventory", string(batchBody), readyCookie, "http://"+localHost, true)
@@ -291,10 +281,7 @@ func TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound(t *testing.T) {
 		t.Fatalf("ready sign-in: %d", ready.Code)
 	}
 	cookie := sessionCookie(t, ready)
-	cert, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	cert := testCertificate(t)
 	importBody, _ := json.Marshal(map[string]any{"certificate": cert, "owner": "Platform", "location": "production/nginx"})
 	imported := inventoryCall(g, "POST", "/api/inventory", string(importBody), cookie, "http://"+localHost, true)
 	if imported.Code != http.StatusCreated {

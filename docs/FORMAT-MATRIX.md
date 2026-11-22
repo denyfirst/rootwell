@@ -16,7 +16,7 @@ workflow. A certificate without a key can still be stored.
 Library download initially supports certificate PEM or an unencrypted ZIP
 containing certificate PEM and password-encrypted PKCS#8 PEM key. Private
 download needs fresh instance authentication and a separate output password.
-Other formats remain in Workbench Convert; custody does not implicitly reveal
+Other formats are on the Convert page; custody does not implicitly reveal
 or export plaintext keys. Native Windows is a read-only synthetic preview.
 SSH/PGP rows below are historical deferred ideas, outside current Rootwell scope.
 
@@ -47,10 +47,9 @@ still accepts one file.
 
 ## Parsing limits
 
-Inspection summaries remain public-only. ADR 0039 adds an explicit transient
-PKCS#8 PEM view: fresh current-file password for encrypted keys/PFX, renewed
-screen-exposure consent for plaintext files, 30-second clearing and page/source
-cancellation. This is not a download or Vault save.
+Inspection summaries remain public-only. The transient PKCS#8 PEM view of ADR 0039
+was removed on 22 November 2026 with the page rebuild; a key is downloaded
+instead.
 CSR import is limited to 64 KiB of encoded input. Public export allows up to
 96 KiB of CSR PEM because base64 can expand bounded DER; a PEM larger than the
 input cap must not be reimported directly (retain/use its DER representation).

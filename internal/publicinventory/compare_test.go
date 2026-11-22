@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"net"
 	"net/url"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -58,10 +57,7 @@ func TestComparisonTracksAllNamesKeyAndDatesWithoutTrust(t *testing.T) {
 }
 
 func TestComparisonRefusesPrivateMixedBundlesAndMalformed(t *testing.T) {
-	good, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	good := testCertificate(t)
 	for _, bad := range [][]byte{nil, []byte("secret-marker"), []byte("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----"), append(append([]byte{}, good...), []byte("secret-marker")...), append(append([]byte{}, good...), good...), make([]byte, (96<<10)+1)} {
 		if _, err := Compare(good, bad); err == nil {
 			t.Fatal("forbidden candidate accepted")
@@ -76,10 +72,7 @@ func TestComparisonRefusesPrivateMixedBundlesAndMalformed(t *testing.T) {
 }
 
 func FuzzPublicComparison(f *testing.F) {
-	good, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		f.Fatal(err)
-	}
+	good := testCertificate(f)
 	f.Add(good, good)
 	f.Add([]byte("garbage"), []byte("PRIVATE KEY"))
 	f.Fuzz(func(t *testing.T, a, b []byte) {

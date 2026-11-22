@@ -106,7 +106,7 @@ func TestManualDNSOrderIntentCheckpointInstructionsAndLocalAcknowledgement(t *te
 	if _, _, _, err := UpdateStagingOrder(key, id, ack, 8, "", nil, true); err == nil {
 		t.Fatal("ack replay accepted")
 	}
-	withCert, _, err := Append(key, id, ack, demo(t, "rootwell-demo-certificate.pem"), "team", "service")
+	withCert, _, err := Append(key, id, ack, testCertificate(t), "team", "service")
 	if err != nil {
 		t.Fatal(err)
 	}
