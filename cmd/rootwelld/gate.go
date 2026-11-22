@@ -77,7 +77,7 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"index.html", "app.js", "certificate-key-match.js", "secret-view.js", "private-key.js", "private-worker-client.js", "private-key-worker.js", "pfx.js", "pfx-worker-client.js", "pfx-worker.js", "csr.js", "csr-worker-client.js", "csr-worker.js", "style.css", "theme.js", "session.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "ui.js", "rootwell.css", "style.css", "theme.js", "session.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -262,16 +262,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/delete":
 		g.inventoryDeleteEndpoint(w, r, s, signedIn)
 		return
-	case "/workbench":
-		g.inventoryWorkbenchEndpoint(w, r, s, signedIn)
-		return
-	case "/website-check/saved":
-		g.savedWebsiteEndpoint(w, r, s, signedIn)
-		return
-	case "/automation/renew":
-		g.renewalNavigationEndpoint(w, r, s, signedIn)
-		return
-	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/production-account.js", "/acme-registration.js", "/acme-order.js", "/certificate-library.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/production-account.js", "/acme-registration.js", "/acme-order.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/inventory.css":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -295,10 +286,6 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/timing-watch.js", "text/javascript; charset=utf-8")
 		case "/renewal-job.js":
 			g.authAsset(w, r, "auth/renewal-job.js", "text/javascript; charset=utf-8")
-		case "/history-archive.js":
-			g.authAsset(w, r, "auth/history-archive.js", "text/javascript; charset=utf-8")
-		case "/request-archive.js":
-			g.authAsset(w, r, "auth/request-archive.js", "text/javascript; charset=utf-8")
 		case "/acme-setup.js":
 			g.authAsset(w, r, "auth/acme-setup.js", "text/javascript; charset=utf-8")
 		case "/acme-directory.js":
@@ -319,20 +306,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/certificate-pfx.js", "text/javascript; charset=utf-8")
 		case "/certificate-pfx-worker.js":
 			g.authAsset(w, r, "auth/certificate-pfx-worker.js", "text/javascript; charset=utf-8")
-		case "/certificate-library.js":
-			g.authAsset(w, r, "auth/certificate-library.js", "text/javascript; charset=utf-8")
-		case "/saved-key-attachment.js":
-			g.authAsset(w, r, "auth/saved-key-attachment.js", "text/javascript; charset=utf-8")
-		case "/inventory.js":
-			g.authAsset(w, r, "auth/inventory.js", "text/javascript; charset=utf-8")
 		case "/inventory.css":
 			g.authAsset(w, r, "auth/inventory.css", "text/css; charset=utf-8")
-		case "/inventory-import.js":
-			g.authAsset(w, r, "auth/inventory-import.js", "text/javascript; charset=utf-8")
-		case "/inventory-engine.js":
-			g.authAsset(w, r, "auth/inventory-engine.js", "text/javascript; charset=utf-8")
-		case "/inventory-lifecycle.js":
-			g.authAsset(w, r, "auth/inventory-lifecycle.js", "text/javascript; charset=utf-8")
 		}
 		return
 	case "/setup":
@@ -697,23 +672,16 @@ func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentTy
 }
 
 var workbenchFiles = map[string]string{
-	"/inspect": "inspect.html", "/inspect.js": "inspect.js", "/ui.js": "ui.js", "/rootwell.css": "rootwell.css",
-	"/convert": "convert.html", "/convert.js": "convert.js", "/request": "request.html", "/request.js": "request.js",
 	"/certificates": "certificates.html", "/certificates.js": "certificates.js",
-	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/private-key.js": "private-key.js",
-	"/secret-view.js":           "secret-view.js",
+	"/inspect": "inspect.html", "/inspect.js": "inspect.js",
+	"/convert": "convert.html", "/convert.js": "convert.js",
+	"/request": "request.html", "/request.js": "request.js",
+	"/ui.js": "ui.js", "/rootwell.css": "rootwell.css", "/style.css": "style.css", "/theme.js": "theme.js",
+	"/session.js": "session.js", "/favicon.svg": "favicon.svg",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",
-	"/pfx.js": "pfx.js", "/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",
-	"/csr.js": "csr.js", "/csr-worker-client.js": "csr-worker-client.js", "/csr-worker.js": "csr-worker.js",
-	"/certificate-key-match.js": "certificate-key-match.js",
-	"/style.css":                "style.css", "/theme.js": "theme.js", "/session.js": "session.js", "/wasm-loader.js": "wasm-loader.js",
-	"/wasm_exec.js": "wasm_exec.js", "/rootwell.wasm": "rootwell.wasm",
-	"/favicon.svg": "favicon.svg", "/rootwell-demo-bundle.pem": "rootwell-demo-bundle.pem",
-	"/rootwell-demo-certificate.pem":         "rootwell-demo-certificate.pem",
-	"/rootwell-verify-demo-ca-files.pem":     "rootwell-verify-demo-ca-files.pem",
-	"/rootwell-verify-demo-intermediate.pem": "rootwell-verify-demo-intermediate.pem",
-	"/rootwell-verify-demo-leaf.pem":         "rootwell-verify-demo-leaf.pem",
-	"/rootwell-verify-demo-root.pem":         "rootwell-verify-demo-root.pem",
+	"/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",
+	"/csr-worker-client.js": "csr-worker-client.js", "/csr-worker.js": "csr-worker.js",
+	"/wasm-loader.js": "wasm-loader.js", "/wasm_exec.js": "wasm_exec.js", "/rootwell.wasm": "rootwell.wasm",
 }
 
 func (g *gate) workbenchAsset(w http.ResponseWriter, r *http.Request) {
