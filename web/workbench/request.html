@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>Request · Rootwell</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/rootwell.css">
+  <script src="/theme.js"></script>
+  <script src="/session.js" defer></script>
+  <script src="/wasm_exec.js" defer></script>
+  <script src="/wasm-loader.js" defer></script>
+  <script src="/ui.js" defer></script>
+  <script src="/csr-worker-client.js" defer></script>
+  <script src="/request.js" defer></script>
+</head>
+<body>
+<div class="shell">
+<aside class="rail" aria-label="Menu">
+  <a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a>
+  <div class="rail-pages">
+    <nav class="nav" aria-label="Pages"><a class="nav-item" href="/certificates"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M5 3.5h10l4 4v13H5z"/><path d="M15 3.5v4h4M8.5 11h7M8.5 14.5h4.5"/></svg>Certificates</a><a class="nav-item" href="/website-check"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/></svg>Website check</a><a class="nav-item" href="/inspect"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.8-4.8"/></svg>Inspect</a><a class="nav-item" href="/convert"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8h15l-3.5-3.5M20 16H5l3.5 3.5"/></svg>Convert</a><a class="nav-item" href="/request" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M12 11v6M9 14h6"/></svg>Request</a></nav>
+    <nav class="nav" aria-label="You"><a class="nav-item" href="/account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="12" cy="12" r="8.5"/><circle cx="12" cy="10" r="3"/><path d="M6.7 18.2c1.3-1.9 3.1-2.9 5.3-2.9s4 1 5.3 2.9"/></svg>Account</a></nav>
+  </div>
+  <div class="rail-foot">
+    <button class="nav-item" id="theme-toggle" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/></svg><span class="label-text">Theme</span></button>
+    <button class="nav-item" id="rail-sign-out" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></svg><span class="label-text">Sign out</span></button>
+    <p class="credit">rootwell, by denyfirst<span class="credit-stop">.</span></p>
+  </div>
+</aside>
+<main class="page"><div class="page-inner">
+<div class="page-head"><div><h1>Request</h1><p>Make the request file (CSR) your certificate provider asks for.</p></div></div>
+<div class="stack">
+  <form class="card" id="request-form" novalidate>
+    <div class="card-body stack">
+      <div class="field"><label for="request-name">Names</label><div class="chips" id="request-names"><input id="request-name" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Add a name"></div></div>
+      <div class="field"><span class="label">Key</span><div class="choices" id="request-keys">
+        <label class="choice"><input type="radio" name="request-key" value="ec-p256" checked><strong>ECDSA P-256</strong><span>Recommended</span></label>
+        <label class="choice"><input type="radio" name="request-key" value="rsa-2048"><strong>RSA 2048</strong><span>For older systems</span></label>
+        <label class="choice"><input type="radio" name="request-key" value="own"><strong>My own key</strong><span>Keep the key you have</span></label>
+      </div></div>
+      <div class="field narrow" id="request-secret-row">
+        <label for="request-secret">Password for the new key</label>
+        <div class="input-row"><input class="input mono" id="request-secret" type="password" autocomplete="new-password" spellcheck="false"><button class="btn btn-secondary" id="request-generate" type="button">Generate</button><button class="btn btn-secondary" id="request-copy" type="button" hidden>Copy</button></div>
+        <span class="meta" id="request-secret-note" hidden>Save this password now. Rootwell does not keep it.</span>
+      </div>
+      <div class="stack narrow" id="request-own" hidden>
+        <div class="field"><label for="request-own-file">Key file</label><input class="input" id="request-own-file" type="file" accept=".key,.pem,.der,.txt"></div>
+        <div class="field"><label for="request-own-password">Key password<span class="muted">If it has one</span></label><input class="input" id="request-own-password" type="password" autocomplete="off"></div>
+      </div>
+      <details class="more">
+        <summary>Organization details</summary>
+        <div class="split">
+          <div class="field"><label for="request-organization">Organization</label><input class="input" id="request-organization" type="text" autocomplete="organization"></div>
+          <div class="field"><label for="request-city">City</label><input class="input" id="request-city" type="text" autocomplete="address-level2"></div>
+          <div class="field"><label for="request-state">State or region</label><input class="input" id="request-state" type="text" autocomplete="address-level1"></div>
+          <div class="field"><label for="request-country">Country<span class="muted">Two letters</span></label><input class="input" id="request-country" type="text" maxlength="2" autocomplete="country" spellcheck="false"></div>
+        </div>
+      </details>
+      <div><button class="btn" id="request-create" type="submit">Create request</button></div>
+      <div id="request-status" role="status" aria-live="polite"></div>
+    </div>
+  </form>
+  <section class="card" id="request-result" hidden>
+    <div class="card-head"><h3 id="request-result-title"></h3><span class="pill pill-good">Ready</span></div>
+    <div class="card-body stack">
+      <div class="facts" id="request-facts"></div>
+      <div class="stack" id="request-files"></div>
+    </div>
+  </section>
+</div>
+</div></main>
+</div>
+</body>
+</html>

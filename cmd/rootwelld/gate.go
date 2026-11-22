@@ -692,7 +692,7 @@ func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentTy
 
 var workbenchFiles = map[string]string{
 	"/inspect": "inspect.html", "/inspect.js": "inspect.js", "/ui.js": "ui.js", "/rootwell.css": "rootwell.css",
-	"/convert": "convert.html", "/convert.js": "convert.js",
+	"/convert": "convert.html", "/convert.js": "convert.js", "/request": "request.html", "/request.js": "request.js",
 	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/private-key.js": "private-key.js",
 	"/secret-view.js":           "secret-view.js",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",

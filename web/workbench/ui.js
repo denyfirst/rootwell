@@ -15,6 +15,7 @@
     bad: [["soft-fill", "circle", "12,12,8.5"], ["", "path", "M9 9l6 6M15 9l-6 6"]],
     alert: [["soft-fill", "circle", "12,12,8.5"], ["", "path", "M12 7.5v5.5M12 16.3v.2"]],
     download: [["", "path", "M12 4v11M7.5 10.5L12 15l4.5-4.5M5 20h14"]],
+    x: [["", "path", "M6.5 6.5l11 11M17.5 6.5l-11 11"]],
   };
 
   function icon(name, extra) {
