@@ -71,7 +71,7 @@ func assertInventoryWorkspace(t *testing.T, page *httptest.ResponseRecorder) {
 			t.Fatalf("inventory workspace missing required boundary %q", required)
 		}
 	}
-	if strings.Contains(body, "No certificate uploads") {
+	if strings.Contains(body, "Files stay in this browser") {
 		t.Fatal("inventory workspace misrepresented explicit server upload as offline")
 	}
 }

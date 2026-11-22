@@ -11,6 +11,7 @@ jobs:
   fuzz:
     name: ${{ matrix.target }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     concurrency:
       group: scheduled-fuzz-${{ github.ref }}-${{ matrix.target }}
       cancel-in-progress: false
@@ -172,6 +173,19 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
+          # Every Go step uses exactly the toolchain go.mod names, never the runner's.
+          echo "GOTOOLCHAIN=go$(sed -n 's/^go //p' go.mod)" >> "$GITHUB_ENV"
 
       - name: Fuzz for five minutes
         run: go test "${{ matrix.package }}" -run=^$ -fuzz="^${{ matrix.target }}$" -fuzztime=5m
+
+      # Keep the failing input readable in the log; no third-party upload action.
+      - name: Show a new failing input
+        if: failure()
+        run: |
+          set -eu
+          git status --porcelain --untracked-files=all | sed -n 's/^?? //p' | grep '/testdata/fuzz/' | while IFS= read -r input; do
+            echo "== ${input}"
+            head -c 65536 "${input}"
+            echo
+          done

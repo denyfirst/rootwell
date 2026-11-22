@@ -148,4 +148,4 @@ cannot overlap. This does not constrain another process ignoring advisory
 locks or a daemon from an older build. The CLI does not back up inventory
 records and is not a production recovery claim. See
 [ADR 0019](adr/0019-offline-linux-operator-ceremony.md) and
-[`RECOVERY-AZ.md`](RECOVERY-AZ.md).
+[`RECOVERY.md`](RECOVERY.md).

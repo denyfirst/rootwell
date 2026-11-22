@@ -244,7 +244,7 @@
       const link = document.createElement("a"); link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
       downloadStatus.textContent = pair ? "Encrypted key and certificate downloaded. The ZIP itself is not encrypted." : keyOnly ? "Encrypted private key downloaded separately. This does not assert certificate/key match." : "Public certificate material downloaded. Included roots are not automatically trusted.";
     } catch (error) { if (current()) downloadStatus.textContent = error instanceof LibraryError ? error.message : "Download refused. Open it again to retry."; }
-    finally { bytes?.fill(0); if (url) URL.revokeObjectURL(url); clearTimeout(timeout); if (serial === ticket) { busy = false; controller = null; controls(); } }
+    finally { bytes?.fill(0); if (url) { const used = url; setTimeout(() => URL.revokeObjectURL(used), 30000); } clearTimeout(timeout); if (serial === ticket) { busy = false; controller = null; controls(); } }
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden) boundary(); });
   window.addEventListener("pagehide", boundary);

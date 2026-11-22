@@ -73,16 +73,32 @@ const expectedPublicPEM = new Set([
   '!web/workbench/rootwell-verify-demo-ca-files.pem',
 ]);
 const reviewedSourceIncludes = new Set([
-  '!go.mod', '!go.sum', '!cmd/', '!cmd/**/', '!cmd/**/*.go',
+  '!go.mod', '!go.sum', '!cmd/**/*.go',
   '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
-  '!cmd/rootwelld/auth/website-examples.json',
-  '!internal/', '!internal/**/', '!internal/**/*.go', '!web/', '!web/workbench/',
-  '!web/workbench/index.html', '!web/workbench/app.js', '!web/workbench/theme.js',
-  '!web/workbench/wasm-loader.js', '!web/workbench/style.css', '!web/workbench/favicon.svg',
+  '!cmd/rootwelld/auth/website-examples.json', '!internal/**/*.go',
+  ...['index.html', 'app.js', 'certificate-key-match.js', 'secret-view.js', 'private-key.js',
+    'private-worker-client.js', 'private-key-worker.js', 'pfx.js', 'pfx-worker-client.js',
+    'pfx-worker.js', 'csr.js', 'csr-worker-client.js', 'csr-worker.js', 'theme.js',
+    'wasm-loader.js', 'style.css', 'favicon.svg'].map((name) => `!web/workbench/${name}`),
 ]);
 for (const rule of dockerIgnore.filter((line) => line.startsWith('!'))) {
   assert.ok(reviewedSourceIncludes.has(rule) || expectedPublicPEM.has(rule),
     'An unreviewed/broad build-context inclusion is not permitted.');
+  // A re-included directory brings every file under it (audit RW-05).
+  assert.ok(!rule.endsWith('/') && !rule.endsWith('**') && /\.[A-Za-z0-9]+$|^!go\.(mod|sum)$/.test(rule),
+    `A build-context exception must name files, not a directory: ${rule}`);
+}
+// Every Workbench asset the gate requires must reach the image.
+for (const name of gateWorkbenchAssets(await readFile(new URL('../cmd/rootwelld/gate.go', import.meta.url), 'utf8'))) {
+  if (name === 'wasm_exec.js' || name === 'rootwell.wasm') continue; // built inside the image
+  assert.ok(reviewedSourceIncludes.has(`!web/workbench/${name}`) && dockerIgnore.includes(`!web/workbench/${name}`),
+    `The gate requires web/workbench/${name}; the build context must include it.`);
+}
+
+function gateWorkbenchAssets(source) {
+  const list = source.match(/for _, name := range \[\]string\{([^}]+)\}/);
+  assert.ok(list, 'The gate lists the Workbench assets it requires.');
+  return [...list[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }
 assert.ok(dockerIgnore.includes('!cmd/rootwelld/auth/website-examples.json'),
   'Public generated website examples must survive the deny-default context.');

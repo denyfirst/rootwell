@@ -82,7 +82,7 @@ try {
   const homeHTML = await home.text();
   assert.match(homeHTML, /DEMO — local Workbench with synthetic, read-only Inventory/);
   assert.match(homeHTML, /class="rail-item" href="\/certificates"/);
-  assert.match(homeHTML, /No certificate uploads/);
+  assert.match(homeHTML, /Files stay in this browser/);
   assert.doesNotMatch(homeHTML, /rootwell\.inventory\.workbench\.v1/, "GET must not hand off any saved certificate");
   assert.equal((await fetch(origin + "/")).url, origin + "/index.html");
   for (const asset of ["style.css", "theme.js", "inventory.css", "certificate-library.js", "certificate-pfx.js", "certificate-pfx-worker.js", "saved-key-attachment.js"]) {

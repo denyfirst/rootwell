@@ -1,5 +1,5 @@
 # Development-only Linux image. A public release still requires independent audit.
-FROM golang:1.26.10-bookworm@sha256:632dff7351799a5a9954a48dc06670ade72ee44e8c351cdc0e5a57af2fea21af AS build
+FROM golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
@@ -12,6 +12,10 @@ RUN mkdir -p /out && \
     cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js && \
     CGO_ENABLED=0 go test -c -o /out/volume-drill.test ./internal/instanceaccess && \
     CGO_ENABLED=0 go test -c -o /out/ca-trust-drill.test ./internal/acmestaging
+
+# Exactly what .dockerignore lets in; scripts/test-build-context.sh lists it.
+FROM scratch AS context
+COPY . /
 
 FROM scratch AS volume-drill
 COPY --from=build /out/volume-drill.test /volume-drill.test
