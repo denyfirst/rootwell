@@ -266,7 +266,7 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/automation/renew":
 		g.renewalNavigationEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/production-account.js", "/acme-registration.js", "/acme-order.js", "/inventory", "/certificates", "/certificate-library.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
+	case "/automation", "/history-archive.js", "/request-archive.js", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/production-account.js", "/acme-registration.js", "/acme-order.js", "/certificate-library.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/saved-key-attachment.js", "/inventory.js", "/inventory.css", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -310,10 +310,6 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			g.authAsset(w, r, "auth/acme-registration.js", "text/javascript; charset=utf-8")
 		case "/acme-order.js":
 			g.authAsset(w, r, "auth/acme-order.js", "text/javascript; charset=utf-8")
-		case "/inventory", "/certificates":
-			w.Header().Set("Referrer-Policy", "same-origin")
-			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "form-action 'none'", "form-action 'self'", 1))
-			g.authAsset(w, r, "auth/inventory.html", "text/html; charset=utf-8")
 		case "/certificate-pfx.js":
 			g.authAsset(w, r, "auth/certificate-pfx.js", "text/javascript; charset=utf-8")
 		case "/certificate-pfx-worker.js":
@@ -375,6 +371,11 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.setup {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
+		return
+	}
+	// Certificates is the home page.
+	if r.URL.Path == "/" {
+		http.Redirect(w, r, "/certificates", http.StatusSeeOther)
 		return
 	}
 	g.workbenchAsset(w, r)
@@ -693,6 +694,7 @@ func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentTy
 var workbenchFiles = map[string]string{
 	"/inspect": "inspect.html", "/inspect.js": "inspect.js", "/ui.js": "ui.js", "/rootwell.css": "rootwell.css",
 	"/convert": "convert.html", "/convert.js": "convert.js", "/request": "request.html", "/request.js": "request.js",
+	"/certificates": "certificates.html", "/certificates.js": "certificates.js",
 	"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/private-key.js": "private-key.js",
 	"/secret-view.js":           "secret-view.js",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",

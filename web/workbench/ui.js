@@ -16,6 +16,9 @@
     alert: [["soft-fill", "circle", "12,12,8.5"], ["", "path", "M12 7.5v5.5M12 16.3v.2"]],
     download: [["", "path", "M12 4v11M7.5 10.5L12 15l4.5-4.5M5 20h14"]],
     x: [["", "path", "M6.5 6.5l11 11M17.5 6.5l-11 11"]],
+    plus: [["", "path", "M12 5v14M5 12h14"]],
+    chevron: [["", "path", "M9.5 6l6 6-6 6"]],
+    trash: [["", "path", "M4.5 7h15M9.5 7V4.5h5V7"], ["soft-fill", "path", "M6.5 7l1 12.5h9l1-12.5"]],
   };
 
   function icon(name, extra) {

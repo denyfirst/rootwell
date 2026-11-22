@@ -266,6 +266,7 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .list-head + .row { border-top: 0; }
 .row:hover { background: color-mix(in srgb, var(--tool) 4%, var(--card)); }
 .row-name { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.row-name > :last-child { min-width: 0; }
 .row-name strong { display: block; font-size: var(--fs-16); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-name small { display: block; color: var(--ink-faint); font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-cell { color: var(--ink-soft); font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -388,6 +389,7 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .sheet-section + .sheet-section { margin-top: var(--sp-6); }
 .sheet-section > .label { display: block; margin-bottom: var(--sp-3); }
 .sheet-foot { position: sticky; bottom: 0; display: flex; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-4) var(--sp-5); background: var(--card); border-top: 1px solid var(--rule); }
+.sheet-foot .btn { padding: 0 var(--sp-4); }
 .dialog {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: min(600px, calc(100vw - 32px)); max-height: calc(100vh - 64px); overflow-y: auto;
@@ -473,3 +475,10 @@ details.more > summary { display: flex; align-items: center; gap: var(--sp-2); m
 details.more > summary::-webkit-details-marker { display: none; }
 details.more > summary::before { content: "›"; display: inline-block; width: 1em; transition: transform 0.15s; }
 details.more[open] > summary::before { transform: rotate(90deg); }
+
+/* ── Certificates: filters and messages ─────────────────────────────────── */
+button.stat { width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+button.stat:hover { border-color: var(--rule-strong); }
+.stat[aria-pressed="true"] { border-color: var(--tool); box-shadow: 0 0 0 1px var(--tool); }
+.gap-bottom { margin-bottom: var(--sp-4); }
+.status-line:not(:empty) { margin-bottom: var(--sp-4); }
