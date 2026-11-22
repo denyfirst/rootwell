@@ -142,8 +142,94 @@
     });
   }
 
+  // The chain from the first non-CA certificate up through its issuers, as far
+  // as the given certificates go: indexes into certificates, leaf first.
+  function chainOrder(certificates, analysis) {
+    const leaf = Math.max(0, certificates.findIndex((c) => !c.is_ca));
+    const order = [leaf];
+    const seen = new Set(order);
+    let at = leaf;
+    while (analysis.certificates[at] && analysis.certificates[at].parents.length) {
+      const next = analysis.certificates[at].parents[0];
+      if (seen.has(next)) break;
+      order.push(next);
+      seen.add(next);
+      at = next;
+    }
+    return order;
+  }
+
+  function concat(parts) {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
+    let at = 0;
+    for (const part of parts) { out.set(part, at); at += part.byteLength; }
+    return out;
+  }
+
+  // A password a person never has to think up: 24 letters and digits without
+  // look-alikes (about 140 bits), drawn without bias.
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  function strongPassword() {
+    const limit = 256 - (256 % alphabet.length);
+    const pick = new Uint8Array(64);
+    let out = "";
+    while (out.length < 24) {
+      crypto.getRandomValues(pick);
+      for (const byte of pick) if (byte < limit && out.length < 24) out += alphabet[byte % alphabet.length];
+    }
+    return out;
+  }
+  // What the engine accepts for a new key or PFX password.
+  function isStrongPassword(value) {
+    return typeof value === "string" && value.length >= 20 && value.length <= 128 && /^[!-~]+$/.test(value);
+  }
+
+  // A plain ZIP (stored, not compressed) of a few small files, so one
+  // download carries a certificate, its chain and its key together.
+  const crcTable = new Uint32Array(256).map((_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  function zip(files, when) {
+    const at = when || new Date();
+    const time = (at.getHours() << 11) | (at.getMinutes() << 5) | (at.getSeconds() >> 1);
+    const date = ((Math.max(1980, at.getFullYear()) - 1980) << 9) | ((at.getMonth() + 1) << 5) | at.getDate();
+    const encoder = new TextEncoder();
+    const locals = [], centrals = [];
+    let offset = 0;
+    for (const file of files) {
+      const name = encoder.encode(file.name);
+      const crc = crc32(file.bytes);
+      const size = file.bytes.byteLength;
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
+      local.setUint16(10, time, true); local.setUint16(12, date, true); local.setUint32(14, crc, true);
+      local.setUint32(18, size, true); local.setUint32(22, size, true); local.setUint16(26, name.byteLength, true);
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 0x02014b50, true); central.setUint16(4, 20, true); central.setUint16(6, 20, true); central.setUint16(8, 0x0800, true);
+      central.setUint16(12, time, true); central.setUint16(14, date, true); central.setUint32(16, crc, true);
+      central.setUint32(20, size, true); central.setUint32(24, size, true); central.setUint16(28, name.byteLength, true);
+      central.setUint32(42, offset, true);
+      locals.push(new Uint8Array(local.buffer), name, file.bytes);
+      centrals.push(new Uint8Array(central.buffer), name);
+      offset += 30 + name.byteLength + size;
+    }
+    const directory = concat(centrals);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+    end.setUint32(12, directory.byteLength, true); end.setUint32(16, offset, true);
+    return concat([...locals, directory, new Uint8Array(end.buffer)]);
+  }
+
   Object.defineProperty(globalThis, "rootwellUI", {
-    value: Object.freeze({ icon, el, lifetime, pill, lifetimeBar, formatDate, commonName, shortFingerprint, download, friendlyName, dropZone }),
+    value: Object.freeze({ icon, el, lifetime, pill, lifetimeBar, formatDate, commonName, shortFingerprint, download, friendlyName, dropZone,
+      chainOrder, concat, strongPassword, isStrongPassword, zip }),
     writable: false, configurable: false, enumerable: false,
   });
 })();

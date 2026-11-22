@@ -76,23 +76,6 @@
     return selfSigned ? "Root" : "Intermediate";
   }
 
-  // The chain from the first non-CA certificate up through its issuers, as
-  // far as these files go.
-  function chainOrder(certificates, analysis) {
-    const leaf = Math.max(0, certificates.findIndex((c) => !c.is_ca));
-    const order = [leaf];
-    const seen = new Set(order);
-    let at = leaf;
-    while (analysis.certificates[at] && analysis.certificates[at].parents.length) {
-      const next = analysis.certificates[at].parents[0];
-      if (seen.has(next)) break;
-      order.push(next);
-      seen.add(next);
-      at = next;
-    }
-    return order;
-  }
-
   function factBlock(label, value) {
     const fact = ui.el("div", "fact");
     fact.appendChild(ui.el("span", "", label));
@@ -193,7 +176,7 @@
       }
       const analysis = JSON.parse(engine.analyze(data.parts));
       if (analysis.error || !analysis.result || analysis.result.certificates.length !== certificates.length) return fail("These files do not belong together. Open them one at a time.");
-      const order = chainOrder(certificates, analysis.result);
+      const order = ui.chainOrder(certificates, analysis.result);
       const first = order[0];
       // The details come from the certificate's own bytes, read again.
       let source = 0, seen = 0;

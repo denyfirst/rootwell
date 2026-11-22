@@ -325,8 +325,8 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 }
 .input:focus, .select:focus { outline: none; border-color: var(--tool); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tool) 22%, transparent); }
 .input::placeholder { color: var(--ink-faint); }
-.input-row { display: flex; gap: var(--sp-3); }
-.input-row .input { flex: 1; }
+.input-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.input-row .input { flex: 1 1 12rem; min-width: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; min-height: var(--control); padding: 6px var(--sp-3); background: var(--card); border: 1px solid var(--rule-strong); border-radius: var(--r); }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 var(--sp-2) 0 var(--sp-3); background: var(--tool-wash); color: var(--ink); border-radius: var(--r-sm); font-size: var(--fs-14); }
 .chip button { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; color: var(--ink-faint); background: none; border: 0; cursor: pointer; }
@@ -447,6 +447,8 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
   .row > :nth-child(5) { display: none; }
   .page-head .btn { width: 100%; }
   .page-actions { width: 100%; }
+  .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .choice { padding: var(--sp-3); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
