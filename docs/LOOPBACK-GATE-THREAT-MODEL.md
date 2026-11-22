@@ -12,10 +12,12 @@ existing access file. If init output is lost, it cannot be redisplayed.
 
 The server checks a password using the key envelope from ADR 0013. A correct
 initial password receives a 15-minute setup-only session. It can reach only
-the password-change page and session endpoints; static Workbench assets and
-every future API are behind a ready-only gate. Successful change rewraps the
-same data key, revokes every session, and requires fresh sign-in. Closing the
-browser before change leaves the installation in setup mode.
+the password-change page and session endpoints. Every page, page script and
+API is behind a ready-only gate; only the shared stylesheet, the colour-scheme
+script, the icon and the typeface are public, so sign-in and setup look like
+the rest. Successful change rewraps the same data key, revokes every session,
+and requires fresh sign-in. Closing the browser before change leaves the
+installation in setup mode.
 
 Authentication requests are bounded JSON POSTs with exact same-origin Origin
 checks, a custom request header, a global attempt limit, and one active KDF

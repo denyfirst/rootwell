@@ -23,8 +23,8 @@ release, live public-site tests and real CA/DNS operations are not claimed.
   expiry, hostname mismatch, untrusted peer root, order differences, malformed
   input, address-policy refusals, byte limits, cancellation/revocation,
   ready/setup/origin/consent/throttle and late-session publication are tested.
-- `node scripts/test-website-check.mjs` and
-  `node scripts/test-inventory-demo.mjs` passed: bounded contract, raw-error
+- `node scripts/test-website-check.mjs` and the inventory demo test (removed
+  on 22 November 2026 with the demos) passed: bounded contract, raw-error
   refusal, single-use consent, late results, timeout, hidden/pageexit reset,
   generated-only examples and preview live-POST refusal.
 - In-app browser showed both actual example renders (healthy and wrong issuer)

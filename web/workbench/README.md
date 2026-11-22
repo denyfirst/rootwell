@@ -1,168 +1,79 @@
-# Rootwell local Workbench
+# Rootwell pages
 
-This directory contains Rootwell's dependency-free, self-hosted browser UI.
-**Inspect** uses the existing public Explore core to process
-1–8 selected public files containing strict PEM certificate bundles or single
-DER certificates, with at most 64 certificates and 16 MiB combined. Each file
-uses the same bounded Go core as the
-CLI. Each Inspect card can show the full single-certificate inspection fields:
-the chosen public source is re-read, its ordered fingerprints are checked,
-the certificate is extracted as DER by fingerprint, and the existing Go
-inspection response must agree with the card before details appear. **Convert**
-is a separate screen for those public certificates and can also start from
-its own public-file selector, using the same bounded inspection path. A new
-selection or failure clears its choices. A separate private Convert picker
-recognizes one strict unencrypted PKCS#8, PKCS#1 RSA, or SEC1 EC key in
-PEM/DER, or a bounded encrypted PKCS#8 PEM/DER key with its current password.
-Encrypted PKCS#8 PEM is the default output; compatible unencrypted PEM/DER
-targets require an explicit warning and confirmation. That picker does not
-accept PFX or legacy encrypted PEM and never saves to a vault. A separate
-PFX section opens a bounded modern authenticated PFX, exports one selected
-public certificate, exports the matching private key only as freshly encrypted
-PKCS#8 PEM, and creates a modern PFX from a matching unencrypted RSA/ECDSA
-key and certificate plus optional ordered intermediates. Verify uses the
-same explicit-trust TLS server verifier as the CLI.
+This directory holds the pages `rootwelld` serves after sign-in, their scripts,
+the browser workers and the one stylesheet every page uses. The pages are
+plain HTML and JavaScript with no dependencies. The browser engine is the Go
+core compiled to WebAssembly (`rootwell.wasm`), built from the same code as
+the `rootwell` command.
+
+## The pages
+
+The menu has six pages. `/` leads to Certificates.
+
+| Page | Route | Files | What it does |
+|---|---|---|---|
+| Certificates | `/certificates` | `certificates.html`, `certificates.js`, and `certificate-pfx.js` with `certificate-pfx-worker.js` from `cmd/rootwelld/auth` | Lists the saved certificates with the days each has left, where it is used and whether its key is kept; opens one in a side sheet; adds certificates, bundles, keys and PFX files |
+| Website check | `/website-check` | `website-check.html`, `website-check.js` in `cmd/rootwelld/auth` | Asks this server to read what a public HTTPS website sends, and explains the chain |
+| Inspect | `/inspect` | `inspect.html`, `inspect.js` | Shows who a certificate is for, who issued it, how long it lasts, whether its chain is complete, and whether a private key belongs to it |
+| Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
+| Request | `/request` | `request.html`, `request.js` | Makes a CSR with a new key or an existing one |
+| Account | `/account` | `account.html`, `auth.js` in `cmd/rootwelld/auth` | Changes the password |
+
+Sign-in (`/login`) and setup (`/setup`) also come from `cmd/rootwelld/auth`.
+Every page links `/rootwell.css`, loads `/theme.js` for the colour scheme and
+`/session.js` for Sign out, and carries no inline style or script. The
+stylesheet, `theme.js` and `favicon.svg` are served before sign-in so that
+the sign-in and setup pages look like the rest; everything else needs a
+signed-in session.
+
+The hidden Renewals page (`/automation`) still uses the older `style.css`
+until it is rebuilt with real renewal.
+
+## Shared files
+
+- `rootwell.css` — the graphite design: tokens for light and dark, fixed
+  sizes, the rail, cards, pills, the lifetime bar and the chain.
+- `ui.js` — helpers every page uses: elements built with `textContent`,
+  icons, status pills, the lifetime bar, the chain order, drop zones, a ZIP
+  writer and a password maker.
+- `theme.js` — the colour scheme switch; it remembers only that choice.
+- `session.js` — Sign out; it talks only to `/api/session`.
+- `wasm-loader.js` — fetches `rootwell.wasm` from this server, without
+  credentials or redirects, and hands the engine to the page.
+- `private-worker-client.js` and `private-key-worker.js`,
+  `pfx-worker-client.js` and `pfx-worker.js`, `csr-worker-client.js` and
+  `csr-worker.js` — one-shot workers for private keys, PFX files, requests
+  and key matching.
 
 ## Security boundary
 
-- selected certificate and private-key bytes are never posted to a Rootwell or third-party HTTP API;
-- only `wasm-loader.js` may fetch, and it loads the same-origin
-  `rootwell.wasm` application asset;
-- the loader has no DOM, selected-file, or file-byte access;
-- `app.js` reads a file only after **Inspect public files**, **Open public files for conversion**, **View full details**,
-  **Verify certificate**, or a public download action is pressed and has no network,
-  service-worker, dynamic-code, or
-  workbench-input storage capability;
-- selected values and certificate metadata are rendered through `textContent`;
-- the Go core enforces the 16 MiB per-file input limit, strict one-certificate
-  Inspect or 1–64 certificate per-file Explore limits, trailing-data and metadata
-  limits before returning a versioned, public-only response (Explore is also
-  capped at 4 MiB); the browser additionally bounds the selected collection
-  and rejects duplicates across files without showing partial results;
-- duplicate diagnostics name both local files and the full fingerprint across
-  files, or the source file for an in-file duplicate; filenames are bounded and
-  rendered as text, and duplicate certificates are never silently removed;
-- `private-key.js` can read only its explicitly selected key after a click;
-  it has no network, persistent storage, dynamic code, or markup-injection
-  capability. Each operation runs in a fresh, one-shot browser worker with a
-  30-second inspection or 60-second export deadline. Selection changes abort
-  the worker; failure has no synchronous main-thread fallback. The worker
-  receives the already loaded same-origin WebAssembly module, and the
-  authenticated server denies network connections from its script. Inspect
-  returns only public-key metadata; export re-reads the
-  selected file and binds its full public fingerprint to the visible result;
-  encrypted PKCS#8 is the default download; plaintext targets require a
-  separate choice and explicit confirmation, without a file-permission claim;
-- `pfx.js` reads only its explicitly selected PFX/certificate/key files after
-  a click, and has no network or persistent-storage capability. Each action
-  uses a separate one-shot worker with a 45-second inspection or 90-second
-  output deadline. The PFX password is re-entered for extraction, and the
-  selected full fingerprint is rechecked; output is a public PEM/DER
-  certificate or a newly encrypted private key, never a plaintext PFX key;
-- JavaScript and Go entry buffers are cleared after use on a best-effort basis.
-  Browser memory, immutable password strings, extensions, a compromised host,
-  and browser-managed download permissions cannot be fully controlled. Static
-  serving is an unauthenticated developer preview; use the ready-session
-  `rootwelld` gate for local testing. This is not audited production custody.
+- Inspect, Convert and Request read the files a person chooses and make no
+  request: their scripts and `ui.js` have no network, storage, worker or
+  HTML-writing capability of their own. Files never leave the browser.
+- Certificates sends what a person adds only to this Rootwell's own
+  `/api/inventory` and `/api/certificates` endpoints, with the
+  `X-Rootwell-Request` header and same-origin credentials. A PFX is opened in
+  its worker first; the server receives its certificate and the key encrypted
+  again for the transfer, never the PFX itself or its password.
+- Private keys, PFX files and requests are handled in a fresh worker for each
+  operation, with a deadline, cancellation when the page moves on, and
+  clearing of the bytes it was given. The server sends each worker script
+  with its own policy: no network and no further workers.
+- Every page is served with a strict Content Security Policy: scripts,
+  styles, images, fonts and connections only from this server,
+  `'wasm-unsafe-eval'` for the engine, and nothing inline.
+- Text from certificates, files and the server is always written with
+  `textContent`.
+- Inspect forgets the certificate and any typed password when the page is
+  hidden or left. Convert and Request forget files, keys and passwords when
+  the page is left, when other files are chosen and after ten idle minutes.
+  Byte buffers are cleared on a best-effort basis; browser memory, password
+  strings, extensions and a compromised host cannot be fully controlled.
 
-Explore displays subject, issuer, CA flag, validity start/end, encoding, fingerprint, and
-possible issuer links backed by issuer/subject names and signature checks.
-The numbered signing-links guide repeats those relationships in plain language,
-shows missing links and multiple possible signers, and follows the displayed
-file order. It does not choose a path, identify a trusted root, or trigger
-verification; changing files or a failed Explore clears the guide.
-The optional public JSON report is created only after its own download click.
-It includes certificate subjects/issuers, full fingerprints, source file
-numbers (not filenames), possible signing indices, validity dates, and expiry
-windows evaluated at the Explore-time browser clock. It explicitly records
-that verification, root selection, revocation and live contact did not occur.
-Before requesting a browser download, Rootwell re-reads every selected file
-and compares its ordered full certificate fingerprints with the displayed
-snapshot. Changed, malformed, oversized or stale selections fail closed. The
-report is capped at 2 MiB and gets a random filename. Public certificate names
-may still disclose internal hostnames; the operator chooses where the browser
-saves it. No automatic persistence or server upload is added. See
-[ADR 0012](../../docs/adr/0012-browser-public-health-report.md).
-Its expiry overview sorts the selected public certificates by end date and
-groups invalid ranges, expired, not-yet-valid, 0–30 days, 31–90 days, and later
-dates using a single snapshot of the browser clock. The 30/90-day windows are
-fixed triage hints, not configurable alerts or automatic renewal. The overview
-exists only in the current page session, refreshes only after Explore is
-pressed again, and is cleared on a new selection or analysis failure. A wrong
-browser clock produces wrong time buckets; the displayed UTC evaluation time
-helps the operator spot this. CA dates are included without implying trust.
-The guided health summary explains what was found without assigning trusted
-roles. With exactly one certificate lacking the CA flag, an explicit button
-can carry the already selected public file references to Simple Verify. The
-source files are re-read and their ordered certificate fingerprints compared
-with Explore before verification; the user must still enter a hostname and
-choose a separate trusted root. Zero or multiple candidates transfer no files.
-Manual source selection replaces the handoff; new Explore selections and
-analysis failures invalidate it. Fixed next-step guidance accompanies Verify
-failures without echoing certificate or file contents. This does not weaken
-the existing Go verification policy or authenticate a root from the bundle.
-It does not select a leaf, choose a trust anchor, or verify a chain. An
-explicitly selected set can be downloaded as a public PEM bundle in displayed
-order, without an automatic fullchain claim. A selected public certificate
-can also be downloaded as one PEM
-`CERTIFICATE` block or exact DER bytes. The source is re-parsed and selected
-by fingerprint; the output is re-parsed and byte-checked before download.
-The user explicitly chooses both the encoding and filename extension:
-`.crt`/`.cer` may contain PEM or DER, whereas `.pem` and `.der` are paired
-only with their named encodings. The extension does not alter the certificate.
-Conversion cards live in a separate Convert tab. Inspect contains bundle
-summaries, full details on request, and optional technical signing-link,
-expiry, and JSON-report details. This is a UI composition change, not new
-format, secret, or trust support.
-The filename uses a fixed prefix, fingerprint fragment, and random suffix,
-never certificate subject text. Rootwell does not write to disk or silently
-overwrite a file; final save behavior belongs to the browser and operating
-system and cannot be guaranteed by this web page. A CA flag is not a trust
-verdict.
+## Build the engine
 
-Verify is offline and requires a hostname and separately selected PEM trust
-anchor file. Simple classifies 1–8 strict public files and requires exactly
-one end-entity certificate; self-signed roots in these files are ignored as
-trust sources. Advanced accepts an explicit leaf, optional PEM intermediates,
-and optional RFC 3339 evaluation time. Both use the same Go verification
-policy. Success does not check revocation, live deployment, or private-key
-possession. Do not import private keys or PFX into the public Verify inputs.
-An optional full SHA-256 root certificate fingerprint can be entered as
-64 hex digits or colon-separated bytes. Rootwell compares it with the final
-anchor of the verified path and refuses a malformed or mismatched pin. Obtain
-the expected value through a separately trusted channel; copying it from the
-same root file adds no assurance. Without a pin, Rootwell reports that root
-identity remains unconfirmed. A pin does not check a live server or MITM.
-
-After success, **Download verified fullchain PEM** re-reads the selected
-files, re-verifies with the same separate trust file, hostname and evaluation
-time, and requires the complete ordered path to match the displayed one.
-Only the verified leaf and intermediates are exported, in path order. The
-trust root, unrelated certificates, and private keys are excluded. The output
-is capped at 4 MiB, re-parsed in Go and the browser, and downloaded with a
-random browser-managed filename. An Advanced historical evaluation time is
-not a claim that the chain is valid now. See
-[ADR 0010](../../docs/adr/0010-browser-verified-public-fullchain-export.md).
-
-Browser-wide memory erasure is not guaranteed. The Inspect, Verify, and public
-Convert selectors are for public certificates only; use only the separately
-labelled private Convert picker for supported unencrypted keys or bounded
-encrypted PKCS#8. PFX/PKCS#12 belongs only in the separate bounded PFX
-section; legacy and unknown PFX profiles and legacy encrypted PEM remain unsupported in
-the browser. See
-[`docs/adr/0003-browser-inspection-webassembly.md`](../../docs/adr/0003-browser-inspection-webassembly.md)
-and [the Explore decision](../../docs/adr/0004-browser-public-bundle-exploration.md)
-and [issuer-candidate decision](../../docs/adr/0007-browser-public-issuer-candidates.md)
-and [bundle export decision](../../docs/adr/0008-browser-selected-public-bundle-export.md)
-and [Verify decision](../../docs/adr/0009-browser-explicit-trust-verification.md)
-and [PFX worker decision](../../docs/adr/0037-browser-pfx-worker-and-conversion.md)
-and [encrypted PFX input decision](../../docs/adr/0038-browser-pfx-encrypted-input-key.md)
-for the decision and non-claims.
-
-## Build the local engine
-
-The generated `rootwell.wasm` and `wasm_exec.js` files are intentionally not
-committed. They must come from the exact Go version selected by `go.mod`.
+`rootwell.wasm` and `wasm_exec.js` are not committed. They must come from the
+exact Go version `go.mod` names.
 
 PowerShell:
 
@@ -170,6 +81,7 @@ PowerShell:
 $env:GOOS = "js"
 $env:GOARCH = "wasm"
 go build -trimpath -o web/workbench/rootwell.wasm ./cmd/rootwell-browser
+Remove-Item Env:GOOS, Env:GOARCH
 Copy-Item -Force (Join-Path (go env GOROOT) "lib/wasm/wasm_exec.js") web/workbench/wasm_exec.js
 ```
 
@@ -181,60 +93,26 @@ GOOS=js GOARCH=wasm go build -trimpath \
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/workbench/wasm_exec.js
 ```
 
-Serve `web/workbench` from a static server. Direct `file://` opening remains a
-visual fallback because browsers do not consistently load local WebAssembly.
-The server must send `Content-Type: application/wasm` for `rootwell.wasm`.
+Then serve this directory with `rootwelld serve <data> web/workbench`. The
+daemon refuses to start when a page file or the engine is missing.
 
-For a strictly synthetic local browser smoke test after building the engine,
-run `node scripts/workbench-preview.mjs --synthetic-preview-only` from the
-repository root and open `http://127.0.0.1:4190/worker-browser-smoke.html`.
-The page generates a temporary ECDSA key in that browser, verifies worker
-inspection, encrypted export, and encrypted re-import, then clears its byte
-buffers; it never requests a download. The preview is unauthenticated and
-loopback-only. Do not select real keys there.
+## Tests
 
-For a disposable PFX UI demonstration, run
-`go run ./scripts/generate-browser-pfx-fixture.go --write-files`. It prints an
-OS-temp directory and a synthetic password. Select only those generated
-`.pem`/`.pfx` files on the loopback preview. The files contain a synthetic
-private key and are not production credentials; delete that exact temporary
-directory when no longer needed. The automated WASM and worker tests use
-freshly generated material without writing fixture files.
+The page tests drive each page with the real engine and generated,
+non-production material from `scripts/generate-convert-fixture.go`; no
+sample file ships with the pages.
 
-For a safe first test, download `rootwell-demo-certificate.pem` from Inspect
-and select it there. It contains one non-production public certificate for
-`.invalid` names and deliberately contains no private key. To see two Inspect
-cards, use the public `rootwell-demo-bundle.pem` link there. Open a card's full
-details in Inspect, then go to Convert to choose PEM or DER content and a
-compatible extension before downloading a public certificate.
-
-To test Verify without production material, download the public
-`rootwell-verify-demo-ca-files.pem` and `rootwell-verify-demo-root.pem` links
-in the Verify panel. Enter `verify.rootwell.invalid` as hostname. Select the
-CA-files PEM in Simple and the root PEM as the separate trust file. For
-Advanced, use the separate demo leaf and intermediate links. The demo has
-no private key; never install its root into a browser or OS trust store. Its
-fixed validity window ends on 2035-01-01, after which historical evaluation
-time is required for testing.
-
-## Required production headers
-
-The HTML meta policy is a fallback, not the deployment boundary. The static
-server should send at least:
-
-```text
-Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self'; connect-src 'self'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'self'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
-Referrer-Policy: no-referrer
-X-Content-Type-Options: nosniff
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Resource-Policy: same-origin
-Permissions-Policy: camera=(), display-capture=(), geolocation=(), microphone=(), payment=(), usb=()
+```sh
+wasm=path/to/rootwell.wasm
+runtime="$(go env GOROOT)/lib/wasm/wasm_exec.js"
+node scripts/test-certificates.mjs "$wasm" "$runtime"
+node scripts/test-inspect.mjs "$wasm" "$runtime"
+node scripts/test-convert.mjs "$wasm" "$runtime"
+node scripts/test-request.mjs "$wasm" "$runtime"
+node scripts/test-website-check.mjs
+node scripts/test-session.mjs
 ```
 
-Serve `private-key-worker.js` and `pfx-worker.js` with their own response CSP:
-`default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'`.
-The HTML meta policy cannot impose this worker response boundary by itself.
-
-Use an authenticated administrative origin with no third-party script
-injection, publish checksums with the release bundle, and package
-`rootwell.wasm` together with the matching Go `wasm_exec.js` runtime.
+`internal/uicontract` checks the design tokens, contrast, the shared rail,
+the stylesheet link on every page and the capability boundaries above;
+`cmd/rootwelld` checks what each route serves, to whom, and under which policy.

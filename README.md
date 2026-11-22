@@ -85,6 +85,11 @@ go run ./cmd/rootwelld serve $dataDir web/workbench
 2. Open `http://localhost:4180` on the same machine.
 3. Sign in with the setup password, then change it.
 
+The menu has six pages: **Certificates** (the home page), **Website check**,
+**Inspect**, **Convert**, **Request** and **Account**. Inspect, Convert and
+Request work on files only inside the browser
+([the pages](web/workbench/README.md)).
+
 The service listens on `127.0.0.1` only. On Linux, backups and restores are
 terminal commands with the service stopped ([recovery](docs/RECOVERY.md)). A
 Docker profile is in [container recovery](docs/CONTAINER-RECOVERY.md).

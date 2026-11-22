@@ -78,9 +78,10 @@ shared attempt/KDF budget; the locked writer repeats validation and atomically
 retains certificate/bundle/provenance/order/notes with a key-added history event.
 Mismatch consent, legacy key refusal, metadata/deletion/full restore and manual
 backup requirements remain. Lost confirmation after a committed write is
-uncertain, including logout/cancellation. The public Convert handoff transfers
-only selected public DER, not its key/bundle/notes or trust authority. Private
-conversion requires explicit encrypted export and input selection. See
+uncertain, including logout/cancellation. The Convert handoff of
+ADR 0048 was retired on 22 November 2026 with the page rebuild: Convert now
+works only on files a person chooses, and Certificates downloads a saved
+certificate and key itself. See
 [ADR 0048](adr/0048-saved-key-attachment-and-convert-handoff.md).
 
 Certificate DER, optional matching private key, key-input password, fresh
@@ -181,7 +182,7 @@ HSM isolation or production assurance is provided. A leaked instance data key
 opens public records and attachments despite purpose separation. Old complete
 backups retain old keys. Separate installation password and export password do
 not protect a compromised host. Obtain independent specialist review before
-real-user custody. Do not import production secrets into the Windows demo.
+real-user custody. Do not import production secrets into a Windows development build.
 
 Evidence: certificatepair generated RSA/ECDSA/Ed25519 and encrypted-key tests;
 inventorystore atomicity/preservation/deletion/tamper/context tests; Linux API

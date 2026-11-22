@@ -49,7 +49,7 @@ Cloudflare test, or an independent audit.
 | Certificates | The same fingerprints, key status, bundles and notes |
 | Expiry | Dates computed from the server's current clock |
 | Change history | Active and archived history are intact |
-| Tools | A synthetic file inspects and converts correctly |
+| Inspect, Convert, Request | A synthetic file inspects and converts correctly, and a request is made |
 | Automation | The same account, order, DNS and wait state; no old job starts by itself |
 | Full backup | A new backup from the candidate restores into another empty directory |
 
