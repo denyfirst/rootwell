@@ -1,10 +1,10 @@
 //go:build ignore
 
-// Generate disposable, non-production material for the Convert page test:
+// Generate disposable, non-production material for the page and engine tests:
 // a root, an issuing CA and a website certificate, its key (plain and
-// password-protected), an unrelated key, an RSA key and a PFX holding the
-// certificate, its issuer and its key. Printed as JSON for
-// test-convert.mjs; nothing is written to disk.
+// password-protected), an unrelated key, an RSA key, a request (CSR) for the
+// website key and a PFX holding the certificate, its issuer and its key.
+// Printed as JSON; nothing is written to disk.
 package main
 
 import (
@@ -78,6 +78,9 @@ func main() {
 	check(err)
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	check(err)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: "shop.test"},
+		DNSNames: []string{"shop.test", "www.shop.test"}}, leafKey)
+	check(err)
 	leafPEM, issuerPEM, keyPEM := encode("CERTIFICATE", leafDER), encode("CERTIFICATE", issuerDER), encode("PRIVATE KEY", leafPKCS8)
 	pfx, err := pfxcreate.Create(leafPEM, keyPEM, issuerPEM, pfxPassword)
 	check(err)
@@ -90,6 +93,7 @@ func main() {
 		"locked_key":   b64(encode("ENCRYPTED PRIVATE KEY", lockedDER)),
 		"other_key":    b64(encode("PRIVATE KEY", otherPKCS8)),
 		"rsa_key":      b64(encode("RSA PRIVATE KEY", x509.MarshalPKCS1PrivateKey(rsaKey))),
+		"csr":          b64(encode("CERTIFICATE REQUEST", csr)),
 		"pfx":          b64(pfx),
 		"pfx_password": pfxPassword,
 		"key_password": keyPassword,

@@ -9,7 +9,10 @@ import (
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
 )
 
-func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
+// Certificates, the home page, and the scripts it runs are served only to a
+// ready session; the PFX reader runs in a worker with no network and no
+// further workers.
+func TestCertificatesPageAndItsScriptsRemainBehindReadyAccess(t *testing.T) {
 	g, _ := testGate(t)
 	revision, err := instanceaccess.Revision(g.accessPath)
 	if err != nil {
@@ -24,54 +27,51 @@ func TestInventoryBulkAssetsRemainBehindReadyAccess(t *testing.T) {
 	if err := g.issueSession(setup, true, revision, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/inventory", "/certificates", "/certificate-library.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/inventory-import.js", "/inventory-engine.js", "/inventory-lifecycle.js"} {
+	for _, path := range []string{"/certificates", "/certificates.js", "/ui.js", "/certificate-pfx.js", "/certificate-pfx-worker.js"} {
 		anonymous := call(g, "GET", path, "", nil)
 		if anonymous.Code != http.StatusSeeOther || anonymous.Header().Get("Location") != "/login" {
-			t.Fatal("anonymous access to bulk assets")
+			t.Fatalf("anonymous access to %s", path)
 		}
 		setupOnly := call(g, "GET", path, "", sessionCookie(t, setup))
 		if setupOnly.Code != http.StatusSeeOther || setupOnly.Header().Get("Location") != "/setup" {
-			t.Fatal("setup access to bulk assets")
+			t.Fatalf("setup access to %s", path)
 		}
 		ready := call(g, "GET", path, "", cookie)
 		if ready.Code != http.StatusOK || ready.Header().Get("Cache-Control") != "no-store" || ready.Body.Len() == 0 {
-			t.Fatal("ready bulk asset unavailable")
+			t.Fatalf("%s unavailable to a ready session", path)
 		}
 		if path == "/certificate-pfx-worker.js" && (!strings.Contains(ready.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(ready.Header().Get("Content-Security-Policy"), "worker-src 'none'")) {
 			t.Fatal("PFX import worker gained network or child-worker capability")
 		}
 		if call(g, "POST", path, "{}", cookie).Code != http.StatusMethodNotAllowed ||
 			call(g, "GET", path+"?certificate=not-allowed", "", cookie).Code != http.StatusBadRequest {
-			t.Fatal("bulk asset accepts write or data query")
+			t.Fatalf("%s accepts a write or a data query", path)
 		}
-		if path == "/inventory" && (!strings.Contains(ready.Body.String(), "multiple required") || !strings.Contains(ready.Body.String(), "Preview locally")) {
-			t.Fatal("missing local-preview bulk UI")
-		}
-		if path == "/inventory" || path == "/certificates" {
-			assertInventoryWorkspace(t, ready)
+		if path == "/certificates" {
+			assertCertificatesPage(t, ready)
 		}
 	}
 }
 
-// Test the actual authenticated response on every platform, not a mutable
-// marketing heading. The Linux persistence test reuses the same boundary gate.
-func assertInventoryWorkspace(t *testing.T, page *httptest.ResponseRecorder) {
+// The page served is the Certificates page in the shared design, with the
+// scripts it needs and nothing inline. The Linux store test reuses it.
+func assertCertificatesPage(t *testing.T, page *httptest.ResponseRecorder) {
 	t.Helper()
 	if page.Code != http.StatusOK || page.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("inventory workspace unavailable: HTTP %d", page.Code)
+		t.Fatalf("Certificates unavailable: HTTP %d", page.Code)
 	}
 	body := page.Body.String()
 	for _, required := range []string{
-		`class="workspace inventory-workspace"`, `href="/style.css"`,
-		`href="/certificates" aria-current="page"`, `aria-label="Storage boundary"`,
-		"Check sends your selected certificate and optional key", "Saved encrypted", "Keys never appear in the list",
-		`id="pair-save" type="submit" disabled`,
+		`<title>Certificates · Rootwell</title>`, `<link rel="stylesheet" href="/rootwell.css">`,
+		`<a class="nav-item" href="/certificates" aria-current="page">`,
+		`<script src="/certificate-pfx.js" defer></script>`, `<script src="/certificates.js" defer></script>`,
+		`id="rail-sign-out"`,
 	} {
 		if !strings.Contains(body, required) {
-			t.Fatalf("inventory workspace missing required boundary %q", required)
+			t.Fatalf("Certificates lacks %q", required)
 		}
 	}
-	if strings.Contains(body, "Files stay in this browser") {
-		t.Fatal("inventory workspace misrepresented explicit server upload as offline")
+	if strings.Contains(body, ` style="`) || strings.Contains(body, "<script>") {
+		t.Fatal("Certificates carries inline style or script")
 	}
 }

@@ -155,109 +155,83 @@ jobs:
           set -eu
           node --check web/workbench/theme.js
           node --check web/workbench/session.js
-          node --check scripts/test-session.mjs
+          node --check web/workbench/ui.js
           node --check web/workbench/wasm-loader.js
-          node --check web/workbench/app.js
-          node --check scripts/test-browser-wasm.mjs
-          node --check scripts/test-workbench-multifile.mjs
-          node --check scripts/test-workbench-private.mjs
-          node --check scripts/test-workbench-private-worker.mjs
-          node --check scripts/test-workbench-pfx-worker.mjs
-          node --check scripts/test-workbench-pfx-ui.mjs
-          node --check scripts/test-browser-pfx.mjs
-          node --check scripts/workbench-preview.mjs
-          node --check web/workbench/private-key.js
-          node --check web/workbench/secret-view.js
-          node --check scripts/test-workbench-secret-view.mjs
+          node --check web/workbench/certificates.js
+          node --check web/workbench/inspect.js
+          node --check web/workbench/convert.js
+          node --check web/workbench/request.js
           node --check web/workbench/private-worker-client.js
           node --check web/workbench/private-key-worker.js
-          node --check web/workbench/pfx.js
           node --check web/workbench/pfx-worker-client.js
           node --check web/workbench/pfx-worker.js
-          node --check web/workbench/csr.js
-          node --check web/workbench/certificate-key-match.js
-          node --check scripts/test-key-match-ui.mjs
           node --check web/workbench/csr-worker-client.js
           node --check web/workbench/csr-worker.js
-          node --check scripts/test-workbench-csr-ui.mjs
-          node --check scripts/test-workbench-csr-worker.mjs
-          node --check scripts/test-browser-csr.mjs
-          node --check web/workbench/worker-browser-smoke.js
           node --check cmd/rootwelld/auth/auth.js
           node --check cmd/rootwelld/auth/website-check.js
-          node --check scripts/test-website-check.mjs
-          node --check cmd/rootwelld/auth/inventory.js
-          node --check cmd/rootwelld/auth/certificate-library.js
-          node --check cmd/rootwelld/auth/saved-key-attachment.js
-          node --check cmd/rootwelld/auth/acme-setup.js
-          node --check scripts/test-acme-setup.mjs
-          node --check cmd/rootwelld/auth/acme-directory.js
-          node --check scripts/test-acme-directory.mjs
-          node --check cmd/rootwelld/auth/acme-account.js
-          node --check scripts/test-acme-account.mjs
-          node --check cmd/rootwelld/auth/cloudflare-config.js
-          node --check scripts/test-cloudflare-config.mjs
-          node --check scripts/test-dns-operation.mjs
-          node --check cmd/rootwelld/auth/automation-status.js
-          node --check cmd/rootwelld/auth/renewal-timing.js
-          node --check scripts/test-renewal-timing.mjs
-          node --check cmd/rootwelld/auth/timing-watch.js
-          node --check scripts/test-timing-watch.mjs
-          node --check cmd/rootwelld/auth/renewal-job.js
-          node --check scripts/test-renewal-job.mjs
-          node --check cmd/rootwelld/auth/history-archive.js
-          node --check scripts/test-history-archive.mjs
-          node --check cmd/rootwelld/auth/request-archive.js
-          node --check scripts/test-request-archive.mjs
-          node --check scripts/test-automation-status.mjs
-          node --check cmd/rootwelld/auth/dns-operation.js
-          node --check cmd/rootwelld/auth/acme-registration.js
-          node --check scripts/test-acme-registration.mjs
-          node --check cmd/rootwelld/auth/acme-order.js
-          node --check scripts/test-acme-order.mjs
-          node --check scripts/test-saved-key-attachment.mjs
-          node --check scripts/test-certificate-library.mjs
-          node --check cmd/rootwelld/auth/inventory-engine.js
           node --check cmd/rootwelld/auth/certificate-pfx.js
           node --check cmd/rootwelld/auth/certificate-pfx-worker.js
-          node --check scripts/test-certificate-pfx-worker.mjs
-          node --check cmd/rootwelld/auth/inventory-import.js
-          node --check scripts/test-inventory-bulk.mjs
-          node --check cmd/rootwelld/auth/inventory-lifecycle.js
-          node --check scripts/test-inventory-lifecycle.mjs
+          node --check cmd/rootwelld/auth/acme-setup.js
+          node --check cmd/rootwelld/auth/acme-directory.js
+          node --check cmd/rootwelld/auth/acme-account.js
+          node --check cmd/rootwelld/auth/production-account.js
+          node --check cmd/rootwelld/auth/acme-registration.js
+          node --check cmd/rootwelld/auth/acme-order.js
+          node --check cmd/rootwelld/auth/cloudflare-config.js
+          node --check cmd/rootwelld/auth/dns-operation.js
+          node --check cmd/rootwelld/auth/automation-status.js
+          node --check cmd/rootwelld/auth/renewal-timing.js
+          node --check cmd/rootwelld/auth/timing-watch.js
+          node --check cmd/rootwelld/auth/renewal-job.js
+          node --check scripts/check-container-config.mjs
+          node --check scripts/test-container-config.mjs
+          node --check scripts/test-release-guards.mjs
+          node --check scripts/test-session.mjs
           node --check scripts/test-rootwelld-auth.mjs
-          node --check scripts/test-rootwelld-inventory.mjs
-          node --check scripts/inventory-demo.mjs
-          node --check scripts/test-inventory-demo.mjs
+          node --check scripts/test-browser-wasm.mjs
+          node --check scripts/test-browser-pfx.mjs
+          node --check scripts/test-browser-csr.mjs
+          node --check scripts/test-workbench-private-worker.mjs
+          node --check scripts/test-workbench-pfx-worker.mjs
+          node --check scripts/test-workbench-csr-worker.mjs
+          node --check scripts/test-certificate-pfx-worker.mjs
+          node --check scripts/test-certificates.mjs
+          node --check scripts/test-website-check.mjs
+          node --check scripts/test-inspect.mjs
+          node --check scripts/test-convert.mjs
+          node --check scripts/test-request.mjs
+          node --check scripts/test-acme-setup.mjs
+          node --check scripts/test-acme-directory.mjs
+          node --check scripts/test-acme-account.mjs
+          node --check scripts/test-production-account.mjs
+          node --check scripts/test-cloudflare-config.mjs
+          node --check scripts/test-dns-operation.mjs
+          node --check scripts/test-automation-status.mjs
+          node --check scripts/test-renewal-timing.mjs
+          node --check scripts/test-timing-watch.mjs
+          node --check scripts/test-renewal-job.mjs
+          node --check scripts/test-acme-registration.mjs
+          node --check scripts/test-acme-order.mjs
 
-      - name: Test the browser WebAssembly bridge
+      - name: Test the browser engine and the pages
         run: |
           set -eu
-          node scripts/test-browser-wasm.mjs \
-            "${RUNNER_TEMP}/rootwell.wasm" \
-            "$(go env GOROOT)/lib/wasm/wasm_exec.js" \
-            web/workbench/rootwell-demo-certificate.pem \
-            web/workbench/rootwell-demo-bundle.pem
-          node scripts/test-workbench-multifile.mjs
-          node scripts/test-inventory-workbench.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
-          node scripts/test-inventory-bulk.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
-          node scripts/test-inventory-lifecycle.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
-          node scripts/test-workbench-private.mjs
-          node scripts/test-workbench-secret-view.mjs
+          wasm="${RUNNER_TEMP}/rootwell.wasm"
+          runtime="$(go env GOROOT)/lib/wasm/wasm_exec.js"
+          node scripts/test-browser-wasm.mjs "${wasm}" "${runtime}"
+          node scripts/test-browser-pfx.mjs "${wasm}" "${runtime}"
+          node scripts/test-browser-csr.mjs "${wasm}" "${runtime}"
           node scripts/test-workbench-private-worker.mjs
-          node scripts/test-browser-pfx.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
           node scripts/test-workbench-pfx-worker.mjs
-          node scripts/test-workbench-pfx-ui.mjs
-          node scripts/test-browser-csr.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
-          node scripts/test-workbench-csr-ui.mjs
           node scripts/test-workbench-csr-worker.mjs
+          node scripts/test-certificate-pfx-worker.mjs
           node scripts/test-rootwelld-auth.mjs
           node scripts/test-session.mjs
+          node scripts/test-certificates.mjs "${wasm}" "${runtime}"
           node scripts/test-website-check.mjs
-          node scripts/test-rootwelld-inventory.mjs
-          node scripts/test-certificate-library.mjs "${RUNNER_TEMP}/rootwell.wasm" "$(go env GOROOT)/lib/wasm/wasm_exec.js"
-          node scripts/test-certificate-pfx-worker.mjs
-          node scripts/test-saved-key-attachment.mjs
+          node scripts/test-inspect.mjs "${wasm}" "${runtime}"
+          node scripts/test-convert.mjs "${wasm}" "${runtime}"
+          node scripts/test-request.mjs "${wasm}" "${runtime}"
           node scripts/test-acme-setup.mjs
           node scripts/test-acme-directory.mjs
           node scripts/test-acme-account.mjs
@@ -268,12 +242,8 @@ jobs:
           node scripts/test-renewal-timing.mjs
           node scripts/test-timing-watch.mjs
           node scripts/test-renewal-job.mjs
-          node scripts/test-history-archive.mjs
-          node scripts/test-request-archive.mjs
           node scripts/test-acme-registration.mjs
           node scripts/test-acme-order.mjs
-          node scripts/test-key-match-ui.mjs
-          node scripts/test-inventory-demo.mjs
 
       - name: Smoke test PFX preparation and certificate custody recovery
         run: go test -race -run '^TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey$|^TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial$|^TestLinuxMaterialMismatchExportAndBundleFullRestore$|^TestPFXImportPreparationHasNoNetworkOrCustodyAuthority$' -count=1 -timeout=8m ./internal/browserpfximport ./cmd/rootwelld ./internal/architecture
