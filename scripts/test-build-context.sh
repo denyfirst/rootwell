@@ -38,6 +38,7 @@ while IFS= read -r file; do
     cmd/rootwelld/auth/*.html | cmd/rootwelld/auth/*.css | cmd/rootwelld/auth/*.js) ;;
     cmd/rootwelld/auth/schibsted-grotesk.woff2) ;;
     internal/acmecertificate/staging-roots.pem | internal/acmecertificate/production-roots.pem) ;;
+    internal/account/password-blocklist.txt) ;;
     web/workbench/certificates.html | web/workbench/certificates.js | web/workbench/inspect.html | web/workbench/inspect.js) ;;
     web/workbench/convert.html | web/workbench/convert.js | web/workbench/request.html | web/workbench/request.js) ;;
     web/workbench/ui.js | web/workbench/rootwell.css | web/workbench/style.css | web/workbench/favicon.svg) ;;

@@ -12,6 +12,8 @@
 # The shared typeface, the file Porch and Keybash pin (OFL-1.1).
 !cmd/rootwelld/auth/schibsted-grotesk.woff2
 !internal/**/*.go
+# The pinned common-password list the sign-in code embeds (SecLists, MIT).
+!internal/account/password-blocklist.txt
 !web/workbench/certificates.html
 !web/workbench/certificates.js
 !web/workbench/inspect.html
