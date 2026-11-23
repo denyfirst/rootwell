@@ -19,12 +19,12 @@ func TestCertificatesPageAndItsScriptsRemainBehindReadyAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	if err := g.issueSession(w, false, revision, nil, nil); err != nil {
+	if err := g.issueSession(w, false, revision); err != nil {
 		t.Fatal(err)
 	}
 	cookie := sessionCookie(t, w)
 	setup := httptest.NewRecorder()
-	if err := g.issueSession(setup, true, revision, nil, nil); err != nil {
+	if err := g.issueSession(setup, true, revision); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/certificates", "/certificates.js", "/ui.js", "/certificate-pfx.js", "/certificate-pfx-worker.js"} {

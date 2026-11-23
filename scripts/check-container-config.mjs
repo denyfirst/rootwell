@@ -23,8 +23,10 @@ export function checkContainerConfig(config) {
   }
   requireBoundary(server.network_mode === 'host', 'server.network_mode');
   requireBoundary(maintenance.network_mode === 'none', 'maintenance.network_mode');
-  requireBoundary(sameTargets(server, ['/data']), 'server.volumes');
-  requireBoundary(sameTargets(maintenance, ['/data', '/backup']), 'maintenance.volumes');
+  requireBoundary(sameTargets(server, ['/data', '/key']), 'server.volumes');
+  // The server reads the instance key and never writes it.
+  requireBoundary(server.volumes.find((mount) => mount?.target === '/key')?.read_only === true, 'server.key');
+  requireBoundary(sameTargets(maintenance, ['/data', '/key', '/backup']), 'maintenance.volumes');
   requireBoundary(maintenance.stdin_open === true && maintenance.tty === true, 'maintenance.terminal');
   const logging = maintenance.logging;
   const options = logging?.options;

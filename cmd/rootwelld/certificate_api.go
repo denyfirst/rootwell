@@ -12,13 +12,12 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"runtime"
 	"unicode/utf8"
 
 	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/denyfirst/rootwell/internal/certificatepair"
+	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
-	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -56,12 +55,8 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
 	}
-	if runtime.GOOS != "linux" {
-		http.Error(w, "certificate custody requires the Linux daemon; this host is a preview", http.StatusNotImplemented)
-		return
-	}
-	if !s.inventoryReady {
-		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+	if g.certificates == nil {
+		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	input, ok := readCertificateInput(w, r)
@@ -88,13 +83,13 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		g.downloadCertificate(w, r, s, input)
 		return
 	}
-	records, generation, err := instanceaccess.ReadInventory(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
+	records, generation, err := g.certificates.List()
 	if err != nil {
 		inventoryError(w, err)
 		return
 	}
 	if input.Expected != generation {
-		inventoryError(w, inventorystore.ErrStaleGeneration)
+		inventoryError(w, certstore.ErrStale)
 		return
 	}
 	primary := input.Primary
@@ -141,8 +136,7 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		return
 	}
 	// Prepare is repeated by the store itself; a preview never grants write authority.
-	record, generation, err = instanceaccess.AppendCertificateMaterial(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
-		input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, input.Fingerprint, input.AllowMismatch)
+	record, generation, err = g.certificates.Save(input.Expected, input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, input.Fingerprint, input.AllowMismatch)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -152,7 +146,6 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 
 func (g *gate) publishCertificateSave(w http.ResponseWriter, r *http.Request, s session, record publicinventory.Record, generation uint64) {
 	current, ready := g.currentSession(r)
-	clear(current.dataKey[:])
 	if !ready || current.setup || current.revision != s.revision || r.Context().Err() != nil {
 		// The commit may already be durable. Never turn publication loss into a
 		// definite pre-write refusal that would encourage a blind duplicate Save.
@@ -352,15 +345,13 @@ func (g *gate) attachCertificateKey(w http.ResponseWriter, r *http.Request, s se
 	var err error
 	generation := input.Expected
 	if save {
-		record, generation, err = instanceaccess.AttachCertificateKey(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
-			input.PrivateKey, input.KeyPassword, input.Fingerprint, input.AllowMismatch)
+		record, generation, err = g.certificates.AttachKey(input.Expected, input.Fingerprint, input.PrivateKey, input.KeyPassword, input.AllowMismatch)
 	} else {
-		record, err = instanceaccess.CheckCertificateKey(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected,
-			input.PrivateKey, input.KeyPassword, input.Fingerprint)
+		record, err = g.certificates.CheckKey(input.Expected, input.Fingerprint, input.PrivateKey, input.KeyPassword)
 	}
 	if err != nil {
 		switch {
-		case errors.Is(err, inventorystore.ErrKeyExists):
+		case errors.Is(err, certstore.ErrKeyExists):
 			w.Header().Set("X-Rootwell-Refusal", "key-already-attached")
 			http.Error(w, "a key is already attached; no key was replaced", http.StatusConflict)
 		case errors.Is(err, browserprivateconvert.ErrInputPasswordRequired):
@@ -408,7 +399,7 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 	}
 	var output []byte
 	defer func() { clear(output) }()
-	err := instanceaccess.WithCertificate(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Expected, input.Fingerprint,
+	err := g.certificates.WithCertificate(input.Expected, input.Fingerprint,
 		func(record publicinventory.Record, key []byte) error {
 			certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: record.DER})
 			if !input.Pair && !input.KeyOnly {

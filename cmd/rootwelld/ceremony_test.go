@@ -8,12 +8,14 @@ import (
 )
 
 func TestOfflineCommandClassificationAndNoSecretArgv(t *testing.T) {
-	for _, command := range []string{"recovery-enroll", "recovery-rotate", "recovery-reset", "access-snapshot", "access-verify", "access-restore", "inventory-init", "inventory-snapshot", "inventory-verify", "inventory-restore"} {
+	for _, command := range []string{"key-restore", "recovery-enroll", "recovery-rotate", "recovery-reset", "access-snapshot", "access-verify", "access-restore"} {
 		if !isOfflineCommand([]string{command}) {
 			t.Fatalf("offline command %q was not classified", command)
 		}
 	}
-	if isOfflineCommand(nil) || isOfflineCommand([]string{"serve"}) {
+	// The old inventory ceremonies are gone with the inventory file: the
+	// certificates live in the vault now.
+	if isOfflineCommand(nil) || isOfflineCommand([]string{"serve"}) || isOfflineCommand([]string{"inventory-init"}) || isOfflineCommand([]string{"inventory-restore"}) {
 		t.Fatal("ordinary command classified as offline recovery")
 	}
 }

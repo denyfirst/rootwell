@@ -27,7 +27,7 @@ func TestCertificateSavePublicationNeedsCurrentSessionAndCancellation(t *testing
 		t.Run(mode, func(t *testing.T) {
 			g.now = time.Now
 			w := httptest.NewRecorder()
-			if err := g.issueSession(w, mode == "setup", revision, nil, nil); err != nil {
+			if err := g.issueSession(w, mode == "setup", revision); err != nil {
 				t.Fatal(err)
 			}
 			r := httptest.NewRequest("POST", "/api/certificates/save", nil)

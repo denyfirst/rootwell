@@ -26,14 +26,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir "$drill_root/data" "$drill_root/backup" "$drill_root/fresh" "$drill_root/recovery"
-chmod 0700 "$drill_root" "$drill_root/data" "$drill_root/backup" "$drill_root/fresh" "$drill_root/recovery"
+mkdir "$drill_root/data" "$drill_root/key" "$drill_root/backup" "$drill_root/recovery"
+chmod 0700 "$drill_root" "$drill_root/data" "$drill_root/key" "$drill_root/backup" "$drill_root/recovery"
 export ROOTWELL_UID="$(id -u)" ROOTWELL_GID="$(id -g)"
-export ROOTWELL_DATA_DIR="$drill_root/data" ROOTWELL_BACKUP_DIR="$drill_root/backup"
+export ROOTWELL_DATA_DIR="$drill_root/data" ROOTWELL_KEY_DIR="$drill_root/key" ROOTWELL_BACKUP_DIR="$drill_root/backup"
 
-# Adjacent-version upgrade: seed with the actual previous protected base's
-# fixture binary, then reopen/serve/restore with the candidate. No instance or
-# external provider is contacted. The platform event supplies only an exact SHA.
+# Adjacent-version upgrade: seed with the previous protected base's fixture
+# binary, then reopen and serve with the candidate. No instance or external
+# provider is contacted. The platform event supplies only an exact SHA. A base
+# from before the vault has no drill for it; then the candidate seeds, since
+# earlier development data is not carried forward (ADR 0088).
 git fetch -q --depth 1 origin "$ROOTWELL_UPGRADE_BASE"
 if [[ "$(git rev-parse FETCH_HEAD)" != "$ROOTWELL_UPGRADE_BASE" ]]; then
   echo "Upgrade baseline revision did not match" >&2
@@ -41,7 +43,13 @@ if [[ "$(git rev-parse FETCH_HEAD)" != "$ROOTWELL_UPGRADE_BASE" ]]; then
 fi
 mkdir "$drill_root/baseline-source"
 git archive "$ROOTWELL_UPGRADE_BASE" | tar -xf - -C "$drill_root/baseline-source"
-docker build --target volume-drill -t rootwell-volume-baseline:ci "$drill_root/baseline-source"
+seed_image=rootwell-volume-drill:ci
+if [[ -f "$drill_root/baseline-source/internal/certstore/volume_drill_linux_test.go" ]]; then
+  docker build --target volume-drill -t rootwell-volume-baseline:ci "$drill_root/baseline-source"
+  seed_image=rootwell-volume-baseline:ci
+else
+  echo "The base ${ROOTWELL_UPGRADE_BASE} predates the vault; the candidate seeds the volume."
+fi
 docker build --target volume-drill -t rootwell-volume-drill:ci .
 docker build -t rootwell:local .
 docker build --target ca-trust-drill -t rootwell-ca-trust-drill:ci .
@@ -99,23 +107,22 @@ volume_test() {
   docker run --rm --network none --user "${ROOTWELL_UID}:${ROOTWELL_GID}" \
     --read-only --cap-drop ALL --security-opt no-new-privileges \
     --mount "type=bind,src=${drill_root}/data,dst=/data" \
-    --mount "type=bind,src=${drill_root}/backup,dst=/backup" \
-    --mount "type=bind,src=${drill_root}/fresh,dst=/fresh" \
+    --mount "type=bind,src=${drill_root}/key,dst=/key" \
     --mount "type=bind,src=${drill_root}/recovery,dst=/recovery" \
     --env "ROOTWELL_VOLUME_DRILL_PHASE=${phase}" \
     "$fixture_image" -test.run '^TestContainerVolumeDrill$' -test.v
 }
 
-volume_test seed rootwell-volume-baseline:ci
+volume_test seed "$seed_image"
 volume_test reopen
 
 docker compose -f compose.yaml -p rootwell-volume-ci up -d --no-build rootwell
 curl --ipv4 --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 \
   http://localhost:4180/login >/dev/null
 container_id="$(docker compose -f compose.yaml -p rootwell-volume-ci ps -q rootwell)"
-mounts="$(docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' "$container_id")"
-if [[ "$mounts" != "/data" ]]; then
-  echo "server received an unexpected mount" >&2
+mounts="$(docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' "$container_id" | grep -v '^$' | sort | paste -sd, -)"
+if [[ "$mounts" != "/data,/key" ]]; then
+  echo "server received an unexpected mount: ${mounts}" >&2
   exit 1
 fi
 volume_test busy
@@ -126,14 +133,13 @@ if grep -Fq 'test-only disposable container volume password' <<< "$server_logs";
 fi
 docker compose -f compose.yaml -p rootwell-volume-ci stop rootwell
 
-volume_test restore
 chmod 0755 "$drill_root/data"
 volume_test unsafe
 chmod 0700 "$drill_root/data"
 
-export ROOTWELL_DATA_DIR="$drill_root/fresh"
+# A restart serves the same volume again.
 docker compose -f compose.yaml -p rootwell-volume-ci up -d --no-build --force-recreate rootwell
 curl --ipv4 --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 \
   http://localhost:4180/login >/dev/null
 docker compose -f compose.yaml -p rootwell-volume-ci stop rootwell
-echo "Disposable container baseline ${ROOTWELL_UPGRADE_BASE} upgrade, restart and fresh restore drill passed."
+echo "Disposable container volume drill passed: seed, reopen, serve, busy, unsafe and restart."

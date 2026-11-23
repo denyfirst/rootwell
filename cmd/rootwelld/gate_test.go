@@ -13,13 +13,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/vault"
 )
 
 const initialTestPassword = "an initial password for testing"
 const nextTestPassword = "a different long test password"
 
 func testGate(t *testing.T) (*gate, string) {
+	g, path, _ := testGateWithKey(t)
+	return g, path
+}
+
+// testKeys and testVaults remember each test gate's key and open vault by its
+// access path, so a test can close and reopen the vault as a restart does.
+var (
+	testKeys   = map[string][]byte{}
+	testVaults = map[string]*vault.Store{}
+)
+
+// testGateWithKey also returns the instance key of the gate's vault, so a
+// test can reopen it as a restart would. Off Linux there is no vault.
+func testGateWithKey(t *testing.T) (*gate, string, []byte) {
 	t.Helper()
 	data := t.TempDir()
 	if runtime.GOOS == "linux" {
@@ -31,12 +47,27 @@ func testGate(t *testing.T) (*gate, string) {
 	if err := instanceaccess.Create(path, initialTestPassword); err != nil {
 		t.Fatal(err)
 	}
-	g, err := newGate(path, testWorkbenchAssets(t), localHost)
+	var certificates *certstore.Store
+	var key []byte
+	if custody() {
+		var err error
+		if key, err = vault.NewInstanceKey(); err != nil {
+			t.Fatal(err)
+		}
+		v, err := vault.Create(data, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = v.Close() })
+		certificates = certstore.New(v)
+		testKeys[path], testVaults[path] = key, v
+	}
+	g, err := newGate(path, testWorkbenchAssets(t), localHost, certificates)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = g.Close() })
-	return g, path
+	return g, path, key
 }
 
 func testWorkbenchAssets(t *testing.T) string {
@@ -91,7 +122,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	if w := call(g, "GET", "/", "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
 		t.Fatalf("unguarded Workbench: %d %q", w.Code, w.Header().Get("Location"))
 	}
-	for _, route := range []string{"/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/style.css", "/session.js", "/wasm-loader.js", "/private-worker-client.js", "/pfx-worker-client.js", "/csr-worker-client.js", "/csr-worker.js"} {
+	for _, route := range []string{"/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/session.js", "/wasm-loader.js", "/private-worker-client.js", "/pfx-worker-client.js", "/csr-worker-client.js", "/csr-worker.js"} {
 		if w := call(g, "GET", route, "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
 			t.Fatalf("unguarded page or script %s: %d", route, w.Code)
 		}
@@ -132,7 +163,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("second setup session: %d", secondLogin.Code)
 	}
 	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/style.css", "/session.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/website-check", "/account"} {
+	for _, route := range []string{"/", "/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/session.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/website-check", "/account"} {
 		w := call(g, "GET", route, "", cookie)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
 			t.Fatalf("setup credential reached %s: %d", route, w.Code)
@@ -180,7 +211,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 			t.Fatalf("%s unavailable after change: %d", route, w.Code)
 		}
 	}
-	for _, route := range []string{"/certificates.js", "/inspect.js", "/convert.js", "/request.js", "/ui.js", "/style.css"} {
+	for _, route := range []string{"/certificates.js", "/inspect.js", "/convert.js", "/request.js", "/ui.js"} {
 		if w := call(g, "GET", route, "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" || w.Body.Len() == 0 {
 			t.Fatalf("protected script %s: %d", route, w.Code)
 		}
@@ -379,22 +410,49 @@ func TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess(t *testing.T)
 
 func TestInitRequiresSaveConfirmationAndNeverReprintsPassword(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "private")
+	keyDir := t.TempDir()
+	if err := os.Chmod(keyDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(keyDir, "instance.key")
 	var output bytes.Buffer
-	if err := initialize(dir, strings.NewReader("NO\n"), &output); err == nil {
+	if err := initialize(dir, filepath.Join(dir, "instance.key"), strings.NewReader("SAVED\n"), &output); err == nil || output.Len() != 0 {
+		t.Fatal("a key file inside the data directory was accepted")
+	}
+	if err := initialize(dir, keyFile, strings.NewReader("NO\n"), &output); err == nil {
 		t.Fatal("unconfirmed init created installation")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "access.json")); !os.IsNotExist(err) {
-		t.Fatal("unconfirmed init left access file")
+	for _, name := range []string{filepath.Join(dir, "access.json"), filepath.Join(dir, "rootwell.db"), keyFile} {
+		if _, err := os.Stat(name); !os.IsNotExist(err) {
+			t.Fatalf("unconfirmed init left %s", name)
+		}
 	}
 	output.Reset()
-	if err := initialize(dir, strings.NewReader("SAVED\n"), &output); err != nil {
+	if err := initialize(dir, keyFile, strings.NewReader("SAVED\n"), &output); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(output.String(), "setup password") {
 		t.Fatal("interactive init did not show password")
 	}
+	if custody() {
+		// The recovery code printed is the key written, and the key opens the
+		// vault made beside the access file.
+		key, err := vault.ReadKeyFile(keyFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		code, err := vault.RecoveryCode(key)
+		if err != nil || !strings.Contains(output.String(), code) {
+			t.Fatal("init did not show the instance key's recovery code")
+		}
+		v, err := vault.Open(dir, key)
+		if err != nil {
+			t.Fatalf("the new vault does not open with the new key: %v", err)
+		}
+		_ = v.Close()
+	}
 	output.Reset()
-	if err := initialize(dir, strings.NewReader("SAVED\n"), &output); err == nil || output.Len() != 0 {
+	if err := initialize(dir, keyFile, strings.NewReader("SAVED\n"), &output); err == nil || output.Len() != 0 {
 		t.Fatal("existing password was reprinted or replaced")
 	}
 	body, err := os.ReadFile(filepath.Join(dir, "access.json"))
@@ -437,7 +495,7 @@ func TestGatewayRefusesIncompleteBrowserAssets(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(assets, "certificates.html"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if g, err := newGate(filepath.Join(t.TempDir(), "access.json"), assets, localHost); err == nil {
+	if g, err := newGate(filepath.Join(t.TempDir(), "access.json"), assets, localHost, nil); err == nil {
 		_ = g.Close()
 		t.Fatal("gateway started with missing browser engine")
 	}
@@ -456,4 +514,36 @@ func TestPasswordChangeValidationIsSpecificWithoutEchoingSecrets(t *testing.T) {
 			t.Fatalf("replacement validation was unsafe or unclear: %d", w.Code)
 		}
 	}
+}
+
+// readyGate signs in with a changed password, as a person does after setup.
+func readyGate(t *testing.T) (*gate, *http.Cookie, string) {
+	t.Helper()
+	g, path := testGate(t)
+	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
+		t.Fatal(err)
+	}
+	cookie := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
+	return g, cookie, path
+}
+
+// apiCall sends a request with an explicit Origin and, when header is set, the
+// page's X-Rootwell-Request header.
+func apiCall(g *gate, method, route, body string, cookie *http.Cookie, origin string, header bool) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, "http://"+localHost+route, strings.NewReader(body))
+	if body != "" {
+		r.Header.Set("Content-Type", "application/json")
+	}
+	if origin != "" {
+		r.Header.Set("Origin", origin)
+	}
+	if header {
+		r.Header.Set("X-Rootwell-Request", "1")
+	}
+	if cookie != nil {
+		r.AddCookie(cookie)
+	}
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	return w
 }

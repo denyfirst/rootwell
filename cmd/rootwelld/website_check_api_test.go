@@ -40,7 +40,7 @@ func TestWebsiteComparisonCannotUploadCertificatesOrTrustToAPI(t *testing.T) {
 }
 
 func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testing.T) {
-	g, cookie, path := readyDirectoryGate(t)
+	g, cookie, path := readyGate(t)
 	before, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 		{"POST", websiteConsent, "http://" + localHost, cookie, false},
 		{"POST", `{"target":"website.example.org","confirm":false}`, "http://" + localHost, cookie, true},
 	} {
-		w := acmeCall(g, bad.method, "/api/website-check", bad.body, bad.cookie, bad.origin, bad.header)
+		w := apiCall(g, bad.method, "/api/website-check", bad.body, bad.cookie, bad.origin, bad.header)
 		if w.Code < 400 || calls != 0 {
 			t.Fatal("unauthorized network capability")
 		}
@@ -81,24 +81,24 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 			t.Fatalf("ready asset missing %s: %d", route, w.Code)
 		}
 	}
-	w := acmeCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
+	w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
 	if w.Code != 200 || calls != 1 || w.Header().Get("Cache-Control") != "no-store" || !strings.Contains(w.Body.String(), `"state":"failed"`) {
 		t.Fatal("diagnostic failure not preserved")
 	}
-	if w := acmeCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
 		t.Fatal("repeat not bounded")
 	}
 	base := g.now()
 	g.now = func() time.Time { return base.Add(31 * time.Second) }
 	g.websiteBusy = true
-	if w := acmeCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
 		t.Fatal("concurrent check accepted")
 	}
 	g.websiteBusy = false
 	g.websiteCheck = func(context.Context, string, func() bool) (websitechain.Report, error) {
 		return websitechain.Report{}, errors.New("private-sentinel")
 	}
-	w = acmeCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
+	w = apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
 	if w.Code != 502 || strings.Contains(w.Body.String(), "sentinel") {
 		t.Fatal("raw peer error reflected")
 	}
@@ -115,10 +115,10 @@ func TestWebsiteSetupAndLateSessionCannotPublish(t *testing.T) {
 		t.Fatal("setup authorized network")
 		return websitechain.Report{}, nil
 	}
-	if w := acmeCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 403 {
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 403 {
 		t.Fatal("setup accepted")
 	}
-	g, cookie, _ = readyDirectoryGate(t)
+	g, cookie, _ = readyGate(t)
 	g.websiteCheck = func(_ context.Context, _ string, permit func() bool) (websitechain.Report, error) {
 		if !permit() {
 			t.Fatal("initial permit refused")
@@ -129,7 +129,7 @@ func TestWebsiteSetupAndLateSessionCannotPublish(t *testing.T) {
 		}
 		return websitechain.Report{Schema: websitechain.Schema, Hostname: "must-not-publish"}, nil
 	}
-	w := acmeCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
+	w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
 	if w.Code != 401 || strings.Contains(w.Body.String(), "must-not-publish") {
 		t.Fatal("late result published")
 	}

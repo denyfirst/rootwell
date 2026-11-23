@@ -9,9 +9,9 @@ const restricted = {
 };
 const valid = {
   services: {
-    rootwell: { ...restricted, network_mode: 'host', volumes: [{ target: '/data' }] },
+    rootwell: { ...restricted, network_mode: 'host', volumes: [{ target: '/data' }, { target: '/key', read_only: true }] },
     maintenance: { ...restricted, network_mode: 'none',
-      volumes: [{ target: '/data' }, { target: '/backup' }],
+      volumes: [{ target: '/data' }, { target: '/key' }, { target: '/backup' }],
       stdin_open: true, tty: true, logging: { driver: 'none' } },
   },
 };
@@ -36,6 +36,16 @@ for (const logging of [undefined, null, false, 'none', [], {}, { driver: 'json-f
 const overprivileged = structuredClone(valid);
 overprivileged.services.rootwell.volumes.push({ target: '/backup' });
 assert.throws(() => checkContainerConfig(overprivileged));
+
+// The server must not be able to change or replace the instance key.
+const writableKey = structuredClone(valid);
+writableKey.services.rootwell.volumes[1].read_only = false;
+assert.throws(() => checkContainerConfig(writableKey), /server\.key/);
+
+// Without the key the vault cannot open: the server needs both mounts.
+const keyless = structuredClone(valid);
+keyless.services.rootwell.volumes = [{ target: '/data' }];
+assert.throws(() => checkContainerConfig(keyless), /server\.volumes/);
 
 // Availability sabotage: omit the data volume so a restart loses the instance.
 const ephemeral = structuredClone(valid);
@@ -72,7 +82,7 @@ const reviewedSourceIncludes = new Set([
   '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
   '!internal/account/password-blocklist.txt',
   ...['certificates.html', 'certificates.js', 'inspect.html', 'inspect.js', 'convert.html', 'convert.js',
-    'request.html', 'request.js', 'ui.js', 'rootwell.css', 'style.css', 'theme.js', 'session.js', 'favicon.svg',
+    'request.html', 'request.js', 'ui.js', 'rootwell.css', 'theme.js', 'session.js', 'favicon.svg',
     'wasm-loader.js', 'private-worker-client.js', 'private-key-worker.js', 'pfx-worker-client.js', 'pfx-worker.js',
     'csr-worker-client.js', 'csr-worker.js'].map((name) => `!web/workbench/${name}`),
 ]);

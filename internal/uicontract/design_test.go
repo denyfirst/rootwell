@@ -133,16 +133,19 @@ func TestTheTypefaceIsTheOneChosenAndCarriesItsLicence(t *testing.T) {
 			t.Errorf("the typeface's licence does not say %q", want)
 		}
 	}
-	// One face, from this server; no sheet loads anything else. The hidden
-	// Renewals page still draws with its older sheets until it is rebuilt.
-	sheets := map[string]string{
-		"rootwell.css":  sharedSheet(t),
-		"style.css":     repositoryFile(t, "web", "workbench", "style.css"),
-		"inventory.css": repositoryFile(t, "cmd", "rootwelld", "auth", "inventory.css"),
+	// One face, from this server, and one sheet that loads nothing else.
+	for _, dir := range [][]string{{"web", "workbench"}, {"cmd", "rootwelld", "auth"}} {
+		sheets, _ := filepath.Glob(filepath.Join(append([]string{"..", ".."}, append(dir, "*.css")...)...))
+		for _, sheet := range sheets {
+			if filepath.Base(sheet) != "rootwell.css" {
+				t.Errorf("%s is a second stylesheet; every page wears rootwell.css", sheet)
+			}
+		}
 	}
+	sheets := map[string]string{"rootwell.css": sharedSheet(t)}
 	for name, sheet := range sheets {
 		for _, u := range regexp.MustCompile(`url\(([^)]*)\)`).FindAllStringSubmatch(sheet, -1) {
-			if (name != "rootwell.css" && name != "style.css") || u[1] != `"/schibsted-grotesk.woff2"` {
+			if name != "rootwell.css" || u[1] != `"/schibsted-grotesk.woff2"` {
 				t.Errorf("%s loads %s; only the typeface may be loaded, from this server", name, u[1])
 			}
 		}
