@@ -178,8 +178,10 @@ exclude paths, input bytes and attacker-controlled diagnostics; the 16 MiB
 input limit is checked before Go copies are allocated.
 
 The scripts split capabilities. `wasm-loader.js` fetches only the same-origin
-`rootwell.wasm`, without credentials or redirects, and has no DOM or file
-access. The scripts that read chosen files (`inspect.js`, `convert.js`,
+`rootwell.wasm`, follows no redirect, and has no DOM or file access. It sends
+the session cookie, because the gate serves the engine only to a signed-in
+session; `TestEngineLoaderSendsTheSessionTheGateRequires` keeps the two in
+step. The scripts that read chosen files (`inspect.js`, `convert.js`,
 `request.js` and the shared `ui.js`) have no fetch, XHR, WebSocket, beacon,
 worker, dynamic-code, storage or HTML-writing capability; every
 certificate-derived value is written with `textContent`. Worker scripts are
