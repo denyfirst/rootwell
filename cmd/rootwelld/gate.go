@@ -190,7 +190,11 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/setup", http.StatusSeeOther)
 			return
 		}
-		g.authAsset(w, r, "auth"+r.URL.Path, "text/javascript; charset=utf-8")
+		name := "auth/certificate-pfx.js"
+		if r.URL.Path == "/certificate-pfx-worker.js" {
+			name = "auth/certificate-pfx-worker.js"
+		}
+		g.authAsset(w, r, name, "text/javascript; charset=utf-8")
 		return
 	case "/setup":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
