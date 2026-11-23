@@ -26,8 +26,8 @@ stylesheet, `theme.js` and `favicon.svg` are served before sign-in so that
 the sign-in and setup pages look like the rest; everything else needs a
 signed-in session.
 
-The hidden Renewals page (`/automation`) still uses the older `style.css`
-until it is rebuilt with real renewal.
+The hidden Renewals page and its older stylesheet were removed on
+23 November 2026; a new Renewals page comes with real renewal in Phase 3c.
 
 ## Shared files
 
@@ -93,8 +93,9 @@ GOOS=js GOARCH=wasm go build -trimpath \
 cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/workbench/wasm_exec.js
 ```
 
-Then serve this directory with `rootwelld serve <data> web/workbench`. The
-daemon refuses to start when a page file or the engine is missing.
+Then serve this directory with
+`rootwelld serve <data-dir> <instance-key-file> web/workbench`. The daemon
+refuses to start when a page file or the engine is missing.
 
 ## Tests
 
@@ -114,5 +115,6 @@ node scripts/test-session.mjs
 ```
 
 `internal/uicontract` checks the design tokens, contrast, the shared rail,
-the stylesheet link on every page and the capability boundaries above;
+one stylesheet (`rootwell.css`) for every page and the capability boundaries
+above;
 `cmd/rootwelld` checks what each route serves, to whom, and under which policy.

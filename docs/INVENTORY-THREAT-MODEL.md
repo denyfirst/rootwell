@@ -1,5 +1,11 @@
 # Public certificate inventory: first boundary
 
+> **Superseded on 23 November 2026 (ADR 0088, Phase 3a part 2).** The
+> encrypted inventory image, its history and its archives described below are
+> removed. Certificates now live in the vault: see
+> `CERTIFICATE-CUSTODY-THREAT-MODEL.md` and invariant C107 in
+> `SECURITY-INVARIANTS.md`. This file is kept as history.
+
 ADR 0077 adds explicit lossless history archiving: at most four retained pages
 of 512–1024 unchanged event ciphertexts, plus the original 1024-event active log.
 Whole-image MAC, original-start boundary, ordered contiguous generations and

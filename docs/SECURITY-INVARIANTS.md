@@ -8,6 +8,64 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C107 — Certificates live in the vault, opened by an instance key kept apart (ADR 0088)
+
+The Certificates page's list lives in `rootwell.db`, a bbolt file in the
+private data directory. Every record is sealed with AES-256-GCM under its own
+random key, which is wrapped under a key derived from the instance key with
+HKDF-SHA256. Both seals are bound to the vault, the record's kind, its ID and
+its revision, so a record moved, replayed at another revision or changed by
+one byte is refused. Record IDs are HMACs of the fingerprint under another
+derived key, so the file does not list domain names, and the same certificate
+gets a different ID in another vault (audit RW-12). No plaintext, fingerprint
+or name reaches the disk. A failed write keeps nothing. Every committed write
+counts one generation, and every change names the generation the page read,
+so a stale page gets 409. A private key is a record of its own: listing never
+opens one, and only a download borrows it (RW-11). The list holds at most 500 certificates; nothing
+else limits how many writes the vault takes (RW-01).
+
+The instance key is 32 random bytes in a `0600` file of the service user, in
+a private `0700` directory outside the data directory; `init`, `serve` and
+`key-restore` refuse a key file inside it, so a copy of the data never carries
+its key. Another key cannot open the vault. `rootwelld init` never replaces a
+key file, a vault or an access file. It shows the setup password and the key's
+recovery code (`RW1-` and grouped base32 with a check) once, and makes the key
+file, the vault and the access file only after the person types `SAVED`.
+`rootwelld key-restore <data-dir> <key-file>` reads that code from the
+terminal and rebuilds a lost key file only after the code opens the vault in
+that data directory. It writes nothing for a code from another installation,
+while `rootwelld serve` holds the vault, or over an existing key file. The
+vault opens only in a `0700` directory owned by the service user, and one
+process holds it at a time. Off Linux no key file or vault is made: the pages
+open as a preview, and the certificate routes say saving is off instead of
+saving.
+
+The sign-in password no longer unlocks any data; it only signs in. The running
+service holds the instance key, so a compromised live host reveals the keys.
+Swapping in a whole older `rootwell.db` is not detected (RW-13). Losing both
+the key file and the recovery code loses every saved certificate and key.
+Online backup and key rotation come in Phase 3b.
+
+Guarded by `TestRecordsRoundTripWithRevisionsAndGenerations`,
+`TestAFailedUpdateKeepsNothing`, `TestAnotherKeyCannotOpenTheVault`,
+`TestCreateNeverReplacesAndOpenNeverCreates`,
+`TestASealedRecordMovedOrChangedIsRefused`,
+`TestAChangedRevisionOrByteIsRefused`, `TestNoPlaintextOrNameReachesTheDisk`,
+`TestIndexesDifferBetweenVaultsAndKinds`, `TestMalformedInputsAreRefused`,
+`TestRecoveryCodeRoundTripsAndRefusesDamage`,
+`TestTheCheckedVaultNeedsAPrivateDirectory`,
+`TestTheKeyFileIsPrivateAndNeverReplaced`, `FuzzOpenSealedRecord`,
+`TestSaveListsTheCertificateAndRefusesAStalePageOrADuplicate`,
+`TestAKeyIsSavedApartAndOnlyALoanOpensIt`,
+`TestARecordMovedToAnotherCertificateIsRefused`,
+`TestTheListStopsAtItsLimit`, `TestStoredRecordsHoldNoUnknownFields`,
+`TestContainerVolumeDrill`,
+`TestLinuxCertificatesNeedAReadySessionAndThePageHeader`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`TestLinuxAGateWithoutCustodySaysSoInsteadOfSaving`,
+`TestInitRequiresSaveConfirmationAndNeverReprintsPassword`, and
+`TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`.
+
 ## C106 — PFX import cannot bypass public/key custody boundaries (ADR 0087)
 
 The bounded modern PFX decoder runs in a dedicated one-shot browser worker;
@@ -20,13 +78,14 @@ Temporary encryption uses the existing reviewed exporter and crypto/rand;
 source/file digest, not randomized ciphertext, binds Check/Save. Ready-first
 transfer, no network/storage, scoped deadlines, strict output, cancellation and
 owned-buffer clearing protect the browser boundary; invalid/stale/late work
-cannot publish or start a Save. Same encrypted image/full recovery is preserved.
+cannot publish or start a Save. What is saved goes into the vault like any
+other Save (C68, C107).
 
 Guarded by `TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey`,
 `TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial`,
 `FuzzPFXImportNoPartialSecret`, `TestPFXImportPreparationHasNoNetworkOrCustodyAuthority`,
 `TestCertificatesPageAndItsScriptsRemainBehindReadyAccess`,
-`TestLinuxMaterialMismatchExportAndBundleFullRestore`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestCertificateSavePublicationNeedsCurrentSessionAndCancellation`,
 `scripts/test-certificates.mjs` and `scripts/test-certificate-pfx-worker.mjs`.
 
@@ -521,16 +580,10 @@ Guarded by `TestImportPublicCertificateAndDetachResults`,
 
 ## C36 — In-memory inventory encryption binds its expected context
 
-The standalone codec uses AES-256-GCM with a random nonce and rejects an
-invalid key, missing installation/record/generation context, oversized input,
-tampering, wrong key, and cross-installation/cross-record/cross-generation
-substitution without returning partial plaintext. It does not persist data or
-stop rollback to an older ciphertext with the same expected generation.
-
-Guarded by `TestSealRoundTripUsesFreshNonceAndHidesPlaintext`,
-`TestSealRejectsWrongKeyContextSwapAndTampering`,
-`TestSealBoundsAndMissingContextFailClosed`, `TestSealWorksWithRandomDataKey`,
-and `FuzzOpenSealedRecord`.
+Retired on 23 November 2026 with the old encrypted inventory image
+(ADR 0088): the standalone `inventoryseal` codec is gone. The vault seals
+every record under its own key, bound to its kind, ID and revision (C107);
+`FuzzOpenSealedRecord` now fuzzes the vault's sealed records.
 
 ## C37 — New installation identity is authenticated and stable
 
@@ -665,153 +718,125 @@ Guarded by `TestOfflineCommandClassificationAndNoSecretArgv`,
 
 ## C45 — Complete inventory images authenticate context before releasing records
 
-The standalone image codec MACs a canonical bounded manifest with the
-installation data key and verifies every encrypted record against the exact
-installation, certificate digest, and image-local generation before returning
-any records. It rejects duplicate, malformed, secret-bearing, corrupt, and
-cross-installation input without partial results. The generation is counted
-per import or explicit location change, far below the random-nonce AEAD per-key
-usage limit. This codec
-does not write files, enable HTTP import, establish an external trusted
-generation anchor, or prevent replay of an older complete authenticated image.
-
-Guarded by `TestCreateAppendOpenAndRejectDuplicate`,
-`TestCorruptionContextAndMalformedImportFailClosed`,
-`TestManifestRejectsAuthorizedButInconsistentRecord`, and `FuzzOpenImage`.
+Retired on 23 November 2026 with the old encrypted inventory image (ADR 0088):
+there is no complete image any more. Each certificate is a vault record,
+checked when it is read (C107).
 
 ## C46 — Linux inventory activation and full snapshots preserve recoverability
 
-Only a recovery-enrolled ready installation can initialize durable Linux
-public inventory. A verified full snapshot of the planned empty image is
-created in a separate private directory before the inventory file is made
-visible. Subsequent imports validate the entire authenticated image and
-atomically replace it under the installation writer lock; post-rename faults
-are uncertain. Offline full export captures the exact access envelope and
-inventory image under both the daemon operation lock and writer lock. Restore
-authenticates the pair before writing only into a fresh private directory,
-inventory first and access last. Neither an access-only backup nor an older
-complete snapshot guarantees current inventory state. Windows operations
-fail closed; filesystem-level full-image rollback remains undetectable.
-
-Guarded by `TestFullSnapshotPasswordAndCodeRoundTrip`,
-`TestFullSnapshotRefusesWrongCredentialsAndIncompletePairs`,
-`TestLinuxInventoryDurableImportAndFreshFullRestore`,
-`TestLinuxInventoryRefusesUnsafeAndBusyOperations`,
-`TestLinuxInventoryPostRenameSyncFaultIsUncertain`,
-`TestLinuxInventoryPreRenameDiskFaultPreservesOriginal`,
-`TestLinuxFullSnapshotRefusesUnsafePathsAndTampering`,
-`TestLinuxInventoryCeremoniesRequireRecoveryAndRestoreFresh`,
-`TestNonLinuxDurableInventoryFailsClosed`, and `FuzzOpenFullSnapshot`.
+Retired on 23 November 2026 with the old encrypted inventory image
+(ADR 0088): durable activation, full snapshots and their offline commands
+are gone. `rootwelld init` now creates the vault (C107). Until online
+backup arrives in Phase 3b, a backup is a copy of the data directory made
+with the service stopped (`docs/RECOVERY.md`).
 
 ## C47 — Public inventory upload is explicit, authenticated, and non-verifying
 
 Inspect, Convert and Request upload nothing. Certificates reach the loopback
-daemon only through the inventory and certificate APIs, which the Certificates
-page calls when the person adds one. The API requires a ready revision-bound
-session; POST also requires exact same-origin and a custom header, rejects
-duplicate JSON fields and oversized bodies, and reuses the strict public parser
-before any atomic write. GET requires the custom header and refuses cross-site
-fetch metadata. Legacy/setup sessions and unsupported platforms cannot write.
-Responses omit DER/private bytes, label every list as unverified, and carry
-import generation and server-clock save time without audit claims. No
-automatic backup, trust, deployment, revocation, notification, or private-key
-support is implied. A ready Linux session holds the data key in process memory
-until revoked/expired; map erasure is best effort and a compromised process is
-outside this boundary.
+daemon only through the certificate API, which the Certificates page calls when
+the person adds one; the inventory list only reads. Every route needs a ready
+session, and a setup session is refused. POST also requires exact same-origin
+and the custom header, rejects duplicate or unknown JSON fields and oversized
+bodies, and runs the strict public parser again before the vault write. GET
+requires the custom header and refuses cross-site fetch metadata. Without a
+vault (any host but Linux) the routes say saving is off instead of saving.
+Responses omit DER and private bytes, claim no verification, and carry the
+vault generation and the server-clock save time. No automatic backup, trust,
+deployment, revocation or notification follows. The running service holds the
+instance key; a compromised process is outside this boundary.
 
-Guarded by `TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`,
-`TestInventoryInputRejectsDuplicateUnknownAndOversizedJSON`,
+Guarded by `TestLinuxCertificatesNeedAReadySessionAndThePageHeader`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`TestLinuxAGateWithoutCustodySaysSoInsteadOfSaving`,
+`TestCertificateRequestModesRejectMalformedAndAmbiguousJSON`,
+`TestCertificateRequestBoundsAndDownloadMode`,
 `TestInventoryOutputNeverSerializesCertificateBytes`,
-`TestCreateAppendOpenAndRejectDuplicate`,
-`TestOlderImageWithoutImportTimeStillOpens`,
 `TestPagesAreSelfContained`, `TestPagesSeparateFileAndNetworkCapabilities`,
 and `scripts/test-certificates.mjs`.
 
 ## C48 — Linux container volumes keep recovery separate and reject unsafe reuse
 
-The development Compose service binds the existing daemon to Linux host
-loopback and mounts only its private data directory. Offline maintenance has
-no network and mounts the backup directory only for an interactive ceremony;
-neither password nor recovery code is configured through argv or environment.
-The maintenance service explicitly disables Docker logging with driver `none`
-and no options; TTY alone does not prevent retention of interactive secrets.
-The real-container drill verifies the effective driver and that harmless
-attached usage output is not available through `docker logs` (ADR 0052).
-Serving retains secret-free diagnostics. Custom configs, terminal recording,
-host administrators and previously retained logs remain outside this boundary.
-A disposable CI drill crosses actual container process restarts and separate
-bind mounts, verifies a complete fresh-volume restore, refuses wrong code,
-tampered snapshot, permissive data directory, duplicate import, overwrite,
-and live-daemon backup. It does not establish offsite durability, automatic
-backup, external anti-rollback, Windows support, or production readiness.
+The development Compose service binds the daemon to Linux host loopback and
+mounts two private directories: the data directory at `/data`, and a separate
+key directory at `/key`, read-only, that holds the instance key file (C107).
+Offline maintenance has no network; it mounts `/key` read-write for `init` and
+`key-restore`, and the backup directory. No password, recovery code or key is
+configured through argv or environment. The maintenance service explicitly
+disables Docker logging with driver `none` and no options; TTY alone does not
+prevent retention of interactive secrets. The real-container drill verifies
+the effective driver and that harmless attached usage output is not available
+through `docker logs` (ADR 0052). Serving retains secret-free diagnostics.
+Custom configs, terminal recording, host administrators and previously
+retained logs remain outside this boundary.
+
+A disposable CI drill seeds a volume (with the base commit's drill when the
+base already has the vault, otherwise with the candidate), then reopens it in
+a new container with the candidate and refuses another key. It serves the
+volume, checks that the server mounts only `/data` and `/key`, proves that a
+second opener is refused while the server holds the vault and that a data
+directory others can read is refused, and restarts. A restore into a fresh
+volume returns with online backup in Phase 3b. The drill does not establish
+offsite durability, automatic backup, external anti-rollback, Windows support,
+or production readiness.
 
 Guarded by `TestContainerVolumeDrill`,
 `scripts/test-container-config.mjs` (overprivileged and ephemeral-volume
-sabotage), and `scripts/test-container-volume.sh` in the required Linux
-container CI job.
+sabotage, and a writable key mount on the server), and
+`scripts/test-container-volume.sh` in the required Linux container CI job.
 
 ## C49 — One public certificate can have bounded manual locations, never a deployment verdict
 
-The fingerprint remains unique; duplicate imports still fail. An explicit
-same-origin, session-bound POST can attach one of at most 32 plain-text,
-nonempty, exact location labels to an existing certificate. It requires the
-generation last displayed, authenticates the whole image, and atomically
-reseals only that certificate under a fresh generation. Original import
-generation/time and DER remain unchanged. Old images without additional
-locations remain readable. Stale generation, missing certificate, duplicate,
-malformed or excessive labels, corrupt image, and cross-origin or anonymous
-requests do not write. Locations are operator notes, not verified
-deployments. Each successful note needs a new full snapshot; existing
-snapshots do not acquire it automatically.
+The fingerprint remains unique; a second copy is refused. An explicit
+same-origin, session-bound POST can add one of at most 32 plain-text, nonempty,
+exact place labels to a saved certificate. It names the generation the page
+last read; any other gets 409 and writes nothing. Only that certificate's
+vault record is resealed, as its next revision; its certificates, its key and
+the time it was added do not change. Stale generation, missing certificate,
+duplicate, malformed or excessive labels, a damaged record, and cross-origin
+or anonymous requests do not write. Places are notes a person types, not
+verified deployments.
 
 Guarded by `TestAssociateLocationIsBoundedExplicitAndDetached`,
-`TestAssociateLocationPreservesOneCertificateAndImportProvenance`,
-`TestAssociatedImageRejectsAuthorizedMalformedLocationPayload`,
-`TestOlderImageWithoutImportTimeStillOpens`,
-`TestLinuxInventoryAssociationsSurviveRestartAndFullRestore`,
-`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
+`TestPlacesAndOwnerChangeOneAtATime`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestLocationInputRejectsMalformedAndDuplicateFields`,
-`TestInventoryOutputNeverSerializesCertificateBytes`,
-`TestContainerVolumeDrill`, and `scripts/test-certificates.mjs`.
+`TestInventoryOutputNeverSerializesCertificateBytes`, and
+`scripts/test-certificates.mjs`.
 
 ## C50 — Owner correction is explicit, generation-bound, and non-verifying
 
-An authenticated same-origin POST can replace one public certificate's manual
-owner note or explicitly clear it to unknown. The complete encrypted image
-and displayed generation are checked before mutation. Malformed or non-string
-owner, no-op, missing fingerprint, stale tab, unauthorized session, and
-cross-origin requests cannot write. A successful correction changes only the
-encrypted owner note and image generation; DER, locations, original import
-generation/time remain unchanged. API output omits DER and makes no verified
-ownership claim. A new full snapshot is manual; older backups may retain the
-previous note. There is no tamper-evident edit history or deletion claim.
+An authenticated same-origin POST can replace one saved certificate's owner
+note or explicitly clear it to unknown. It names the generation the page last
+read; any other gets 409. Malformed or non-string owner, no-op, missing
+fingerprint, stale page, unauthorized session and cross-origin requests do not
+write. A correction reseals only that certificate's vault record; its
+certificates, places, key and the time it was added do not change. API output
+omits DER and makes no verified ownership claim. There is no edit history.
 
 Guarded by `TestUpdateOwnerChangesOnlyDetachedManualNote`,
-`TestUpdateOwnerPreservesCertificateLocationsAndProvenance`,
-`TestLinuxInventoryOwnerCorrectionIsDurableAndRestorable`,
-`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
-`TestOwnerInputRequiresExplicitBoundedStringAndGeneration`, and
+`TestPlacesAndOwnerChangeOneAtATime`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`TestOwnerInputRequiresExplicitBoundedStringAndGeneration`,
+`TestContainerVolumeDrill` (a reopened volume takes an owner change), and
 `scripts/test-certificates.mjs`.
 
 ## C51 — Manual location correction cannot become deployment or certificate deletion
 
-An authenticated same-origin POST can rename one exact location label to a
-valid, unused label or remove one exact label. It requires the displayed
-generation and authenticates the whole image before lookup; stale, malformed,
-unknown, duplicate, no-op, cross-origin, and unauthorized requests cannot
-write. Only the selected record is resealed. DER, fingerprint, owner, original
-import provenance, and other records remain unchanged. Removing the first
-label promotes the next; removing the last leaves an unknown location and
-does not delete the certificate or touch a server. On the Certificates page a
-place is removed from its chip, which changes only that note. Older snapshots
-can restore old notes.
+An authenticated same-origin POST can rename one exact place to a valid,
+unused label or remove one exact label. It names the generation the page last
+read; stale, malformed, unknown, duplicate, no-op, cross-origin and
+unauthorized requests do not write. Only that certificate's vault record is
+resealed; its certificates, fingerprint, owner, key, the time it was added and
+other certificates do not change. Removing the first label promotes the next;
+removing the last leaves an unknown place and does not delete the certificate
+or touch a server. On the Certificates page a place is removed from its chip,
+which changes only that note.
 
 Guarded by `TestRenameAndRemoveLocationPreserveCertificateAndUnknownState`,
-`TestChangeLocationPreservesCertificateAndImportProvenance`,
-`TestLinuxLocationCorrectionsSurviveFullRestoreAndRejectStaleWrites`,
-`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`,
-`TestLocationChangeInputRequiresExactActionAndFields`, `TestContainerVolumeDrill`,
-and `scripts/test-certificates.mjs`.
+`TestPlacesAndOwnerChangeOneAtATime`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`TestLocationChangeInputRequiresExactActionAndFields`, and
+`scripts/test-certificates.mjs`.
 
 ## C52 — Expiry triage is a local view, not a trust verdict
 
@@ -830,32 +855,30 @@ Guarded by `scripts/test-certificates.mjs`.
 The Certificates page has no bulk selection and no bulk export. Its only
 downloads are one saved certificate, its full chain, the certificate with its
 key, or the key alone, through the certificate API under C68's password rules.
-Encrypted full backup stays offline. The development visual demo was retired
-on 22 November 2026 with the page rebuild.
+Until Phase 3b a backup is a copy of the data directory made on the host with
+the service stopped, never from the page. The development visual demo was
+retired on 22 November 2026 with the page rebuild.
 
 Guarded by `scripts/test-certificates.mjs`.
 
 ## C54 — Record deletion is exact, explicit, and never a revocation claim
 
-One saved public certificate and its manual notes can be removed from the
-current encrypted image only by an authenticated ready same-origin POST with
-the displayed generation, a duplicated exact fingerprint, and a fixed
-confirmation phrase. The Certificates page asks first in a dialog that says
-servers are not changed, then sends the exact fingerprint twice with the fixed
-phrase. The whole image is
-authenticated before deletion and atomically replaced; all surviving records
-retain their bytes, notes, and import provenance. Stale, absent, malformed,
-anonymous, cross-origin, and headerless attempts do not write. Removing the
-last record leaves a valid empty image. An older full snapshot still restores
-the old certificate, while a new snapshot restores its absence. This does
-not securely erase old bytes, delete backups, revoke a certificate, or alter
-a server deployment. No automatic deletion occurs.
+One saved certificate, its notes and its key can be removed only by an
+authenticated ready same-origin POST with the displayed generation, a
+duplicated exact fingerprint, and a fixed confirmation phrase. The
+Certificates page asks first in a dialog that says servers are not changed,
+then sends the exact fingerprint twice with the fixed phrase. The certificate
+record and its key record go in one vault transaction; other certificates keep
+their records. Stale, absent, malformed, anonymous, cross-origin and headerless
+attempts do not write. This does not securely erase old bytes from the
+database file, delete copies of the data directory, revoke a certificate, or
+change a server; an earlier copy still holds the certificate. No automatic
+deletion occurs.
 
-Guarded by `TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage`,
-`TestLinuxInventoryExplicitDeletionAndOldSnapshotRetention`,
+Guarded by `TestDeleteTakesTheKeyWithIt`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestInventoryDeleteInputRequiresTypedFingerprintConfirmationAndGeneration`,
-`TestLinuxInventoryLocationAPIIsExplicitAndGenerationBound`, and
-`scripts/test-certificates.mjs`.
+and `scripts/test-certificates.mjs`.
 
 ## C55 — Public CLI conversion cannot become key export or overwrite
 
@@ -1081,22 +1104,23 @@ Guarded by `TestGenerateEncryptedKeyAndSignedCSR`,
 
 ## C64 — Saved-certificate reminders bind one server instant and fail visibly
 
-After ready-session/revision/image authentication, inventory reads derive
-date-only expiry from one UTC whole-second server instant. Reads do not change
-generation or ciphertext. Exact NotAfter is expired; malformed or zero/reversed
-ranges are invalid; long dates cannot saturate a duration. The API still omits
-certificate bytes and explicitly says verification was not performed.
+After the ready-session checks, a list read derives date-only expiry from one
+UTC whole-second server instant. Reads do not change the vault generation or
+any record. Exact NotAfter is expired; malformed or zero/reversed ranges are
+invalid; long dates cannot saturate a duration. A server clock outside the
+years 0 to 9999 releases no list. The API still omits certificate bytes and
+claims no verification.
 
 The old Certificates page's minute-spaced refresh, 120-second stale snapshot,
 clock-disagreement warning and 7/14/30/90-day reminder windows were retired on
 22 November 2026 with the page rebuild; the new page counts days left against
-the browser clock (C52). There is no secret custody, outbound notification,
-guaranteed closed-page alert, discovery, trust, renewal or Porch change.
+the browser clock (C52). There is no outbound notification, guaranteed
+closed-page alert, discovery, trust, renewal or Porch change.
 
 Guarded by `TestObserveExpiryExactBoundariesAndNoTrust`,
 `TestObserveExpiryRejectsMalformedAndHandlesLongDates`,
-`TestInventoryMonitoringBindsOneServerClockAndNeverMutates`, and
-`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`.
+`TestInventoryOutputUsesOneServerClockAndNeverMutates`, and
+`TestLinuxCertificatesNeedAReadySessionAndThePageHeader`.
 
 ## C65 — Saved public handoff is exact, transient, and never implicit trust
 
@@ -1107,26 +1131,9 @@ under C68.
 
 ## C102 — A local production account key cannot reuse staging identity or grant CA authority
 
-ADR0083 adds one separately purpose-bound encrypted production account record to
-the same complete image. Every reader validates it, including staging/public
-reads; an unselected corrupt record blocks the image. Exact generation, shared
-history/image limits and pending staging completion reserves remain intact.
-Existing keys cannot be replaced; production key status cannot invent account
-registration, terms acceptance or certificate issuance. Fixed local routes use
-fresh authentication, separate consent, existing budgets and Linux atomic
-custody. UI secrets/consent and stale results are cleared.
-
-Guards: `TestProductionAccountSeparateEncryptedKeyAndSharedGeneration`,
-`TestProductionAccountCorruptionBlocksUnselectedScopeAndNoPartialEvidence`,
-`TestProductionAccountPreservesPendingStagingCompletionReserve`,
-`TestProductionAccountParserCannotSelectStagingOrNetworkAuthority`,
-`TestProductionAccountGateOwnerOriginSetupAndNativeRefusal`,
-`TestProductionAccountUnsupportedPlatformCannotReadWriteOrCallPermit`,
-`TestLinuxProductionAccountSeparateCustodyRefusalsAndFullRecovery`,
-`TestLinuxProductionAccountAPIReauthNoNetworkNoPromotionOrReplacement`,
-`FuzzProductionAccountPayload` and `scripts/test-production-account.mjs`.
-This is local-key preparation, not live CA
-interoperability, production issuance or independent audit evidence.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the production account key record and its route are gone. Account keys
+return with renewal in Phase 3c, as sealed vault records (C107).
 
 ## C101 — A production profile cannot promote staging identity or test trust
 
@@ -1155,232 +1162,40 @@ real CA issuance, live DNS interoperability or independent release audit claim.
 
 ## C100 — A complete renewal borrows only its original ready session
 
-ADR0080 grants one exact saved-source staging renewal with a fresh password,
-`session-test-renewal` scope and separate exclusive-DNS acknowledgement. Preview
-and status are local metadata only. A job retains public scope/counters and the
-original owner hash/revision/expiry, never session/key/token/signer/image/CSR.
-Borrow and clear a ready-session key for each bounded locked transaction.
-Logout, lock, revision/expiry, monotonic twelve-hour cap, restart, scope/config
-or unrelated generation changes stop it. Timing watch and full renewal cannot
-overlap; stop needs neither password nor a derivation/provider slot.
-
-Admission requires headroom for 320 remaining generation/event transitions,
-4 MiB of growth, a new pair and the future closure(s). Its own committed growth
-consumes this budget rather than requiring the initial budget again. Other
-interrupted timing work keeps its reserved outcome space. No auto-prune/archive,
-new order after lost Location, challenge reacceptance, finalize replay,
-recovery/maintenance counter reset, arbitrary connector or trust override.
-Maximum 160 actions, 12 timing/validation/certificate reads per kind, runtime
-spacing and every longer saved provider wait apply. Error pauses; ordinary DNS
-uncertainty permits only its bounded scoped reads under this separate grant.
-
-Authenticated CA Retry-After metadata is bounded and sticky across successful
-result publication and failed callbacks. A failure can save only wait metadata
-with the pending outcome unchanged; insufficient capacity/publication remains
-uncertain. Fixed issuance error redaction and the pinned receipt checker remain.
-Only a checked new pair plus confirmed owned cleanup is complete. Borrowed DNS
-is untouched; original pairs/notes remain; no deployment or continuous cycle.
-Saved-but-unconfirmed cleanup is visible. A late Stop or server close cannot
-erase a confirmed completion. Restart/backup cannot reconstruct job authority.
-
-Guards: `TestRenewalCycleSequenceOneOrderNewKeyAndOwnedCleanup`,
-`TestRenewalCycleRefusesAmbiguityExhaustionAndCapacity`,
-`TestRenewalCycleWaitsDoNotReplayAndBudgetFundsItsOwnWrites`,
-`TestRenewalCycleAuthenticatedMetadataZeroOnFailure`,
-`TestRenewalCycleResumeDoesNotReprovisionAfterCAValidationOrHideExpiry`,
-`TestRenewalCycleLongCAWaitCannotHideAnAlreadyUncertainWrite`,
-`TestRenewalCycleCannotBypassDNSHoldByChoosingAnotherRecord`,
-`TestRenewalJobStrictIndependentConsentAndZeroPartialSecrets`,
-`TestRenewalJobStatusOwnerStopOriginAndNativeRefusal`,
-`TestRenewalJobConstructorSessionBoundsAndMutualExclusion`,
-`TestRenewalJobElapsedSpacingSurvivesWallJumpAndBusyTick`,
-`TestLinuxSessionRenewalRealTransactionsRejectUnpinnedReceiptWithoutReplay`,
-`TestLinuxSessionRenewalFreshGrantIntentAndLogoutCancel`,
-`TestLinuxSessionRenewalRechecksOriginalSessionScopeAndGeneration`,
-`TestRenewalJobOnlyBorrowedSessionAndLockedTransactions`,
-`TestCAOperationWaitBoundedStickyAndSecretFree`,
-`TestLinuxCAFailureWaitDurableAndFullRecovery`,
-`TestLinuxCAOrderSuccessPublishesWaitInSameResult`,
-`TestLinuxCACertificateWaitSurvivesRedactionAndKeepsLeaseDirection`,
-`TestLinuxCAValidationWaitKeepsPendingOrCheckedScope`, `FuzzRenewalJobInput`,
-`scripts/test-renewal-job.mjs` and the read-only preview tests. Synthetic layered
-evidence is not a live CA/Cloudflare interoperability or independent audit claim.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the session renewal job is gone. Renewal returns in Phase 3c and needs
+no session.
 
 ## C99 — Closed-request capacity cannot erase lineage or revive historical authority
 
-ADR0079 retains 16–32 closed encrypted records in at most four pages, plus the
-existing active bound of 32 (maximum 160 total). A retained-count field and
-canonical whole-image validation reject dropped/malformed pages. All pages and
-active records share chronological/unique-order/renewal-anchor checks; historical
-raw scopes stay inside the existing validator. Renewal-source/provenance and
-superseded lineage lookup includes every retained record. Pair deletion updates
-its original archived tombstone, never a new unrelated slot. Active uncertainty,
-other ciphertext, pending reservations, byte/generation bounds and full snapshots
-remain. Starting a new order/renewal refuses a full active closure list before
-any network work. No pruning, byte reclamation, abandonment or historical replay.
-
-Fresh password/exact generation/separate `lossless-request-archive` scope and
-backup/compatible-version acknowledgement precede local Linux writer/permit/
-revision/atomic-publication checks. Status exposes counts, never keys/provider
-URLs. Older binaries refuse the new manifest fields; manual DNS v9 distinguishes
-the larger total retained count from active capacity. The page section for
-this archive was retired on 22 November 2026 with the page rebuild; the API
-remains. A result lost after commit requires status, never blind replay.
-
-Guarded by `TestRequestArchiveFullActiveLosslessAndNextClosure`,
-`TestRequestArchiveRefusesStaleClockMalformedOrDroppedPages`,
-`TestRequestArchiveAllPagesFiniteNoPruning`,
-`TestRequestArchivePreservesUnknownActiveWorkAndReservations`,
-`TestRequestArchiveRetainsPairSourceAndUpdatesArchivedTombstone`,
-`TestRequestArchiveSyntheticFixtureRoundTrip`,
-`TestLinuxRequestArchiveWriterFullRecoveryAndLostResult`,
-`TestLinuxRequestArchiveAPIFreshScopeAndRetainedCounts`,
-`TestRequestArchiveStrictScopeAndAccessBoundary`,
-`TestRequestArchiveNativeRefusesBeforePermit`,
-`TestRequestArchiveHasOnlyReviewedLocalConsumers`, inherited historical-closure
-architecture guards, shared archive-input fuzzing and all inherited
-platform/full-recovery gates. Compiling two-way
-sabotage: ADR0079. This is development evidence, not independent release audit.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+closed staging requests and their archive pages are gone.
 
 ## C98 — Operator observations cannot revive terminal DNS mutation policy
 
-ADR0078 adds only one explicitly reviewed manual read: fresh password, exact
-generation/record, `operator-dns-read-only` scope and separate acknowledgement.
-Ordinary DNS capability rejects this mode; approved callers of the separate
-operator entry point are architecture-checked. No scheduler authority is implied.
-Only terminal pending create/delete qualifies, after all saved waits and a
-one-day floor (seven days for an uninterpretable/blocked hint). Each grant has
-its own retained count/wait, at most 65535 observations and one result. Invalid
-hints impose a new seven-day hold. No automatic chain, old counter/block reset,
-ownership abandonment, user verdict, new POST/DELETE or token replacement.
-Empty creation remains unknown. Exact connector ownership/deletion proof saves
-a phase-specific receipt while preserving the original terminal policy. Public
-flags describe the active unresolved policy; resolution cannot revive its writes.
-Intent-before-I/O, exact-image one-use lease, private writer, current permission,
-capacity reservation and full restore remain mandatory. The observation timestamp
-and later publication time may differ without weakening either bound.
-
-Guarded by `TestDNSMaintenanceSeparateReadOnlyAuthorityPreservesTerminalPolicy`,
-`TestDNSMaintenanceUnknownAndRevocationRetainIntentWaitAndCounters`,
-`TestDNSMaintenanceNotAnAlternativeToOrdinaryChecksAndBadHintsDelay`,
-`TestDNSMaintenanceCapacityWaitAndOldDeferCannotBypassPolicy`,
-`TestDNSMaintenanceResolvedPhasesSurviveLocalClosure`,
-`TestLinuxDNSMaintenanceReadOnlyIntentFullRestoreAndNoOrdinaryAuthority`,
-`TestLinuxDNSMaintenanceAPIFreshScopeNoWriteAndNoCounterReset`,
-`TestNativeDNSMaintenanceRefusesBeforePermissionAndSecretBorrow`, strict request/
-origin/setup tests, `FuzzDNSOperationRequest`, architecture and DNS UI tests.
-This is synthetic evidence; live provider interoperability and release audit
-remain separate. Indefinitely empty creation, closed-request storage capacity
-and complete automatic renewal are still open; retained evidence is not pruned.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+DNS maintenance is gone.
 
 ## C97 — History capacity cannot erase evidence or reset operational authority
 
-ADR 0077 explicitly moves 512–1024 unchanged encrypted events into at most four
-retained pages. Authenticate all pages and original start/continuity through the
-active log before output. No loss, partial result, generation reset, automatic
-pruning or new DNS authority. Other custody ciphertext and pending reservations
-stay unchanged. Exact Linux writer/revision/generation/live permit and fresh
-password/separate scope/backup acknowledgement precede atomic replacement.
-Uncertain delivery requires status. Full restore preserves pages; older binaries
-reject archive-bearing images. Bounded active/byte/generation/page limits remain.
-This frees active slots, not disk space or terminal DNS recovery.
-
-Guarded by `TestHistoryArchiveLosslessAtFullLimitAndContinues`,
-`TestHistoryArchiveAdmissionNeverResetsOrDiscards`,
-`TestHistoryArchivePreservesPendingDNSAndTiming`,
-`TestLinuxHistoryArchiveAtomicRetainedAndFullRestore`,
-`TestLinuxHistoryArchiveAPISeparateConsentAndFreshPassword`,
-`TestHistoryArchiveAccessBoundaryBeforeStorage`,
-`TestHistoryArchiveStrictInputAndNoPartialSecret`,
-`TestHistoryArchiveNativeRefusesBeforePermit`, `FuzzHistoryArchiveInput`
-and inherited image/backup/platform gates. Two-way sabotage: ADR 0077. The
-page section for this archive was retired on 22 November 2026 with the page
-rebuild; the API remains.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the history archives are gone. The vault keeps no activity history yet.
 
 ## C96 — Session timing watch cannot become signing, replay or unlock authority
 
-ADR0076 reads one exact authenticated source/image for recovery admission. Pending
-timing, unsafe DNS/request/account or inadequate unreserved space stops the watch.
-Recovery guidance never resets/prunes/replays. Separate fresh password and literal
-scope; one original-session/revision/expiry-bound memory job, no retained unlock
-key/password/token, no restart/restore adoption. Max twelve timing checks, minimum
-five monotonic elapsed minutes, original expiry and twelve-hour cap, shared budgets,
-persisted wait/intent/lease. Errors and unrelated writes pause, never auto-retire.
-Stop/logout/lock/shutdown cancel permission; sent bytes/committed intent are not
-rolled back. Local Stop uses exact owner/job ID and no crypto slot/password.
-Only fixed public status/recovery UI; no certificate/DNS/signing operation.
-
-Guards: `TestTimingWatchReadinessRecoveryIsReadOnlyAndExactSource`,
-`TestTimingWatchRecoveryPolicyNeverResetsOrReplays`,
-`TestTimingWatchBusyCannotShortenSpacingAndOwnerCannotChange`,
-`TestTimingWatchConstructorCannotExtendOrSwitchReadySession`,
-`TestTimingWatchStrictSeparateConsentAndNoPartialSecret`,
-`TestTimingWatchGateStatusDoesNotGrantOrPersistAuthority`,
-`TestTimingWatchCannotAcquireOrderDNSOrIndependentUnlock`,
-`TestLinuxTimingWatchSeparateConsentIntentAndStopWithoutSecret`,
-`TestLinuxTimingWatchRevocationRetainsPendingAndNeverAutoRetires`,
-`TestNativeTimingReadinessRefusesBeforeFiles`, `FuzzTimingWatchInput`,
-`scripts/test-timing-watch.mjs`.
-No full terminal maintenance/retention solution or automatic renewal/production
-claim; no anti-rollback, trusted host clock or reliable heap erasure guarantee.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the session timing watch is gone.
 
 ## C95 — Explicit timing cannot bypass an all-CA provider wait
 
-ADR0075 gates every enrolled-store CA network path under the private writer lock
-before intent/I/O. Wait/blocked policy survives full restore; status and local
-retirement remain possible. Source-bound fixed ARI adapter grants no signing,
-DNS or uploaded-source authority. Fresh password/one-check consent, exact image/
-revision, live session, shared budgets and bounded API/protocol are mandatory.
-Only public timing metadata is returned. No automatic check/renewal, scheduler,
-extra unlock lifetime or raw provider error. Browser clears hidden/stale/late/
-changed-source authority and secrets.
-
-Guards: `TestStagingProviderBarrierPresentInEveryNetworkWriter`,
-`TestLinuxProviderWaitCoversEveryCAPathBeforeIntentAndSurvivesRestore`,
-`TestLinuxProviderWaitBlockedHintDeniesEveryCAPath`,
-`TestNativeProviderReadRefusesBeforeFilesOrCallback`,
-`TestLinuxRenewalTimingAPIFreshAuthPublicSourceAndNoAutomaticRenewal`,
-`TestLinuxRenewalTimingAPIProviderWaitBlocksDirectoryAndLostReadRetiresLocally`,
-`TestLinuxRenewalTimingAPILogoutDuringProviderCheckRetainsOnlyIntent`,
-`TestRenewalTimingRequestStrictShapesAndNoPartialSecret`,
-`TestRenewalTimingGateOriginSetupNativeAndBoundedResponse`,
-`TestARIScopedReceiptBindsUnsupportedAndFixedFailure`, `FuzzRenewalTimingRequest`,
-`scripts/test-renewal-timing.mjs`.
-Legacy non-ARI errors do not gain new durable hint persistence in this step.
-Independent audit/live CA QA/worker/production remain separate gates.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the provider wait across every CA route is gone with those routes.
 
 ## C94 — Durable renewal timing cannot reroll or erase provider policy
 
-ADR0074 authenticates the exact saved staging completion and ID before timing
-output/intent. Imported, wrong-context, malformed, expired or superseded sources
-grant no read. One saved fallback/ARI choice, no same-window reroll or later
-postponement, stale fallback, persisted bounded wait and deletion-independent
-account barrier. Pending read needs explicit local retirement; count/wait remain.
-Exact-image atomic one-use lease and twenty-second live permission/lifetime;
-Linux lock commits intent before public-DER-only callback and outcome atomically.
-No private signer/token/URI or raw error in timing output. Reserved slot/8KiB
-adds to DNS/issuance, survives note writes and complete password/recovery restore.
-Native refuses. ADR0074 had no live adapter/route/worker; ADR0075 adds reviewed
-all-CA barriers, explicit adapter/UI and budgets. Worker remains absent.
-
-Guards: `TestRenewalTimingDurableExactSourceSingleChoiceAndNoSecretBorrow`,
-`TestRenewalTimingPublicWrappersAndPendingRequireExplicitRetirement`,
-`TestRenewalTimingChangedWindowCannotPostponeAndStaleFallsBack`,
-`TestRenewalTimingUntrustedStoredSemanticsNoPartialProjection`,
-`TestRenewalTimingReservationsProviderBoundsAndPrivacy`,
-`TestRenewalTimingWaitInterruptedReadAndProviderBarrierSurviveDeletion`,
-`TestRenewalTimingLeaseNoReplayRevocationAndMalformedReceipt`,
-`TestRenewalTimingConcurrentLeaseAndImportedSourceRefusal`,
-`TestRenewalTimingSlowPermissionCannotAuthorizeExpiredLease`,
-`TestRenewalTimingLeaseCannotOutliveCertificate`,
-`TestRenewalTimingProviderWaitBoundariesAndAuthenticatedTamper`,
-`TestRenewalTimingAddsToDNSIssuanceReserveAndRetiresSupersededSource`,
-`TestLinuxRenewalTimingIntentLockSourceAndFullRecovery`,
-`TestLinuxRenewalTimingRevocationPendingSnapshotAndNoRetryReset`,
-`TestNativeRenewalTimingRefusesBeforeFilesOrCallback`,
-`TestRenewalTimingHasOnlyLockedInternalConsumers` and `FuzzRenewalTimingPayload`.
-Actual compiling two-way sabotage in
-ADR0074; Linux race/complete recovery and every final-head check remain gates.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the saved renewal timing is gone. The offline ARI policy and protocol stay
+under C92 and C93.
 
 ## C93 — Staging ARI protocol cannot gain credentials or arbitrary endpoints
 
@@ -1425,152 +1240,60 @@ Guards: `TestARIInformationStrictBoundsCanonicalMeaningAndNoURLAuthority`,
 
 ## C70 — ACME setup checking grants no network, storage or issuance authority
 
-The fixed staging setup route accepts only bounded strict provider/challenge/
-domains JSON from a ready, current same-origin session. It rejects malformed,
-duplicate/unknown/secret fields, unsupported profiles/proofs/names and HTTP-01
-wildcards. It does not resolve domains, connect to a CA, generate a key/CSR,
-accept terms, save settings or provision challenges. All response execution
-capabilities remain false; syntax success is not ownership or CA eligibility.
-The UI rejects mismatched or capability-granting responses and clears pending
-results on input change, hiding, navigation, deadline and Clear. This regression
-boundary is not a sandbox or independent audit; future network/account work
-requires its own reviewed authority and recovery gates.
-
-Guarded by `TestACMEPlanChecksSyntaxWithoutGrantingCapabilities`,
-`TestACMEPlanJSONIsBoundedStrictAndSecretFree`,
-`TestACMEPlanGateHasNoCAOrPersistenceCapability`,
-`TestACMESetupHasNoOutboundOrPersistenceImports`, `FuzzACMEPlanRequestJSON`
-and `scripts/test-acme-setup.mjs`.
+Retired on 23 November 2026 with the session-bound ACME automation
+(ADR 0088): the staging setup route and its page are gone. The syntax check
+in `internal/acmeplan` stays for Phase 3c and still grants no capability
+(`TestACMEPlanChecksSyntaxWithoutGrantingCapabilities`).
 
 ## C71 — Staging directory reachability cannot become enrollment or arbitrary egress
 
-Only a ready, same-origin, explicitly confirmed request can enter the separate
-Linux/Docker directory connector. Native Windows/macOS refuses before DNS and
-cooldown because platform verification may fetch certificate objects. One fixed-host secret-free GET with system TLS/SNI,
-validated public DNS pinned to numeric dialing, no proxy/redirect/retry, bounded
-time/headers/body/parser and global cooldown/concurrency. Known endpoint URLs
-are preflighted, never followed. No account/key/terms/order/storage capability;
-fixed output and errors, no CA metadata reflection. Late invalid sessions or
-contexts cannot publish success. Setup/offline Workbench cannot import the
-connector. Already-sent traffic cannot be recalled after logout; reachability
-does not prove issuance or certificate trust.
-
-Guarded by `TestDirectoryDiscoveryUsesOnePinnedTLSGETWithoutSecrets`,
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the directory route, its consent and its page are gone. The directory client
+in `internal/acmestaging` stays for Phase 3c with no runtime caller. It
+still makes one pinned, secret-free TLS GET to a fixed host, dials public
+addresses only, follows no proxy, redirect or retry, and parses a bounded
+answer (`TestDirectoryDiscoveryUsesOnePinnedTLSGETWithoutSecrets`,
 `TestDirectoryRefusesPrivateMixedDNSAndRevokedConsentBeforeDial`,
 `TestDirectorySpecialAddressesAreDenied`,
 `TestDirectoryResponseRefusalsNeverRetryOrReflect`,
 `TestDirectoryStrictBoundedParser`,
 `TestDirectoryTransportCannotFollowEndpointsOrSendTwice`,
-`TestDirectoryConsentStrictlyRefusesUnconfirmedOrSecretInput`,
-`TestDirectoryGateRequiresReadyOriginConsentAndThrottlesWithoutStorage`,
-`TestDirectoryGateRejectsSetupAndLateSessionOrContext`,
-`TestDirectoryInFlightLogoutRefusesResultAndConcurrentCheck`,
 `TestStagingLivePlatformBoundary`,
-`TestDirectoryNativePreviewRefusesBeforeCooldownOrConnection`,
 `TestStagingContainerSystemTrustWithoutNetwork`,
-`TestWorkbenchHasNoNetworkOrProcessImports`, `FuzzStagingDirectory`,
-`FuzzDirectoryConsent` and `scripts/test-acme-directory.mjs`.
+`FuzzStagingDirectory`). The offline Workbench still cannot import it
+(`TestWorkbenchHasNoNetworkOrProcessImports`).
 
 ## C72 — Local staging account-key custody is not CA registration
 
-Only ready same-origin Linux authority, fresh instance password, the shared
-attempt/KDF budget and explicit true confirmation can prepare one P-256 key.
-Exact displayed image generation and access revision are rechecked under the
-writer lock; live permission is checked immediately before atomic replacement.
-No overwrite, secret import/export, account URL, terms acceptance, issuance or
-new network authority. Status grants no write authority. Post-commit loss of
-confirmation requires a status refresh, never a blind new key.
-
-A dedicated HKDF-purpose/AES-GCM entry binds installation, staging identity,
-generation and canonical prepared-only payload. Every complete-image read
-authenticates and validates it before output. Public metadata/history expose
-only identity/time/action, not signer/password. One account event and signer
-commit together; certificate operations preserve it. Full snapshot, recovery
-and container restart/restore retain the same signer. Access-only backups do
-not. Old binaries refuse the new field. Manual backup, compromised hosts,
-runtime copies and authenticated complete-image rollback remain explicit risks.
-ADR 0053/C73 extends that sealed payload with separately authorized registration
-metadata; preparation itself still grants no outbound or signing capability.
-
-Guarded by `TestStagingAccountPreparationIsEncryptedAtomicAndPreserved`,
-`TestStagingAccountTamperPurposeAndPayloadRefuseBeforeOutput`,
-`TestStagingAccountPreparationPreservesCertificateKeyCustody`,
-`TestFullSnapshotRetainsStagingAccountKeyAndHistory`,
-`TestNativeStagingAccountStoreRefusesBeforeIOOrPermit`,
-`TestACMEAccountPreparationHasNoOutboundHTTPAuthority`,
-`TestAccountRequestStrictShapesNeverAcceptSecretsOrAuthority`,
-`TestAccountGateReadyOriginAndNativeRefusal`,
-`TestLinuxStagingAccountDurableRefusalsFullRestoreAndRecovery`,
-`TestLinuxStagingAccountDiskFaultAndUncertainCommit`,
-`TestLinuxAccountAPIReauthStaleAndNoReplacement`,
-`TestLinuxAccountRequestLogoutAndCancellationCannotWrite`,
-`TestContainerVolumeDrill`, `FuzzStagingAccountRequest`,
-`FuzzStagingAccountPayload` and `scripts/test-acme-account.mjs`.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the saved staging account key is gone with the old encrypted inventory
+image. Account keys return in Phase 3c, as sealed vault records (C107).
 
 ## C73 — Same-key registration cannot become issuance or a blind retry
 
-ADR 0053 adds a separate Linux ready-origin/fetch-metadata staging route.
-An explicit connection preview binds the exact current terms URL, session,
-revision, image generation and SPKI identity for five minutes and one use.
-Fresh Rootwell authentication and explicit agreement are required for creation;
-directory revalidation refuses changed terms before nonce or signed POST.
-Only the public account JWK and mode-specific library-produced ES256 JWS leave
-the daemon. No domains, email, password, private key, EAB or caller URL.
-
-Before outbound registration, purpose-separated encrypted pending intent and
-history commit atomically. Same private writer lock and live permission cover
-the bounded callback and final commit. Failures preserve pending state; only
-separately authenticated/confirmed onlyReturnExisting lookup can reconcile it.
-Validated absence preserves the signer and requires a fresh terms decision.
-Generic writes cannot consume the last completion history/generation slot.
-Whole-image reads validate registration; full snapshots/recovery/container
-restart retain key, account identity and history. URLs/nonces/JWS/signers do
-not appear in browser status or history. Local status is not CA readiness.
-
-The transport permits at most one fixed directory GET, one fixed nonce HEAD
-and one fixed newAccount POST, with ten-second deadline, the existing pinned
-public-only DNS/TLS policy and no proxy/redirect/retry. Strict bounded CA JSON,
-nonce, account/orders URL and outgoing JWS validation strip untrusted metadata.
-Terms documents/account resources/orders are not fetched. Operator-clicked
-terms links are tightly constrained and no-referrer/noopener; URL matching is
-not document hashing or legal interpretation. Registration grants no order,
-challenge, issuance, renewal, deployment, production/custom CA or key export.
-Old backups, already-sent requests, host compromise and runtime copies remain
-risks; manual backups and independent release audit are still needed.
-
-Guarded by `TestRegistrationUsesRealSameKeyJWSAndOnlyThreePinnedRequests`,
+Retired on 23 November 2026 with the session-bound ACME automation
+(ADR 0088): the registration route, its pending intent and the saved
+account are gone. The registration client in `internal/acmestaging`
+stays for Phase 3c with no runtime caller. It still sends only the
+same-key JWS in at most three pinned requests, and refuses changed
+terms, malformed or foreign answers and lost authority without a retry
+(`TestRegistrationUsesRealSameKeyJWSAndOnlyThreePinnedRequests`,
 `TestRegistrationTermsMismatchRefusesBeforeNonceAndPOST`,
 `TestRegistrationStrictAbsentReconciliationNeverCreates`,
 `TestRegistrationRefusesMalformedForeignAndUncertainAccountWithoutRetry`,
 `TestRegistrationRefusesUnsafeDirectoryNonceAndLostAuthority`,
 `TestRegistrationParentDeadlineBoundsStalledAccountBody`,
-`TestStagingRegistrationAtomicIntentSameSignerAndCompletion`,
-`TestStagingRegistrationAbsentPreservesKeyAndCertificateMutations`,
-`TestStagingRegistrationPayloadTamperRefusesBeforeAnyOutput`,
-`TestPendingRegistrationReservesHistoryAndGenerationForReconciliation`,
-`TestRegistrationRequestStrictShapesRefuseAuthorityAndPartialSecrets`,
-`TestRegistrationGateRequiresReadyOriginMetadataAndNativeRefusal`,
-`TestLinuxRegistrationReauthPreviewBindingIntentAndReconciliation`,
-`TestLinuxRegistrationProofIsSingleUseSessionGenerationAndTimeBound`,
-`TestLinuxRegistrationBudgetsAndConfirmedCreation`,
-`TestLinuxRegistrationPreviewProviderBusyCooldownAndStoreChange`,
-`TestLinuxRegistrationLogoutAndCancellationLeavePendingNotSuccess`,
-`TestLinuxRegistrationPendingSameKeyRestoreRecoveryAndRefusals`,
-`TestLinuxRegistrationPostRenameUncertaintyKeepsReconciliationIntent`,
-`TestNativeStagingRegistrationRefusesBeforeIOPermitOrSigner`,
-`TestStagingRegistrationHasOnlyReviewedAccountClientMethods`,
-`TestContainerVolumeDrill`, `FuzzStagingRegistrationResponse`,
-`FuzzStagingRegistrationRequest` and `scripts/test-acme-registration.mjs`.
+`FuzzStagingRegistrationResponse`).
 
 ## C69 — Saved-key attachment never overwrites or silently transfers a secret
 
-ADR 0048 permits only adding a strict key to an authenticated public-only
-certificate record under exact generation/fingerprint. Existing legacy/material
-keys refuse replacement. The writer repeats the check and requires explicit
-sealed acknowledgement for mismatch; Save additionally requires fresh instance
-password through the shared attempt/concurrency budget. Certificate, supplied
-bundle, order, import provenance and notes remain intact. Limits refuse with
-no partial image; atomic history/full restore preserve the attachment.
+ADR 0048 permits only adding a strict key to a saved certificate that has
+none, under the exact generation and fingerprint. A saved key is never
+replaced. The store repeats the check and keeps a mismatch only with an
+explicit acknowledgement sealed with the key; Save also requires the current
+sign-in password through the shared attempt and concurrency budget. A key
+check writes nothing. The certificate, its bundle, the time it was added and
+its notes stay as they were; the key becomes a record of its own (C68).
 
 The Certificates page adds a key to a saved certificate only with the
 Rootwell password, which is emptied after each try. It checks the key first
@@ -1580,54 +1303,37 @@ Errors are fixed messages, never server or file text. Key/bundle/notes/trust
 are never auto-transferred to another page; key/PFX conversion needs explicit
 file selection in Convert. No CA/network/production claim follows.
 
-Guarded by `TestAttachKeyPreservesRecordAndRefusesOverwrite`,
-`TestAttachEncryptedKeyAndCapacityRefusals`, `TestKeyAttachmentRequestModesAreStrict`,
-`TestLinuxSavedKeyRequiresFreshAuthenticationAndPreservesRefusedImage`,
-`TestLinuxMaterialMismatchExportAndBundleFullRestore`, and
+Guarded by `TestAKeyAddedLaterIsCheckedFirstAndNeverReplaced`,
+`TestAMismatchedKeyNeedsTheAcknowledgementAndOnlyThen`,
+`TestKeyAttachmentRequestModesAreStrict`,
+`TestLinuxAKeyAddedLaterNeedsThePasswordAndIsNeverReplaced`, and
 `scripts/test-certificates.mjs`.
 
 ## C66 — Bulk preview is local and Save is exact and atomic
 
 Retired on 22 November 2026 with the page rebuild: the bulk-import section of
-the old Certificates page is gone. The all-or-nothing multi-certificate append
-in the inventory API it used is still guarded by
-`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`.
+the old Certificates page is gone. The inventory API's multi-certificate append
+went on 23 November 2026 with the old encrypted inventory image; certificates
+are added only through Save
+(`TestLinuxCertificatesNeedAReadySessionAndThePageHeader`).
 
 ## C67 — Public lifecycle comparison/history and background checks stay scoped
 
-An exact generation/fingerprint ready-session request to the comparison-source
-API releases one saved public DER, never notes or keys. The comparison core
-treats SAN/key/issuer/date changes as information, never trust, and refuses
-private, mixed and malformed input; response sizes and errors are bounded. The
-comparison and activity panels of the old Certificates page were retired on
-22 November 2026 with the page rebuild; the APIs remain.
+The comparison core in `publicinventory` treats SAN, key, issuer and date
+changes as information, never trust, and refuses private, mixed and malformed
+input; output sizes and errors are bounded. The comparison and activity panels
+of the old Certificates page were retired on 22 November 2026 with the page
+rebuild.
 
-Every successful inventory mutation commits one authenticated encrypted event
-in the same complete image; rejected mutations commit neither. Fixed actions,
-UTC seconds, contiguous generations and unique fingerprints are validated
-before any records/events are released. History includes no prior notes, DER
-or credentials. Full snapshot/restore retains it. Legacy history is unknown;
-1024 events refuse additional writes rather than erase old activity. This is
-not an independent audit log or rollback anchor, and downgrade is not supported
-after new writes. Deleted identities remain in history and backups.
-
-The daemon independently checks once per minute using only an existing ready
-session key, with no lifetime extension or persisted monitoring credential.
-The RAM-only 30-day inbox clears on revocation/expiry/revision/storage/clock
-failure; logout during a read cannot publish a late result. Observation age,
-generation and unlock deadline are reported and stale observations are not
-healthy. Closing a page does not stop this worker, but logout, restart or the
-12-hour session limit require another unlock. No external alerts, 24/7 service,
-live discovery, renewal, private custody or Porch change is claimed (ADR 0044).
+On 23 November 2026, with the old encrypted inventory image (ADR 0088), the
+comparison-source API, the encrypted activity history and the daemon's
+background expiry check were retired too. The vault keeps no activity history
+yet, and nothing checks expiry while nobody looks; the list works out the days
+left when it is read (C64).
 
 Guarded by `TestComparisonTracksAllNamesKeyAndDatesWithoutTrust`,
-`TestComparisonRefusesPrivateMixedBundlesAndMalformed`, `FuzzPublicComparison`,
-`TestHistoryIsAtomicEncryptedCompleteAndRetainsDeletionIdentity`,
-`TestHistoryLegacyBoundaryContinuityCapacityAndContext`,
-`TestBackgroundMonitorWithoutBrowserExpiresClearsAndRejectsLateLogout`,
-`TestBackgroundMonitorInvalidRevisionClearsSessionsAndLateResult`,
-`TestLinuxInventoryAPIRequiresReadySessionAndExplicitSave`, and
-`TestLinuxInventoryDurableImportAndFreshFullRestore`.
+`TestComparisonRefusesPrivateMixedBundlesAndMalformed` and
+`FuzzPublicComparison`.
 
 ## C74 — Access UI cannot claim a timed-out write or navigate on late results
 
@@ -1646,113 +1352,44 @@ covered by C32–C34. See ADR 0055. VM assertions are not browser visual QA.
 
 ## C75 — Manual DNS instructions cannot recreate an uncertain order or claim verification
 
-Ready same-origin/session/revision and exact generation, fresh password, strict
-bounded JSON, shared auth/crypto/provider budgets precede a single staging order.
-Encrypted intent commits before network; validated account-bound Location commits
-before reading its body. Failure retains state. Continuation only reads the
-same sealed URI with the same registered signer; missing URI blocks creation
-and continuation. Reserve history/generation for checkpoint and instructions.
-Whole-image authentication precedes all output and full snapshots preserve the
-order, account and certificates. Wrong-purpose/corrupt metadata releases nothing.
-
-Maintained client uses only directory, nonce, exact DNS newOrder and empty
-POST-as-GET order/authorization requests, with fixed pinned staging origin,
-bounded requests/body/time and no proxy/redirect/retry/Link/production/Accept/
-finalization. Names, wildcard mapping, challenge tokens/digests and expiry are
-rechecked. Same-name TXT values remain separate; already-valid authorizations
-do not invent records. Local acknowledgement causes no network and never
-claims DNS/CA verification or issuance. Browser authority is explicit, bounded
-and cleared on hidden/source/late/uncertain results. No independent audit,
-live staging/browser QA, rollback anchor or automatic backup claim.
-
-Guarded by `TestManualDNSNamesURLsAndDigestAreBoundedCanonical`,
-`TestManualDNSOrderIntentCheckpointInstructionsAndLocalAcknowledgement`,
-`TestManualDNSOrderCorruptionRefusesAllOutputAndPurposeConfusion`,
-`TestManualDNSOrderReservesCheckpointAndCompletionCapacity`,
-`TestManualDNSOrderPreservesSavedCertificateAndPrivateKey`,
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the manual DNS order route, its saved order and its page are gone. The order
+model in `internal/acmeorder` and the order client in `internal/acmestaging`
+stay for Phase 3c with no runtime caller. Names and digests are still bounded
+and canonical; only account-bound order requests go to the fixed staging
+origin; unsafe locations, unapproved methods and late revocation are refused
+without a retry (`TestManualDNSNamesURLsAndDigestAreBoundedCanonical`,
 `TestManualDNSOrderUsesAccountBoundJWSAndPreservesBothTXTValues`,
 `TestManualDNSOrderCheckpointsBeforeStalledOrMalformedBody`,
 `TestManualDNSOrderRefusesUnsafeLocationFailedCheckpointAndAuthzWithoutRetry`,
 `TestManualDNSOrderPreflightAndLateRevocationRefuseAuthority`,
 `TestManualDNSJWSGuardRejectsWritePayloadAndUnapprovedDestination`,
 `TestManualDNSTransportRefusesUnapprovedMethodsPathsAndBudgetBeforeIO`,
-`TestLinuxManualDNSDurableCheckpointSameOrderRestoreAndLocalAcknowledgement`,
-`TestLinuxManualDNSMissingURICannotResumeOrRecreate`,
-`TestLinuxManualDNSCancelledAfterCheckpointKeepsKnownOrder`,
-`TestManualDNSRequestStrictShapesNeverReturnPartialAuthority`,
-`TestManualDNSGateRequiresReadyOriginAndNativeRefusal`,
-`TestLinuxManualDNSAPIReauthCooldownDurableUncertaintyResumeAndAck`,
-`TestLinuxManualDNSAPIRevocationAndUnboundedWriterRefusePublication`,
-`FuzzManualDNSCAResponse`, `FuzzManualDNSOrderPayload`, `FuzzManualDNSRequest`,
-`scripts/test-acme-order.mjs` and the architecture/network guards in C70–C73.
+`FuzzManualDNSCAResponse`).
 
 ## C76 — CA DNS validation is explicit, complete and never blindly replayed
 
-ADR 0056 extends C75 only through a separate validation capability. Encrypted
-intent before network, exact ready revision/generation, fresh password, explicit
-consent, scoped deadlines and shared budgets. Read the saved order and complete
-authorization set first, bind every pending TXT digest to the acknowledged
-record/account/name, then permit only exact pending dns-01 URL with {} Accept.
-No new order/finalization/certificate/DNS writes or broad signing capability.
-At most 35 pinned staging requests in twenty seconds, no automatic polling,
-redirect/proxy/retry/Link/error reflection. Unknown results retain durable intent;
-refresh only reads the same order and never repeats Accept. Partial unsent
-challenges require future reviewed recovery rather than an unsafe automatic retry.
-
-Every authorization valid AND order ready are required; pending/invalid/partial
-cannot imply verification. Shorten saved expiry only. All transitions authenticate
-the complete image, preserve other keys/certificates and reserve a result slot.
-Refresh invalidates old success before network. Full restore preserves intent and
-same signer. Expired observations grant no current verification/issuance. v2 UI
-separates local acknowledgement, validation, refresh and no issuance. Late/hidden/
-changed/oversized response cannot revive authority. No real CA/browser/audit claim.
-
-Guarded by `TestValidationVerdictRequiresReadyAndEveryAuthorization`,
+Retired on 23 November 2026 with the session-bound ACME automation
+(ADR 0088): the DNS validation route and its saved intent are
+gone. The validation code stays for Phase 3c with no runtime caller. A
+verdict still needs a ready order and every authorization valid,
+and Accept is sent only for the complete acknowledged scope, never
+replayed (`TestValidationVerdictRequiresReadyAndEveryAuthorization`,
 `TestDNSValidationAcceptsOnlyCompleteAcknowledgedScopeAndRefreshNeverWrites`,
 `TestDNSValidationRejectsChangedOrPartialScopeBeforeAnyAccept`,
 `TestDNSValidationMalformedAcceptClosesAuthorityWithoutRetryOrPartialOutput`,
 `TestValidationChallengeParserNeverReflectsErrorsOrFollowsURLs`,
 `TestValidationTransportRestrictsAcceptPayloadDestinationAndBudget`,
-`TestDNSValidationLateRevocationAndCancellationReleaseNoResult`,
-`TestStagingValidationEncryptedIntentTruthPreservationAndNoReplay`,
-`TestStagingValidationRejectsStaleForeignExtendedMalformedAndTamperedResult`,
-`TestStagingValidationReservesCompletionBeforeIO`,
-`TestManualDNSOrderPreservesSavedCertificateAndPrivateKey`,
-`TestLinuxDNSValidationDurableUncertaintyNoReplayRestoreAndRevocation`,
-`TestLinuxDNSValidationAPIExactAuthorityUncertaintyNoReplayAndTruth`,
-`TestNativeDNSValidationRefusesBeforeFileOrCallback`,
-`TestManualDNSRequestStrictShapesNeverReturnPartialAuthority`,
-`TestManualDNSGateRequiresReadyOriginAndNativeRefusal`,
-the expanded `FuzzManualDNSCAResponse`, `FuzzManualDNSOrderPayload`,
-`FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C70–C73 guards.
+`TestDNSValidationLateRevocationAndCancellationReleaseNoResult`).
 
 ## C77 — Certificate request custody is bound, recoverable and not issuance
 
-ADR 0057 permits one local P-256 key and signed exact-SAN empty-subject DER CSR
-only after unexpired ready/all-valid saved CA verification, fresh password and
-explicit consent. Exact revision/generation/live permission and private writer
-lock surround atomic commit. Capacity is checked before generation; existing
-keys are never replaced or repurposed. Canonical bounded PKCS#8, strict CSR
-signature/policy/SPKI/name checks and purpose-separated authenticated custody
-bind account/order/installation. Whole-image refusal releases no partial output.
-Full password/recovery restore and offline password recovery retain byte-identical
-encrypted key/CSR/account/order. Only public fingerprint/time reaches history/UI.
-v3 schema, expiry, fresh consent and hidden/late/changed/malformed refusal apply.
-No network/finalize/certificate/automatic preparation; can_issue stays false.
-Old binaries refuse the new manifest field, native platforms refuse custody.
-Unused-key cleanup/export/new-order handling and independent audit remain future.
-
-Guarded by `TestCertificateRequestExactNamesSeparateKeyAndStrictRefusal`,
-`TestCertificateRequestPreparationEncryptedBoundAtomicAndPreserved`,
-`TestCertificateRequestRefusesUnverifiedExpiredTamperedAndCrossPurpose`,
-`TestManualDNSOrderPreservesSavedCertificateAndPrivateKey`,
-`TestLinuxCertificateRequestCustodyPermissionAtomicityAndFullRecovery`,
-`TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement`,
-`TestNativeCertificateRequestRefusesBeforeFileOrPermission`,
-`TestManualDNSRequestStrictShapesNeverReturnPartialAuthority`,
-`TestManualDNSGateRequiresReadyOriginAndNativeRefusal`,
-`FuzzCertificateRequestBinding`, `FuzzStagingCertificateRequestPayload`,
-`FuzzManualDNSRequest`, `scripts/test-acme-order.mjs` and C75/C76 guards.
+Retired on 23 November 2026 with the session-bound ACME automation
+(ADR 0088): the saved certificate request and its route are
+gone. The request builder in `internal/acmecertrequest` stays
+for Phase 3c: exact names, a separate new key and strict refusal
+(`TestCertificateRequestExactNamesSeparateKeyAndStrictRefusal`,
+`FuzzCertificateRequestBinding`).
 
 ## C79 — Certificate protocol cannot poll, replay finalize or grant receipt trust
 
@@ -1770,8 +1407,8 @@ mixed/duplicate/malformed/trailing/oversize public PEM refuse. Public PEM is
 limited to five certificates, 48 KiB each, 256 KiB DER, 352 KiB wire before the
 upstream parser; exact first envelope prevents garbage-skipping. A parsed receipt
 is NOT trust or storage evidence: ADR 0058 plus locked atomic custody remains
-mandatory. ADR 0062 supplies the only reviewed live entry through locked custody
-and fresh-auth UI; scoped can_issue does not bypass those gates. No automatic
+mandatory. ADR 0062's live entry was retired on 23 November 2026 (C82); the
+connector has no runtime caller until Phase 3c. No automatic
 restart replay, live CA interoperability or audit claim.
 
 Evidence: `TestCertificateConnectorExactCSRAccountJWSAndReadOnlyReconciliation`,
@@ -1816,177 +1453,35 @@ Guarded by `TestStagingReceiptExactBindingIndependentTrustAndNoInputMutation`,
 
 ## C81 — Atomic completion preserves the exact key and test-only origin
 
-ADR 0061's production entry repeats real fixed pinned receipt acceptance for the
-exact pending key/CSR/names/time/generation. No supplied key/trust/result; the live
-entry is constrained in C82. A single complete image moves private bytes into a
-matched certificate material and saves one leaf/public CSR tombstone/test-only
-historical provenance/history. Account/order and existing records stay unchanged;
-duplicate/oversize/stale/expired/malformed input never partially saves. The final
-reserved history/generation slot is usable and completion releases reservations.
-Full image authentication checks every link before public output. Origin is not
-current trust/revocation/deployment. Notes/export preserve it; delete removes
-current pair/CSR but keeps a closed no-replay tombstone. Old complete backups
-retain old keys. No key regeneration, completion replay or new read-only lease.
-V4 single-snapshot status blocks old DNS/key actions BEFORE provider work once
-issuance starts; strict UI differentiates pending/saved/deleted and test-only.
-Scoped can_issue appears only in C82. Synthetic custody seam is unexported; real production
-entry rejects its issuer. Linux full-restore fixtures are runtime-only/private.
-
-Guarded by `TestCompletionAtomicMoveProvenanceNotesExportDeleteAndNoReplay`,
-`TestCompletionWholeImageTamperRefusesBeforePublicOutput`,
-`TestCompletionRefusalsAndReservedFinalGenerationHistorySlot`,
-`TestLinuxCompletionRefusesUntrustedReceiptRevisionPermissionAndStaleGeneration`,
-`TestLinuxCompletedSyntheticPairFullRestorePasswordRecoveryAndDeletion`,
-`TestLinuxCertificateRequestAPIFreshAuthorityLocalOnlyAndNoReplacement`,
-`FuzzStagingCompletionPayload`, inherited receipt/intent/architecture/native tests
-and `scripts/test-acme-order.mjs`. Actual sabotage: ADR 0061.
-Live integration/consent/budgets are C82; renewal/DNS, retention/new-order policy
-and independent production audit remain required; host/rollback/heap risks persist.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+atomic staging completion is gone with the old encrypted inventory image.
 
 ## C80 — Durable issuance intent cannot mint a second first attempt
 
-ADR 0060 binds one encrypted intent to exact account/order/prepared key/CSR/names
-and installation/purpose/generation/time, authenticated with the entire image.
-The Linux private writer must install intent before its trusted callback.
-Opaque exact-image leases are consumed once, including copied/concurrent handles.
-Reopened/restored intent permits only same-order reads, never finalize replay.
-Failures return no partial status or provider text and retain durable uncertainty.
-No observation can claim issued/valid/received or create a pair. Preserve final
-generation/history/record/byte completion capacity; domain-validation mutation
-cannot invalidate an existing intent. Full restore/password recovery preserves
-the exact account key, prepared private key and CSR. Native custody refuses
-before callback/file/permission. Live route/connector integration is C82, never
-an alternate callback or runtime trust configuration.
-
-Historical non-issued observations are not current authority. Read-only refresh
-does not mutate intent and remains possible at the last completion slot; saving
-an observation can still refuse. Trusted callback/host compromise, whole old
-pre-intent rollback, heap/scalar erasure, completed pair/provenance, cleanup/new
-order policy and future fresh-auth/consent/budgets remain outside this increment.
-
-Guarded by `TestIssuanceIntentExactScopeEncryptionAndSingleUseReadOnlyRecovery`,
-`TestIssuanceAttemptConcurrentCopiesPermitOnlyOneCallback`,
-`TestIssuanceNonIssuedObservationsNeverGrantFirstAttempt`,
-`TestIssuanceIntentWholeImageTamperScopePurposeAndNoPartialOutput`,
-`TestIssuancePreflightStaleExpiryClockAndLeaseImageBinding`,
-`TestIssuanceReservesCompletionAndReadOnlySurvivesLastSlot`,
-`TestIssuanceHistoryAndRecordCompletionReservations`,
-`TestIssuanceByteBudgetBoundary`,
-`TestLinuxIssuanceIntentCommitBeforeCallbackNoReplayAndFullRecovery`,
-`TestLinuxIssuanceRevocationAfterIntentRetainsUncertainty`,
-`TestLinuxIssuanceFirstObservationAndRefusal`,
-`TestIssuanceExecutionReviewedBoundaries`, `FuzzStagingIssuancePayload`
-and native refusal/history VM tests. Two-direction sabotage: ADR 0060.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the saved issuance intent is gone. Phase 3c saves each step in the vault
+before it is taken (ADR 0088).
 
 ## C82 — Interactive issuance cannot bypass durable exact-key custody
 
-ADR 0062 enables fixed staging issue/read-only result through fresh-password,
-explicit generation-bound consent, ready session/origin/header and shared
-auth/crypto/provider/time gates. One private lock spans intent-before-I/O,
-single-use lease, exact CSR transport, independent pinned Check and atomic pair.
-Loss/reopen/recovery allows only same-order reads, never finalize/key/order replay.
-Earliest CA deadline bounds acceptance/publication and persists only with the
-same final transaction, never extends. Unknown issuer, malformed receipt,
-revocation, stale/expiry/budget failure cannot publish partial/saved status.
-Production completion is fixed; no runtime trust/result/receipt/key upload.
-V5 has scoped can_issue and issuance expiry; strict human-facing UI, fresh
-consent per action, no polling, hidden/late/changed/refused result clears authority.
-Saved/deleted requests close. Synthetic browser/transaction evidence is not
-live pinned-CA issuance. Native custody/network refuses. Production audit,
-new/expired-order/reset/retention/renewal/DNS policies remain separate.
-
-Guarded by `TestLinuxCertificateTransactionDurableIntentNoReplayAndCheckedRead`,
-`TestLinuxCertificateTransactionFirstProcessingAndWriterExclusion`,
-`TestLinuxCertificateTransactionSyntheticAcceptanceAtomicCommitAndLateRefusal`,
-`TestLinuxCertificateAPIInteractiveAuthorityNoReplayAndReadOnlyResult`,
-`TestNativeCertificateRefusesBeforeFilePermissionAndConnector`,
-`TestIssuanceDeadlineOnlyNarrowsAndSurvivesReopen`,
-`TestCertificateTransactionProductionCompletionIsFixed`,
-`TestCertificateConnectorFixedStagingBoundary`,
-`TestIssuanceExecutionReviewedBoundaries`, inherited receipt/protocol/restore
-tests and `scripts/test-acme-order.mjs`.
-Compiling two-way sabotage and final evidence are recorded in ADR 0062/PR.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the interactive issuance route is gone. The certificate protocol stays
+under C78 and C79, with no runtime caller until Phase 3c.
 
 ## C83 — A new request never revives or discards prior custody
 
-ADR 0063 adds local closure only for independently derived complete or known
-expired scopes. Unknown/active/stale/backward-clock/limit work refuses before
-mutation. Fresh password/consent, generation, session revision and private writer
-permission are required. No CA callback/cancellation/revocation or automatic new
-start. Archives are separately sealed, bounded, chronologically/uniquely linked;
-all nested crypto/key/CSR/order/material/tombstone checks precede public output.
-The unexported, nonserialized historical parser flag relaxes only obsolete active
-capacity reservation, never runtime authority. Old lease image/URL reuse fails;
-new requests get separate intent/key/CSR. Material/key/notes/provenance survive;
-deletion updates archive and pair atomically. Full restore/password recovery
-keeps scope; old snapshots retain secrets. No silent pruning/export/reopen/reset.
-V6 exposes availability/reason/count only, fresh action-scoped consent and fixed
-human messages; hidden/late/error results cannot restore authority. Native
-refusal is not real Linux/CA issuance proof.
-
-Guards: `TestClosedCompletedRequestPreservesPairOriginNotesDeleteAndNewOrder`,
-`TestClosedExpiredRequestPreservesKeyButCannotReopenLease`,
-`TestClosedDeletedRequestAndOuterPurposeContextRefusals`,
-`TestClosedRequestStaleUnknownClockTamperAndLimitsRefuse`,
-`TestClosedRequestsRepeatedCyclesExactCapacityAndNoSilentPruning`,
-`FuzzClosedStagingRequest`,
-`TestLinuxNewRequestAtomicRevisionPermissionFullRestoreAndPairDeletion`,
-`TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
-`TestNativeNewRequestRefusesBeforeFilesAndPermit`,
-`TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority`, strict API
-tests and `scripts/test-acme-order.mjs`. Two-way compiling sabotage evidence:
-ADR 0063.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+closing a request and starting a new one are gone.
 
 ## C84 — Manual renewal never borrows or replaces the original key
 
-ADR 0064 limits source selection to an authenticated saved Rootwell staging
-completion. The renewal request names its source by exact generation and full
-fingerprint only, never a URI, key, DER, notes or authority; the same-tab
-navigation from the old Certificates page was retired on 22 November 2026
-with the page rebuild. Separate closure, fresh consent/password and
-generation precede new intent; existing writer/revision/permit and bounded fixed
-protocol remain. Chronological closed-scope graph validation proves earlier
-source, exact account/names and different new key, rejects orphan/self/forward
-and deleted active source before any output. Active source deletion refuses;
-later deletion preserves authenticated historical tombstones after closure.
-New and original pairs/notes coexist, full recovery preserves linkage. V7
-strict source/generation/consent/cancellation UI; native early refusal is not
-real CA proof. No auto-retry/scheduler/ARI, replacement,
-revocation, deployment, validity extension or renewal-rate exemption claim.
-
-Guards: `TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeletion`,
-`TestManualRenewalRefusesStaleOrphanActiveDeletedNamesAndTamperedLinks`,
-`TestRenewalDeletionGenerationRemainsStrictAtEqualTimes`,
-`FuzzRenewalOrderBinding`, `FuzzManualDNSRequest`,
-`TestLinuxRenewalIntentBeforeIOReadOnlyResumeAndFullRecovery`,
-`TestLinuxNewRequestAPIFreshAuthLocalCloseAndDistinctNextOrder`,
-`TestNativeRenewalRefusesBeforeFilesAndPermit`,
-`TestRenewalRequestStrictShapeNoPartialSelection`,
-`TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`,
-`scripts/test-acme-order.mjs` and inherited pinned receipt/no-replay tests.
-Actual compiling two-way sabotage and final evidence are recorded in ADR 0064/PR.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+manual staging renewal is gone.
 
 ## C85 — A renewal result cannot fabricate extension or replacement
 
-ADR 0065 authenticates the entire image and exact generation before deriving
-two exact public certificate identities/dates via the existing Compare core.
-Only a completed live active renewal has a result; ordinary/pending/deleted/
-closed scopes do not. No write, lease, private-key/notes output or CA connection.
-Linux revision/lock and final API session/generation checks remain. V8 UI rejects
-missing/malformed/foreign result or inconsistent date flag, clears prior output
-on reread/hidden/late/error, and never equates saved test issuance with current
-trust, revocation, extra time or deployment. No new persisted field or dependency.
-
-Guards: `TestRenewalResultRefusesStaleTamperedAndIncompleteWithoutPartialOutput`,
-`TestRenewalResultReportsShorterLifetimeWithoutAssumingExtension`,
-`TestManualRenewalExactSourceIndependentKeyPairCompletionAndHistoricalDeletion`,
-`TestLinuxRenewalResultReadOnlyRevisionAndFullRestore`,
-`TestLinuxRenewalResultAPIIsPublicReadOnlyAndSessionBound`,
-`TestNativeRenewalRefusesBeforeFilesAndPermit`,
-`TestManualRenewalConsumersStayInsideReviewedCustodyAndGate`,
-`FuzzPublicComparison`, `scripts/test-acme-order.mjs` and inherited
-graph/receipt tests.
-Actual two-way sabotage and evidence are recorded in ADR 0065/PR.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the renewal result view is gone.
 
 ## C86 — Retry and DNS components cannot silently gain replay or cleanup authority
 
@@ -2017,210 +1512,86 @@ fixed TLS/DNS/refusal tests. Actual two-way sabotage is recorded in ADR 0066/PR.
 
 ## C87 — DNS credential custody does not grant DNS or disclosure authority
 
-ADR 0067: a single purpose-separated encrypted Cloudflare configuration is
-validated with the whole image before every public read. No token, token digest
-or zone ID in status/history; no reveal/export/borrower or network on save.
-Fresh password/explicit confirmation/exact generation/revision/live permission,
-strict bounded ready-session POST and existing shared budgets guard atomic Linux
-custody. Rotation/removal requires explicit request closure. Existing pair and
-pending completion reservations remain. Full password/code restore and password
-recovery preserve exact token-bearing image bytes; native platforms refuse.
-Browser hidden/late/clock/source/schema/errors clear authority and secrets. Old
-backups/provider revocation/host/runtime rollback residuals remain; this is not
-permission proof or completed DNS automation.
-
-Guarded by `TestCloudflareConfigEncryptedAtomicRotationRemovalAndPreservation`,
-`TestCloudflareConfigMalformedTamperPurposeAndStaleRefuseBeforeOutput`,
-`TestCloudflareConfigActiveOrderBlocksRotationAndRemoval`,
-`TestCloudflareConfigPreservesPrivatePairAndPendingCompletionCapacity`,
-`FuzzCloudflareConfigurationPayload`,
-`TestLinuxCloudflareConfigPermissionsRevisionRefusalFullRestoreAndRecovery`,
-`TestLinuxCloudflareConfigDiskFaultKeepsOldImageAndUncertainSaveReconciles`,
-`TestNativeCloudflareConfigRefusesBeforePermissionOrStorage`,
-`TestCloudflareConfigurationRequestStrictShapesNoPartialSecrets`,
-`TestCloudflareConfigurationGateReadyOriginAndNativeRefusal`,
-`FuzzCloudflareConfigurationRequest`,
-`TestLinuxCloudflareConfigAPIReauthStaleSharedBudgetAndSecretFreeStatus`,
-`TestLinuxCloudflareConfigLogoutCancellationAndFetchMetadataCannotWrite`,
-`TestCloudflareCredentialCannotEscapeConfigurationBoundary`,
-`scripts/test-cloudflare-config.mjs`.
-Two-way compiling sabotage outcomes are in ADR 0067/PR.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the stored Cloudflare token is gone. DNS tokens return in Phase 3c, as
+sealed vault records (C107).
 
 ## C88 — DNS attempts remain bound, durable and uncertain across recovery
 
-ADR 0068: one encrypted DNS plan derives exact required TXT rows from the saved
-unexpired CA order and exact Cloudflare configuration. Distinct same-name values,
-random owner markers, source/configuration/purpose/installation/generation and
-whole-image authentication precede any public output. No token/ID/value/marker/
-URL in status, no token borrower or runtime DNS entry. Attempts/waits persist;
-copied/stale handles cannot shorten waits or mint replay authority. Restored
-creating is read-only, blocked/exhausted/early/invalid clock refuses. Expiry cannot
-abandon uncertain ownership. Harmless archives have no lease; minimum cleanup/
-pending issuance capacity is additive, not a completed cleanup guarantee. Linux
-writer/permission/fault/full password/code recovery preserve exact image bytes.
-UI reports the scoped closure refusal without claiming DNS/CA verification.
-
-Guards: `TestDNSPlanExactSourceEncryptionUncertainIntentAndPersistentWait`,
-`TestDNSPlanWrongScopeStaleMalformedAndContextRefuseBeforeOutput`,
-`TestDNSPlanLeaseExactImageNoReplayAndBudgetExhaustion`,
-`TestDNSPlanClosureArchiveAndCleanupCapacity`,
-`TestDNSPlanReservationsAddToPendingIssuanceAndPreserveMaterial`,
-`TestDNSPlanClockAndUnrequiredRecordsHaveNoAuthority`,
-`TestDNSPlanCrossInstallationAndLegacySchemaRefuse`, `FuzzDNSPlanPayload`,
-`TestLinuxDNSPlanDurableIntentPermissionsRefusalAndFullRecovery`,
-`TestLinuxDNSPlanFaultAndPostCommitRevocationReturnNoLease`,
-`TestNativeDNSPlanRefusesBeforeBorrowingPermission`,
-`TestDNSPlanCustodyHasOnlyReviewedLockedConsumers`,
-`TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority`,
-`scripts/test-acme-order.mjs`.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the saved DNS plan is gone.
 
 ## C89 — Explicit Cloudflare operations retain exact owned scope and uncertainty
 
-ADR 0069 connects DNS custody only through the fresh-password, explicit-consent
-Linux route and one private writer-lock transaction. Exact revision/generation,
-CA source and bound credential precede intent-before-I/O and one-use full-image
-lease consumption. Runtime cannot invoke unlocked intermediate steps or override
-the clock/transport. Provider results are untrusted transition input, not CA
-verification. First writes require a matching checkpoint, uncertain create/delete
-is read-only, borrowed records are terminal and never cleanup-owned. Owned ID,
-marker, value and token remain encrypted and absent from API/history. Cleanup has
-its own six-attempt persisted wait; remaining attempts/results, permanent pending
-recovery slot and independent issuance reserves cannot overlap. Expiry permits
-only reconciliation/owned cleanup, not new creation or ownership abandonment.
-Blocked/exhausted states remain closed to retry/reset, with explicit operator
-recovery guidance; unlimited automatic repair is not promised. Full snapshots
-and password/code recovery preserve exact scope. Native hosts refuse early.
-
-Cleanup requires explicit exclusive-editing acknowledgement: provider GET and
-DELETE are not atomic against external edits. UI is optional in the existing
-request card, one domain per click, no automatic provider/CA requests. Read-only
-local status differs from live provider I/O. Late/hidden/source/clock/schema/
-direction/counter mismatches clear authority and secrets. Successful fake
-TLS/CI is not live Cloudflare interoperability or production audit. A pre-I/O
-crash can still require manual provider cleanup.
-
-Guards: `TestDNSOperationCreateOwnedCleanupExpiryArchiveAndSecretBoundary`,
-`TestDNSOperationBorrowedNeverCleanupAndLeaseCannotReplay`,
-`TestDNSOperationUnknownCreateReadOnlyAfterExpiryAndPersistentWait`,
-`TestDNSOperationCleanupUnknownNoDeleteReplayAndReservedBudget`,
-`TestDNSOperationMalformedOwnedResultsAndPostCallbackRevocationRefuse`,
-`TestDNSOperationClockCannotGoBackBeforeSavedOutcome`,
-`TestLinuxDNSOperationIntentLockAuthorityAndFullRecovery`,
-`TestLinuxDNSOperationRevocationAndUnknownReturnNoAuthority`,
-`TestLinuxDNSCleanupIntentSnapshotPreservesNoReplay`,
-`TestNativeDNSOperationRefusesBeforePermissionAndSecretBorrow`,
-`TestDNSOperationStrictRequestNoPartialAuthority`,
-`TestDNSOperationGateOriginSetupAndNativeRefusal`, `FuzzDNSOperationRequest`,
-`TestLinuxDNSAPIReauthGenerationBudgetsAndExactLockedCreateCleanup`,
-`TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`,
-`TestCloudflareProtocolHasOnlyReviewedFreshAuthConsumer`,
-`TestDNSPlanCustodyHasOnlyReviewedLockedConsumers`, `FuzzDNSPlanPayload`,
-`scripts/test-dns-operation.mjs`, and inherited
-Cloudflare fake-TLS ownership, permission, malformed-response and no-replay tests.
-Actual compiling two-way source/direction sabotage is in ADR 0069; inherited
-exact-image handle sabotage is in ADR 0068/PR.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the Cloudflare DNS operations route is gone. The Cloudflare client stays
+under C86, with no runtime caller until Phase 3c.
 
 ## C91 — Renewal readiness cannot manufacture renewal or recovery authority
 
-ADR 0071 reads one complete authenticated image under a revision-checked Linux
-writer lock. No partial status, stitched generations, network, write, key/notes/
-TXT/ownership disclosure or independent unlock credential. Headroom excludes
-existing reservations, but is never an admission guarantee. Pending DNS waits,
-uncertainty and terminal maintenance stay visible and cannot reset counters or
-erase ownership. Local actual-lifetime reminders are not ARI or permission to
-renew. Imported records remain manual; completed renewal successors prevent
-retained originals from being selected twice. Full restore preserves lineage.
-Ready/origin/header/crypto budgets, clock/lifetime and hidden/late UI checks
-apply. The user's session-bound choice never extends twelve-hour access.
-
-Guards: `TestAutomationStatusWholeImageLifetimeAndNoMutation`,
-`TestAutomationStatusDNSReservationsWaitAndTerminalMaintenance`,
-`TestAutomationDNSBlockAndClockCannotBecomeReady`,
-`TestAutomationStatusUnusualImportedNamesRemainBoundedAndManual`,
-`TestLinuxAutomationStatusReadOnlyRevisionAndFullRestore`,
-`TestNativeAutomationStatusRefusesBeforeFilesystem`,
-`TestAutomationOverviewGateNoNewAuthority`,
-`TestLinuxAutomationStatusAPINoNetworkMutationOrUnlockedBypass`,
-`FuzzAutomationStatusWholeImage`, `scripts/test-automation-status.mjs`.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the renewal readiness overview is gone with the hidden Renewals page.
 
 ## C90 — Exhausted DNS recovery is separate bounded read-only authority
 
-ADR 0070 cannot reset ordinary provisioning/cleanup counters or repeat a DNS
-mutation. Each phase can reserve six separately persisted recovery checks only
-after ordinary exhaustion and its saved wait; invalid provider-hint blocks are
-not bypassed. Exact image/one-use lease/writer/session/source remain mandatory.
-Recovery cannot checkpoint POST/DELETE; only the existing fixed protocol can
-establish owned creation or deletion. Empty create/present cleanup remains
-uncertain. Every remaining intent/outcome slot and byte is admitted before I/O;
-older tight-capacity images stay readable and refuse extra work. Snapshots retain
-all counters/waits. Exhausted/blocked recovery has no reset or abandonment.
-
-Guards: `TestDNSRecoveryExactReadOnlyCreationAndCleanup`,
-`TestDNSRecoveryDurableWaitExhaustionAndCapacity`,
-`TestDNSRecoveryRefusalAndMalformedResults`,
-`TestDNSRecoveryLeaseAndEncryptedValidation`,
-`TestDNSRecoveryCannotOverrideOrdinaryProviderBlock`,
-`TestDNSRecoveryCanonicalFixtureSplice`,
-`TestLinuxDNSRecoveryLockedReadOnlyAndFullRestore`,
-`TestDNSOperationStrictRequestNoPartialAuthority`,
-`TestDNSOperationGateOriginSetupAndNativeRefusal`, `FuzzDNSOperationRequest`,
-`TestLinuxDNSAPIUnknownCreateNoReplayAndLogout`, `scripts/test-dns-operation.mjs`
-and C89's inherited protocol/writer guards.
+Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088):
+the exhausted DNS recovery checks are gone.
 
 ## C68 — One certificate library does not collapse the secret boundary
 
 ADR 0046 supersedes earlier no-custody statements only for the separate
-certificate-library API. Inspect and the public inventory import still reject
-secret-bearing public input. Ready Linux sessions may explicitly Check/Save
-one certificate and an optional mathematically matching non-CA private key.
-Files, JSON and KDF concurrency are bounded; Save revalidates identity and
-generation. Check is an own-daemon upload and performs no write or trust verdict.
+certificate-library API. Inspect still rejects secret-bearing public input.
+Ready Linux sessions may explicitly Check/Save one certificate and an optional
+mathematically matching non-CA private key. Files, JSON and KDF concurrency
+are bounded; Save revalidates identity and generation. Check is an own-daemon
+upload and performs no write or trust verdict.
 
-One complete authenticated atomic image contains public record and separately
-AES-GCM-sealed, HKDF-purpose-separated attachment. Every attachment authenticates
-and matches a unique certificate before any list/history output. Public output
-contains key-presence only. Metadata updates preserve the key; deletion removes
-both from current image; full restore retains the pair. Legacy public images
-remain readable; old binaries refuse attachment-bearing images.
+Since 23 November 2026 a saved certificate lives in the vault (C107) as two
+sealed records: the certificate record holds the public certificates, the
+notes and the key status; the key record holds only the key. Listing opens
+certificate records only, never a key (audit RW-11); a download borrows the key
+for one use and clears it. A record moved to another certificate's slot, or
+holding unknown fields, is refused. Public output contains key presence and
+status only. Note changes leave the key record alone; deletion removes both in
+one transaction.
 
-Private download requires fresh instance password under the shared attempt
-budget, exact session revision/generation/fingerprint and a final session check.
-Only encrypted PKCS#8 key in an unencrypted ZIP is exposed here; no plaintext
-custody export/reveal. Separate output-password policy is mandatory. The
-Certificates page checks each selection before Save and forgets it on leaving
-the page. Untrusted parser/network/file error text is never rendered. Backups
-are manual; old images, compromised hosts, runtime copies and authenticated
-rollback remain risks, not erased by this UI simplification.
-This is single-operator development custody, not audited production or RBAC.
+Private download requires the current sign-in password under the shared
+attempt budget, the exact displayed generation and fingerprint, and a final
+session check. Only an encrypted PKCS#8 key, alone or with the certificate in
+an unencrypted ZIP, is exposed here; there is no plaintext custody export or
+reveal. The output password must differ from the sign-in password and meet the
+export policy. The Certificates page checks each selection before Save and
+forgets it on leaving the page. Untrusted parser, network and file error text
+is never rendered. Copies of the data directory, compromised hosts and runtime
+copies remain risks. This is single-operator development custody, not audited
+production or RBAC.
 
-ADR 0047 supersedes the preceding matched-only import/export scope: the new
-material attachment holds one selected certificate, its bounded related public
-bundle and optional strictly parsed key. The page checks first; Save always
-revalidates. A computed mismatch is retained only with explicit sealed
-acknowledgement, not labeled unchecked or matched. Ambiguous selection requires
-an exact supplied fingerprint; issuer signatures are not trust. Material
-authentication recomputes selection/status before any metadata output; note,
-delete and full restore preserve/remove/restore the attachment as a whole.
-Legacy matched-key attachments still require match. Matched-pair downloads
-refuse mismatch; encrypted key-only download has the same fresh-password,
-attempt-limit and strong separate-password gates. Included public bundle export
-does not establish trust. Inspect's Check a private key uses a one-shot
-offline worker with no save/export/network capability; a locked or unreadable
-key is never reported as a mismatch. Inspect's certificate picker still
-refuses secret-bearing input.
-
-Additional guards: `TestBundleSelectionMatchMismatchAndIssuerRefusals`,
-`FuzzBundleMatchRefusesMalformedKey`,
-`TestMaterialMismatchAcknowledgementPreservationAndTamper`,
-`TestLinuxMaterialMismatchExportAndBundleFullRestore`,
-`scripts/test-inspect.mjs`, `scripts/test-convert.mjs` and actual key-match Go
-WASM assertions in `scripts/test-browser-csr.mjs`.
+ADR 0047 widened the matched-only scope: a saved certificate holds one selected
+certificate, its bounded related public bundle and an optional strictly parsed
+key. The page checks first; Save always revalidates. A computed mismatch is
+kept only with an explicit acknowledgement sealed with the key, and is never
+labelled matched. Ambiguous selection requires an exact supplied fingerprint;
+issuer signatures are not trust. Matched-pair downloads refuse a mismatch; the
+encrypted key-only download has the same password, attempt-limit and
+separate-password gates. Included public bundle export does not establish
+trust. Inspect's Check a private key uses a one-shot offline worker with no
+save, export or network capability; a locked or unreadable key is never
+reported as a mismatch. Inspect's certificate picker still refuses
+secret-bearing input.
 
 Guarded by `TestPrepareCertificatePairsAndRefusals`,
 `TestEncryptedKeyPairRequiresCorrectPassword`,
 `FuzzPrepareRefusesSecretInCertificate`,
-`TestCertificateKeyCustodyAtomicityPreservationAndDeletion`,
-`TestAttachmentTamperAndIdentitySwapFailBeforeOutput`,
+`TestBundleSelectionMatchMismatchAndIssuerRefusals`,
+`FuzzBundleMatchRefusesMalformedKey`,
+`TestAKeyIsSavedApartAndOnlyALoanOpensIt`,
+`TestAMismatchedKeyNeedsTheAcknowledgementAndOnlyThen`,
+`TestDeleteTakesTheKeyWithIt`,
+`TestARecordMovedToAnotherCertificateIsRefused`,
+`TestStoredRecordsHoldNoUnknownFields`,
 `TestCertificateRequestModesRejectMalformedAndAmbiguousJSON`,
-`TestLinuxCertificateLibraryCustodyDownloadAndFullRestore` and
-`scripts/test-certificates.mjs`.
+`TestCertificateRequestBoundsAndDownloadMode`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`scripts/test-certificates.mjs`, `scripts/test-inspect.mjs`,
+`scripts/test-convert.mjs` and actual key-match Go WASM assertions in
+`scripts/test-browser-csr.mjs`.

@@ -9,6 +9,18 @@ lands, it replaces these earlier decisions, which stay as history:
 - the single-image store (ADRs 0020 and 0021);
 - the session-bound automation (ADRs 0071 to 0080).
 
+**Note, 23 November 2026 (Phase 3a, part 2).** The session-bound automation,
+the hidden Renewals page, `internal/inventorystore`, `internal/inventoryseal`
+and the offline inventory commands were removed before their replacements
+landed, not as each one lands. Nothing has been released, there are no users,
+the page was hidden, and keeping them would have meant moving them to the
+vault only to delete them in Phase 3c. The ACME protocol packages stay for
+Phase 3c. Until 3b brings `key-export` and `key-rotate`, the recovery code
+`init` prints is used by `rootwelld key-restore <data-dir> <key-file>`, which
+rebuilds a lost key file, with the service stopped, once the code opens the
+vault in that data directory. The access-file commands stay until part 3; they
+concern only the sign-in password.
+
 ## Context
 
 **Today's design** comes from three choices, each careful on its own:

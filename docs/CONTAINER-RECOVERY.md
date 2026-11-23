@@ -1,4 +1,4 @@
-# Rootwell with Docker on Linux: private volume and full restore
+# Rootwell with Docker on Linux: private volumes and recovery
 
 **Status:** development design.
 
@@ -16,91 +16,117 @@ network.
 
 ## First setup
 
-On a Linux host you control, choose **two different** absolute directories,
-one for data and one for backups. They must not be the same directory or the
-same volume.
+On a Linux host you control, choose **three different** absolute directories:
+one for data, one for the instance key and one for backups. None may be inside
+another, or on the same volume as the backups.
 
 ```sh
 export ROOTWELL_UID="$(id -u)" ROOTWELL_GID="$(id -g)"
 export ROOTWELL_DATA_DIR=/srv/rootwell-private/data
+export ROOTWELL_KEY_DIR=/srv/rootwell-key/private
 export ROOTWELL_BACKUP_DIR=/srv/rootwell-backup/private
-install -d -m 0700 "$ROOTWELL_DATA_DIR" "$ROOTWELL_BACKUP_DIR"
+install -d -m 0700 "$ROOTWELL_DATA_DIR" "$ROOTWELL_KEY_DIR" "$ROOTWELL_BACKUP_DIR"
 docker compose build rootwell
-docker compose run --rm maintenance init /data
+docker compose run --rm maintenance init /data /key/instance.key
 ```
 
-1. The setup password appears only on the interactive terminal. Type `SAVED`
-   to confirm.
-2. Start the service with `docker compose up -d rootwell`.
-3. Open `http://localhost:4180` on the same host and change the setup
+1. The terminal shows, once, the setup password and the instance key's
+   recovery code (`RW1-` and groups of letters and digits). Type `SAVED` once
+   both are kept.
+2. Keep the recovery code offline, apart from this host and from the backups.
+   It is the key file's only backup. Losing both the key file and the code
+   loses every saved certificate and key.
+3. Start the service with `docker compose up -d rootwell`. The image runs
+   `serve /data /key/instance.key /assets`; the service mounts `/key`
+   read-only.
+4. Open `http://localhost:4180` on the same host and change the setup
    password, which is mandatory.
-4. Stop the service again.
+
+The maintenance service uses `logging.driver: none`, so the setup password
+and the codes never reach Docker's logs; a TTY alone would not prevent that. If
+you run the image outside Compose, pass `--log-driver none` yourself.
+
+To have a way back if the sign-in password is lost, enrol a password recovery
+code. It is a different code from the instance key's, and it does not protect
+certificates:
 
 ```sh
 docker compose stop rootwell
 docker compose run --rm maintenance recovery-enroll /data
-docker compose run --rm maintenance inventory-init /data /backup/initial.rwfull
-docker compose run --rm maintenance inventory-verify /backup/initial.rwfull code
 docker compose up -d rootwell
 ```
 
-Keep the recovery code offline, apart from the data, the backups and the
-host.
+## Backup
 
-The maintenance service uses `logging.driver: none`, so the setup password
-and the code never reach Docker's logs; a TTY alone would not prevent that. If
-you run the image outside Compose, pass `--log-driver none` yourself.
-
-## A backup after every change
-
-Stop the daemon, then write a snapshot under a new name:
+Online backup comes in Phase 3b. Until then, copy the data directory with the
+service stopped:
 
 ```sh
 docker compose stop rootwell
-docker compose run --rm maintenance inventory-snapshot /data /backup/2026-11-22-01.rwfull
-docker compose run --rm maintenance inventory-verify /backup/2026-11-22-01.rwfull code
+cp -a "$ROOTWELL_DATA_DIR" "$ROOTWELL_BACKUP_DIR/data-2026-11-24"
 docker compose up -d rootwell
 ```
 
-- An access snapshot does **not** hold certificates.
-- Rootwell makes no automatic backups.
-- Copy snapshots off-site and rehearse restores from time to time.
+- The copy holds `rootwell.db` and `access.json`. Every certificate and key in
+  it is sealed; without the key file or the recovery code it opens nothing.
+- **Never copy `ROOTWELL_KEY_DIR` to the backup location.** The recovery code
+  is the key's backup.
+- Rootwell makes no automatic backups. Copy backups off-site and rehearse a
+  restore from time to time.
 
-## Restore rehearsal on a clean volume
+## Restore on a clean volume
 
-Prepare a new, empty `0700` data directory owned by the same UID. Point
-`ROOTWELL_DATA_DIR` at it, and keep the old volume.
+Prepare a new, empty `0700` data directory owned by the same UID, copy the
+backup into it and point `ROOTWELL_DATA_DIR` at it. Keep the old volume.
 
 ```sh
 docker compose stop rootwell
-export ROOTWELL_DATA_DIR=/srv/rootwell-private/fresh-drill
+export ROOTWELL_DATA_DIR=/srv/rootwell-private/restored
 install -d -m 0700 "$ROOTWELL_DATA_DIR"
-docker compose run --rm maintenance inventory-verify /backup/2026-11-22-01.rwfull code
-docker compose run --rm maintenance inventory-restore /backup/2026-11-22-01.rwfull /data code
+cp -a "$ROOTWELL_BACKUP_DIR/data-2026-11-24/." "$ROOTWELL_DATA_DIR/"
 docker compose up -d rootwell
 ```
 
-Check in the browser that the restored records are there. If the old password
-is lost:
+Sign in with the password that was current when the copy was made, and check
+that the certificates are there.
+
+If the key file is lost too, point `ROOTWELL_KEY_DIR` at an empty `0700`
+directory owned by the same UID, and rebuild the key file from the recovery
+code before starting the service:
+
+```sh
+docker compose run --rm maintenance key-restore /data /key/instance.key
+```
+
+- It asks for the code on the terminal and checks that the code opens the
+  vault in `/data` before writing anything. A code from another installation
+  is refused.
+- It refuses while the service runs, because the service holds the vault.
+- It never replaces an existing key file.
+
+If the sign-in password is lost:
 
 1. Stop the service.
-2. Run `docker compose run --rm maintenance recovery-reset /data`.
-3. Make a new full snapshot.
+2. Run `docker compose run --rm maintenance recovery-reset /data` and give the
+   password recovery code.
+3. Start the service again.
 
 ## What CI proves
 
 `scripts/test-container-volume.sh` runs only in CI's disposable
-`RUNNER_TEMP`. It creates four bind mounts (data, backup, fresh and test
-recovery) and checks:
+`RUNNER_TEMP`. It creates four bind mounts (data, key, backup and a scratch
+directory for the test) and checks:
 
-- an import survives a restart;
-- a full snapshot can be made;
-- a wrong code and a damaged backup are refused;
-- an offline backup is refused while the daemon runs;
-- a data directory with loose permissions is refused;
-- a restore into a clean volume works, and the page opens from it;
-- the service container mounts only `/data`;
+- a volume seeded by the base commit (or by the candidate, when the base
+  predates the vault) reopens in a new container with the candidate: the saved
+  certificate and its key come back, a change is accepted, and another key is
+  refused;
+- the service starts on it and mounts only `/data` and `/key`;
+- a second opener is refused while the service holds the vault;
+- a data directory others can read is refused;
+- the service restarts on the same volume;
 - maintenance output never reaches `docker logs`.
 
-This does not cover every storage fault, a compromised host or off-site
-durability.
+A restore into a fresh volume returns to the drill with online backup in
+Phase 3b. This does not cover every storage fault, a compromised host or
+off-site durability.

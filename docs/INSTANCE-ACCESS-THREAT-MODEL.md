@@ -1,5 +1,11 @@
 # Instance access foundation threat model
 
+> **Partly superseded on 23 November 2026 (ADR 0088, Phase 3a part 2).** The
+> password still signs in, but its wrapped data key no longer protects any
+> certificate: those live in the vault, opened by the instance key kept outside
+> the data directory. Accounts with TOTP replace this password in Phase 3a part
+> 3. This file is kept as history.
+
 **Scope:** local key-envelope package only; no HTTP login, persistence API, vault,
 or encrypted inventory is shipped by this increment.
 
