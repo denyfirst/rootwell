@@ -55,6 +55,10 @@ const healthy = { hostname: "shop.example.com", state: "verified", trusted: true
   assert.match(page.text(), /Everything is in order/);
   assert.equal(page.all((n) => /^link (ok|broken)$/.test(n.className)).length, 3);
   assert.match(page.text(), /74 days left/);
+  // Long lives read as months and years, as on every other page.
+  assert.match(page.text(), /16 months left/);
+  assert.match(page.text(), /8 years left/);
+  assert.doesNotMatch(page.text(), /500 days|3000 days/);
   assert.match(page.text(), /Trusted root/);
   assert.match(page.text(), /Nothing to fix/);
 }

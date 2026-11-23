@@ -76,7 +76,10 @@ cryptographically; matching names alone cannot link an issuer. On failure,
 only unambiguous supplied signature links are shown. Unknown trust is not
 automatically diagnosed as a missing intermediate or attack. Multiple valid
 cross-signed paths may exist; the displayed path is one verifier-selected path,
-not an assertion of a unique universal chain.
+not an assertion of a unique universal chain. A sent certificate with the same
+name and key as one on that path is its cross-signed copy, which servers send
+for older clients (example.com sends its root's copy), so it is not reported.
+Only a sent certificate that belongs to no chain for the site is reported.
 
 ADR 0085 also publishes per-child verified/rejected issuer candidate
 fingerprints, bounded to ten children / nine other sent candidates each.
