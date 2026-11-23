@@ -42,14 +42,16 @@ func testGate(t *testing.T) (*gate, string) {
 func testWorkbenchAssets(t *testing.T) string {
 	t.Helper()
 	assets := t.TempDir()
-	for name, body := range map[string]string{
-		"index.html": "protected workbench", "app.js": "protected javascript", "secret-view.js": "protected transient secret view", "private-key.js": "protected private javascript", "rootwell.wasm": "protected wasm",
-		"private-worker-client.js": "protected worker client", "private-key-worker.js": "protected key worker",
-		"pfx.js": "protected PFX UI", "pfx-worker-client.js": "protected PFX worker client", "pfx-worker.js": "protected PFX worker",
-		"csr.js": "protected CSR UI", "csr-worker-client.js": "protected CSR worker client", "csr-worker.js": "protected CSR worker", "certificate-key-match.js": "protected match UI",
-		"style.css": "protected css", "theme.js": "protected theme", "session.js": "protected session", "wasm-loader.js": "protected loader", "wasm_exec.js": "protected runtime",
-	} {
-		if err := os.WriteFile(filepath.Join(assets, name), []byte(body), 0o600); err != nil {
+	for _, name := range workbenchFiles {
+		// The engine and its runtime are built at release; the tests serve stand-ins.
+		body := []byte("stand-in " + name)
+		if name != "rootwell.wasm" && name != "wasm_exec.js" {
+			var err error
+			if body, err = os.ReadFile(filepath.Join("..", "..", "web", "workbench", name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(assets, name), body, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -89,16 +91,19 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	if w := call(g, "GET", "/", "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
 		t.Fatalf("unguarded Workbench: %d %q", w.Code, w.Header().Get("Location"))
 	}
-	if w := call(g, "GET", "/app.js", "", nil); w.Code != http.StatusSeeOther {
-		t.Fatalf("unguarded asset: %d", w.Code)
-	}
-	for _, route := range []string{"/style.css", "/theme.js"} {
+	for _, route := range []string{"/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/style.css", "/session.js", "/wasm-loader.js", "/private-worker-client.js", "/pfx-worker-client.js", "/csr-worker-client.js", "/csr-worker.js"} {
 		if w := call(g, "GET", route, "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-			t.Fatalf("unguarded shared workspace asset %s: %d", route, w.Code)
+			t.Fatalf("unguarded page or script %s: %d", route, w.Code)
 		}
 	}
-	if w := call(g, "GET", "/private-key.js", "", nil); w.Code != http.StatusSeeOther {
-		t.Fatalf("unguarded private-key script: %d", w.Code)
+	// Only the shared look is public, so sign-in and setup wear it too.
+	for route, kind := range map[string]string{"/rootwell.css": "text/css; charset=utf-8", "/theme.js": "text/javascript; charset=utf-8", "/favicon.svg": "image/svg+xml"} {
+		if w := call(g, "GET", route, "", nil); w.Code != http.StatusOK || w.Header().Get("Content-Type") != kind || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("public look %s: %d %q", route, w.Code, w.Header().Get("Content-Type"))
+		}
+		if w := call(g, "POST", route, "", nil); w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("public look %s accepted a POST: %d", route, w.Code)
+		}
 	}
 	if w := call(g, "GET", "/private-key-worker.js", "", nil); w.Code != http.StatusSeeOther {
 		t.Fatalf("unguarded private-key worker: %d", w.Code)
@@ -127,7 +132,7 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("second setup session: %d", secondLogin.Code)
 	}
 	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/index.html", "/style.css", "/theme.js", "/app.js", "/secret-view.js", "/private-key.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/account"} {
+	for _, route := range []string{"/", "/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/style.css", "/session.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/website-check", "/account"} {
 		w := call(g, "GET", route, "", cookie)
 		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
 			t.Fatalf("setup credential reached %s: %d", route, w.Code)
@@ -165,14 +170,20 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 		t.Fatalf("ready sign-in: %d %s", ready.Code, ready.Body.String())
 	}
 	readyCookie := sessionCookie(t, ready)
-	if w := call(g, "GET", "/", "", readyCookie); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "protected workbench") {
-		t.Fatalf("Workbench unavailable after change: %d", w.Code)
+	// Certificates is the home page.
+	if w := call(g, "GET", "/", "", readyCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/certificates" {
+		t.Fatalf("home page after change: %d %q", w.Code, w.Header().Get("Location"))
 	}
-	if w := call(g, "GET", "/app.js", "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("protected asset: %d", w.Code)
+	for route, title := range map[string]string{"/certificates": "Certificates", "/inspect": "Inspect", "/convert": "Convert", "/request": "Request", "/website-check": "Website check", "/account": "Account"} {
+		w := call(g, "GET", route, "", readyCookie)
+		if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" || !strings.Contains(w.Body.String(), "<title>"+title+" · Rootwell</title>") {
+			t.Fatalf("%s unavailable after change: %d", route, w.Code)
+		}
 	}
-	if w := call(g, "GET", "/private-key.js", "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("protected private-key script: %d", w.Code)
+	for _, route := range []string{"/certificates.js", "/inspect.js", "/convert.js", "/request.js", "/ui.js", "/style.css"} {
+		if w := call(g, "GET", route, "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" || w.Body.Len() == 0 {
+			t.Fatalf("protected script %s: %d", route, w.Code)
+		}
 	}
 	worker := call(g, "GET", "/private-key-worker.js", "", readyCookie)
 	if worker.Code != http.StatusOK || worker.Header().Get("Cache-Control") != "no-store" ||
@@ -187,9 +198,6 @@ func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
 	csrWorker := call(g, "GET", "/csr-worker.js", "", readyCookie)
 	if csrWorker.Code != http.StatusOK || !strings.Contains(csrWorker.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(csrWorker.Header().Get("Content-Security-Policy"), "worker-src 'none'") {
 		t.Fatalf("CSR worker lacks isolated authenticated access: %d", csrWorker.Code)
-	}
-	if w := call(g, "GET", "/account", "", readyCookie); w.Code != http.StatusOK {
-		t.Fatalf("account page: %d", w.Code)
 	}
 	if w := call(g, "GET", "/access.json", "", readyCookie); w.Code != http.StatusNotFound {
 		t.Fatalf("access file route exposed: %d", w.Code)
@@ -318,10 +326,10 @@ func TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn(t *testing.T) {
 	if w := call(g, "DELETE", "/api/session", "", firstCookie); w.Code != http.StatusNoContent {
 		t.Fatalf("sign-out failed: %d", w.Code)
 	}
-	if w := call(g, "GET", "/", "", firstCookie); w.Code != http.StatusSeeOther {
+	if w := call(g, "GET", "/certificates", "", firstCookie); w.Code != http.StatusSeeOther {
 		t.Fatal("signed-out session still opens Workbench")
 	}
-	if w := call(g, "GET", "/", "", secondCookie); w.Code != http.StatusOK {
+	if w := call(g, "GET", "/certificates", "", secondCookie); w.Code != http.StatusOK {
 		t.Fatal("signing out one session revoked another")
 	}
 	third := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
@@ -335,7 +343,7 @@ func TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn(t *testing.T) {
 		t.Fatalf("ready password change failed: %d", changed.Code)
 	}
 	for _, oldCookie := range []*http.Cookie{secondCookie, thirdCookie} {
-		if w := call(g, "GET", "/", "", oldCookie); w.Code != http.StatusSeeOther {
+		if w := call(g, "GET", "/certificates", "", oldCookie); w.Code != http.StatusSeeOther {
 			t.Fatal("password change left a ready session active")
 		}
 	}
@@ -426,7 +434,7 @@ func TestAuthFormsCannotFallBackToPasswordInGetURL(t *testing.T) {
 
 func TestGatewayRefusesIncompleteBrowserAssets(t *testing.T) {
 	assets := t.TempDir()
-	if err := os.WriteFile(filepath.Join(assets, "index.html"), []byte("partial"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(assets, "certificates.html"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if g, err := newGate(filepath.Join(t.TempDir(), "access.json"), assets, localHost); err == nil {

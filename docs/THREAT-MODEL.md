@@ -152,211 +152,69 @@ The parsed DER copies are in process memory only; this increment has no file
 export or browser upload. A future browser bundle flow and any secret-bearing
 format require their own boundary review before implementation.
 
-## Browser inspection boundary
+## Browser pages boundary
 
-The static Workbench's single-certificate bridge can inspect one public PEM
-or DER X.509 certificate with a Go WebAssembly build of the same bounded core
-used by the CLI. The current UI first opens public files through the bundle
-boundary below, then uses this bridge for a selected certificate's full
-details. The operator must explicitly press **Inspect public files** or
-**Open public files for conversion** before initial bytes are read, and
-**View full details** before that certificate is
-re-read. No certificate upload or parsing API exists: the selected bytes move from
-the browser `File` object into a JavaScript byte array and then into Go linear
-memory in the same browser process.
+Since 22 November 2026 the browser side is six pages served by `rootwelld`
+after sign-in (see [`web/workbench/README.md`](../web/workbench/README.md)).
+Three of them work on files a person chooses and never send them anywhere:
 
-The browser scripts split capabilities. `wasm-loader.js` may fetch the exact
-same-origin `rootwell.wasm` application asset but has no DOM, file-selection,
-or file-byte access. `app.js` may read explicitly selected files and invoke the already-
-loaded Go function, but it has no fetch, XHR, WebSocket, beacon, service-worker,
-dynamic-code, or workbench-input storage capability. CSP denies third-party
-assets and restricts connections to the self-hosted origin. Certificate-derived
-values are rendered with `textContent`, never markup.
+- **Inspect** reads up to eight public certificate files after they are
+  dropped or chosen, through the same bounded `publicbundle` parser as the
+  CLI. It shows the website certificate, its issuer, its dates and whether the
+  chain in the files reaches a self-signed root. A PFX, a private key or a
+  request is refused with a message naming the page it belongs on. An optional
+  private key is compared with the shown certificate in a one-shot worker.
+- **Convert** reads one PFX, certificates with or without their key, or a key
+  alone, and writes the format the person picks: PEM files in one ZIP, a single
+  certificate as PEM or DER, a new PFX, or a key in PEM, DER or the older RSA
+  and EC forms.
+- **Request** makes a CSR with a new key or an existing one.
 
-The WebAssembly bridge checks the 16 MiB limit before allocating its Go copy.
-The parser still requires exactly one complete certificate and applies the same
-metadata limits. Responses are versioned and exclude paths, input bytes,
-private-key fields, stack traces, and attacker-controlled diagnostics. The JS
-and Go entry buffers are cleared after processing on a best-effort basis.
-Browser and runtime copies outside those buffers are not guaranteed erased.
-This boundary therefore accepts public certificates only; private keys,
-passphrases, PFX, and other secret-bearing inputs require a separate review.
+The engine is the Go core compiled to WebAssembly. Public certificates are
+parsed in the page; private keys, PFX files, requests and key matching run in
+a fresh worker for each operation, with a deadline, cancellation when the page
+moves on, and clearing of the bytes it received. Responses are versioned and
+exclude paths, input bytes and attacker-controlled diagnostics; the 16 MiB
+input limit is checked before Go copies are allocated.
 
-The self-hosted origin is trusted to deliver the reviewed Rootwell JavaScript,
-WebAssembly, and matching Go runtime shim. A compromised origin, browser,
-extension, administrator, or host can replace code or read process memory and
-is outside this boundary. Production hosting must provide the documented HTTP
-security headers, `application/wasm` media type, authenticated administrative
-access, no third-party injection, and matching release checksums. Direct
-`file://` opening is only a visual fallback and does not provide the functional
+The scripts split capabilities. `wasm-loader.js` fetches only the same-origin
+`rootwell.wasm`, follows no redirect, and has no DOM or file access. It sends
+the session cookie, because the gate serves the engine only to a signed-in
+session; `TestEngineLoaderSendsTheSessionTheGateRequires` keeps the two in
+step. The scripts that read chosen files (`inspect.js`, `convert.js`,
+`request.js` and the shared `ui.js`) have no fetch, XHR, WebSocket, beacon,
+worker, dynamic-code, storage or HTML-writing capability; every
+certificate-derived value is written with `textContent`. Worker scripts are
+served with their own policy that forbids network connections and further
+workers. Every page is served with a strict Content Security Policy that
+allows scripts, styles, images, fonts and connections only from this server,
+`'wasm-unsafe-eval'` for the engine, and nothing inline.
+
+Inspect forgets the certificate and a typed key password when the page is
+hidden or left. Convert and Request forget files, keys and passwords when the
+page is left, when other files are chosen and after ten idle minutes. Downloads
+are browser-managed: Rootwell does not write to disk directly and cannot
+control the save prompt, destination or overwrite policy.
+
+Certificates is different by design: it sends what a person adds to this
+Rootwell's own `/api/inventory` and `/api/certificates` endpoints, under the
+custody boundary of [`CERTIFICATE-CUSTODY-THREAT-MODEL.md`](CERTIFICATE-CUSTODY-THREAT-MODEL.md).
+A PFX is opened in its worker first; the server receives its certificate and
+the key encrypted again for the transfer, never the PFX or its password.
+
+The engine still carries the explore, single and bundle export, and
+explicit-trust verify functions of ADRs 0004, 0005, 0008, 0009 and 0010.
+Since the rebuild no page offers bundle export or browser verification;
+`scripts/test-browser-wasm.mjs` keeps those functions bounded until they are
+removed or used again.
+
+Browser memory, immutable password strings, extensions, a compromised origin
+or host, and browser-owned file and download copies are outside this boundary.
+The self-hosted origin is trusted to deliver the reviewed scripts, engine and
+matching Go runtime shim. Direct `file://` opening does not provide the
 engine.
 
-## Browser public bundle exploration boundary
-
-The Inspect/Convert public path reads 1–8 explicitly selected files only after
-**Inspect public files** or **Open public files for conversion** is pressed.
-Each file accepts one complete DER certificate or 1–64
-public PEM `CERTIFICATE` blocks through the same `publicbundle` parser as the
-CLI. The browser additionally enforces a 16 MiB combined, 64-certificate
-combined, and 1 MiB aggregate metadata-text limit. It tracks full SHA-256
-fingerprints across files, rejecting duplicates without a partial result.
-For a cross-file duplicate, the local UI reports both selected file positions,
-display-safe, length-bounded filenames, and the full certificate fingerprint.
-For a duplicate within one file, the core reports only a fixed error and the
-UI identifies that source file; it cannot identify the individual PEM blocks.
-Neither case silently deduplicates or displays a partial certificate list.
-Private keys and PFX are not accepted. Filenames and extensions never choose
-the parser. Malformed, mixed, excessive, or secret-bearing input produces a
-fixed, input-free failure and no partial certificate list. Duplicate errors
-are the only contextual diagnostics here; they use selected filenames and a
-validated public fingerprint, never certificate subject or raw input bytes.
-
-The versioned bridge response contains only subject, issuer, validity start/end, CA flag,
-encoding, and SHA-256 fingerprint for each certificate, with a 4 MiB response
-cap. The UI validates the response shape and puts certificate-derived text
-into DOM text nodes only, including the user-supplied source filename. Each
-source file remains associated with its cards so export re-parses that exact
-source; selecting new files invalidates old cards. JS and Go entry buffers
-and parsed public DER copies
-are cleared on a best-effort basis, without a browser-wide erasure claim.
-Selected certificate data can still include sensitive internal identities.
-
-Full per-certificate Inspect details are requested explicitly from a displayed
-card, not trusted from the summary. The selected public source is re-read and
-its ordered fingerprints must still match the displayed snapshot. The
-existing public export bridge extracts that certificate as bounded DER by its
-full fingerprint; the existing single-certificate Inspect bridge then parses
-it. The detailed response must agree on fingerprint, CA flag, subject, issuer,
-and validity dates before it is rendered as text. Changed or inconsistent source,
-response, or selection hides old details and shows no partial detail. The
-temporary JavaScript input/output buffers are cleared best-effort. This does
-not add secret input, storage, network access, trust, or browser-wide erasure.
-The separate Convert tab renders only a current successful public import
-snapshot. Its own file chooser invokes the same bounded public path; changed
-selection or failure clears its choices and shows the refusal in Convert too.
-
-Exploration is not verification. The bridge says `not-performed` and
-`not-selected`; the UI never promotes an included CA certificate to a trusted
-root or silently classifies a leaf. Chain building, hostname, time-policy,
-revocation, live endpoint, and private-key possession are outside this result.
-The separate public issuer-candidate analysis re-parses the selected files,
-caps signature work, and returns only fingerprint-aligned index links. Raw
-issuer/subject names and signatures must match before showing an edge. A
-self-signed CA is only a candidate, not a trusted anchor. A changed file,
-malformed response, or analysis failure hides the entire Explore result.
-The session-only expiry overview uses one browser-clock snapshot and strict
-canonical UTC-second dates from the Go parser. It has no persistence, alert,
-network, or renewal capability. The 30/90-day groups are triage labels only;
-an incorrect local clock, untrusted CA, revoked certificate, or old selected
-file can invalidate an operational inference. New selection and failure clear
-the overview with the cards.
-The guided health summary only counts CA flags and signature-backed possible
-issuer links. It cannot promote a candidate to a leaf, trusted root, or
-verified path. The numbered possible-link guide only renders those same
-validated relations as text. An absent signer is reported as a gap, multiple
-signers remain ambiguous, and source-order changes only renumber the cards.
-It neither selects a path nor copies a source certificate into the trust
-input; new selection or failed analysis clears old rows. An explicit
-Explore-to-Verify click carries public File
-references only when exactly one certificate lacks the CA flag; no bytes are
-read by that click. Verify re-reads each source and compares ordered full
-certificate fingerprints with the Explore snapshot before invoking the same
-Go Simple verifier. A changed, malformed, or ambiguous source fails without a
-trust verdict. Hostname and a separate trust file are still mandatory; no
-root or pin is copied from the source collection. Manual source choice and a
-new Explore selection invalidate the handoff. Fixed next-step messages are
-selected by allowlisted failure codes, never by reflected certificate data.
-The same-origin asset, CSP, and no-upload trust boundaries above remain in
-force. See ADR 0004, ADR 0006, and ADR 0007 for this extension.
-
-An optional public JSON report is a user-triggered browser download, never an
-automatic upload or background storage. Full certificate fingerprints are
-compared again after re-reading bounded public source files; stale, changed,
-malformed, or excessive inputs produce no download. The report omits local
-filenames and private material but preserves certificate subject/issuer names,
-which may expose internal hostnames if the operator shares the file. Expiry
-windows are based on the Explore-time browser clock, not a trusted time source.
-The JSON explicitly says no verification, trust selection, revocation or live
-server contact occurred. A random filename reduces accidental collision, but
-Rootwell cannot control the browser/OS final save or overwrite behavior. See
-ADR 0012.
-
-## Browser public certificate export boundary
-
-The user explicitly chooses PEM or DER on one Explore card. Rootwell re-reads
-and re-parses the selected public file, identifies the intended certificate
-by its full SHA-256 fingerprint rather than bundle order, and rejects missing,
-changed, secret-bearing, duplicate, or malformed source content. It encodes
-only that public certificate, then re-parses the output and checks the DER
-bytes and fingerprint against the selected original. DER output preserves the
-certificate's exact DER bytes; PEM output contains one canonical public
-`CERTIFICATE` block. No trust verdict is made.
-
-The Go/WebAssembly bridge copies only the selected public output into a
-bounded byte array; the browser checks the versioned result, format,
-fingerprint, and safe generated filename and re-parses the output before
-requesting a Blob download. The filename uses a fixed prefix, fingerprint
-fragment, and random suffix, never a subject or source filename. The user may
-choose `.crt` or `.cer` for either PEM or DER bytes; `.pem` stays PEM-only and
-`.der` stays DER-only. The UI labels the true encoding, and changing the
-extension never changes the certificate bytes, parser, or trust result. The
-file-reading script still cannot transmit through a network API, persist
-workbench input, or directly write to a filesystem. Browser-owned file and
-download copies cannot be reliably erased by Rootwell. Rootwell does not
-control browser/OS save prompts, destination, or overwrite policy; the
-application guarantees no direct disk overwrite, not a browser-wide
-no-overwrite guarantee. See ADR 0005.
-
-## Browser selected public bundle export boundary
-
-The user checks specific Explore cards to export one public PEM collection
-in displayed order. The Go/WebAssembly export path re-parses every selected
-source file and requires the full ordered fingerprint list to match Explore;
-the requested subset must be order-preserving and nonempty. Mixed,
-secret-bearing, malformed, duplicate, excessive, or changed input produces
-no output. The output is re-parsed and its DER bytes and fingerprints are
-checked before a bounded browser-managed download. Its randomized filename
-contains no certificate or source text. No inferred ordering, trust, private
-key, direct disk write, or no-overwrite promise is made. See ADR 0008.
-
 ## Implemented TLS verification boundary
-
-The browser Verify panel calls the same `certverify.Verify` core as the CLI.
-It requires a user-entered hostname and a separately selected PEM trust
-bundle. Simple classifies 1–8 strict public source files but never promotes a
-self-signed source root into trust; it requires exactly one non-CA leaf.
-Advanced selects the leaf and optional intermediates explicitly. Both use
-the same policy and explicit evaluation time. Total input is bounded to
-16 MiB before Go copies are allocated. The browser accepts only a versioned
-success marked `explicit-file`, validates the hostname and chain shape, and
-uses text nodes for all certificate-derived strings. Failure or selection
-change hides any earlier Verified result. No private keys, PFX, system roots,
-network verification, revocation, or live endpoint claim is made. See ADR
-0009.
-
-An optional full SHA-256 root fingerprint pin checks the trust anchor of the
-verified path after all chain policy checks. It accepts only complete hex or
-colon-separated byte notation. A malformed or mismatched pin fails without a
-partial chain. If no pin is supplied, the result explicitly says the root
-identity was not independently checked. A matching pin does not authenticate
-the expected fingerprint's origin: copying it from the same untrusted file is
-not an independent check. Editing the pin hides the old verdict and disables
-export. The export's complete path fingerprint re-check still binds the root.
-Neither mode connects to the hostname or detects a live MITM; see C26.
-
-## Browser verified public fullchain export boundary
-
-The Verify result holds only ordered public fingerprints, file references,
-hostname, mode, and evaluation time. A download click re-reads bounded public
-inputs and re-runs the same explicit-trust Go verifier. All displayed path
-fingerprints, including the separately trusted root, must match the new
-verdict exactly. A mismatch or failure returns no bytes and hides the prior
-Verified state. The output contains only the selected verified leaf and
-intermediates, in verified order; the trust root and any private key are
-excluded. Go and browser code re-parse the PEM before a browser-managed
-download; no direct disk write or no-overwrite promise is made. An Advanced
-backdated evaluation time remains a historical verdict, not present-tense
-deployment evidence. See ADR 0010.
 
 `rootwell verify` verifies one PEM or DER leaf for the TLS server profile. The
 caller must provide an ASCII hostname and a PEM bundle of explicit trust

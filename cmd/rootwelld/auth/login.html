@@ -6,25 +6,25 @@
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
   <title>Sign in · Rootwell</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/auth.css">
+  <link rel="stylesheet" href="/rootwell.css">
+  <script src="/theme.js"></script>
   <script src="/auth.js" defer></script>
 </head>
 <body data-mode="login">
-  <main class="shell">
-    <p class="wordmark">rootwell<span class="wordmark-stop">.</span></p>
-    <section class="card" aria-labelledby="title">
-      <h1 id="title">Sign in</h1>
-      <p class="hint">Use the password for this Rootwell.</p>
-      <form id="auth-form" method="post" action="/api/session">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
-        <button type="submit">Sign in</button>
-        <p id="status" role="alert" aria-live="polite"></p>
-      </form>
-    </section>
-    <p class="foot">The first password is shown once by <code>rootwelld init</code> on the server.</p>
-  </main>
-  <footer class="colophon"><strong>rootwell</strong>, by <strong>denyfirst<span class="credit-stop">.</span></strong></footer>
+<main class="signin"><div class="signin-box">
+  <p class="wordmark">rootwell<span class="wordmark-stop">.</span></p>
+  <section class="card" aria-labelledby="title"><div class="card-body">
+    <h1 id="title">Sign in</h1>
+    <form class="stack" id="auth-form" method="post" action="/api/session">
+      <div class="field"><label for="password">Password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required autofocus></div>
+      <button class="btn btn-block" type="submit">Sign in</button>
+      <p class="error-text" id="status" role="alert" aria-live="polite"></p>
+    </form>
+  </div></section>
+  <p class="meta center">The first password is shown once by <code>rootwelld init</code> on the server.</p>
+  <p class="credit center">rootwell, by denyfirst<span class="credit-stop">.</span></p>
+</div></main>
 </body>
 </html>

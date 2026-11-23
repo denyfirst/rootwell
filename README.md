@@ -85,6 +85,11 @@ go run ./cmd/rootwelld serve $dataDir web/workbench
 2. Open `http://localhost:4180` on the same machine.
 3. Sign in with the setup password, then change it.
 
+The menu has six pages: **Certificates** (the home page), **Website check**,
+**Inspect**, **Convert**, **Request** and **Account**. Inspect, Convert and
+Request work on files only inside the browser
+([the pages](web/workbench/README.md)).
+
 The service listens on `127.0.0.1` only. On Linux, backups and restores are
 terminal commands with the service stopped ([recovery](docs/RECOVERY.md)). A
 Docker profile is in [container recovery](docs/CONTAINER-RECOVERY.md).
@@ -96,10 +101,15 @@ install script, and backups from the web.
 - [Engineering workflow](docs/ENGINEERING.md)
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - Threat models:
-  - [Workbench](docs/THREAT-MODEL.md)
+  - [the pages](docs/THREAT-MODEL.md)
   - [instance access](docs/INSTANCE-ACCESS-THREAT-MODEL.md)
   - [custody](docs/CERTIFICATE-CUSTODY-THREAT-MODEL.md)
   - [ACME](docs/ACME-THREAT-MODEL.md)
   - [website check](docs/WEBSITE-CHECK-THREAT-MODEL.md)
 - [Architecture decisions](docs/adr/)
 - [Security policy](SECURITY.md)
+
+## Licence
+
+AGPL-3.0, as Porch and Keybash. See [`LICENSE`](LICENSE). The Schibsted
+Grotesk typeface the pages use is under the SIL Open Font License 1.1.

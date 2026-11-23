@@ -94,7 +94,7 @@ func TestStagingRegistrationAbsentPreservesKeyAndCertificateMutations(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	withCert, records, err := Append(key, id, pending, demo(t, "rootwell-demo-certificate.pem"), "team", "service")
+	withCert, records, err := Append(key, id, pending, testCertificate(t), "team", "service")
 	if err != nil {
 		t.Fatal(err)
 	}

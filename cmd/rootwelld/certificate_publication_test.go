@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,10 +17,7 @@ func TestCertificateSavePublicationNeedsCurrentSessionAndCancellation(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
+	input := testCertificate(t)
 	catalog := &publicinventory.Catalog{}
 	records, err := catalog.Add(input, "", "")
 	if err != nil || len(records) != 1 {

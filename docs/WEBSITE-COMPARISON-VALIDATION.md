@@ -4,8 +4,9 @@
 
 2026-11-06: Native selection/writer/refusal and architecture tests pass. The
 full native shuffled suite completed; its initial failure was the expected
-new-file network-import allowlist, now narrowly reviewed and guarded by
-`TestSavedWebsiteNavigationHasOnlyPublicReadAuthority`, rerun successfully.
+new-file network-import allowlist, then narrowly reviewed and guarded by an
+architecture test, rerun successfully. (The navigation and its tests were
+removed on 22 November 2026 with the page rebuild.)
 All other packages passed. Native vet/staticcheck, Linux vet/build, actionlint,
 module verification and gosec passed; govulncheck has zero reachable findings.
 The actual Go WASM plus website UI confirms saved DER identity/mismatch and
@@ -40,7 +41,7 @@ independent audit is claimed. Porch is unchanged.
   tidiness passed. govulncheck reports zero reachable findings, with one
   required-module finding outside the called code.
 - Actual Go WASM public parsing and issuer graph, executed by
-  `scripts/test-website-expected.mjs`, confirms PEM/DER identity, different DER
+  the expected-files page test (removed later with the comparison UI), confirms PEM/DER identity, different DER
   with the same public key, identical-name/different-key certificates, exact
   wrong/missing intermediate positions, normal root omission, ambiguous leaf
   selection, unrelated extra CA visibility and malformed/duplicate/private

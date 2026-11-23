@@ -131,7 +131,7 @@ func TestDNSOperationBorrowedNeverCleanupAndLeaseCannotReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed, _, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "team", "service")
+	changed, _, err := Append(key, id, next, testCertificate(t), "team", "service")
 	if err != nil {
 		t.Fatal(err)
 	}

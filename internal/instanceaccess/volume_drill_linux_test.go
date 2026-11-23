@@ -5,6 +5,7 @@ package instanceaccess
 import (
 	"bytes"
 	"crypto"
+	"encoding/pem"
 	"errors"
 	"os"
 	"path/filepath"
@@ -59,10 +60,9 @@ func TestContainerVolumeDrill(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cert, err := os.ReadFile("/demo.pem")
-		if err != nil {
-			t.Fatal(err)
-		}
+		// Generated from fixed seeds. When the baseline image seeds the volume it
+		// stores its own certificate instead; checkDrillState copes with both.
+		cert := testCertificate(t)
 		added, generation, err := AppendInventory(data, key, id, revision, cert, "Operations", "test/nginx")
 		if err != nil || len(added) != 1 || generation != 2 {
 			t.Fatalf("volume import failed: %v", err)
@@ -193,18 +193,12 @@ func checkDrillState(t *testing.T, accessPath, backupPath, password, code string
 	if err != nil || backedUp != account {
 		t.Fatal("container restored a different account key")
 	}
-	if _, _, err := AppendInventory(accessPath, key, id, revision, mustReadDrillCertificate(t), "", ""); !errors.Is(err, publicinventory.ErrDuplicate) {
+	// The seed phase may run an older image that stored a different certificate,
+	// so the duplicate offered is the certificate this volume actually holds.
+	stored := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: records[0].DER})
+	if _, _, err := AppendInventory(accessPath, key, id, revision, stored, "", ""); !errors.Is(err, publicinventory.ErrDuplicate) {
 		t.Fatalf("restored duplicate was not refused: %v", err)
 	}
-}
-
-func mustReadDrillCertificate(t *testing.T) []byte {
-	t.Helper()
-	body, err := os.ReadFile("/demo.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return body
 }
 
 func writeDrillCode(t *testing.T, code string) {

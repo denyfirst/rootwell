@@ -185,7 +185,7 @@ func TestDNSPlanLeaseExactImageNoReplayAndBudgetExhaustion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changed, _, err := Append(key, id, next, demo(t, "rootwell-demo-certificate.pem"), "team", "service")
+	changed, _, err := Append(key, id, next, testCertificate(t), "team", "service")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestDNSPlanClosureArchiveAndCleanupCapacity(t *testing.T) {
 	m.Generation = maxGeneration - 24
 	m.History = nil
 	near, _ := encode(key, m)
-	if out, _, err := Append(key, id, near, demo(t, "rootwell-demo-certificate.pem"), "team", "service"); !errors.Is(err, ErrLimit) || out != nil {
+	if out, _, err := Append(key, id, near, testCertificate(t), "team", "service"); !errors.Is(err, ErrLimit) || out != nil {
 		t.Fatal("ordinary write consumed cleanup generations")
 	}
 	if _, _, err := Open(key, id, near); err != nil {
@@ -285,7 +285,7 @@ func TestDNSPlanReservationsAddToPendingIssuanceAndPreserveMaterial(t *testing.T
 	m.History = nil
 	m.Generation = maxGeneration - 25
 	near, _ := encode(key, m)
-	if out, _, err := Append(key, id, near, demo(t, "rootwell-demo-certificate.pem"), "team", "service"); !errors.Is(err, ErrLimit) || out != nil {
+	if out, _, err := Append(key, id, near, testCertificate(t), "team", "service"); !errors.Is(err, ErrLimit) || out != nil {
 		t.Fatal("generic write consumed overlapping reservation")
 	}
 	if _, _, err := Open(key, id, near); err != nil {

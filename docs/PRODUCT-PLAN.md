@@ -48,31 +48,75 @@ attack is removed.
 - The design is the Denyfirst family design shared with Porch and Keybash:
   - Schibsted Grotesk, served by Rootwell itself;
   - light and dark schemes;
-  - Rootwell's own colour.
-
-  Red, amber and green mean only a verdict, never a control.
+  - one stylesheet with fixed sizes (`web/workbench/rootwell.css`).
+- Rootwell's colour is graphite, decided on 22 November 2026. Porch is violet
+  and Keybash cyan. Rootwell stays neutral, so the only colours on a page are
+  the verdicts: green for good, amber for close to its end, red for expired or
+  broken. A control is never drawn in a verdict's colour.
+- A person who knows nothing about certificates must understand a page from
+  how it looks: status pills, a lifetime bar, a drawn chain. No paragraph
+  under a control explains what it does.
 
 ## 3. What a user does
 
 The usual path is:
 
-1. Sign in with a password and a code from a phone.
-2. **Certificates** lists every certificate, with the days it has left and how
-   it renews.
-3. Add a certificate from a file or a PFX, or get one from Let's Encrypt.
-4. From then on it renews by itself and is written where the server reads it.
-5. **Website check** confirms the server serves it.
+1. Sign in with a name, a password and a code from a phone.
+2. **Certificates** lists every certificate with the days it has left, where
+   it is used and whether its key is kept. Clicking one opens its details:
+   the lifetime bar, the chain, the names it works for, and Download, Check
+   website and Delete.
+3. Add a certificate by dropping a file, a bundle or a PFX: Rootwell
+   recognises what it is. Or add a website to watch, and Rootwell reads its
+   certificate. Or get one from Let's Encrypt.
+4. It renews by itself, is written where the server reads it, and a message
+   arrives if anything needs a person.
 
 The pages in the menu:
 
-- **Certificates**
-- **Renewals**
-- **Website check**
-- **Tools** (the offline workbench)
-- **Installation**
-- **Account**
+| Page | What it is for |
+|---|---|
+| Certificates | Everything kept, how long each lasts, where it is used |
+| Website check | What a website really sends, what is wrong, how to fix it; watch it |
+| Inspect | What is inside a file; does a key match; is the chain complete |
+| Convert | A certificate, key or PFX into the format a server needs |
+| Request | A CSR for a commercial CA, then finish it when the certificate arrives |
+| Account | Password, phone codes, recovery codes |
 
-Users and Activity come later.
+**Renewals** comes back to the menu when real renewal works (Phase 3c).
+Users, Activity and Installation come later.
+
+**Removed** on 22 November 2026, as noise for a person:
+
+- the staging-only Renewals page, with its 14 confirmations and 10 password
+  fields;
+- the separate Verify tool with a hand-picked root. Website check does its
+  job, and Inspect keeps a short chain check;
+- the 30-second key reveal (download the key instead);
+- the history archives, request pages, timing watch and DNS maintenance;
+- separate location, owner and note panels. One edit has two fields: where
+  it is used, and who is responsible;
+- the separate Check button, since Save checks;
+- the bulk-import section. The Add dialog takes several files at once;
+- every demo file, demo link and sample website on product pages. Sample
+  files live in tests only.
+
+**Added**, in order of value:
+
+1. **Alerts:** e-mail and a webhook (Telegram, Teams, Slack) when a
+   certificate has 30, 14 or 7 days left, when a renewal fails, or when a
+   watched website serves a certificate Rootwell does not expect.
+2. **Watched websites:** "Watch this site" in Website check. Rootwell checks
+   it every day, and lists its certificate beside the kept ones.
+3. **Real renewal** with Let's Encrypt and Cloudflare DNS, nobody signed in
+   (Phase 3c).
+4. **Finishing a request:** the key of a CSR stays in Rootwell, sealed. When
+   the CA sends the certificate, "Finish request" pairs them and keeps both.
+5. **Download for the server:** one button for nginx and Apache (PEM: full
+   chain and key) and one for Windows and IIS (PFX), so nobody has to know
+   format names.
+6. **Delivery** to the server (Phase 3d). Later, through Keybash, which
+   already reaches the servers.
 
 ## 4. Architecture
 
@@ -173,7 +217,7 @@ These follow Keybash:
   reloads the named unit.
 - After a delivery, an optional website check confirms the new certificate is
   served.
-- Notifications by e-mail or webhook, on a failure or near expiry, come later.
+- Alerts by e-mail or webhook, on a failure or near expiry (section 3).
 
 ## 7. Phases
 
@@ -181,9 +225,11 @@ These follow Keybash:
 |---|---|---|
 | 0 — English repository | Plan, status, audit; the Azerbaijani documents replaced | No Azerbaijani text in tracked files, except Unicode test inputs |
 | 1 — Security fixes | The audit findings that matter before the rebuild | Each fix has a test that fails on the old code |
-| 2 — Design | The Denyfirst design system; a rail and top bar as in Keybash; plain words on Tools, Certificates and Website check | Screenshots in both schemes and at phone width |
+| 2 — Design | The Denyfirst design system and the shared rail | Screenshots in both schemes and at phone width |
+| 2b — Pages | Every page rebuilt in the graphite design: Inspect, Convert, Request, Website check, Certificates, Account; demos and removed features gone | A person who knows nothing of certificates can use each page; screenshots in both schemes and at phone width |
 | 3a — Accounts | HTTPS, accounts, TOTP, instance key | They replace the password-derived unlock, loopback HTTP and the offline-only ceremonies |
 | 3b — Store | bbolt with sealing per secret, rolling history, encrypted backup and restore from the Installation page | Restore to a clean instance is verified |
+| 3b+ — Alerts and watching | E-mail and webhook alerts; watched websites | A test alert arrives; a watched site that changes certificate raises one |
 | 3c — Renewals | Production and staging, an unattended scheduler, Cloudflare DNS-01, a plain Renewals page | A renewal completes with nobody signed in |
 | 3d — Delivery | Delivery targets and the check after delivery | Files are replaced atomically and the unit is reloaded |
 | 3e — Package | Install, upgrade and uninstall scripts; an Installation page; signed reproducible releases | Install on a clean host is verified |
@@ -192,10 +238,11 @@ These follow Keybash:
 **Later:**
 - roles and invites;
 - an activity log;
-- notifications;
 - more DNS providers;
 - HTTP-01;
-- other ACME CAs.
+- other ACME CAs;
+- delivery through Keybash;
+- certificates from a small internal CA, for printers, NAS and intranet.
 
 ## 8. What stays from today
 
@@ -222,5 +269,4 @@ These follow Keybash:
 
 - Whether the first release has roles, or a single administrator.
 - Whether a plain PEM download stays available, and on what condition.
-- Rootwell's colour, decided from the Phase 2 screenshots.
 - Whether Docker is supported beyond development.

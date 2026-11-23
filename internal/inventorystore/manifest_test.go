@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -28,15 +27,6 @@ func testIdentity(t testing.TB) ([]byte, []byte) {
 	return key, id
 }
 
-func demo(t *testing.T, name string) []byte {
-	t.Helper()
-	b, err := os.ReadFile("../../web/workbench/" + name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
-}
-
 func TestCreateAppendOpenAndRejectDuplicate(t *testing.T) {
 	key, id := testIdentity(t)
 	image, err := Create(key, id)
@@ -47,7 +37,7 @@ func TestCreateAppendOpenAndRejectDuplicate(t *testing.T) {
 	if err != nil || len(initial) != 0 || gen != 1 {
 		t.Fatalf("empty image: %d %d %v", len(initial), gen, err)
 	}
-	leaf := demo(t, "rootwell-demo-certificate.pem")
+	leaf := testCertificate(t)
 	next, added, err := Append(key, id, image, leaf, "Platform", "production/nginx")
 	if err != nil || len(added) != 1 || added[0].ImportGeneration != 2 || added[0].ImportedAt == "" {
 		t.Fatalf("append: %v", err)
@@ -65,7 +55,7 @@ func TestCreateAppendOpenAndRejectDuplicate(t *testing.T) {
 	if _, err := time.Parse(time.RFC3339, stored[0].ImportedAt); err != nil {
 		t.Fatalf("invalid save time: %v", err)
 	}
-	nextBatch, addedRoot, err := Append(key, id, next, demo(t, "rootwell-verify-demo-root.pem"), "CA team", "")
+	nextBatch, addedRoot, err := Append(key, id, next, testRoot(t), "CA team", "")
 	if err != nil || len(addedRoot) != 1 || addedRoot[0].ImportGeneration != 3 {
 		t.Fatalf("second import: %v", err)
 	}
@@ -82,7 +72,7 @@ func TestCreateAppendOpenAndRejectDuplicate(t *testing.T) {
 
 func TestOlderImageWithoutImportTimeStillOpens(t *testing.T) {
 	key, id := testIdentity(t)
-	parsed, err := publicbundle.Parse(demo(t, "rootwell-demo-certificate.pem"))
+	parsed, err := publicbundle.Parse(testCertificate(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +112,7 @@ func TestAssociateLocationPreservesOneCertificateAndImportProvenance(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	image, added, err := Append(key, id, image, testCertificate(t), "Platform", "production/nginx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +162,7 @@ func TestAssociateLocationPreservesOneCertificateAndImportProvenance(t *testing.
 	if err != nil || again[0].Locations[0] != "production/nginx" {
 		t.Fatal("open returned mutable location storage")
 	}
-	withAnotherCert, addedOther, err := Append(key, id, thirdImage, demo(t, "rootwell-verify-demo-root.pem"), "CA team", "ca/vault")
+	withAnotherCert, addedOther, err := Append(key, id, thirdImage, testRoot(t), "CA team", "ca/vault")
 	if err != nil || len(addedOther) != 1 || addedOther[0].ImportGeneration != 5 {
 		t.Fatalf("later certificate import: %v", err)
 	}
@@ -188,7 +178,7 @@ func TestUpdateOwnerPreservesCertificateLocationsAndProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	image, added, err := Append(key, id, image, testCertificate(t), "Platform", "production/nginx")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +227,7 @@ func TestUpdateOwnerPreservesCertificateLocationsAndProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	withoutLocation, unknown, err := Append(key, id, withoutLocation, demo(t, "rootwell-demo-certificate.pem"), "Platform", "")
+	withoutLocation, unknown, err := Append(key, id, withoutLocation, testCertificate(t), "Platform", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +246,7 @@ func TestChangeLocationPreservesCertificateAndImportProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, added, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "first")
+	image, added, err := Append(key, id, image, testCertificate(t), "Platform", "first")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,11 +303,11 @@ func TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, first, err := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "Platform", "production/nginx")
+	image, first, err := Append(key, id, image, testCertificate(t), "Platform", "production/nginx")
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, second, err := Append(key, id, image, demo(t, "rootwell-verify-demo-root.pem"), "CA team", "ca/vault")
+	image, second, err := Append(key, id, image, testRoot(t), "CA team", "ca/vault")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +359,7 @@ func TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage(t *testing
 	if err != nil || current != 5 || len(records) != 0 {
 		t.Fatalf("empty image invalid: %v", err)
 	}
-	reimported, added, err := Append(key, id, empty, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	reimported, added, err := Append(key, id, empty, testCertificate(t), "", "")
 	if err != nil || len(added) != 1 || added[0].ImportGeneration != 6 {
 		t.Fatalf("explicit reimport after deletion failed: %v", err)
 	}
@@ -381,7 +371,7 @@ func TestDeleteRecordIsExactGenerationBoundAndRecoverableFromOldImage(t *testing
 func TestAssociatedImageRejectsAuthorizedMalformedLocationPayload(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)
-	image, added, _ := Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "first")
+	image, added, _ := Append(key, id, image, testCertificate(t), "", "first")
 	image, _, _, _ = AssociateLocation(key, id, image, added[0].Fingerprint, "second", 2)
 	var outer envelope
 	if err := json.Unmarshal(image, &outer); err != nil {
@@ -438,7 +428,7 @@ func TestCorruptionContextAndMalformedImportFailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	image, _, err = Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	image, _, err = Append(key, id, image, testCertificate(t), "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +479,7 @@ func TestCorruptionContextAndMalformedImportFailClosed(t *testing.T) {
 func TestManifestRejectsAuthorizedButInconsistentRecord(t *testing.T) {
 	key, id := testIdentity(t)
 	image, _ := Create(key, id)
-	image, _, _ = Append(key, id, image, demo(t, "rootwell-demo-certificate.pem"), "", "")
+	image, _, _ = Append(key, id, image, testCertificate(t), "", "")
 	var outer envelope
 	if err := json.Unmarshal(image, &outer); err != nil {
 		t.Fatal(err)
@@ -523,14 +513,9 @@ func FuzzOpenImage(f *testing.F) {
 	id := bytes.Repeat([]byte{2}, 16)
 	image, _ := Create(key, id)
 	f.Add(image)
-	fixture, err := os.ReadFile("../../web/workbench/rootwell-demo-certificate.pem")
-	if err == nil {
-		withCert, added, err := Append(key, id, image, fixture, "", "first")
-		if err == nil {
-			withLocation, _, _, err := AssociateLocation(key, id, withCert, added[0].Fingerprint, "second", 2)
-			if err == nil {
-				f.Add(withLocation)
-			}
+	if withCert, added, err := Append(key, id, image, testCertificate(f), "", "first"); err == nil {
+		if withLocation, _, _, err := AssociateLocation(key, id, withCert, added[0].Fingerprint, "second", 2); err == nil {
+			f.Add(withLocation)
 		}
 	}
 	f.Add([]byte("bad"))

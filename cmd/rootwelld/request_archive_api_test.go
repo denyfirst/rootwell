@@ -49,9 +49,6 @@ func TestRequestArchiveStrictScopeAndAccessBoundary(t *testing.T) {
 		t.Fatal("status accepted write authority")
 	}
 	g, cookie, _ := readyDirectoryGate(t)
-	if w := call(g, "GET", "/request-archive.js", "", cookie); w.Code != 200 || !strings.Contains(w.Body.String(), "lossless-request-archive") {
-		t.Fatal("ready request storage UI unavailable")
-	}
 	if w := requestArchiveCall(g, "status", "{}", nil); w.Code != 401 {
 		t.Fatal("anonymous request history exposed")
 	}

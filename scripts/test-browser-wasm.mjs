@@ -4,10 +4,14 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { createPrivateKey, generateKeyPairSync } from "node:crypto";
 
-const [wasmPath, runtimePath, certificatePath, bundlePath] = process.argv.slice(2);
-if (!wasmPath || !runtimePath || !certificatePath || !bundlePath) {
-  throw new Error("usage: node test-browser-wasm.mjs <wasm> <wasm_exec.js> <certificate> <bundle>");
+const [wasmPath, runtimePath] = process.argv.slice(2);
+if (!wasmPath || !runtimePath) {
+  throw new Error("usage: node test-browser-wasm.mjs <wasm> <wasm_exec.js>");
 }
+// Generated, non-production material: a website certificate and its issuer.
+const generated = JSON.parse(execFileSync("go", ["run", "./scripts/generate-convert-fixture.go"], { encoding: "utf8" }));
+const leafPEM = Buffer.from(generated.leaf, "base64");
+const bundlePEM = Buffer.concat([leafPEM, Buffer.from(generated.issuer, "base64")]);
 
 const runtimeSource = fs.readFileSync(runtimePath, "utf8");
 vm.runInThisContext(runtimeSource, { filename: runtimePath });
@@ -44,14 +48,14 @@ assert.equal(typeof globalThis.rootwellPrivateInspect, "function");
 assert.equal(typeof globalThis.rootwellPrivateExport, "function");
 assert.equal(globalThis.rootwellInspectMaxBytes, 16 * 1024 * 1024);
 
-const generated = generateKeyPairSync("ec", { namedCurve: "prime256v1", privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
-const privateSource = new TextEncoder().encode(generated.privateKey);
+const keyPair = generateKeyPairSync("ec", { namedCurve: "prime256v1", privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+const privateSource = new TextEncoder().encode(keyPair.privateKey);
 const privateSummary = JSON.parse(globalThis.rootwellPrivateInspect(privateSource, new Uint8Array()));
 assert.equal(privateSummary.ok, true);
 assert.equal(privateSummary.result.input_format, "pkcs8-pem");
 assert.equal(privateSummary.result.algorithm, "ECDSA");
 const externalPassword = new TextEncoder().encode("test-only-external-password");
-const externalEncrypted = new TextEncoder().encode(createPrivateKey(generated.privateKey).export({
+const externalEncrypted = new TextEncoder().encode(createPrivateKey(keyPair.privateKey).export({
   type: "pkcs8", format: "pem", cipher: "aes-256-cbc", passphrase: "test-only-external-password"
 }));
 const externalSummary = JSON.parse(globalThis.rootwellPrivateInspect(externalEncrypted, externalPassword));
@@ -172,7 +176,7 @@ verifyLeaf.fill(0);
 verifyIntermediate.fill(0);
 verifyRoot.fill(0);
 
-const certificate = new Uint8Array(fs.readFileSync(certificatePath));
+const certificate = new Uint8Array(leafPEM);
 const explored = JSON.parse(globalThis.rootwellExplore(certificate));
 const success = JSON.parse(globalThis.rootwellInspect(certificate));
 certificate.fill(0);
@@ -182,11 +186,11 @@ assert.equal(explored.error, null);
 assert.equal(explored.result.count, 1);
 assert.equal(explored.result.verification, "not-performed");
 assert.equal(explored.result.trust_anchor, "not-selected");
-assert.equal(explored.result.certificates[0].subject, "CN=workbench.rootwell.invalid,O=Rootwell non-production demo");
+assert.equal(explored.result.certificates[0].subject, "CN=shop.test");
 assert.match(explored.result.certificates[0].not_before, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 assert.match(explored.result.certificates[0].not_after, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 
-const bundle = new Uint8Array(fs.readFileSync(bundlePath));
+const bundle = new Uint8Array(bundlePEM);
 const bundleResponse = JSON.parse(globalThis.rootwellExplore(bundle));
 const analyzed = JSON.parse(globalThis.rootwellAnalyze([bundle]));
 assert.equal(analyzed.ok, true);
@@ -198,7 +202,7 @@ assert.equal(bundleResponse.ok, true);
 assert.equal(bundleResponse.result.count, 2);
 assert.equal(bundleResponse.result.verification, "not-performed");
 assert.equal(bundleResponse.result.trust_anchor, "not-selected");
-assert.equal(bundleResponse.result.certificates[1].subject, "CN=second.rootwell.invalid,O=Rootwell non-production demo");
+assert.equal(bundleResponse.result.certificates[1].subject, "CN=Synthetic Convert Issuing CA");
 const secondFingerprint = bundleResponse.result.certificates[1].sha256;
 const expectedFingerprints = bundleResponse.result.certificates.map((item) => item.sha256);
 const combined = globalThis.rootwellExportBundle([bundle], expectedFingerprints, expectedFingerprints);
@@ -251,11 +255,8 @@ assert.equal(success.schema_version, "rootwell.browser.inspect.v1");
 assert.equal(success.ok, true);
 assert.equal(success.error, null);
 assert.equal(success.result.schema_version, "rootwell.inspect.x509.v1");
-assert.equal(success.result.subject, "CN=workbench.rootwell.invalid,O=Rootwell non-production demo");
-assert.deepEqual(success.result.subject_alternative_names.dns, [
-  "workbench.rootwell.invalid",
-  "api.rootwell.invalid"
-]);
+assert.equal(success.result.subject, "CN=shop.test");
+assert.deepEqual(success.result.subject_alternative_names.dns, ["shop.test", "www.shop.test"]);
 
 const marker = "malformed-sensitive-marker";
 const malformed = new TextEncoder().encode(marker);
@@ -284,7 +285,7 @@ assert.equal(secretBundleExport.ok, false);
 assert.equal(secretBundleExport.result, null);
 assert.equal(secretBundleExport.error, "invalid-public-source");
 
-const duplicateBundle = new Uint8Array(fs.readFileSync(certificatePath));
+const duplicateBundle = new Uint8Array(leafPEM);
 const duplicateInput = new Uint8Array(duplicateBundle.length * 2);
 duplicateInput.set(duplicateBundle);
 duplicateInput.set(duplicateBundle, duplicateBundle.length);

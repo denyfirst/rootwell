@@ -4,69 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <meta name="color-scheme" content="dark light">
+  <meta name="color-scheme" content="light dark">
   <title>Website check · Rootwell</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/website-check.css">
+  <link rel="stylesheet" href="/rootwell.css">
   <script src="/theme.js"></script>
   <script src="/session.js" defer></script>
-  <script src="/wasm_exec.js" defer></script>
-  <script src="/inventory-engine.js" defer></script>
-  <script src="/website-expected.js" defer></script>
   <script src="/website-check.js" defer></script>
 </head>
-<body class="workspace website-workspace">
-  <aside class="rail" aria-label="Primary navigation">
-    <div class="rail-identity"><a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a></div>
-    <p class="rail-caption" id="rail-workspace">Workspace</p>
-    <nav class="rail-nav" aria-labelledby="rail-workspace">
-      <a class="rail-item" href="/certificates"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="g-soft" d="M6 3.5h8.5l4 4v13H6z"/><path d="M14.5 3.5v4h4M9 12h6.5M9 15.5h4"/></svg>Certificates</a>
-      <a class="rail-item" href="/automation"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="g-soft" cx="12" cy="12" r="5"/><path d="M19.5 12a7.5 7.5 0 0 1-13.4 4.6M4.5 12a7.5 7.5 0 0 1 13.4-4.6"/><path d="M18.2 3.8v3.8h-3.8M5.8 20.2v-3.8h3.8"/></svg>Renewals</a>
-      <a class="rail-item" href="/website-check" aria-current="page"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="g-soft" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/></svg>Website check</a>
-      <a class="rail-item" href="/index.html"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect class="g-soft" x="3.5" y="8" width="17" height="11.5" rx="2"/><path d="M9 8V5.5h6V8M3.5 13h17M10.5 12v2.5h3V12"/></svg>Tools</a>
-    </nav>
-    <p class="rail-caption" id="rail-you">You</p>
-    <nav class="rail-nav" aria-labelledby="rail-you">
-      <a class="rail-item" href="/account"><svg class="rail-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="g-soft" cx="12" cy="12" r="8.5"/><circle cx="12" cy="10" r="3"/><path d="M6.7 18.2c1.3-1.9 3.1-2.9 5.3-2.9s4 1 5.3 2.9"/></svg>Account</a>
-    </nav>
-    <div class="rail-foot">
-      <button class="shell-button theme-toggle" id="theme-toggle" type="button" hidden aria-label="Switch the colour scheme"><svg class="theme-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g class="theme-sun"><circle class="g-soft" cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></g><path class="theme-moon g-soft" d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/></svg><span>Colour scheme</span></button>
-      <button class="shell-button" id="rail-sign-out" type="button" hidden><svg class="button-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></svg><span>Sign out</span></button>
-      <p>rootwell, by denyfirst<span class="credit-stop">.</span></p>
-    </div>
-  </aside>
-  <div class="workspace-main">
-    <header class="topbar"><p class="topbar-path"><span>Workspace</span><span class="topbar-slash" aria-hidden="true">/</span><strong>Website check</strong></p><p class="boundary">One connection · no private key needed</p></header>
-    <main>
-      <div id="website-saved-source" hidden></div>
-      <section class="work-heading"><div><h1>See what a website really serves</h1><p class="lede">Enter a website. Rootwell connects once and explains its certificate chain: what is right, and what to fix.</p></div></section>
-      <section class="website-input" aria-labelledby="check-title">
-        <h2 id="check-title">Which website?</h2>
-        <form id="website-form">
-          <label for="website-target">Website address</label>
-          <div class="website-target-row"><input id="website-target" type="text" maxlength="270" required autocomplete="off" spellcheck="false" autocapitalize="none" placeholder="https://example.com" aria-describedby="target-help"><button id="website-submit" type="submit">Check certificate <span aria-hidden="true">↗</span></button></div>
-          <p id="target-help">Public websites on HTTPS port 443. Enter a domain or origin, without a page path.</p>
-          <label class="website-consent" for="website-compare"><input id="website-compare" type="checkbox"> Compare with my certificate <span>(optional)</span></label>
-          <div id="website-expected" class="website-expected" hidden>
-            <div id="expected-saved" hidden><strong>Using your saved certificate</strong><p>No need to upload it again. Enter the website above and confirm one connection to compare.</p><details><summary>Selected certificate details</summary><p id="expected-saved-label"></p><p>This is the public snapshot selected in Certificates. No private key or service notes were transferred. The website check is not saved.</p></details><button id="expected-change" type="button">Choose a file instead</button></div>
-            <div id="expected-file-fields">
-            <label for="expected-certificate">Your expected website certificate or public bundle</label>
-            <input id="expected-certificate" type="file" accept=".pem,.crt,.cer,.der">
-            <p>Read only in this browser. The file is never uploaded. PEM/CRT/CER/DER, up to 256 KiB / 10 certificates. No private key or PFX.</p>
-            </div>
-            <div id="expected-choice-box" hidden><label for="expected-choice">Which website certificate should be installed?</label><select id="expected-choice"></select></div>
-            <p id="expected-status" role="status" aria-live="polite"></p>
-          </div>
-          <label class="website-consent" for="website-consent"><input id="website-consent" type="checkbox" required> I am authorized to check this website. Connect once from my Rootwell server.</label>
-        </form>
-        <div class="website-examples"><span>See an example</span><button type="button" id="example-valid">Healthy chain</button><button type="button" id="example-missing">Missing intermediate</button><button type="button" id="example-wrong">Wrong intermediate</button><button type="button" id="example-compare">Compare certificate</button></div>
-        <p id="website-status" role="status" aria-live="polite"></p>
-      </section>
-      <section id="website-result" aria-label="Certificate check result" hidden></section>
-      <aside class="website-limits"><strong>How the check works</strong><p>Your Rootwell server connects once to the website and checks its chain against the server's trust store. A file you compare with stays in this browser. Revocation is not checked, and nothing is saved.</p></aside>
-    </main>
+<body>
+<div class="shell">
+<aside class="rail" aria-label="Menu">
+  <a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a>
+  <div class="rail-pages">
+    <nav class="nav" aria-label="Pages"><a class="nav-item" href="/certificates"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M5 3.5h10l4 4v13H5z"/><path d="M15 3.5v4h4M8.5 11h7M8.5 14.5h4.5"/></svg>Certificates</a><a class="nav-item" href="/website-check" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/></svg>Website check</a><a class="nav-item" href="/inspect"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.8-4.8"/></svg>Inspect</a><a class="nav-item" href="/convert"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8h15l-3.5-3.5M20 16H5l3.5 3.5"/></svg>Convert</a><a class="nav-item" href="/request"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M12 11v6M9 14h6"/></svg>Request</a></nav>
+    <nav class="nav" aria-label="You"><a class="nav-item" href="/account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="12" cy="12" r="8.5"/><circle cx="12" cy="10" r="3"/><path d="M6.7 18.2c1.3-1.9 3.1-2.9 5.3-2.9s4 1 5.3 2.9"/></svg>Account</a></nav>
   </div>
+  <div class="rail-foot">
+    <button class="nav-item" id="theme-toggle" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M19.5 14.6A8 8 0 0 1 9.4 4.5a8 8 0 1 0 10.1 10.1z"/></svg><span class="label-text">Theme</span></button>
+    <button class="nav-item" id="rail-sign-out" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="M10 8l-4 4 4 4M6 12h9"/></svg><span class="label-text">Sign out</span></button>
+    <p class="credit">rootwell, by denyfirst<span class="credit-stop">.</span></p>
+  </div>
+</aside>
+<main class="page"><div class="page-inner">
+<div class="page-head"><div><h1>Website check</h1><p>See what a website really sends to visitors.</p></div></div>
+<div class="stack">
+  <form class="input-row" id="site-form" novalidate>
+    <input class="input" id="site" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="example.com" aria-label="Website">
+    <button class="btn" id="site-check" type="submit">Check</button>
+  </form>
+  <p id="site-status" role="status" aria-live="polite"></p>
+  <div id="site-result" class="stack" hidden></div>
+</div>
+</div></main>
+</div>
 </body>
 </html>

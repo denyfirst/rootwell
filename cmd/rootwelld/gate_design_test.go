@@ -40,11 +40,46 @@ func TestTheTypefaceIsPublicAndTheEngineRevalidates(t *testing.T) {
 	ready := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
 	for route, cache := range map[string]string{
 		"/rootwell.wasm": "no-cache", "/wasm_exec.js": "no-cache",
-		"/app.js": "no-store", "/session.js": "no-store", "/theme.js": "no-store", "/": "no-store",
+		"/certificates": "no-store", "/certificates.js": "no-store", "/session.js": "no-store", "/theme.js": "no-store",
 	} {
 		w := call(g, "GET", route, "", ready)
 		if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != cache {
 			t.Errorf("%s: %d with Cache-Control %q, want %q", route, w.Code, w.Header().Get("Cache-Control"), cache)
+		}
+	}
+}
+
+// Every page, signed in or not, is served under one strict policy: scripts,
+// styles, images, fonts and connections only from this server, the engine
+// allowed to compile, and nothing inline.
+func TestEveryPageIsServedUnderTheStrictContentSecurityPolicy(t *testing.T) {
+	g, _ := testGate(t)
+	setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
+	if call(g, "POST", "/api/password", `{"password":"`+initialTestPassword+`","next":"`+nextTestPassword+`"}`, sessionCookie(t, setup)).Code != http.StatusNoContent {
+		t.Fatal("password change failed")
+	}
+	ready := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
+	pages := map[string]*http.Cookie{"/login": nil, "/certificates": ready, "/website-check": ready, "/inspect": ready,
+		"/convert": ready, "/request": ready, "/account": ready}
+	for route, cookie := range pages {
+		w := call(g, "GET", route, "", cookie)
+		csp := w.Header().Get("Content-Security-Policy")
+		if w.Code != http.StatusOK {
+			t.Errorf("%s: %d", route, w.Code)
+			continue
+		}
+		for _, directive := range []string{"default-src 'none'", "style-src 'self';", "script-src 'self' 'wasm-unsafe-eval';",
+			"img-src 'self';", "connect-src 'self';", "font-src 'self';", "object-src 'none'", "worker-src 'self'",
+			"base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'"} {
+			if !strings.Contains(csp, directive) {
+				t.Errorf("%s: the policy lacks %q", route, directive)
+			}
+		}
+		if strings.Contains(csp, "unsafe-inline") || strings.Contains(csp, "'unsafe-eval'") || strings.Contains(csp, "http:") || strings.Contains(csp, "https:") {
+			t.Errorf("%s: the policy allows inline, eval or another origin: %q", route, csp)
+		}
+		if w.Header().Get("X-Frame-Options") != "DENY" || w.Header().Get("Referrer-Policy") != "no-referrer" || w.Header().Get("X-Content-Type-Options") != "nosniff" {
+			t.Errorf("%s: framing, referrer or sniffing is not refused", route)
 		}
 	}
 }

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { readdirSync } from 'node:fs';
 import { checkContainerConfig } from './check-container-config.mjs';
 
 const restricted = {
@@ -66,22 +65,16 @@ assert.ok(dockerIgnore.lastIndexOf(productionRootAsset) > dockerIgnore.lastIndex
 const expectedPublicPEM = new Set([
   rootAsset,
   productionRootAsset,
-  '!web/workbench/rootwell-demo-certificate.pem',
-  '!web/workbench/rootwell-demo-bundle.pem',
-  '!web/workbench/rootwell-verify-demo-root.pem',
-  '!web/workbench/rootwell-verify-demo-leaf.pem',
-  '!web/workbench/rootwell-verify-demo-intermediate.pem',
-  '!web/workbench/rootwell-verify-demo-ca-files.pem',
 ]);
 const reviewedSourceIncludes = new Set([
   '!go.mod', '!go.sum', '!cmd/**/*.go',
   '!cmd/rootwelld/auth/*.html', '!cmd/rootwelld/auth/*.css', '!cmd/rootwelld/auth/*.js',
-  '!cmd/rootwelld/auth/website-examples.json', '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
+  '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
   '!internal/account/password-blocklist.txt',
-  ...['index.html', 'app.js', 'certificate-key-match.js', 'secret-view.js', 'private-key.js',
-    'private-worker-client.js', 'private-key-worker.js', 'pfx.js', 'pfx-worker-client.js',
-    'pfx-worker.js', 'csr.js', 'csr-worker-client.js', 'csr-worker.js', 'theme.js', 'session.js',
-    'wasm-loader.js', 'style.css', 'favicon.svg'].map((name) => `!web/workbench/${name}`),
+  ...['certificates.html', 'certificates.js', 'inspect.html', 'inspect.js', 'convert.html', 'convert.js',
+    'request.html', 'request.js', 'ui.js', 'rootwell.css', 'style.css', 'theme.js', 'session.js', 'favicon.svg',
+    'wasm-loader.js', 'private-worker-client.js', 'private-key-worker.js', 'pfx-worker-client.js', 'pfx-worker.js',
+    'csr-worker-client.js', 'csr-worker.js'].map((name) => `!web/workbench/${name}`),
 ]);
 for (const rule of dockerIgnore.filter((line) => line.startsWith('!'))) {
   assert.ok(reviewedSourceIncludes.has(rule) || expectedPublicPEM.has(rule),
@@ -90,37 +83,28 @@ for (const rule of dockerIgnore.filter((line) => line.startsWith('!'))) {
   assert.ok(!rule.endsWith('/') && !rule.endsWith('**') && /\.[A-Za-z0-9]+$|^!go\.(mod|sum)$/.test(rule),
     `A build-context exception must name files, not a directory: ${rule}`);
 }
-// Every Workbench asset the gate requires must reach the image.
-for (const name of gateWorkbenchAssets(await readFile(new URL('../cmd/rootwelld/gate.go', import.meta.url), 'utf8'))) {
+// Every page file the gate requires and serves must reach the image.
+const gateSource = await readFile(new URL('../cmd/rootwelld/gate.go', import.meta.url), 'utf8');
+const requiredAssets = gateWorkbenchAssets(gateSource);
+assert.deepEqual([...gateServedFiles(gateSource)].sort(), [...new Set(requiredAssets)].sort(),
+  'The gate must require exactly the page files it serves.');
+for (const name of requiredAssets) {
   if (name === 'wasm_exec.js' || name === 'rootwell.wasm') continue; // built inside the image
   assert.ok(reviewedSourceIncludes.has(`!web/workbench/${name}`) && dockerIgnore.includes(`!web/workbench/${name}`),
     `The gate requires web/workbench/${name}; the build context must include it.`);
 }
 
-// Every file a package under internal/ embeds must reach the build context by
-// name, or the image fails to compile.
-for (const entry of readdirSync(new URL('../internal/', import.meta.url), { recursive: true })) {
-  const file = String(entry).replaceAll('\\', '/');
-  if (!file.endsWith('.go') || file.endsWith('_test.go')) continue;
-  const source = await readFile(new URL('../internal/' + file, import.meta.url), 'utf8');
-  for (const [, names] of source.matchAll(/^\/\/go:embed (.+)$/gm)) {
-    for (const name of names.trim().split(/\s+/)) {
-      const path = 'internal/' + file.slice(0, file.lastIndexOf('/') + 1) + name;
-      assert.ok(dockerIgnore.includes('!' + path), `the build context must include the embedded file ${path}`);
-    }
-  }
-}
-
 function gateWorkbenchAssets(source) {
   const list = source.match(/for _, name := range \[\]string\{([^}]+)\}/);
-  assert.ok(list, 'The gate lists the Workbench assets it requires.');
+  assert.ok(list, 'The gate lists the page assets it requires.');
   return [...list[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }
-assert.ok(dockerIgnore.includes('!cmd/rootwelld/auth/website-examples.json'),
-  'Public generated website examples must survive the deny-default context.');
-const gateSource = await readFile(new URL('../cmd/rootwelld/gate.go', import.meta.url), 'utf8');
-assert.match(gateSource, /\/\/go:embed auth\/\* auth\/website-examples\.json/,
-  'The actual Docker compile must refuse a missing generated example asset.');
+
+function gateServedFiles(source) {
+  const map = source.match(/var workbenchFiles = map\[string\]string\{([^}]+)\}/);
+  assert.ok(map, 'The gate maps the page files it serves.');
+  return new Set([...map[1].matchAll(/"[^"]+": "([^"]+)"/g)].map((match) => match[1]));
+}
 assert.deepEqual(new Set(dockerIgnore.filter((line) => line.startsWith('!') && /\.pem$/i.test(line))),
   expectedPublicPEM, 'Only the exact reviewed public PEM assets may be included.');
 

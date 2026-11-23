@@ -75,21 +75,21 @@ func TestCertificateRequestModesRejectMalformedAndAmbiguousJSON(t *testing.T) {
 			t.Fatal("ambiguous request accepted or reflected")
 		}
 	}
-	for _, route := range []string{"/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save", "/saved-key-attachment.js"} {
+	for _, route := range []string{"/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save", "/certificates.js"} {
 		g, _ := testGate(t)
 		method := "POST"
 		anonymous, setupOnly := http.StatusUnauthorized, http.StatusForbidden
-		if route == "/saved-key-attachment.js" {
+		if route == "/certificates.js" {
 			method = "GET"
 			anonymous, setupOnly = http.StatusSeeOther, http.StatusSeeOther
 		}
 		w := call(g, method, route, `{}`, nil)
-		if w.Code != anonymous || (route == "/saved-key-attachment.js" && w.Header().Get("Location") != "/login") {
+		if w.Code != anonymous || (route == "/certificates.js" && w.Header().Get("Location") != "/login") {
 			t.Fatal("anonymous custody endpoint opened")
 		}
 		setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
 		cookie := sessionCookie(t, setup)
-		if w := call(g, method, route, `{}`, cookie); w.Code != setupOnly || (route == "/saved-key-attachment.js" && w.Header().Get("Location") != "/setup") {
+		if w := call(g, method, route, `{}`, cookie); w.Code != setupOnly || (route == "/certificates.js" && w.Header().Get("Location") != "/setup") {
 			t.Fatal("setup custody endpoint opened")
 		}
 	}

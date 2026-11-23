@@ -107,8 +107,6 @@ copying a public key into a fake certificate is possible, so independent trust
 verification remains mandatory before relying on it. Browser/OS copies and
 download permissions are not controlled by this workbench.
 
-ADR 0048 adds a saved-certificate native POST handoff to this existing Convert
-panel. Its identity/generation-bound payload is public DER only, reparsed by
-actual WASM before use. No automatic private key/bundle/notes handoff, secret
-URL/storage, or new offline Workbench networking capability. Private/PFX use
-still requires explicit separately encrypted key export and file selection.
+ADR 0048 added a saved-certificate handoff into Convert; it was retired on
+22 November 2026 with the page rebuild. Convert now works only on files a
+person chooses, with no network capability.
