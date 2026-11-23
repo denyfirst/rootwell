@@ -227,12 +227,37 @@ await settle();
 assert.deepEqual(lastRequest("/api/inventory/locations/change").body, { fingerprint: shop.fingerprint, expected_generation: 4, old_location: "nginx on web-1", action: "remove" });
 assert.match(rows().find((r) => rowText(r).startsWith("shop.test")).text(), /IIS on win-2/);
 
+// One change at a time: a quick second click sends nothing more, and a place
+// typed while a save runs stays in its field instead of being lost.
+const ownerSaves = () => api.requests.filter((r) => r.url === "/api/inventory/owner").length;
+const ownerSavesBefore = ownerSaves();
+$("sheet-owner").value = "Ops team";
+$("sheet-owner").listeners.input();
+const firstSave = $("sheet-owner-save").listeners.click();
+assert.equal($("sheet-owner-save").disabled, true, "Save is disabled while the owner is being saved");
+$("sheet-place").value = "IIS on win-3";
+$("sheet-place").listeners.keydown({ key: "Enter", preventDefault() {} });
+assert.equal($("sheet-place").value, "IIS on win-3", "a place typed while saving is kept");
+await $("sheet-owner-save").listeners.click();
+await firstSave;
+await settle();
+assert.equal(ownerSaves(), ownerSavesBefore + 1, "a double click saves the owner once");
+assert.match(status(), /Owner saved/);
+assert.equal($("sheet-owner-save").disabled, false);
+$("sheet-place").value = "";
+// An owner that has not changed is not sent again.
+$("sheet-owner-save").listeners.click();
+await settle();
+assert.equal(ownerSaves(), ownerSavesBefore + 1, "an unchanged owner is not sent");
+assert.equal($("sheet-owner-save").hidden, true);
+assert.match(status(), /Owner saved/);
+
 // Downloads: the certificate plainly, the key only with both passwords.
 $("sheet-download").listeners.click();
 assert.deepEqual($("download-choices").children.map((c) => c.children[1].textContent), ["Certificate", "Full chain", "Certificate and key", "Key only"]);
 await $("download-go").listeners.click();
 await settle();
-assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 5, pair: false });
+assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 6, pair: false });
 assert.equal(downloads.at(-1).name, "shop.test.pem");
 const choose = (container, value) => {
   for (const label of container.children) label.children[0].checked = label.children[0].value === value;
@@ -257,7 +282,7 @@ assert.equal($("download-password").value, "", "the Rootwell password field is e
 $("download-password").value = "the-rootwell-password";
 await $("download-go").listeners.click();
 await settle();
-assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 5, pair: true,
+assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 6, pair: true,
   password: "the-rootwell-password", output_password: Buffer.from(keyPassword).toString("base64") });
 assert.equal(downloads.at(-1).name, "shop.test.zip");
 assert.equal(downloads.at(-1).blob.type, "application/zip");
