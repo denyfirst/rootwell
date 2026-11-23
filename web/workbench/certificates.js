@@ -293,9 +293,14 @@
   $("sheet-close").addEventListener("click", closeSheet);
   sheetScrim.addEventListener("click", closeSheet);
 
-  // Small edits: where it is used, and who looks after it.
+  // Small edits: where it is used, and who looks after it. One at a time: a
+  // second click while one is saving would carry the same list generation and
+  // be refused as if someone else had changed the list.
+  let editing = false;
   async function edit(path, body, done) {
-    if (!open) return;
+    if (!open || editing) return;
+    editing = true;
+    ownerSave.disabled = true;
     say(sheetStatus, "plain", "Saving…");
     try {
       await call(path, { fingerprint: open.fingerprint, expected_generation: generation, ...body }, "That change was not saved.");
@@ -303,6 +308,9 @@
       say(sheetStatus, "good", done);
     } catch (failure) {
       say(sheetStatus, "bad", failure instanceof Plain ? failure.message : "That change was not saved.");
+    } finally {
+      editing = false;
+      ownerSave.disabled = false;
     }
   }
 
@@ -325,13 +333,17 @@
     if (event.key !== "Enter") return;
     event.preventDefault();
     const place = placeInput.value.trim();
-    if (!place || !open) return;
+    if (!place || !open || editing) return;
     if ((open.locations || []).includes(place)) { placeInput.value = ""; return; }
     placeInput.value = "";
     void edit("/api/inventory/locations", { location: place }, "Added " + place + ".");
   });
   owner.addEventListener("input", () => { ownerSave.hidden = !open || owner.value.trim() === (open.owner || ""); });
-  ownerSave.addEventListener("click", () => edit("/api/inventory/owner", { owner: owner.value.trim() }, "Owner saved."));
+  ownerSave.addEventListener("click", () => {
+    const value = owner.value.trim();
+    if (!open || value === (open.owner || "")) { ownerSave.hidden = true; return; }
+    return edit("/api/inventory/owner", { owner: value }, "Owner saved.");
+  });
 
   // ── Download ───────────────────────────────────────────────────────────
 
