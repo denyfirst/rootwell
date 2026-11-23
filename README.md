@@ -101,7 +101,7 @@ install script, and backups from the web.
 - [Engineering workflow](docs/ENGINEERING.md)
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - Threat models:
-  - [Workbench](docs/THREAT-MODEL.md)
+  - [the pages](docs/THREAT-MODEL.md)
   - [instance access](docs/INSTANCE-ACCESS-THREAT-MODEL.md)
   - [custody](docs/CERTIFICATE-CUSTODY-THREAT-MODEL.md)
   - [ACME](docs/ACME-THREAT-MODEL.md)
