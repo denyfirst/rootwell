@@ -100,7 +100,7 @@ func initialize(dir string, input io.Reader, output io.Writer) error {
 	if err := instanceaccess.Create(accessPath, password); err != nil {
 		return err
 	}
-	if _, err := io.WriteString(output, "\nInstallation created. Sign in on localhost and change this password before using Workbench.\n"); err != nil {
+	if _, err := io.WriteString(output, "\nInstallation created. Sign in on localhost and change this password before using Rootwell.\n"); err != nil {
 		return errors.New("installation was created, but the final confirmation could not be shown")
 	}
 	return nil
