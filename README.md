@@ -108,3 +108,8 @@ install script, and backups from the web.
   - [website check](docs/WEBSITE-CHECK-THREAT-MODEL.md)
 - [Architecture decisions](docs/adr/)
 - [Security policy](SECURITY.md)
+
+## Licence
+
+AGPL-3.0, as Porch and Keybash. See [`LICENSE`](LICENSE). The Schibsted
+Grotesk typeface the pages use is under the SIL Open Font License 1.1.
