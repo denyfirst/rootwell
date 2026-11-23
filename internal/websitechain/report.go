@@ -211,8 +211,8 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 			role = "leaf"
 		}
 		r.Presented = append(r.Presented, describe(c, role, i+1, now))
-		if i > 0 && !selected[string(c.Raw)] {
-			add("unused", "attention", "An additional certificate was sent", "One server-sent certificate is outside the displayed path. It may be an alternative chain or an unrelated certificate.", "Review the server-sent list before removing anything; cross-signed alternatives may be intentional.")
+		if i > 0 && !selected[string(c.Raw)] && !crossSignedCopy(c, path) {
+			add("unused", "attention", "The server sends a certificate it does not need", "One certificate the server sends belongs to no chain for this website.", "Remove it from the certificate file the server uses. Visitors do not need it.")
 		}
 		if !now.Before(c.NotBefore) && !now.After(c.NotAfter) && c.NotAfter.Sub(now) <= 30*24*time.Hour {
 			add("expires-soon", "attention", "A certificate expires within 30 days", "Check the expiry dates in the chain.", "Plan replacement before the earliest required certificate expires.")
@@ -235,6 +235,19 @@ func Analyze(chain []*x509.Certificate, roots *x509.CertPool, hostname string, n
 		add("order", "attention", "Server-sent order differs from the verified path", "A valid path was built by matching issuers. Some clients may handle the supplied order differently.", "Review the service's required bundle order: site certificate first, followed by its issuing intermediates.")
 	}
 	return r, nil
+}
+
+// crossSignedCopy reports whether c is another issuer's copy of a certificate
+// on the path: the same name and key, signed by someone else. Servers send
+// such copies on purpose so that older devices, which lack the newer root, can
+// still build a chain; it is not a mistake to report.
+func crossSignedCopy(c *x509.Certificate, path []*x509.Certificate) bool {
+	for _, p := range path {
+		if bytes.Equal(c.RawSubject, p.RawSubject) && bytes.Equal(c.RawSubjectPublicKeyInfo, p.RawSubjectPublicKeyInfo) {
+			return true
+		}
+	}
+	return false
 }
 
 func sentPosition(chain []*x509.Certificate, c *x509.Certificate) int {

@@ -56,9 +56,11 @@
       const ago = Math.floor((now - end) / day);
       return el("span", "pill pill-bad", ago === 0 ? "Expired today" : ago === 1 ? "Expired yesterday" : `Expired ${ago} days ago`);
     }
-    const days = Math.ceil((end - now) / day);
-    if (days <= 30) return el("span", "pill pill-soon", days === 1 ? "1 day left" : `${days} days left`);
-    return el("span", "pill pill-good", `${days} days left`);
+    const left = Math.ceil((end - now) / day);
+    // The words every page uses: days while they matter, then months and years.
+    const text = left === 1 ? "1 day left" : left <= 120 ? `${left} days left` :
+      left < 730 ? `${Math.floor(left / 30.44)} months left` : `${Math.floor(left / 365.25)} years left`;
+    return el("span", left <= 30 ? "pill pill-soon" : "pill pill-good", text);
   }
 
   // The host name a person typed, as the server expects it: a DNS name or an
@@ -120,7 +122,7 @@
       body.appendChild(item);
     }
     const when = new Date(report.observed_at);
-    const meta = [Number.isFinite(when.getTime()) ? "Checked " + when.toLocaleString() : "", report.tls_version, report.address].filter(Boolean);
+    const meta = [Number.isFinite(when.getTime()) ? "Checked " + when.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "", report.tls_version, report.address].filter(Boolean);
     body.appendChild(el("p", "meta", meta.join(" · ")));
     card.appendChild(body);
     return card;
