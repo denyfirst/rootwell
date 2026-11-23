@@ -101,10 +101,15 @@ install script, and backups from the web.
 - [Engineering workflow](docs/ENGINEERING.md)
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - Threat models:
-  - [Workbench](docs/THREAT-MODEL.md)
+  - [the pages](docs/THREAT-MODEL.md)
   - [instance access](docs/INSTANCE-ACCESS-THREAT-MODEL.md)
   - [custody](docs/CERTIFICATE-CUSTODY-THREAT-MODEL.md)
   - [ACME](docs/ACME-THREAT-MODEL.md)
   - [website check](docs/WEBSITE-CHECK-THREAT-MODEL.md)
 - [Architecture decisions](docs/adr/)
 - [Security policy](SECURITY.md)
+
+## Licence
+
+AGPL-3.0, as Porch and Keybash. See [`LICENSE`](LICENSE). The Schibsted
+Grotesk typeface the pages use is under the SIL Open Font License 1.1.
