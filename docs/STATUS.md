@@ -1,7 +1,7 @@
 # Rootwell — current status
 
-22 November 2026, at `main` `b8bfa5f`. Rootwell is in development and has not
-been released: use only test material. The plan is
+23 November 2026. Rootwell is in development and has not been released: use
+only test material. The plan is
 [`PRODUCT-PLAN.md`](PRODUCT-PLAN.md); the review behind it is
 [`AUDIT-2026-11-22.md`](AUDIT-2026-11-22.md).
 
@@ -64,6 +64,8 @@ been released: use only test material. The plan is
   ([`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md)).
 
 **Engineering**
+- Every page was tested end to end on a fresh Linux machine installed from
+  [`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md), in a real browser.
 - Signed commits only, checked against the base branch's signer list.
 - Thirteen CI checks:
   - Linux race tests;
