@@ -142,7 +142,7 @@
       yes.appendChild(ui.el("span", "", "Saved"));
       key.appendChild(yes);
     } else {
-      key.appendChild(ui.el("span", "row-cell", record.has_private_key ? "Does not match" : "None"));
+      key.appendChild(ui.el("span", "row-cell", record.has_private_key ? "Does not match" : "Not saved"));
     }
     link.appendChild(key);
     const chevron = ui.el("span", "chevron");
@@ -476,6 +476,8 @@
     if (!keyAuth.value) return say(sheetStatus, "bad", "Enter your Rootwell password.");
     if (!file.size || file.size > 64 * 1024) return say(sheetStatus, "bad", "This is not a key file Rootwell can read.");
     const target = open;
+    // Taken now: closing the sheet while the key is checked empties the field.
+    const auth = keyAuth.value;
     let key = null, password = null;
     keySave.disabled = true;
     say(sheetStatus, "plain", "Checking the key…");
@@ -487,7 +489,9 @@
       const record = checked.records && checked.records[0];
       if (!record || record.fingerprint !== target.fingerprint) throw new Error("answer");
       if (record.key_status !== "matched") throw new Plain("This key does not belong to the certificate.");
-      await call("/api/certificates/key/save", { ...body, password: keyAuth.value, allow_mismatch: false }, "Check your Rootwell password and try again.");
+      // The person closed or switched the sheet while the key was checked: save nothing.
+      if (open !== target) return;
+      await call("/api/certificates/key/save", { ...body, password: auth, allow_mismatch: false }, "Check your Rootwell password and try again.");
       keyAuth.value = "";
       keyPanel.hidden = true;
       resetKeyPanel();

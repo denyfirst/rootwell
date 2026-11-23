@@ -95,7 +95,7 @@ func TestPagesSeparateFileAndNetworkCapabilities(t *testing.T) {
 	}
 	for _, required := range []string{
 		`fetch("rootwell.wasm"`, "module: wasmModule", "rootwellExplore", "rootwellExport",
-		`credentials: "omit"`, `redirect: "error"`, "WebAssembly.instantiateStreaming", "WebAssembly.instantiate(bytes",
+		`credentials: "same-origin"`, `redirect: "error"`, "WebAssembly.instantiateStreaming", "WebAssembly.instantiate(bytes",
 	} {
 		if !strings.Contains(loader, required) {
 			t.Errorf("WebAssembly loader is missing restriction %q", required)

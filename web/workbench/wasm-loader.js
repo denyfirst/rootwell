@@ -51,7 +51,7 @@
     const go = new Go();
     fetch("rootwell.wasm", {
       cache: "no-cache",
-      credentials: "omit",
+      credentials: "same-origin",
       redirect: "error"
     }).then(function (response) {
       if (!response.ok) throw new Error("Rootwell WebAssembly asset unavailable");

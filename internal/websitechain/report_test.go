@@ -170,8 +170,50 @@ func TestCrossSignedIssuerAmbiguityIsNotMissingOrWrongSignature(t *testing.T) {
 		t.Fatalf("cross-sign ambiguity became false missing/wrong issuer: %+v %v", r, err)
 	}
 	r, err = Analyze([]*x509.Certificate{chain[0], chain[1], cross}, roots, "website.example.org", now)
-	if err != nil || !r.Trusted || r.State != "attention" || len(r.Path) != 3 || has(r, "issuer-ambiguous") || has(r, "issuer-not-linked") {
+	if err != nil || !r.Trusted || len(r.Path) != 3 || has(r, "issuer-ambiguous") || has(r, "issuer-not-linked") {
 		t.Fatal("a verifiable cross-signed alternative was falsely rejected")
+	}
+	// The cross-signed copy is the path's issuer under another root: sent on
+	// purpose for older devices, so the site is fine and nothing needs fixing.
+	if r.State != "verified" || has(r, "unused") {
+		t.Fatalf("a cross-signed copy of the issuer was reported: %s %+v", r.State, r.Findings)
+	}
+}
+
+// What example.com sends: the trusted root's own cross-signed copy after the
+// chain. Only a certificate that belongs to no path is worth a look.
+func TestOnlyAnUnrelatedExtraCertificateIsReported(t *testing.T) {
+	chain, roots, now := fixture(t)
+	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	older := &x509.Certificate{SerialNumber: big.NewInt(60), Subject: pkix.Name{CommonName: "Older synthetic root"}, NotBefore: now.Add(-time.Hour), NotAfter: now.Add(365 * 24 * time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
+	olderDER, err := x509.CreateCertificate(rand.Reader, older, older, pub, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if older, err = x509.ParseCertificate(olderDER); err != nil {
+		t.Fatal(err)
+	}
+	root := *chain[2]
+	root.SerialNumber = big.NewInt(61)
+	crossDER, err := x509.CreateCertificate(rand.Reader, &root, older, chain[2].PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cross, err := x509.ParseCertificate(crossDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Analyze([]*x509.Certificate{chain[0], chain[1], cross}, roots, "website.example.org", now)
+	if err != nil || !r.Trusted || r.State != "verified" || has(r, "unused") || len(r.Presented) != 3 {
+		t.Fatalf("the root's cross-signed copy was reported: %s %+v %v", r.State, r.Findings, err)
+	}
+	unrelated, _, _ := fixture(t)
+	r, err = Analyze([]*x509.Certificate{chain[0], chain[1], unrelated[1]}, roots, "website.example.org", now)
+	if err != nil || !r.Trusted || r.State != "attention" || !has(r, "unused") {
+		t.Fatalf("an unrelated extra certificate was not reported: %s %+v %v", r.State, r.Findings, err)
 	}
 }
 

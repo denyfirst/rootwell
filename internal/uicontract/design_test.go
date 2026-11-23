@@ -222,6 +222,23 @@ func TestEveryColourTextIsSetInIsLegible(t *testing.T) {
 	}
 }
 
+// The lifetime bar's track is the certificate's whole life. A certificate
+// issued today has no filled part yet, so on a card or the side sheet the track
+// alone shows the bar; it must stand apart from the card in both schemes.
+func TestTheLifetimeTrackShowsOnACard(t *testing.T) {
+	sheet := sharedSheet(t)
+	m := regexp.MustCompile(`(?m)^\.lifetime-bar \{[^}]*background: var\(--([a-z-]+)\)`).FindStringSubmatch(sheet)
+	if m == nil {
+		t.Fatal(".lifetime-bar no longer sets its track with a colour token")
+	}
+	const trackContrast = 1.3
+	for scheme, tokens := range schemes(t, "rootwell.css", sheet) {
+		if got := contrastRatio(t, tokens[m[1]], tokens["card"]); got < trackContrast {
+			t.Errorf("%s: the lifetime track --%s on --card is %.2f:1, below %.1f:1", scheme, m[1], got, trackContrast)
+		}
+	}
+}
+
 // Rootwell's colour is not a verdict's: good, close to expiry and broken are
 // said in green, amber and red, and no control may look like one of them.
 func TestTheToolColourIsNeverAVerdictColour(t *testing.T) {
