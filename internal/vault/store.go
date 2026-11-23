@@ -21,10 +21,12 @@ import (
 
 const (
 	dbName       = "rootwell.db"
-	maxPlaintext = 256 << 10
-	maxSealed    = maxPlaintext + 1024
-	metaVersion  = 1
-	sealVersion  = 1
+	maxPlaintext = 1 << 20
+	// A sealed record is JSON, so its two ciphertexts are base64: four bytes
+	// for every three, plus the key, nonces, tags and field names.
+	maxSealed   = maxPlaintext/3*4 + 4096
+	metaVersion = 1
+	sealVersion = 1
 )
 
 var (
@@ -151,7 +153,9 @@ func open(dir string, key []byte, create bool) (*Store, error) {
 			if err != nil {
 				return err
 			}
-			return putMeta(b, storeMeta{Version: metaVersion, Instance: s.instance, Check: check})
+			// Creating the vault is its first committed write, so a page never
+			// holds generation zero, which means "never read".
+			return putMeta(b, storeMeta{Version: metaVersion, Instance: s.instance, Check: check, Generation: 1})
 		})
 	} else {
 		err = s.db.View(func(tx *bolt.Tx) error {
