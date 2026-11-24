@@ -169,6 +169,12 @@
       pending = resolve;
       parts.error.textContent = "";
       parts.input.value = "";
+      // The passkey button shows only when the account has one, on a name.
+      parts.passkey.hidden = true;
+      if (globalThis.rootwellPasskey && globalThis.rootwellPasskey.supported()) {
+        fetch("/api/session", { credentials: "same-origin", cache: "no-store", redirect: "error", headers: { "X-Rootwell-Request": "1" } })
+          .then((r) => (r.ok ? r.json() : null)).then((v) => { parts.passkey.hidden = !(v && v.passkeys === true); }).catch(() => {});
+      }
       parts.scrim.hidden = false;
       parts.dialog.hidden = false;
       parts.input.focus();

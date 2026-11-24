@@ -372,4 +372,37 @@ const buffer = (...b) => new Uint8Array(b).buffer;
   assert.equal(page.$("passkeys").children[0].textContent, "No passkey yet.");
 }
 
+{
+  // The fresh-code dialog: a passkey in place of the typed code, offered only
+  // when the account has one.
+  for (const has of [false, true]) {
+    const created = [];
+    const sent = [];
+    const context = {
+      document: { body: { append: (...nodes) => created.push(...nodes) }, createElement: (tag) => new Node(tag) },
+      window: { location: { assign() {} }, addEventListener() {} },
+      rootwellPasskey: { supported: () => true, sign: async (options) => ({ id: "AQID", client_data: "BA", authenticator_data: "BQY", signature: options.challenge }) },
+      fetch: async (url, options) => {
+        sent.push({ url, body: options.body ? JSON.parse(options.body) : undefined });
+        if (url === "/api/session") return json(200, { stage: "ready", passkeys: has });
+        if (url === "/api/passkey/options") return json(200, { challenge: "Cg", rp_id: "localhost", allow: ["AQID"], timeout: 1 });
+        if (url === "/api/passkey") return empty(204);
+        throw new Error("unexpected " + url);
+      },
+    };
+    context.globalThis = context;
+    vm.createContext(context);
+    vm.runInContext(scripts.fresh, context, { filename: "fresh.js" });
+    const waiting = context.rootwellFresh();
+    for (let i = 0; i < 4; i++) await new Promise((r) => setTimeout(r, 0));
+    const dialog = created[1];
+    const passkeyButton = dialog.children[0].children[2].children[1];
+    assert.equal(passkeyButton.hidden, !has, has ? "offered with a passkey" : "hidden without one");
+    if (!has) continue;
+    await passkeyButton.fire("click");
+    assert.equal(await waiting, true);
+    assert.deepEqual(sent.at(-1), { url: "/api/passkey", body: { id: "AQID", client_data: "BA", authenticator_data: "BQY", signature: "Cg" } });
+  }
+}
+
 console.log("sign-in, setup, account and fresh-code pages behave as expected");

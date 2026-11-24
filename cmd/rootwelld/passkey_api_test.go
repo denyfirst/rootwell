@@ -185,6 +185,9 @@ func TestPasskeysSignInAndStandInForAFreshCode(t *testing.T) {
 	if w := call(g, "POST", "/api/passkey", asJSON(forged), ready); w.Code != http.StatusUnauthorized {
 		t.Fatalf("a forged signature: %d", w.Code)
 	}
+	if f := g.failures["name:"+testName]; f == nil || f.count < 1 {
+		t.Fatal("a refused passkey did not count as a failure")
+	}
 	// Each challenge takes one answer in its own session: the genuine answer
 	// after the forged one finds it spent.
 	if w := call(g, "POST", "/api/passkey", asJSON(genuine), ready); w.Code != http.StatusConflict {

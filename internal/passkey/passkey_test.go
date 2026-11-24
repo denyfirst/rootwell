@@ -252,6 +252,7 @@ func TestOnlyTheThreeAlgorithmsAreAccepted(t *testing.T) {
 		"ES256 on P-384":  {{1, 2}, {3, AlgES256}, {-1, 2}, ec[3], ec[4]},
 		"RSA 1024":        {{1, 3}, {3, AlgRS256}, {-1, small.N.Bytes()}, {-2, []byte{1, 0, 1}}},
 		"RSA even e":      {{1, 3}, {3, AlgRS256}, {-1, bytes.Repeat([]byte{0xff}, 256)}, {-2, []byte{2}}},
+		"RSA over 8192":   {{1, 3}, {3, AlgRS256}, {-1, bytes.Repeat([]byte{0xff}, 1025)}, {-2, []byte{1, 0, 1}}},
 		"unknown kind":    {{1, 9}, {3, AlgES256}},
 	} {
 		data := authData(rpID, flagUserPresent|flagUserVerified|flagAttested, 0, a.attested(key))
