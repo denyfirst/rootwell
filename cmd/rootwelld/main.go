@@ -27,7 +27,7 @@ import (
 
 const localHost = "localhost:4180"
 
-const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> [--listen <address>]... | rootwelld serving-names <private-data-dir> <instance-key-file> [name]... | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file>"
+const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> [--listen <address>]... | rootwelld serving-names <private-data-dir> <instance-key-file> [name]... | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file> | rootwelld key-export <private-data-dir> <instance-key-file> | rootwelld key-rotate <private-data-dir> <instance-key-file> | rootwelld restore <backup-file> <empty-private-data-dir> <instance-key-file>"
 
 var errLinuxOnly = errors.New("rootwelld keeps keys only on Linux; run it there, or in its container")
 

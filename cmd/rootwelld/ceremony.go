@@ -17,7 +17,7 @@ func isOfflineCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "key-restore", "setup-code", "serving-names":
+	case "key-restore", "setup-code", "serving-names", "key-export", "key-rotate", "restore":
 		return true
 	default:
 		return false
@@ -28,7 +28,14 @@ func isOfflineCommand(args []string) bool {
 // run only at an interactive terminal, so nothing lands in a pipe or a log.
 // serving-names prints only a public fingerprint, and may run from a script.
 func handlesSecrets(args []string) bool {
-	return len(args) > 0 && (args[0] == "key-restore" || args[0] == "setup-code")
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "key-restore", "setup-code", "key-export", "key-rotate", "restore":
+		return true
+	}
+	return false
 }
 
 // readTerminalSecret never accepts a recovery code through argv, environment,
