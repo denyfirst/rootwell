@@ -95,6 +95,7 @@ func rotateKey(args []string, read secretReader, out io.Writer) error {
 		return errors.New("the new key file could not be written beside the old one; nothing was changed")
 	}
 	if err := v.Rotate(next); err != nil {
+		// #nosec G703 -- pending is derived from a local operator CLI path.
 		_ = os.Remove(pending)
 		return errors.New("the vault could not move to the new key; nothing was changed")
 	}
@@ -108,7 +109,7 @@ func rotateKey(args []string, read secretReader, out io.Writer) error {
 }
 
 func syncDir(dir string) {
-	// #nosec G304 -- dir is a local operator CLI path.
+	// #nosec G304 G703 -- dir is a local operator CLI path.
 	if d, err := os.Open(dir); err == nil {
 		_ = d.Sync()
 		_ = d.Close()
@@ -155,13 +156,19 @@ func restoreBackup(args []string, read secretReader, out io.Writer) error {
 		writeKey = true
 	}
 	defer clear(key)
-	if err := copyBackup(backup, dir); err != nil {
+	// The data directory is pinned: nothing written below can leave it.
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return errors.New("the data directory could not be opened")
+	}
+	defer root.Close()
+	if err := copyBackup(backup, root); err != nil {
 		return err
 	}
-	target := filepath.Join(dir, "rootwell.db")
+	syncDir(dir)
 	v, err := vault.Open(dir, key)
 	if err != nil {
-		_ = os.Remove(target)
+		_ = root.Remove("rootwell.db")
 		return errors.New("that backup does not open with this key; nothing was kept. A backup opens with the key the vault had when it was made")
 	}
 	if err := v.Close(); err != nil {
@@ -176,18 +183,17 @@ func restoreBackup(args []string, read secretReader, out io.Writer) error {
 	return err
 }
 
-// copyBackup copies the backup file into dir as the vault file, through a
-// temporary name, synced before it takes its place.
-func copyBackup(backup, dir string) error {
-	// #nosec G304 -- backup is a local operator CLI path.
+// copyBackup copies the backup file into the data directory as the vault
+// file, through a temporary name, synced before it takes its place.
+func copyBackup(backup string, root *os.Root) error {
+	// #nosec G304 G703 -- backup is a local operator CLI path.
 	in, err := os.Open(backup)
 	if err != nil {
 		return errors.New("the backup file could not be read")
 	}
 	defer in.Close()
-	part := filepath.Join(dir, "rootwell.db.part")
-	// #nosec G304 -- part is inside the operator's data directory.
-	f, err := os.OpenFile(part, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	const part = "rootwell.db.part"
+	f, err := root.OpenFile(part, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return errors.New("the restored vault could not be written")
 	}
@@ -195,13 +201,12 @@ func copyBackup(backup, dir string) error {
 	syncErr := f.Sync()
 	closeErr := f.Close()
 	if copyErr != nil || syncErr != nil || closeErr != nil || n == 0 || n > maxBackup {
-		_ = os.Remove(part)
+		_ = root.Remove(part)
 		return errors.New("the backup could not be copied: it is empty, too large, or unreadable")
 	}
-	if err := os.Rename(part, filepath.Join(dir, "rootwell.db")); err != nil {
-		_ = os.Remove(part)
+	if err := root.Rename(part, "rootwell.db"); err != nil {
+		_ = root.Remove(part)
 		return errors.New("the restored vault could not take its place")
 	}
-	syncDir(dir)
 	return nil
 }
