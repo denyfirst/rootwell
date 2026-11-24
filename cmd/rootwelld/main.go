@@ -27,7 +27,7 @@ import (
 
 const localHost = "localhost:4180"
 
-const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> [--listen <address>]... | rootwelld serving-names <private-data-dir> <instance-key-file> [name]... | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file>"
+const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> [--listen <address>]... | rootwelld serving-names <private-data-dir> <instance-key-file> [name]... | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file> | rootwelld key-export <private-data-dir> <instance-key-file> | rootwelld key-rotate <private-data-dir> <instance-key-file> | rootwelld restore <backup-file> <empty-private-data-dir> <instance-key-file>"
 
 var errLinuxOnly = errors.New("rootwelld keeps keys only on Linux; run it there, or in its container")
 
@@ -131,6 +131,11 @@ func initialize(dir, keyFile string, input io.Reader, output io.Writer) error {
 	// #nosec G703 -- keyFile is a local operator CLI path, never an HTTP input.
 	if _, err := os.Lstat(keyFile); !os.IsNotExist(err) {
 		return errors.New("an instance key file already exists there; Rootwell never replaces one")
+	}
+	// Checked before the recovery code is shown: a code is never shown for a
+	// key that then cannot be kept.
+	if vault.KeyDirectoryReady(keyFile) != nil {
+		return errors.New("the key file's directory must be a private (0700) directory of this user; nothing was created")
 	}
 	// #nosec G703 -- the path is derived from the local operator CLI path.
 	if _, err := os.Lstat(filepath.Join(dir, "rootwell.db")); !os.IsNotExist(err) {

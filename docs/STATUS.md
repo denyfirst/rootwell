@@ -7,16 +7,17 @@ only test material. The plan is
 
 Phase 3a of the plan is done: the vault and the instance key, the
 Certificates page on them, accounts with phone codes and short sessions, and
-HTTPS with Rootwell's own certificate authority. Passkeys followed. Next comes
-Phase 3b (online backup and restore, instance key rotation and export), then
-an independent review.
+HTTPS with Rootwell's own certificate authority. Passkeys followed, then
+Phase 3b: backups from the new Installation page, and restore, instance key
+rotation and key export on the server. Next comes an independent review, then
+Phase 3c, renewal.
 
 ## What exists
 
 **Pages**
-- Six pages in the menu, in the graphite design, light and dark:
-  Certificates (the home page), Website check, Inspect, Convert, Request and
-  Account. Sign-in and setup wear the same design.
+- Seven pages in the menu, in the graphite design, light and dark:
+  Certificates (the home page), Website check, Inspect, Convert, Request,
+  Account and Installation. Sign-in and setup wear the same design.
 - No demo files, demo links or sample websites ship with the pages; the tests
   generate their own material.
 
@@ -82,6 +83,25 @@ an independent review.
   `rootwelld serving-names` adds LAN or VPN names and makes a new authority
   for them; `serve --listen <address>` then answers on such an address too.
 
+**Installation and backups (Linux only)**
+- The Installation page shows the names Rootwell answers to on port 4180,
+  its authority's fingerprint with a link to `/rootwell-ca.pem`, when the
+  server certificate ends, and how many certificates are saved.
+- It downloads a backup while Rootwell runs, after a code from the phone, or
+  a passkey, in the last ten minutes: a consistent copy of the whole vault,
+  all sealed, up to 64 MiB. It never holds the instance key, and opens only
+  with the key the vault had when it was made. A larger vault is copied on
+  the server with the service stopped.
+- With the service stopped, on the server:
+  - `rootwelld restore` puts a backup into an empty data directory, with the
+    key file or, if it is lost, its recovery code;
+  - `rootwelld key-rotate` moves the vault to a new instance key and shows
+    the new recovery code. Backups made before still open with the old key
+    only;
+  - `rootwelld key-export` shows the key's recovery code again.
+- How-to: [`RECOVERY.md`](RECOVERY.md) and
+  [`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md).
+
 **Access and recovery**
 - One account, kept in the vault. `rootwelld init` prints a setup code; the
   setup page takes it with a name and a password, adds an authenticator app
@@ -103,9 +123,6 @@ an independent review.
   a lost phone and recovery codes, and removes the account's passkeys.
   `rootwelld key-restore` rebuilds a lost instance key file from its recovery
   code.
-- Backups are, for now, a copy of the data directory made with the service
-  stopped; the key file never goes with it
-  ([`RECOVERY.md`](RECOVERY.md)).
 - A Docker Compose development profile
   ([`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md)).
 
@@ -121,6 +138,14 @@ an independent review.
   Edge's virtual authenticator: a passkey added on Account, a sign-in with
   the password and the passkey, and the passkey removed with that sign-in as
   the fresh code; 71 checks passed.
+- Backups were tested on the same Linux test machine. A backup downloaded
+  from the Installation page in a real browser was restored through the
+  maintenance container into an empty data directory; the browser test then
+  signed in and found the four certificates, their places, owner and saved
+  key. Then `key-rotate`, confirmed with `SAVED` in a real terminal, moved
+  the vault to a new key, `key-export` printed exactly the new code, and the
+  browser test signed in and found everything again. Ten deliberate
+  breakages of the code were each caught by their own test.
 - Signed commits only, checked against the base branch's signer list.
 - Thirteen CI checks:
   - Linux race tests;
@@ -138,8 +163,6 @@ an independent review.
 - Renewal of any kind.
 - Delivery to servers.
 - More than one account.
-- Online backup and restore, from the web or with the service running, and
-  instance key rotation.
 - An install script and releases.
 
 Each one has a phase in the plan.

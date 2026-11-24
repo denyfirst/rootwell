@@ -8,7 +8,7 @@ the `rootwell` command.
 
 ## The pages
 
-The menu has six pages. `/` leads to Certificates.
+The menu has seven pages. `/` leads to Certificates.
 
 | Page | Route | Files | What it does |
 |---|---|---|---|
@@ -18,6 +18,7 @@ The menu has six pages. `/` leads to Certificates.
 | Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
 | Request | `/request` | `request.html`, `request.js` | Makes a CSR with a new key or an existing one |
 | Account | `/account` | `account.html`, `auth.js`, `qr.js` and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, adds and removes passkeys, and says how to get back in from the server |
+| Installation | `/installation` | `installation.html`, `auth.js` (its installation mode) and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Shows the names Rootwell answers to on port 4180, its certificate authority's fingerprint with a link to `/rootwell-ca.pem`, when the server certificate ends and how many certificates are saved; downloads a backup; says what `restore`, `key-rotate` and `key-export` do on the server |
 
 Every change on Certificates names the list's change count the page last
 read, and the server refuses an out-of-date one. After a save, the page takes
@@ -56,13 +57,13 @@ The hidden Renewals page and its older stylesheet were removed on
 - `fresh.js` — the dialog that asks for a code from the phone when Rootwell
   answers 428; it sends the code to `/api/fresh`. When the browser can use
   passkeys, its **Use a passkey** button answers instead, through
-  `/api/passkey/options` and `/api/passkey`. Certificates and Account load
-  it.
+  `/api/passkey/options` and `/api/passkey`. Certificates, Account and
+  Installation load it.
 - `passkey.js`, from `cmd/rootwelld/auth` — turns Rootwell's passkey options
   into the browser's WebAuthn request, always asking the device to verify
   the person, and returns the answer as the fields the server reads. It
-  asks for no attestation and keeps nothing. Sign-in, Certificates and
-  Account load it.
+  asks for no attestation and keeps nothing. Sign-in, Certificates, Account
+  and Installation load it.
 - `wasm-loader.js` — fetches `rootwell.wasm` from this server, without
   credentials or redirects, and hands the engine to the page.
 - `private-worker-client.js` and `private-key-worker.js`,
@@ -82,12 +83,18 @@ The hidden Renewals page and its older stylesheet were removed on
   again for the transfer, never the PFX itself or its password.
 - No page asks for the Rootwell password again; only changing it on Account
   takes the current one. Downloading a key, deleting a certificate that has
-  one, changing the password, the phone or the recovery codes, and adding or
-  removing a passkey need a code from the phone, a recovery code or a
-  passkey in the last ten minutes. Without one the server answers 428 and
-  does nothing; the page calls `rootwellFresh()` from `fresh.js`, which asks
-  for the code in a dialog, and sends the same request once more. Cancel
-  leaves everything as it was.
+  one, changing the password, the phone or the recovery codes, adding or
+  removing a passkey, and downloading a backup need a code from the phone, a
+  recovery code or a passkey in the last ten minutes. Without one the server
+  answers 428 and does nothing; the page calls `rootwellFresh()` from
+  `fresh.js`, which asks for the code in a dialog, and sends the same request
+  once more. Cancel leaves everything as it was.
+- Installation reads `/api/installation`, which changes nothing, and asks for
+  a backup with a POST to `/api/backup`. The backup is a file, not JSON:
+  `auth.js` fetches it and hands it to the browser as a download, under the
+  name the server gives. It is the whole vault, sealed, without the instance
+  key. A vault over 64 MiB gets 507, and the page says to copy it on the
+  server with Rootwell stopped.
 - A passkey works only on the name the page was opened on, such as
   `localhost` or a LAN name, never on an IP address; there the pages say so
   and the server refuses.
@@ -152,9 +159,10 @@ node scripts/test-session.mjs
 node scripts/test-rootwelld-auth.mjs
 ```
 
-`test-rootwelld-auth.mjs` drives the sign-in, setup and Account pages and the
-fresh-code dialog, including a passkey at sign-in and one added and removed
-on Account.
+`test-rootwelld-auth.mjs` drives the sign-in, setup, Account and
+Installation pages and the fresh-code dialog, including a passkey at sign-in,
+one added and removed on Account, and a backup that asks for a fresh code
+once and arrives as a download.
 
 `internal/uicontract` checks the design tokens, contrast, the shared rail,
 one stylesheet (`rootwell.css`) for every page and the capability boundaries

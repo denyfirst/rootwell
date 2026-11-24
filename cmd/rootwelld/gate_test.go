@@ -641,7 +641,7 @@ func TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork(t *testing.T) {
 	g, ready, e := readyGate(t)
 	codeStage := e.passwordStep(t, testPassword)
 	shared := map[string]bool{"/rootwell.css": true, "/theme.js": true, "/favicon.svg": true}
-	private := []string{"/", "/account", "/website-check", "/website-check.js", "/certificate-pfx.js", "/certificate-pfx-worker.js"}
+	private := []string{"/", "/account", "/installation", "/website-check", "/website-check.js", "/certificate-pfx.js", "/certificate-pfx-worker.js"}
 	for path := range workbenchFiles {
 		if !shared[path] {
 			private = append(private, path)

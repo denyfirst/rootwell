@@ -9,7 +9,7 @@ import (
 )
 
 func TestOfflineCommandClassificationAndNoSecretArgv(t *testing.T) {
-	for _, command := range []string{"key-restore", "setup-code", "serving-names"} {
+	for _, command := range []string{"key-restore", "setup-code", "serving-names", "key-export", "key-rotate", "restore"} {
 		if !isOfflineCommand([]string{command}) {
 			t.Fatalf("offline command %q was not classified", command)
 		}
@@ -21,7 +21,7 @@ func TestOfflineCommandClassificationAndNoSecretArgv(t *testing.T) {
 			t.Fatalf("%q classified as an offline command", command)
 		}
 	}
-	for command, secret := range map[string]bool{"key-restore": true, "setup-code": true, "serving-names": false} {
+	for command, secret := range map[string]bool{"key-restore": true, "setup-code": true, "key-export": true, "key-rotate": true, "restore": true, "serving-names": false} {
 		if handlesSecrets([]string{command}) != secret {
 			t.Fatalf("%q handles secrets: %v", command, !secret)
 		}

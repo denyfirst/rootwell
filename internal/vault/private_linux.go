@@ -4,6 +4,7 @@ package vault
 
 import (
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -33,14 +34,24 @@ func privateDirectory(path, file string) error {
 	return nil
 }
 
-// privateKeyFile accepts only a 0600 regular file of the service's user, in a
-// private directory.
-func privateKeyFile(path string) error {
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || !ownedByService(info) {
-		return ErrRefused
+// openKeyFile opens the key file without following a link, and checks what
+// was opened, not the name: a 0600 regular file of the service's user, in a
+// 0700 directory of the same user.
+func openKeyFile(path string) (*os.File, error) {
+	if privateDirectory(filepath.Dir(path), "") != nil {
+		return nil, ErrRefused
 	}
-	return nil
+	// #nosec G304 -- the path is the operator's own key file location, never request input.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, ErrRefused
+	}
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || !ownedByService(info) {
+		_ = f.Close()
+		return nil, ErrRefused
+	}
+	return f, nil
 }
 
 func ownedByService(info os.FileInfo) bool {

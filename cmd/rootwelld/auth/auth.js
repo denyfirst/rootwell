@@ -76,7 +76,7 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      setTimeout(() => URL.revokeObjectURL(link.href), 30000); // as ui.js: a slow download still finds its file (RW-17)
     };
     $("codes-step").hidden = false;
     return true;
@@ -337,6 +337,48 @@
       const answer = await sendFresh("/api/recovery-codes", {}).catch(() => null);
       if (answer && answer.status === 200 && showCodes(answer.value, name)) return left(10);
       say(answer && answer.status === 428 ? "Nothing changed. That needs a code from your phone." : failed);
+    });
+  }
+  // ── Installation ────────────────────────────────────────────────────────
+  if (mode === "installation") {
+    void send("/api/installation", undefined, "GET").then((answer) => {
+      if (!answer.ok || !answer.value) return say(failed);
+      const v = answer.value;
+      $("names").textContent = (Array.isArray(v.names) ? v.names : []).join(", ");
+      $("fingerprint").textContent = String(v.fingerprint || "");
+      $("serving").textContent = "The server certificate renews itself; this one lasts until " + String(v.serving_until || "").slice(0, 10) + ".";
+      $("contents").textContent = Number(v.certificates) === 1 ? "1 certificate is saved." : Number(v.certificates) + " certificates are saved.";
+    }).catch(() => say(failed));
+    // The backup is a file, not JSON: it is fetched and handed to the browser
+    // as a download, after a fresh code when Rootwell asks for one.
+    const fetchBackup = () => fetch("/api/backup", {
+      method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error",
+      headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" }, body: "{}",
+    });
+    $("backup-download").addEventListener("click", async () => {
+      const button = $("backup-download");
+      if (button.disabled) return;
+      button.disabled = true;
+      say("");
+      try {
+        let response = await fetchBackup();
+        if (response.status === 428 && globalThis.rootwellFresh && await globalThis.rootwellFresh()) response = await fetchBackup();
+        if (response.status === 428) return say("Nothing was downloaded. A backup needs a code from your phone.");
+        if (response.status !== 200) return say(response.status === 507 ? "This vault is too large to download here; copy it on the server with Rootwell stopped." : failed);
+        const name = (/filename="([^"]+)"/.exec(response.headers.get("content-disposition") || "") || [])[1] || "rootwell-backup.db";
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(await response.blob());
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 30000); // as ui.js: a slow download still finds its file (RW-17)
+        say("Downloaded " + name + ". Keep it apart from the instance key's recovery code.");
+      } catch {
+        say(failed);
+      } finally {
+        button.disabled = false;
+      }
     });
   }
 })();

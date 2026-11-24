@@ -8,6 +8,82 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C114 — A backup holds no key and opens only with the key it was made under; restore keeps only what opens; rotation leaves the old key nothing in the current vault (ADR 0088, RW-04)
+
+The Installation page downloads a backup with `POST /api/backup`, which
+needs a signed-in session, a fresh code (C111), the exact Origin and the
+custom header; GET, another site and a session without a fresh code get
+405, 403 and 428, and nothing is copied. The server copies the whole vault in
+one bbolt read transaction while Rootwell keeps running, so the copy is
+consistent, and writes it as a compacted file of the live records only:
+pages bbolt freed, such as a deleted key or a record sealed under an earlier
+key, never go out. One backup is made at a time, and it goes only to the
+session that asked, still signed in. It is sent as
+`rootwell-backup-<UTC time>.db` and holds every live record as the vault
+holds it, all sealed (C107): certificates, keys, accounts,
+passkeys and Rootwell's certificate authority. It holds no instance key and
+no plaintext, so it opens only with the key the vault had when it was made.
+A vault larger than 64 MiB gets 507 and is copied on the server with the
+service stopped. `GET /api/installation` gives a signed-in page the covered
+names, the authority's fingerprint, when the server certificate ends and how
+many certificates are saved, and changes nothing.
+
+`rootwelld restore <backup-file> <data-dir> <key-file>` writes only into an
+empty data directory, made `0700` if it is missing, so it never replaces an
+installation. It copies the backup to a temporary file there, syncs it, and
+renames it into place; it keeps the vault only if it opens with the key, and
+otherwise removes it, so a refused restore leaves nothing. Without a key
+file, it reads the instance key's recovery code at the terminal, and writes
+the key file from it only after the restored vault opens with it.
+
+`rootwelld key-rotate <data-dir> <key-file>` checks the key's directory, then
+shows the new key's recovery code and changes nothing until the person types
+`SAVED`. It writes the new key beside the old one as `<key-file>.new`. Then,
+in one transaction, it seals every record again under a new data key wrapped
+by the new key, and seals the index and one-time-code keys in the meta record
+under it, so record IDs and the digests of setup and recovery codes stay as
+they were. bbolt keeps the pages it replaced until they are reused, and those
+held every record under the old key, so with the vault closed the command
+rewrites the file with its live records only. Last, it renames the new key
+file over the old one. Afterwards the vault refuses the old key, a damaged
+sealed key too, and nothing left in the file opens with the old key; a vault
+never rotated opens as before. If the transaction reports an error, the new
+key is kept when the vault opens with it, and removed only when it does not. A `.new`
+file left by an interrupted rotation is named and never overwritten: the next
+rotation refuses and says how to finish.
+`rootwelld key-export <data-dir> <key-file>` prints the recovery code of the
+key file only after the key opens the vault. `key-rotate` and `key-export`
+refuse while `rootwelld serve` holds the vault, and all three commands refuse
+a key file inside the data directory and need an interactive terminal (C44,
+C107).
+
+Rotation cannot reach copies made before it: such a backup still opens with
+the old key and its old recovery code only. The index and code keys are kept
+rather than made again, so the old key still derives them, and with the
+current file it can tell whether a certificate it already knows is kept
+there; it opens no record.
+
+
+The vault keeps records confidential, not fresh: someone who can write
+`rootwell.db` without the key can put an older sealed record back, such as an
+earlier password hash or a spent recovery code. The operating system keeps
+the file writable by the service user only (C107).
+
+Guarded by `TestRotationMovesEverySecretToTheNewKey`,
+`TestADamagedSealedIndexKeyIsRefused`,
+`TestABackupIsAWholeVaultThatOpensWithItsKey`,
+`TestNothingSealedBeforeARotationStaysInTheFileOrItsBackups`,
+`TestOneBackupAtATimeAndOnlyToTheSessionThatAsked`,
+`TestLinuxInitShowsNoCodeForAKeyDirectoryOthersCanRead`,
+`TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey`,
+`TestTheInstallationPageSaysHowBrowsersReachRootwell`,
+`TestLinuxKeyExportPrintsTheCodeOfTheKeyThatOpensTheVault`,
+`TestLinuxKeyRotationNeedsSAVEDAndLeavesOnlyTheNewKey`,
+`TestLinuxRestoreWritesABackupOnlyIntoAnEmptyDirectoryAndOnlyIfItOpens`,
+`TestOfflineCommandClassificationAndNoSecretArgv`,
+`TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork` and
+`scripts/test-rootwelld-auth.mjs`.
+
 ## C113 — A passkey stands in for the phone code only for this site's name, a verified person and a one-time challenge (ADR 0088)
 
 A passkey (WebAuthn) is an optional second factor beside the phone code. It
@@ -139,10 +215,12 @@ does nothing when asked to:
 - download a key, with its certificate or alone;
 - delete a certificate that has a saved key (audit RW-10);
 - change the password, move to a new phone, make new recovery codes, or add
-  or remove a passkey.
+  or remove a passkey;
+- download a backup of the whole vault from the Installation page (C114).
 
-The Certificates and Account pages then ask for a code in a dialog
-(`fresh.js`) and send the same request once more; Cancel changes nothing.
+The Certificates, Account and Installation pages then ask for a code in a
+dialog (`fresh.js`) and send the same request once more; Cancel changes
+nothing.
 Nothing else asks: a public download, notes, adding a key to a saved
 certificate and deleting a certificate without a key need only a signed-in
 session. No request asks for the account password again, except a password
@@ -152,6 +230,7 @@ end the session, and a recovery code used there is spent.
 
 Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 `TestPasskeysSignInAndStandInForAFreshCode`,
+`TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
 `TestCertificateRequestsRefuseAPasswordField`,
@@ -286,9 +365,9 @@ takes (RW-01).
 
 The instance key is 32 random bytes in a `0600` file of the service user, in
 a private `0700` directory outside the data directory; `init`, `serve`,
-`setup-code`, `key-restore` and `serving-names` refuse a key file inside it,
-so a copy of the data never carries its key. Another key cannot open the
-vault. `rootwelld
+`setup-code`, `key-restore`, `serving-names`, `key-export`, `key-rotate` and
+`restore` refuse a key file inside it, so a copy of the data never carries
+its key. Another key cannot open the vault. `rootwelld
 init` never replaces a key file or a vault. It shows the key's recovery code
 (`RW1-` and grouped base32 with a check) once, and makes the key file and the
 vault only after the person types `SAVED`; then it prints a setup code for the
@@ -304,7 +383,9 @@ Account passwords unlock no data; they only sign in (C108). The running
 service holds the instance key, so a compromised live host reveals the keys.
 Swapping in a whole older `rootwell.db` is not detected (RW-13). Losing both
 the key file and the recovery code loses every saved certificate and key.
-Online backup and key rotation come in Phase 3b.
+A backup is a sealed copy of the whole vault, without the instance key;
+`rootwelld restore` puts one back, `key-rotate` moves the vault to a new
+instance key, and `key-export` prints the key's recovery code again (C114).
 
 Guarded by `TestRecordsRoundTripWithRevisionsAndGenerations`,
 `TestAFailedUpdateKeepsNothing`, `TestAnotherKeyCannotOpenTheVault`,
@@ -874,22 +955,25 @@ or a lost phone together with the recovery codes, with
 ## C43 — Access snapshots prove both recovery paths and never overwrite
 
 Retired on 24 November 2026 with the access file (ADR 0088):
-`access-snapshot`, `access-verify` and `access-restore` are gone. Until online
-backup in Phase 3b, a backup is a copy of the data directory made with the
-service stopped (`docs/RECOVERY.md`).
+`access-snapshot`, `access-verify` and `access-restore` are gone. A backup
+now comes from the Installation page, and `rootwelld restore` puts it back
+(C114, `docs/RECOVERY.md`).
 
 ## C44 — Offline Linux ceremonies never take secrets from argv or a live daemon
 
-`rootwelld init`, `setup-code` and `key-restore` need an interactive local
-terminal for both input and output; without one they read and print nothing.
-`key-restore` reads the instance key's recovery code without echo, never from
-argv, the environment, a pipe or a file. Their argv holds only paths and, for
-`setup-code`, an account name, which is not secret. While `rootwelld serve`
-holds the vault, `setup-code` and `key-restore` cannot open it and change
-nothing. A setup code is printed to the terminal only after it is saved, and
-a failed display does not put the code in the error. Off Linux they refuse
-and make nothing. This is not protection against a compromised terminal, its
-scrollback, or a malicious process of the same user.
+`rootwelld init`, `setup-code`, `key-restore`, `key-export`, `key-rotate` and
+`restore` need an interactive local terminal for both input and output;
+without one they read and print nothing. `key-restore`, and `restore` when
+the key file is missing, read the instance key's recovery code without echo,
+never from argv, the environment, a pipe or a file; `key-export` and
+`key-rotate` print a recovery code there (C114). Their argv holds only paths
+and, for `setup-code`, an account name, which is not secret. While
+`rootwelld serve` holds the vault, `setup-code`, `key-restore`, `key-export`
+and `key-rotate` cannot open it and change nothing. A setup code is printed
+to the terminal only after it is saved, and a failed display does not put
+the code in the error. Off Linux they refuse and make nothing. This is not
+protection against a compromised terminal, its scrollback, or a malicious
+process of the same user.
 
 `serving-names` reads and prints no secret, only the new authority's public
 fingerprint, so it runs without a terminal too, as from a script. While
@@ -902,6 +986,9 @@ Guarded by `TestOfflineCommandClassificationAndNoSecretArgv`,
 `TestLinuxSetupCodeMakesTheFirstAccountOrReplacesItsSignIn`,
 `TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`,
 `TestLinuxServingNamesMakeANewAuthorityForThoseNames`,
+`TestLinuxKeyExportPrintsTheCodeOfTheKeyThatOpensTheVault`,
+`TestLinuxKeyRotationNeedsSAVEDAndLeavesOnlyTheNewKey`,
+`TestLinuxRestoreWritesABackupOnlyIntoAnEmptyDirectoryAndOnlyIfItOpens`,
 `TestNonLinuxInitCreatesNothing`, and
 `TestNonLinuxOfflineCeremonyFailsClosed`.
 
@@ -915,9 +1002,8 @@ checked when it is read (C107).
 
 Retired on 23 November 2026 with the old encrypted inventory image
 (ADR 0088): durable activation, full snapshots and their offline commands
-are gone. `rootwelld init` now creates the vault (C107). Until online
-backup arrives in Phase 3b, a backup is a copy of the data directory made
-with the service stopped (`docs/RECOVERY.md`).
+are gone. `rootwelld init` now creates the vault (C107). A backup is a
+sealed copy of the whole vault, made while the service runs (C114).
 
 ## C47 — Public inventory upload is explicit, authenticated, and non-verifying
 
@@ -950,8 +1036,10 @@ on loopback, and on a LAN address only when a `compose.override.yaml` adds
 `--listen` (C112). It mounts two private directories: the data directory at
 `/data`, and a separate key directory at `/key`, read-only, that holds the
 instance key file (C107). Offline maintenance runs `init`, `setup-code`,
-`key-restore` and `serving-names`. It has no network, and mounts `/key`
-read-write, for the two that write the key file, and the backup directory.
+`key-restore`, `serving-names`, `key-export`, `key-rotate` and `restore`. It
+has no network, and mounts `/key` read-write, for those that write the key
+file (`init`, `key-restore`, `key-rotate`, and `restore` without one), and the
+backup directory at `/backup`, which `restore` reads from (C114).
 No password, setup code, recovery code or key is
 configured through argv or environment. The maintenance service explicitly
 disables Docker logging with driver `none` and no options; TTY alone does not
@@ -969,8 +1057,8 @@ against it over TLS 1.3, checks that the server mounts only `/data` and
 `/key`, proves that a second opener is refused while the server holds the
 vault and that a data directory others can read is refused, and restarts. A seed made by this
 release's drill also writes a setup code beside the volume, and the drill
-checks that the server's log never holds it. A restore into a fresh
-volume returns with online backup in Phase 3b. The drill does not establish
+checks that the server's log never holds it. The drill does not restore a
+backup; `rootwelld restore` has its own tests (C114). It does not establish
 offsite durability, automatic backup, external anti-rollback, Windows support,
 or production readiness.
 
@@ -1050,8 +1138,9 @@ Guarded by `scripts/test-certificates.mjs`.
 The Certificates page has no bulk selection and no bulk export. Its only
 downloads are one saved certificate, its full chain, the certificate with its
 key, or the key alone, through the certificate API under C68's password rules.
-Until Phase 3b a backup is a copy of the data directory made on the host with
-the service stopped, never from the page. The development visual demo was
+A backup comes from the Installation page, not this one, after a fresh code:
+the whole vault, sealed, which opens only with the instance key and never
+holds it (C114). The development visual demo was
 retired on 22 November 2026 with the page rebuild.
 
 Guarded by `scripts/test-certificates.mjs`.

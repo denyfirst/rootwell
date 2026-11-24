@@ -61,13 +61,17 @@ func WriteKeyFile(path string, key []byte) error {
 	return syncDirectory(filepath.Dir(path))
 }
 
+// KeyDirectoryReady says whether a key file may be written at path: its
+// directory is a 0700 directory of the service's user. Commands check it
+// before they show a recovery code, so a code is never shown for a key that
+// then cannot be kept.
+func KeyDirectoryReady(path string) error {
+	return privateDirectory(filepath.Dir(path), "")
+}
+
 // ReadKeyFile reads exactly 32 bytes from a private regular file.
 func ReadKeyFile(path string) ([]byte, error) {
-	if privateKeyFile(path) != nil {
-		return nil, ErrRefused
-	}
-	// #nosec G304 -- the path is the operator's own key file location, never request input.
-	f, err := os.Open(path)
+	f, err := openKeyFile(path)
 	if err != nil {
 		return nil, ErrRefused
 	}

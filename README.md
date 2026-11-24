@@ -95,23 +95,23 @@ go run ./cmd/rootwelld serve "$HOME/rootwell-data" "$HOME/rootwell-key/instance.
    phone. A passkey added on the Account page can stand in for the code
    ([recovery](docs/RECOVERY.md#passkeys)).
 
-The menu has six pages: **Certificates** (the home page), **Website check**,
-**Inspect**, **Convert**, **Request** and **Account**. Inspect, Convert and
-Request work on files only inside the browser
-([the pages](web/workbench/README.md)).
+The menu has seven pages: **Certificates** (the home page), **Website
+check**, **Inspect**, **Convert**, **Request**, **Account** and
+**Installation**. Inspect, Convert and Request work on files only inside the
+browser ([the pages](web/workbench/README.md)).
 
 The service speaks only HTTPS, with TLS 1.3, on port 4180 of this host's
 loopback addresses. To reach it from another machine on the LAN or a VPN,
 add the name or address with `rootwelld serving-names`, and start `serve`
 with `--listen <address>`
 ([how](docs/RECOVERY.md#reach-rootwell-from-another-machine)). A lost phone
-or password, a lost key file and backups are covered in
-[recovery](docs/RECOVERY.md): until online backups arrive, a backup is a copy
-of the data directory made with the service stopped, and the key file never
-goes with it. A Docker profile is in
-[container recovery](docs/CONTAINER-RECOVERY.md). Passkeys are done. Next
-comes Phase 3b with backups from the web and key rotation, then an
-independent review; an install script follows later.
+or password, a lost key file, backups and a new instance key are covered in
+[recovery](docs/RECOVERY.md): a backup is downloaded from the Installation
+page while Rootwell runs, never carries the instance key, and is put back
+with `rootwelld restore`. A Docker profile is in
+[container recovery](docs/CONTAINER-RECOVERY.md). Phase 3b, with backups and
+key rotation, is done. Next comes an independent review, then Phase 3c,
+renewal; an install script follows later.
 
 ## Documents
 

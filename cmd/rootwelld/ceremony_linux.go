@@ -24,6 +24,12 @@ func runOfflineCommand(args []string, read secretReader, out io.Writer) error {
 		return printSetupCode(args, out)
 	case "serving-names":
 		return setServingNames(args, out)
+	case "key-export":
+		return exportKey(args, out)
+	case "key-rotate":
+		return rotateKey(args, read, out)
+	case "restore":
+		return restoreBackup(args, read, out)
 	default:
 		return errOfflineUsage
 	}

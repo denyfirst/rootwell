@@ -1,7 +1,7 @@
 # Certificate library custody — development boundary
 
-Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3, HTTPS and
-passkeys.
+Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3, HTTPS, passkeys
+and Phase 3b.
 Decisions: [ADR 0046](adr/0046-unified-certificate-library.md), ADR 0047,
 ADR 0048, ADR 0087 and [ADR 0088](adr/0088-keybash-foundation.md). Single
 operator, Linux daemon over HTTPS, on loopback and on any LAN or VPN address
@@ -74,8 +74,8 @@ session-bound ACME automation (ADR 0088). Renewal returns in Phase 3c.
 Certificate DER, optional matching private key, key-input password, the
 account's password, phone key and recovery codes, setup codes, session
 tokens, output password, the instance key file, its recovery code, the key of
-Rootwell's own certificate authority, copies of the data directory, and
-internal service notes are sensitive. Public key is
+Rootwell's own certificate authority, backups and copies of the data
+directory, and internal service notes are sensitive. Public key is
 part of the selected certificate, not a second standalone input. Notes declare
 intended usage; matching a key proves mathematical identity, not trust or
 deployment.
@@ -152,10 +152,20 @@ encryption or multi-user RBAC.
   result requires refresh. Browser downloads have no overwrite/permission claim.
 - Note changes leave the key record alone. Deleting a certificate that has a
   key needs a fresh code from the last ten minutes. Delete removes both
-  records in one transaction, not source files or copies of the data
-  directory. Until Phase
-  3b, a backup is a copy of the data directory made with the service stopped,
-  and the key file never goes with it (`RECOVERY.md`).
+  records in one transaction, not source files, backups or copies of the
+  data directory.
+- Backups (C114): the Installation page downloads a copy of the whole vault,
+  made in one read transaction while the service runs, after a fresh code;
+  up to 64 MiB, and a larger vault is copied on the server with the service
+  stopped. It holds every key and account sealed, and never the instance
+  key, so it opens only with the key the vault had when it was made.
+  `rootwelld restore` writes a backup only into an empty data directory and
+  keeps it only if it opens with the key file or its recovery code.
+  `rootwelld key-rotate` moves the vault to a new instance key in one
+  transaction, after its new recovery code is confirmed as saved; the vault
+  then refuses the old key. `key-export` prints the key's recovery code
+  again. All three need an interactive terminal, and `key-rotate` and
+  `key-export` refuse while the service holds the vault (`RECOVERY.md`).
 
 ## Closed staging requests — ADR 0063
 
@@ -173,11 +183,19 @@ session-bound ACME automation (ADR 0088).
 No reliable runtime/OS zeroization, external anti-rollback anchor,
 cryptographic erasure, CA signer custody, HSM isolation or production
 assurance is provided. The instance key file, or its recovery code,
-together with a copy of the data directory opens every record. A copy of the
-data directory keeps the keys it held, and an older `rootwell.db` swapped in
-whole is not detected. Losing both the key file and the recovery code loses
-every saved certificate and key. The account's password, its phone codes, its
-passkeys and the export password do not protect a compromised host. On
+together with a backup or a copy of the data directory opens every record it
+holds. A backup keeps the keys it held, even after they are deleted, and a
+key rotation cannot reach it: it still opens with the old key and its old
+code, so that code needs the same care for as long as such backups are kept.
+After a rotation the old key opens no record of the current vault, but it
+still derives the index and one-time-code keys the vault keeps, so with the
+current file it can tell whether a certificate it already knows is kept
+there. A backup downloaded from the page passes through the browser and
+lands where the browser saves files. An older `rootwell.db` swapped in
+whole, or an older backup restored, is not detected. Losing both the key
+file and the recovery code loses every saved certificate and key. The
+account's password, its phone codes, its passkeys and the export password do
+not protect a compromised host. On
 `localhost` the session cookie is shared with other local ports (C112).
 Obtain independent specialist review before
 real-user custody. Do not import production secrets into a development build.
@@ -187,7 +205,8 @@ vault and certstore sealing, atomicity, refusal and record-binding tests; Linux
 API check/save/key-later/download/delete/restart integration; the container
 volume drill; strict HTTP request tests; bounded stale/hidden/late/read-only UI
 tests, account, session, limit and fresh-code tests, HTTPS and serving
-authority tests, passkey tests with two fuzz targets, and actual public WASM
-tests. Invariants C68, C69, C107 and C108–C113 name them.
+authority tests, passkey tests with two fuzz targets, backup, restore,
+rotation and export tests, and actual public WASM tests. Invariants C68,
+C69, C107 and C108–C114 name them.
 Exact commands and deliberate sabotage outcomes are recorded in the PR and
 ADR. Green CI and self-review are not independent audit.
