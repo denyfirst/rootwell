@@ -113,12 +113,20 @@ volume_test() {
     "$fixture_image" -test.run '^TestContainerVolumeDrill$' -test.v
 }
 
+serves_https() {
+  # The authority is public; the sign-in page must then verify against it, for
+  # localhost, over TLS 1.3.
+  curl --ipv4 --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 --insecure \
+    https://localhost:4180/rootwell-ca.pem -o "$drill_root/recovery/rootwell-ca.pem"
+  curl --ipv4 --fail --silent --show-error --tlsv1.3 --cacert "$drill_root/recovery/rootwell-ca.pem" \
+    https://localhost:4180/login >/dev/null
+}
+
 volume_test seed "$seed_image"
 volume_test reopen
 
 docker compose -f compose.yaml -p rootwell-volume-ci up -d --no-build rootwell
-curl --ipv4 --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 \
-  http://localhost:4180/login >/dev/null
+serves_https
 container_id="$(docker compose -f compose.yaml -p rootwell-volume-ci ps -q rootwell)"
 mounts="$(docker inspect --format '{{range .Mounts}}{{println .Destination}}{{end}}' "$container_id" | grep -v '^$' | sort | paste -sd, -)"
 if [[ "$mounts" != "/data,/key" ]]; then
@@ -139,7 +147,6 @@ chmod 0700 "$drill_root/data"
 
 # A restart serves the same volume again.
 docker compose -f compose.yaml -p rootwell-volume-ci up -d --no-build --force-recreate rootwell
-curl --ipv4 --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 \
-  http://localhost:4180/login >/dev/null
+serves_https
 docker compose -f compose.yaml -p rootwell-volume-ci stop rootwell
 echo "Disposable container volume drill passed: seed, reopen, serve, busy, unsafe and restart."

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/pem"
 	"errors"
 	"net/http"
 	"os"
@@ -12,15 +13,21 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/accountstore"
 	"github.com/denyfirst/rootwell/internal/certstore"
+	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
 //go:embed auth/*
 var authAssets embed.FS
 
+// servePort is the one port Rootwell serves on, on every name.
+const servePort = "4180"
+
 type gate struct {
 	assets       *os.Root
-	host         string
+	hosts        map[string]bool
+	loopback     map[string]bool
+	authority    []byte
 	now          func() time.Time
 	derive       chan struct{}
 	mu           sync.Mutex
@@ -35,8 +42,9 @@ type gate struct {
 	websiteLast  time.Time
 }
 
-// newGate serves the pages for the accounts and certificates in v.
-func newGate(v *vault.Store, assetsDir, host string) (*gate, error) {
+// newGate serves the pages for the accounts and certificates in v, over HTTPS
+// to the names s was made for.
+func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, error) {
 	root, err := os.OpenRoot(assetsDir)
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
@@ -48,8 +56,14 @@ func newGate(v *vault.Store, assetsDir, host string) (*gate, error) {
 			return nil, errors.New("workbench assets are incomplete; build the browser engine first")
 		}
 	}
-	g := &gate{assets: root, host: host, now: time.Now, derive: make(chan struct{}, 1),
+	g := &gate{assets: root, hosts: map[string]bool{}, loopback: map[string]bool{}, now: time.Now, derive: make(chan struct{}, 1),
 		sessions: make(map[[32]byte]*session), failures: make(map[string]*failures)}
+	for host, loopback := range s.Names.Hosts(servePort) {
+		g.hosts[host], g.loopback[host] = true, loopback
+	}
+	if s.Authority != nil {
+		g.authority = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: s.Authority.Raw})
+	}
 	clock := func() time.Time { return g.now() }
 	g.accounts = accountstore.New(v, clock)
 	g.certificates = certstore.New(v)
@@ -76,9 +90,16 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/private-key-worker.js" || r.URL.Path == "/pfx-worker.js" || r.URL.Path == "/csr-worker.js" || r.URL.Path == "/certificate-pfx-worker.js" {
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'")
 	}
-	if r.Host != g.host || (r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodDelete) {
+	// HTTPS only, and only for the names this installation answers to: a
+	// rebound DNS name or another port reaches nothing (audit RW-02).
+	if r.TLS == nil || !g.hosts[r.Host] || (r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodDelete) {
 		http.Error(w, "request refused", http.StatusBadRequest)
 		return
+	}
+	if !g.loopback[r.Host] {
+		// Not on loopback names: HSTS there would force HTTPS on every other
+		// local port of this machine.
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 	}
 	if r.URL.RawQuery != "" {
 		http.Error(w, "query strings are not accepted", http.StatusBadRequest)
@@ -130,6 +151,11 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/qr.js":
 		g.authAsset(w, r, "auth/qr.js", "text/javascript; charset=utf-8")
+		return
+	case "/rootwell-ca.pem":
+		// The local authority's certificate, public: a browser trusts it once,
+		// after comparing its fingerprint with the one rootwelld printed.
+		g.authorityFile(w, r)
 		return
 	}
 	_, s, ok := g.currentSession(r, true)
@@ -209,8 +235,25 @@ func (g *gate) stillReady(r *http.Request, s session) bool {
 }
 
 func (g *gate) sameOrigin(r *http.Request) bool {
-	return r.Header.Get("Origin") == "http://"+g.host && r.Header.Get("X-Rootwell-Request") == "1" &&
+	return r.Header.Get("Origin") == "https://"+r.Host && r.Header.Get("X-Rootwell-Request") == "1" &&
 		r.Header.Get("Sec-Fetch-Site") != "cross-site"
+}
+
+func (g *gate) authorityFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w)
+		return
+	}
+	if len(g.authority) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", `attachment; filename="rootwell-ca.pem"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(g.authority)))
+	if r.Method == http.MethodGet {
+		_, _ = w.Write(g.authority)
+	}
 }
 
 func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentType string) {

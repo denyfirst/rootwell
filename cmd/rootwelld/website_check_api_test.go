@@ -64,11 +64,11 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 		cookie               *http.Cookie
 		header               bool
 	}{
-		{"POST", websiteConsent, "http://" + localHost, nil, true},
-		{"GET", websiteConsent, "http://" + localHost, cookie, true},
+		{"POST", websiteConsent, "https://" + localHost, nil, true},
+		{"GET", websiteConsent, "https://" + localHost, cookie, true},
 		{"POST", websiteConsent, "http://evil.invalid", cookie, true},
-		{"POST", websiteConsent, "http://" + localHost, cookie, false},
-		{"POST", `{"target":"website.example.org","confirm":false}`, "http://" + localHost, cookie, true},
+		{"POST", websiteConsent, "https://" + localHost, cookie, false},
+		{"POST", `{"target":"website.example.org","confirm":false}`, "https://" + localHost, cookie, true},
 	} {
 		w := apiCall(g, bad.method, "/api/website-check", bad.body, bad.cookie, bad.origin, bad.header)
 		if w.Code < 400 || calls != 0 {
@@ -83,23 +83,23 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 			t.Fatalf("ready asset missing %s: %d", route, w.Code)
 		}
 	}
-	w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
+	w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "https://"+localHost, true)
 	if w.Code != 200 || calls != 1 || w.Header().Get("Cache-Control") != "no-store" || !strings.Contains(w.Body.String(), `"state":"failed"`) {
 		t.Fatal("diagnostic failure not preserved")
 	}
-	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "https://"+localHost, true); w.Code != 429 || calls != 1 {
 		t.Fatal("repeat not bounded")
 	}
 	e.clock.add(31 * time.Second)
 	g.websiteBusy = true
-	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "https://"+localHost, true); w.Code != 429 || calls != 1 {
 		t.Fatal("concurrent check accepted")
 	}
 	g.websiteBusy = false
 	g.websiteCheck = func(context.Context, string, func() bool) (websitechain.Report, error) {
 		return websitechain.Report{}, errors.New("private-sentinel")
 	}
-	w = apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
+	w = apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "https://"+localHost, true)
 	if w.Code != 502 || strings.Contains(w.Body.String(), "sentinel") {
 		t.Fatal("raw peer error reflected")
 	}
@@ -119,7 +119,7 @@ func TestWebsiteCodeStageAndLateSessionCannotPublish(t *testing.T) {
 		t.Fatal("a code-stage session authorized network")
 		return websitechain.Report{}, nil
 	}
-	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, codeStage, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, codeStage, "https://"+localHost, true); w.Code != http.StatusUnauthorized {
 		t.Fatalf("code stage accepted: %d", w.Code)
 	}
 	cookie := e.signIn(t)
@@ -133,7 +133,7 @@ func TestWebsiteCodeStageAndLateSessionCannotPublish(t *testing.T) {
 		}
 		return websitechain.Report{Schema: websitechain.Schema, Hostname: "must-not-publish"}, nil
 	}
-	w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true)
+	w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "https://"+localHost, true)
 	if w.Code != 401 || strings.Contains(w.Body.String(), "must-not-publish") {
 		t.Fatal("late result published")
 	}

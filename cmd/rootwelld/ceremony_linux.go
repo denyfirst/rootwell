@@ -4,10 +4,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/accountstore"
+	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
@@ -19,6 +22,8 @@ func runOfflineCommand(args []string, read secretReader, out io.Writer) error {
 		return restoreKeyFile(args, read, out)
 	case "setup-code":
 		return printSetupCode(args, out)
+	case "serving-names":
+		return setServingNames(args, out)
 	default:
 		return errOfflineUsage
 	}
@@ -98,4 +103,39 @@ func printSetupCode(args []string, out io.Writer) error {
 		return errors.New("the setup code could not be saved")
 	}
 	return showSetupCode(out, code, until, name)
+}
+
+// setServingNames makes a new certificate authority for the names Rootwell
+// answers to besides this host's loopback names: LAN or VPN DNS names and IP
+// addresses. The service must be stopped. Browsers that trusted the old
+// authority must trust the new one; its fingerprint is printed for that.
+func setServingNames(args []string, out io.Writer) error {
+	if len(args) < 3 {
+		return errOfflineUsage
+	}
+	dir, keyFile := args[1], args[2]
+	if err := keyOutsideData(dir, keyFile); err != nil {
+		return err
+	}
+	key, err := vault.ReadKeyFile(keyFile)
+	if err != nil {
+		return errors.New("the instance key file could not be read; it must be a private 0600 file of this user")
+	}
+	v, err := vault.Open(dir, key)
+	clear(key)
+	if err != nil {
+		return errors.New("the vault did not open with this key, or rootwelld is still running; stop it first")
+	}
+	defer v.Close()
+	s, err := servingstore.SetNames(v, args[3:], time.Now())
+	switch {
+	case errors.Is(err, servingstore.ErrRefused):
+		return errors.New("one of those is not a name Rootwell can serve: give DNS names or IP addresses, no wildcards, at most 16 in all")
+	case err != nil:
+		return errors.New("the new certificate authority could not be saved")
+	}
+	names := append([]string{"localhost", "127.0.0.1", "::1"}, s.Added...)
+	_, err = fmt.Fprintf(out, "Rootwell's new certificate authority covers %s. Its SHA-256 fingerprint:\n\n  %s\n\nBrowsers that trusted the old one must trust this one instead: once rootwelld runs again, download /rootwell-ca.pem and compare the fingerprint. To answer on a LAN address, start rootwelld with --listen <address>.\n",
+		strings.Join(names, ", "), s.Fingerprint())
+	return err
 }

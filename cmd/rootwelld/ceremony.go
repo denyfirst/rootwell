@@ -17,7 +17,7 @@ func isOfflineCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "key-restore", "setup-code":
+	case "key-restore", "setup-code", "serving-names":
 		return true
 	default:
 		return false

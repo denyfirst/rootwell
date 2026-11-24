@@ -14,6 +14,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/account"
 	"github.com/denyfirst/rootwell/internal/accountstore"
+	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
@@ -272,5 +273,50 @@ func TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne(t *testing.T) {
 		t.Fatalf("the restored key does not open the vault: %v", err)
 	} else {
 		_ = v.Close()
+	}
+}
+
+func TestLinuxServingNamesMakeANewAuthorityForThoseNames(t *testing.T) {
+	data, keyFile, _ := installed(t)
+	key, err := vault.ReadKeyFile(keyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := vault.Open(data, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, _, err := servingstore.Ensure(v, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// While rootwelld holds the vault, nothing changes.
+	var output bytes.Buffer
+	if err := runOfflineCommand([]string{"serving-names", data, keyFile, "rootwell.lan"}, ceremonySecrets(t), &output); err == nil || output.Len() != 0 {
+		t.Fatalf("serving-names ran beside a running rootwelld: %v %q", err, output.String())
+	}
+	if err := v.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range [][]string{{"*.lan"}, {"rootwell lan"}, {"0.0.0.0"}} {
+		output.Reset()
+		if err := runOfflineCommand(append([]string{"serving-names", data, keyFile}, bad...), ceremonySecrets(t), &output); err == nil || output.Len() != 0 {
+			t.Fatalf("serving-names %q: %v %q", bad, err, output.String())
+		}
+	}
+	output.Reset()
+	if err := runOfflineCommand([]string{"serving-names", data, keyFile, "rootwell.lan", "192.0.2.10"}, ceremonySecrets(t), &output); err != nil {
+		t.Fatal(err)
+	}
+	if v, err = vault.Open(data, key); err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	now, _, err := servingstore.Ensure(v, time.Now())
+	if err != nil || now.Fingerprint() == first.Fingerprint() || strings.Join(now.Added, ",") != "rootwell.lan,192.0.2.10" {
+		t.Fatalf("after serving-names: %v %v", now.Added, err)
+	}
+	if !strings.Contains(output.String(), now.Fingerprint()) || !strings.Contains(output.String(), "localhost, 127.0.0.1, ::1, rootwell.lan, 192.0.2.10") {
+		t.Fatalf("serving-names said: %q", output.String())
 	}
 }

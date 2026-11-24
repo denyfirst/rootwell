@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/account"
+	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
@@ -51,6 +52,7 @@ type testEnv struct {
 	dir      string
 	key      []byte
 	assets   string
+	serving  servingstore.Serving
 	clock    *testClock
 	seed     string
 	recovery []string
@@ -73,7 +75,11 @@ func newTestEnv(t *testing.T) *testEnv {
 	if e.v, err = vault.Create(e.dir, e.key); err != nil {
 		t.Fatal(err)
 	}
-	if e.g, err = newGate(e.v, e.assets, localHost); err != nil {
+	// The names a person would add for the LAN, besides this host's own.
+	if e.serving, err = servingstore.SetNames(e.v, []string{"rootwell.lan", "192.0.2.10"}, e.clock.now()); err != nil {
+		t.Fatal(err)
+	}
+	if e.g, err = newGate(e.v, e.assets, e.serving); err != nil {
 		t.Fatal(err)
 	}
 	e.g.now = e.clock.now
@@ -96,7 +102,7 @@ func (e *testEnv) reopen(t *testing.T) {
 	if e.v, err = vault.Open(e.dir, e.key); err != nil {
 		t.Fatal(err)
 	}
-	if e.g, err = newGate(e.v, e.assets, localHost); err != nil {
+	if e.g, err = newGate(e.v, e.assets, e.serving); err != nil {
 		t.Fatal(err)
 	}
 	e.g.now = e.clock.now
@@ -193,12 +199,12 @@ func testWorkbenchAssets(t *testing.T) string {
 }
 
 func call(g *gate, method, route, body string, cookie *http.Cookie) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(method, "http://"+localHost+route, strings.NewReader(body))
+	r := httptest.NewRequest(method, "https://"+localHost+route, strings.NewReader(body))
 	if body != "" {
 		r.Header.Set("Content-Type", "application/json")
 	}
 	if method == http.MethodPost || method == http.MethodDelete {
-		r.Header.Set("Origin", "http://"+localHost)
+		r.Header.Set("Origin", "https://"+localHost)
 		r.Header.Set("X-Rootwell-Request", "1")
 	}
 	if cookie != nil {
@@ -212,7 +218,7 @@ func call(g *gate, method, route, body string, cookie *http.Cookie) *httptest.Re
 // apiCall sends a request with an explicit Origin and, when header is set, the
 // page's X-Rootwell-Request header.
 func apiCall(g *gate, method, route, body string, cookie *http.Cookie, origin string, header bool) *httptest.ResponseRecorder {
-	r := httptest.NewRequest(method, "http://"+localHost+route, strings.NewReader(body))
+	r := httptest.NewRequest(method, "https://"+localHost+route, strings.NewReader(body))
 	if body != "" {
 		r.Header.Set("Content-Type", "application/json")
 	}
@@ -412,10 +418,10 @@ func TestSessionsEndWhenIdleOrOldAndAStatusCheckIsNotUse(t *testing.T) {
 }
 
 func signInFrom(g *gate, source, name, password string) *httptest.ResponseRecorder {
-	r := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader(`{"name":"`+name+`","password":"`+password+`"}`))
+	r := httptest.NewRequest("POST", "https://"+localHost+"/api/session", strings.NewReader(`{"name":"`+name+`","password":"`+password+`"}`))
 	r.RemoteAddr = source
 	r.Header.Set("Content-Type", "application/json")
-	r.Header.Set("Origin", "http://"+localHost)
+	r.Header.Set("Origin", "https://"+localHost)
 	r.Header.Set("X-Rootwell-Request", "1")
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
@@ -597,7 +603,7 @@ func TestTheSessionCookieIsHostOnlySecureAndStrict(t *testing.T) {
 	// cannot pick a session.
 	planted := &http.Cookie{Name: cookieName, Value: strings.Repeat("A", 43)}
 	for _, pair := range [][2]*http.Cookie{{c, planted}, {planted, c}} {
-		r := httptest.NewRequest("GET", "http://"+localHost+"/certificates", nil)
+		r := httptest.NewRequest("GET", "https://"+localHost+"/certificates", nil)
 		r.AddCookie(pair[0])
 		r.AddCookie(pair[1])
 		w := httptest.NewRecorder()
@@ -674,7 +680,7 @@ func TestGateRejectsCrossOriginHostAndMalformedRequests(t *testing.T) {
 			t.Fatalf("a malformed request: %d", w.Code)
 		}
 	}
-	r := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader(`{"name":"ada","password":"`+testPassword+`"}`))
+	r := httptest.NewRequest("POST", "https://"+localHost+"/api/session", strings.NewReader(`{"name":"ada","password":"`+testPassword+`"}`))
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Origin", "http://attacker.invalid")
 	r.Header.Set("X-Rootwell-Request", "1")
@@ -683,7 +689,7 @@ func TestGateRejectsCrossOriginHostAndMalformedRequests(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("cross-origin sign-in: %d", w.Code)
 	}
-	r.Header.Set("Origin", "http://"+localHost)
+	r.Header.Set("Origin", "https://"+localHost)
 	r.Host = "attacker.invalid"
 	w = httptest.NewRecorder()
 	g.ServeHTTP(w, r)
@@ -710,9 +716,9 @@ func TestGateRejectsCrossOriginHostAndMalformedRequests(t *testing.T) {
 	if w := call(g, "GET", "/login?password=secret", "", nil); w.Code != http.StatusBadRequest {
 		t.Fatalf("a password-bearing query: %d", w.Code)
 	}
-	form := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader("name=ada&password="+testPassword))
+	form := httptest.NewRequest("POST", "https://"+localHost+"/api/session", strings.NewReader("name=ada&password="+testPassword))
 	form.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	form.Header.Set("Origin", "http://"+localHost)
+	form.Header.Set("Origin", "https://"+localHost)
 	form.Header.Set("X-Rootwell-Request", "1")
 	w = httptest.NewRecorder()
 	g.ServeHTTP(w, form)
@@ -742,7 +748,7 @@ func TestGatewayRefusesIncompleteBrowserAssets(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(assets, "certificates.html"), []byte("partial"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if g, err := newGate(nil, assets, localHost); err == nil {
+	if g, err := newGate(nil, assets, servingstore.Serving{}); err == nil {
 		_ = g.Close()
 		t.Fatal("gateway started with missing browser engine")
 	}

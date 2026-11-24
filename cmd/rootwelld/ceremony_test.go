@@ -9,7 +9,7 @@ import (
 )
 
 func TestOfflineCommandClassificationAndNoSecretArgv(t *testing.T) {
-	for _, command := range []string{"key-restore", "setup-code"} {
+	for _, command := range []string{"key-restore", "setup-code", "serving-names"} {
 		if !isOfflineCommand([]string{command}) {
 			t.Fatalf("offline command %q was not classified", command)
 		}

@@ -212,3 +212,16 @@ func hexByte(b byte) string {
 	const digits = "0123456789abcdef"
 	return string([]byte{digits[b>>4], digits[b&0x0f]})
 }
+
+// Hosts lists each name as a browser writes it in the Host header, with port,
+// and says whether it is a loopback name.
+func (n Names) Hosts(port string) map[string]bool {
+	hosts := make(map[string]bool, len(n.DNS)+len(n.IPs))
+	for _, name := range n.DNS {
+		hosts[net.JoinHostPort(name, port)] = name == "localhost"
+	}
+	for _, ip := range n.IPs {
+		hosts[net.JoinHostPort(ip.String(), port)] = ip.IsLoopback()
+	}
+	return hosts
+}
