@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +57,10 @@ type storeMeta struct {
 	Instance   string `json:"instance"`
 	Check      []byte `json:"check"`
 	Generation uint64 `json:"generation"`
+	// After a key rotation, the index and code keys are kept sealed under
+	// the new wrap key, so record IDs and code digests stay as they were.
+	Index []byte `json:"index,omitempty"`
+	Codes []byte `json:"codes,omitempty"`
 }
 
 type sealedRecord struct {
@@ -91,6 +97,7 @@ func open(dir string, key []byte, create bool) (*Store, error) {
 		return nil, ErrRefused
 	}
 	s := &Store{root: root}
+	var stored storeMeta
 	ok := false
 	defer func() {
 		if !ok {
@@ -140,12 +147,15 @@ func open(dir string, key []byte, create bool) (*Store, error) {
 		s.instance = hex.EncodeToString(id[:])
 	} else if err := s.db.View(func(tx *bolt.Tx) error {
 		m, err := readMeta(tx)
-		s.instance = m.Instance
+		s.instance, stored = m.Instance, m
 		return err
 	}); err != nil {
 		return nil, ErrRefused
 	}
 	if err := s.deriveKeys(key); err != nil {
+		return nil, ErrRefused
+	}
+	if err := s.adoptSealedKeys(stored); err != nil {
 		return nil, ErrRefused
 	}
 	check := s.check()
@@ -431,4 +441,130 @@ func (t *Tx) IDs(kind string) ([]string, error) {
 		return nil
 	})
 	return ids, err
+}
+
+func (s *Store) metaAAD(name string) []byte {
+	return []byte("rootwell/vault/v1/" + s.instance + "/meta/" + name)
+}
+
+// adoptSealedKeys takes the index and code keys from a vault that has had
+// its instance key rotated: they are sealed in the meta record under the
+// current wrap key. A vault never rotated derives them from its key.
+func (s *Store) adoptSealedKeys(m storeMeta) error {
+	if len(m.Index) == 0 && len(m.Codes) == 0 {
+		return nil
+	}
+	index, err := s.wrap.Open(nil, nil, m.Index, s.metaAAD("index"))
+	if err != nil || len(index) != 32 {
+		return ErrRefused
+	}
+	codes, err := s.wrap.Open(nil, nil, m.Codes, s.metaAAD("codes"))
+	if err != nil || len(codes) != 32 {
+		clear(index)
+		return ErrRefused
+	}
+	clear(s.indexKey)
+	clear(s.codeKey)
+	s.indexKey, s.codeKey = index, codes
+	return nil
+}
+
+// Rotate moves the vault to a new instance key in one transaction: every
+// record's data key is wrapped again under the new key, and the index and
+// code keys are sealed under it, so records keep their IDs and one-time codes
+// their digests. After it commits, the old key opens nothing in this file; a
+// copy made before still opens with the old key only (audit RW-04).
+func (s *Store) Rotate(newKey []byte) error {
+	if len(newKey) != KeySize {
+		return ErrRefused
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrRefused
+	}
+	salt, err := hex.DecodeString(s.instance)
+	if err != nil {
+		return ErrRefused
+	}
+	wrapKey, err := hkdf.Key(sha256.New, newKey, salt, "rootwell/vault/v1/wrap", 32)
+	if err != nil {
+		return ErrRefused
+	}
+	defer clear(wrapKey)
+	next, err := randomGCM(wrapKey)
+	if err != nil {
+		return ErrRefused
+	}
+	err = s.db.Update(func(tx *bolt.Tx) error {
+		m, err := readMeta(tx)
+		if err != nil {
+			return err
+		}
+		err = tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+			kind, ok := strings.CutPrefix(string(name), "records/")
+			if !ok {
+				return nil
+			}
+			type entry struct{ id, value []byte }
+			var entries []entry
+			if err := b.ForEach(func(k, v []byte) error {
+				entries = append(entries, entry{bytes.Clone(k), bytes.Clone(v)})
+				return nil
+			}); err != nil {
+				return err
+			}
+			for _, e := range entries {
+				var r sealedRecord
+				if strictDecode(e.value, &r, maxSealed) != nil || r.Version != sealVersion || r.Revision == 0 {
+					return ErrRefused
+				}
+				aad := append([]byte("wrap/"), fmt.Appendf(nil, "rootwell/vault/v1/%s/%s/%s/%d", s.instance, kind, e.id, r.Revision)...)
+				dataKey, err := s.wrap.Open(nil, nil, r.Key, aad)
+				if err != nil {
+					return ErrRefused
+				}
+				r.Key = next.Seal(nil, nil, dataKey, aad) // #nosec G407 -- random-nonce GCM API, never a fixed IV.
+				clear(dataKey)
+				encoded, err := json.Marshal(r)
+				if err != nil {
+					return ErrRefused
+				}
+				if err := b.Put(e.id, encoded); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		m.Index = next.Seal(nil, nil, s.indexKey, s.metaAAD("index")) // #nosec G407 -- random-nonce GCM API, never a fixed IV.
+		m.Codes = next.Seal(nil, nil, s.codeKey, s.metaAAD("codes"))  // #nosec G407 -- random-nonce GCM API, never a fixed IV.
+		m.Generation++
+		return putMeta(tx.Bucket(metaBucket), m)
+	})
+	if err != nil {
+		return ErrRefused
+	}
+	s.wrap = next
+	return nil
+}
+
+// Backup writes a consistent copy of the whole vault to w, in one read
+// transaction, while the service keeps running. The copy holds no instance
+// key: it opens only with the key the vault had when it was made.
+func (s *Store) Backup(w io.Writer) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return 0, ErrRefused
+	}
+	var n int64
+	err := s.db.View(func(tx *bolt.Tx) error {
+		var err error
+		n, err = tx.WriteTo(w)
+		return err
+	})
+	return n, err
 }
