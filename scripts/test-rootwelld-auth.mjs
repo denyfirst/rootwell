@@ -90,7 +90,7 @@ function noSecrets(page) {
 {
   let codeAnswer = empty(401);
   const page = load("login", (url, method) => {
-    if (url === "/api/session" && method === "GET") return empty(401);
+    if (url === "/api/session" && method === "GET") return json(200, { stage: "none" });
     if (url === "/api/session" && method === "POST") return empty(204);
     if (url === "/api/session/code") return codeAnswer;
     if (url === "/api/session" && method === "DELETE") return empty(204);

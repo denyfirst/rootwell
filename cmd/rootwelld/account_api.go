@@ -105,9 +105,11 @@ func (in codeInput) value() string { return strings.TrimSpace(in.Code) }
 func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		// No session is an answer, not a failure: the sign-in page asks on
+		// every visit, and a refusal would read as an error in the browser.
 		_, s, ok := g.currentSession(r, false)
 		if !ok {
-			http.Error(w, "sign in first", http.StatusUnauthorized)
+			writeJSON(w, http.StatusOK, map[string]any{"stage": "none"})
 			return
 		}
 		out := map[string]any{"stage": map[stage]string{stageSetup: "setup", stageCode: "code", stageReady: "ready"}[s.stage]}

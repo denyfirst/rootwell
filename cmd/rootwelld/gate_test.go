@@ -244,12 +244,16 @@ func sessionCookie(t *testing.T, w *httptest.ResponseRecorder) *http.Cookie {
 func status(t *testing.T, g *gate, c *http.Cookie) map[string]any {
 	t.Helper()
 	w := call(g, "GET", "/api/session", "", c)
-	if w.Code != http.StatusOK {
-		return nil
-	}
 	var out map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
-		t.Fatal(err)
+	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &out) != nil {
+		t.Fatalf("session status: %d %s", w.Code, w.Body)
+	}
+	// No session is an answer, never an error the browser would log.
+	if out["stage"] == "none" {
+		if len(out) != 1 {
+			t.Fatalf("no session says more: %v", out)
+		}
+		return nil
 	}
 	return out
 }
