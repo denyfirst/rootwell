@@ -1,6 +1,6 @@
 "use strict";
 
-// Showing or downloading a key, deleting a certificate that has one, and
+// Downloading a key, deleting a certificate that has one, and
 // changing how the account signs in need a code from the phone entered in the
 // last ten minutes. When Rootwell asks for one (it answers 428), a page calls
 // rootwellFresh(): it asks for the code in a dialog and sends it. It resolves

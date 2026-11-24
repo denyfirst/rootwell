@@ -216,7 +216,7 @@ func serve(dir, keyFile, assetsDir string) error {
 	}
 	fmt.Fprintln(os.Stdout, "Rootwell is available at http://localhost:4180 (this host only)")
 	if exists, err := gate.accounts.Exists(); err == nil && !exists {
-		fmt.Fprintln(os.Stdout, "No account yet: open http://localhost:4180/setup and enter the setup code from rootwelld init.")
+		fmt.Fprintln(os.Stdout, "No account yet: open http://localhost:4180/setup with the setup code from rootwelld init, or a new one from rootwelld setup-code.")
 	}
 	served := make(chan error, len(listeners))
 	for _, listener := range listeners {

@@ -631,6 +631,40 @@ func TestTheSessionTableIsBoundedWithoutEndingOtherAccounts(t *testing.T) {
 	}
 }
 
+func TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork(t *testing.T) {
+	g, ready, e := readyGate(t)
+	codeStage := e.passwordStep(t, testPassword)
+	shared := map[string]bool{"/rootwell.css": true, "/theme.js": true, "/favicon.svg": true}
+	private := []string{"/", "/account", "/website-check", "/website-check.js", "/certificate-pfx.js", "/certificate-pfx-worker.js"}
+	for path := range workbenchFiles {
+		if !shared[path] {
+			private = append(private, path)
+		}
+	}
+	for _, path := range private {
+		for _, c := range []*http.Cookie{nil, codeStage} {
+			if w := call(g, "GET", path, "", c); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
+				t.Fatalf("%s before sign-in: %d %q", path, w.Code, w.Header().Get("Location"))
+			}
+		}
+		if w := call(g, "GET", path, "", ready); w.Code != http.StatusOK && !(path == "/" && w.Code == http.StatusSeeOther) {
+			t.Fatalf("%s signed in: %d", path, w.Code)
+		}
+	}
+	for _, public := range []string{"/login", "/setup", "/auth.js", "/qr.js", "/rootwell.css", "/theme.js", "/favicon.svg", "/schibsted-grotesk.woff2"} {
+		if got := page(g, public, nil); got != http.StatusOK {
+			t.Fatalf("%s is not public: %d", public, got)
+		}
+	}
+	// The workers open keys and passwords: they may reach nothing.
+	for _, worker := range []string{"/private-key-worker.js", "/pfx-worker.js", "/csr-worker.js", "/certificate-pfx-worker.js"} {
+		csp := call(g, "GET", worker, "", ready).Header().Get("Content-Security-Policy")
+		if !strings.Contains(csp, "connect-src 'none'") || !strings.Contains(csp, "worker-src 'none'") || strings.Contains(csp, "connect-src 'self'") {
+			t.Fatalf("%s policy: %q", worker, csp)
+		}
+	}
+}
+
 func TestGateRejectsCrossOriginHostAndMalformedRequests(t *testing.T) {
 	e := newTestEnv(t).withAccount(t)
 	g := e.g
