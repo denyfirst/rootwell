@@ -29,8 +29,6 @@ jobs:
             package: ./cmd/rootwelld
           - target: FuzzRun
             package: ./internal/cli
-          - target: FuzzACMEPlanRequestJSON
-            package: ./cmd/rootwelld
           - target: FuzzHumanCertificateOutput
             package: ./internal/cli
           - target: FuzzJSONCertificateOutput
@@ -101,36 +99,16 @@ jobs:
             package: ./internal/acmestaging
           - target: FuzzFixedACMEProfileURLs
             package: ./internal/acmeprofile
-          - target: FuzzTimingWatchInput
-            package: ./cmd/rootwelld
-          - target: FuzzRenewalJobInput
-            package: ./cmd/rootwelld
-          - target: FuzzHistoryArchiveInput
-            package: ./cmd/rootwelld
-          - target: FuzzRenewalTimingRequest
-            package: ./cmd/rootwelld
           - target: FuzzCloudflareRecordResponse
             package: ./internal/acmestaging
           - target: FuzzVersionValue
             package: ./internal/version
           - target: FuzzStagingDirectory
             package: ./internal/acmestaging
-          - target: FuzzDirectoryConsent
-            package: ./cmd/rootwelld
-          - target: FuzzStagingAccountRequest
-            package: ./cmd/rootwelld
-          - target: FuzzDNSOperationRequest
-            package: ./cmd/rootwelld
-          - target: FuzzCloudflareConfigurationRequest
-            package: ./cmd/rootwelld
           - target: FuzzStagingRegistrationResponse
             package: ./internal/acmestaging
-          - target: FuzzStagingRegistrationRequest
-            package: ./cmd/rootwelld
           - target: FuzzManualDNSCAResponse
             package: ./internal/acmestaging
-          - target: FuzzManualDNSRequest
-            package: ./cmd/rootwelld
           - target: FuzzCertificateRequestBinding
             package: ./internal/acmecertrequest
           - target: FuzzStagingCertificateReceipt
