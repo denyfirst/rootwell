@@ -1,5 +1,13 @@
 # Instance access foundation threat model
 
+> **Superseded on 24 November 2026 (ADR 0088, Phase 3a part 3).** The access
+> file, its password, its recovery wrap, its snapshots and every command below
+> are gone, with `internal/instanceaccess`. People sign in with accounts kept
+> in the vault: a password, then a phone code or a recovery code. See
+> [ADR 0088](adr/0088-keybash-foundation.md), invariants C108–C111 in
+> `SECURITY-INVARIANTS.md`, and `CERTIFICATE-CUSTODY-THREAT-MODEL.md`. This
+> file is kept as history.
+
 > **Partly superseded on 23 November 2026 (ADR 0088, Phase 3a part 2).** The
 > password still signs in, but its wrapped data key no longer protects any
 > certificate: those live in the vault, opened by the instance key kept outside

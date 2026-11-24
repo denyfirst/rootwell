@@ -1,13 +1,13 @@
 # Rootwell — current status
 
-23 November 2026. Rootwell is in development and has not been released: use
+24 November 2026. Rootwell is in development and has not been released: use
 only test material. The plan is
 [`PRODUCT-PLAN.md`](PRODUCT-PLAN.md); the review behind it is
 [`AUDIT-2026-11-22.md`](AUDIT-2026-11-22.md).
 
-The plan is in Phase 3a. Its first two parts are done: the vault and the
-instance key, with the Certificates page moved onto them. Accounts with TOTP,
-sessions and HTTPS are next.
+The plan is in Phase 3a. Its three parts are done but for HTTPS: the vault and
+the instance key, the Certificates page on them, and accounts with phone
+codes and short sessions. HTTPS is next, then Phase 3b.
 
 ## What exists
 
@@ -39,8 +39,8 @@ sessions and HTTPS are next.
   `rootwell.db` in the data directory. Each record is sealed under its own
   key, and record names do not show the domains.
 - An **instance key**, in its own file outside the data directory, opens the
-  vault. `rootwelld init` shows its recovery code once. The sign-in password
-  only signs in; it unlocks no data.
+  vault. `rootwelld init` shows its recovery code once. The account's
+  password only signs in; it unlocks no data.
 - A private key is opened only for a download; listing never opens one.
 - The list holds up to 500 certificates, with no limit on how often it
   changes.
@@ -50,9 +50,11 @@ sessions and HTTPS are next.
   - note where it is used and who is responsible;
   - see how long each one has left;
   - download the certificate, the full chain, or the certificate and key;
-  - download the key locked with a password, after the sign-in password.
-- On Windows the pages open as a preview: no key file or vault is made, and
-  saving is turned off.
+  - download the key locked with a password.
+- Downloading a key, or deleting a certificate that has one, needs a code
+  from the phone entered in the last ten minutes; the page asks for it when
+  needed.
+- `rootwelld` runs only on Linux, in practice in its container.
 
 **Website check (Linux only)**
 - Connects once to a public HTTPS site and explains its chain: missing or
@@ -66,20 +68,30 @@ sessions and HTTPS are next.
   that stay.
 
 **Access and recovery**
-- One account: password sign-in on `http://localhost:4180`, loopback only.
-- `rootwelld key-restore` rebuilds a lost instance key file from its recovery
-  code.
+- One account, kept in the vault. `rootwelld init` prints a setup code; the
+  setup page takes it with a name and a password, adds an authenticator app
+  on the phone, and shows ten recovery codes once.
+- Sign-in on `http://localhost:4180`, loopback only: the name and password,
+  then a six-digit code from the phone or a recovery code.
+- Sessions live in memory: they end after 15 minutes without use, after
+  8 hours at most, and when the service restarts.
+- Only wrong tries count, per account name and per address, with a wait that
+  grows from one minute to fifteen.
+- The Account page changes the password, moves to a new phone and makes new
+  recovery codes.
+- `rootwelld setup-code` with the account's name replaces a lost password, or
+  a lost phone and recovery codes. `rootwelld key-restore` rebuilds a lost
+  instance key file from its recovery code.
 - Backups are, for now, a copy of the data directory made with the service
   stopped; the key file never goes with it
   ([`RECOVERY.md`](RECOVERY.md)).
-- Terminal commands for the sign-in password alone: a password recovery code
-  and access-only snapshots.
 - A Docker Compose development profile
   ([`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md)).
 
 **Engineering**
-- Every page was tested end to end on a fresh Linux machine installed from
-  [`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md), in a real browser.
+- Every page, setup and sign-in included, was tested end to end in a real
+  browser on a Linux machine installed fresh from
+  [`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md), on 24 November 2026.
 - Signed commits only, checked against the base branch's signer list.
 - Thirteen CI checks:
   - Linux race tests;
@@ -94,7 +106,7 @@ sessions and HTTPS are next.
 - A certificate a browser trusts.
 - Renewal of any kind.
 - Delivery to servers.
-- HTTPS, MFA, more than one account, or remote access without an SSH tunnel.
+- HTTPS, more than one account, or remote access without an SSH tunnel.
 - Online backup and restore, from the web or with the service running, and
   instance key rotation.
 - An install script and releases.

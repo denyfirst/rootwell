@@ -68,43 +68,40 @@ The contracts for these commands:
 
 ## Run the web service for development
 
-`init` and `serve` take a data directory and an instance key file, which must
-sit outside the data directory. The certificate store needs Linux. On Windows
-the same commands open the pages as a preview: no key file or vault is made,
-and saving is turned off.
+`rootwelld` runs on Linux, or in its container. `init` and `serve` take a
+data directory and an instance key file, which must sit outside the data
+directory.
 
-```powershell
-$dataDir = Join-Path $env:LOCALAPPDATA "Rootwell\data"
-$keyFile = Join-Path $env:LOCALAPPDATA "Rootwell-key\instance.key"
-$env:GOOS = "js"; $env:GOARCH = "wasm"
-go build -trimpath -o web/workbench/rootwell.wasm ./cmd/rootwell-browser
-Remove-Item Env:GOOS, Env:GOARCH
-Copy-Item -Force (Join-Path (go env GOROOT) "lib/wasm/wasm_exec.js") web/workbench/wasm_exec.js
-go run ./cmd/rootwelld init $dataDir $keyFile
-go run ./cmd/rootwelld serve $dataDir $keyFile web/workbench
+```sh
+GOOS=js GOARCH=wasm go build -trimpath -o web/workbench/rootwell.wasm ./cmd/rootwell-browser
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/workbench/wasm_exec.js
+install -d -m 0700 "$HOME/rootwell-key"
+go run ./cmd/rootwelld init "$HOME/rootwell-data" "$HOME/rootwell-key/instance.key"
+go run ./cmd/rootwelld serve "$HOME/rootwell-data" "$HOME/rootwell-key/instance.key" web/workbench
 ```
 
-On Linux, make the key file's directory first with
-`install -d -m 0700 <key-dir>`.
-
-1. `init` shows a one-time setup password and, on Linux, the recovery code of
-   the instance key. Type `SAVED` once you have kept both. Keep the code away
-   from the host and from backups: losing both the key file and the code loses
-   every saved certificate and key.
-2. Open `http://localhost:4180` on the same machine.
-3. Sign in with the setup password, then change it.
+1. `init` shows the instance key's recovery code. Type `SAVED` once you have
+   kept it. Keep the code away from the host and from backups: losing both the
+   key file and the code loses every saved certificate and key. `init` then
+   prints a setup code, which works once, for 24 hours.
+2. Open `http://localhost:4180/setup` on the same machine. Enter the setup
+   code, a name and a password, add Rootwell to an authenticator app on your
+   phone, and save the ten recovery codes.
+3. From then on, sign in with the name, the password and a code from the
+   phone.
 
 The menu has six pages: **Certificates** (the home page), **Website check**,
 **Inspect**, **Convert**, **Request** and **Account**. Inspect, Convert and
 Request work on files only inside the browser
 ([the pages](web/workbench/README.md)).
 
-The service listens on `127.0.0.1` only. Until online backups arrive, a backup
-is a copy of the data directory made with the service stopped; the key file
-never goes with it ([recovery](docs/RECOVERY.md)). A Docker profile is in
-[container recovery](docs/CONTAINER-RECOVERY.md).
-Phase 3 of the plan replaces all of this with HTTPS, accounts with MFA, an
-install script, and backups from the web.
+The service listens on this host's loopback addresses only, over plain HTTP
+until HTTPS arrives. A lost phone or password, a lost key file and backups are
+covered in [recovery](docs/RECOVERY.md): until online backups arrive, a backup
+is a copy of the data directory made with the service stopped, and the key
+file never goes with it. A Docker profile is in
+[container recovery](docs/CONTAINER-RECOVERY.md). HTTPS is next; Phase 3b then
+brings backups from the web, and an install script follows later.
 
 ## Documents
 
@@ -112,7 +109,6 @@ install script, and backups from the web.
 - [Security invariants](docs/SECURITY-INVARIANTS.md)
 - Threat models:
   - [the pages](docs/THREAT-MODEL.md)
-  - [instance access](docs/INSTANCE-ACCESS-THREAT-MODEL.md)
   - [custody](docs/CERTIFICATE-CUSTODY-THREAT-MODEL.md)
   - [ACME](docs/ACME-THREAT-MODEL.md)
   - [website check](docs/WEBSITE-CHECK-THREAT-MODEL.md)

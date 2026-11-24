@@ -17,14 +17,19 @@ The menu has six pages. `/` leads to Certificates.
 | Inspect | `/inspect` | `inspect.html`, `inspect.js` | Shows who a certificate is for, who issued it, how long it lasts, whether its chain is complete, and whether a private key belongs to it |
 | Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
 | Request | `/request` | `request.html`, `request.js` | Makes a CSR with a new key or an existing one |
-| Account | `/account` | `account.html`, `auth.js` in `cmd/rootwelld/auth` | Changes the password |
+| Account | `/account` | `account.html`, `auth.js` and `qr.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, and says how to get back in from the server |
 
 Sign-in (`/login`) and setup (`/setup`) also come from `cmd/rootwelld/auth`.
+Sign-in takes the name and password, then a code from the phone or a
+recovery code. Setup takes a setup code from the server, a name and a
+password, shows a QR code for an authenticator app, and then the ten recovery
+codes, once.
+
 Every page links `/rootwell.css`, loads `/theme.js` for the colour scheme and
 `/session.js` for Sign out, and carries no inline style or script. The
-stylesheet, `theme.js` and `favicon.svg` are served before sign-in so that
-the sign-in and setup pages look like the rest; everything else needs a
-signed-in session.
+stylesheet, `theme.js`, `favicon.svg`, the typeface and the sign-in scripts
+(`auth.js`, `qr.js`) are served before sign-in so that the sign-in and setup
+pages work and look like the rest; everything else needs a signed-in session.
 
 The hidden Renewals page and its older stylesheet were removed on
 23 November 2026; a new Renewals page comes with real renewal in Phase 3c.
@@ -38,6 +43,9 @@ The hidden Renewals page and its older stylesheet were removed on
   writer and a password maker.
 - `theme.js` — the colour scheme switch; it remembers only that choice.
 - `session.js` — Sign out; it talks only to `/api/session`.
+- `fresh.js` — the dialog that asks for a code from the phone when Rootwell
+  answers 428; it talks only to `/api/fresh`. Certificates and Account load
+  it.
 - `wasm-loader.js` — fetches `rootwell.wasm` from this server, without
   credentials or redirects, and hands the engine to the page.
 - `private-worker-client.js` and `private-key-worker.js`,
@@ -55,6 +63,13 @@ The hidden Renewals page and its older stylesheet were removed on
   `X-Rootwell-Request` header and same-origin credentials. A PFX is opened in
   its worker first; the server receives its certificate and the key encrypted
   again for the transfer, never the PFX itself or its password.
+- No page asks for the Rootwell password again; only changing it on Account
+  takes the current one. Downloading a key, deleting a certificate that has
+  one, and changing the password, the phone or the recovery codes need a code
+  from the phone entered in the last ten minutes. Without one the server
+  answers 428 and does nothing; the page calls `rootwellFresh()` from
+  `fresh.js`, which asks for the code in a dialog, and sends the same request
+  once more. Cancel leaves everything as it was.
 - Private keys, PFX files and requests are handled in a fresh worker for each
   operation, with a deadline, cancellation when the page moves on, and
   clearing of the bytes it was given. The server sends each worker script
@@ -112,7 +127,11 @@ node scripts/test-convert.mjs "$wasm" "$runtime"
 node scripts/test-request.mjs "$wasm" "$runtime"
 node scripts/test-website-check.mjs
 node scripts/test-session.mjs
+node scripts/test-rootwelld-auth.mjs
 ```
+
+`test-rootwelld-auth.mjs` drives the sign-in, setup and Account pages and the
+fresh-code dialog.
 
 `internal/uicontract` checks the design tokens, contrast, the shared rail,
 one stylesheet (`rootwell.css`) for every page and the capability boundaries

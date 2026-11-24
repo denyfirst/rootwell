@@ -2,19 +2,22 @@
 
 **Status:** development design.
 
-- Two things open an installation:
-  - the **instance key file**, which opens the certificate vault
-    (`rootwell.db`);
-  - the **sign-in password** in `access.json`, which only signs in. It
-    unlocks no data.
+- What opens an installation:
+  - the **instance key file** opens the vault, `rootwell.db`, which holds the
+    certificates, their keys and the account. Its **recovery code** rebuilds
+    the key file;
+  - a person signs in with a **name and password**, then a **code from the
+    phone**. Each of ten **recovery codes** stands in for the phone once;
+  - a **setup code**, made on the server, sets up the account, or replaces a
+    lost password or phone.
 - Phase 3b of `PRODUCT-PLAN.md` adds backups and restores started from the
   Installation page, and key rotation. Until then, this page is the procedure.
-- On Windows these commands are deliberately disabled.
+- `rootwelld` runs only on Linux, or in its container.
 
-Passwords and recovery codes are never accepted as command arguments or
-environment variables. Every command asks for them on the local terminal. Keep
-them out of shell history, chat, tickets and logs, and protect the terminal's
-scrollback.
+Codes are never accepted as command arguments or environment variables:
+`key-restore` asks for the recovery code on the local terminal, and `init` and
+`setup-code` print their codes there. Keep codes out of shell history, chat,
+tickets and logs, and protect the terminal's scrollback.
 
 ## Setup
 
@@ -27,15 +30,13 @@ install -d -m 0700 /private/rootwell-key
 rootwelld init /private/rootwell-data /private/rootwell-key/instance.key
 ```
 
-`init` shows two things once:
+`init` shows two things:
 
-1. the **setup password**. Sign in with it, then change it;
-2. the **instance key's recovery code**: `RW1-` and groups of letters and
-   digits.
-
-Type `SAVED` once both are kept. Only then does `init` write the key file
-(`0600`), create the vault and create `access.json`. It never replaces an
-existing key file or installation.
+1. the **instance key's recovery code**: `RW1-` and groups of letters and
+   digits. Type `SAVED` once it is kept. Only then does `init` write the key
+   file (`0600`) and create the vault. It never replaces an existing key file
+   or installation.
+2. a **setup code** for the first account. It works once, for 24 hours.
 
 Keep the recovery code offline, apart from this host and from every backup. It
 is the key file's only backup. **Losing both the key file and the code loses
@@ -47,6 +48,60 @@ Then start the service:
 rootwelld serve /private/rootwell-data /private/rootwell-key/instance.key web/workbench
 ```
 
+Open `http://localhost:4180/setup` on the same host:
+
+1. Enter the setup code, a name, and a password of at least 15 characters,
+   twice.
+2. Scan the QR code with an authenticator app on your phone, or type the key
+   shown under it. Enter the six-digit code the app shows. Only now is the
+   account saved.
+3. Copy or download the ten recovery codes, and keep them apart from the
+   phone. They are shown only this once.
+
+You are then signed in. Each later sign-in takes the name, the password and a
+code from the phone.
+
+If the setup code runs out first, stop the service and make a new one:
+
+```text
+rootwelld setup-code /private/rootwell-data /private/rootwell-key/instance.key
+```
+
+## Lost phone
+
+Sign in with a recovery code in place of the phone code; each one works once.
+Then, on the **Account** page:
+
+- **Move to a new phone** adds Rootwell to the new phone. The old phone's
+  codes stop working.
+- **Make new codes** replaces the recovery codes, if few are left. The old
+  ones stop working.
+
+Either one signs out every other browser.
+
+## Lost password, or lost phone and recovery codes
+
+Make a setup code for the account, with the service stopped. Give the
+account's name; `ada` is an example:
+
+```text
+# stop rootwelld serve first
+rootwelld setup-code /private/rootwell-data /private/rootwell-key/instance.key ada
+```
+
+- Start the service, open `/setup`, and enter the code with the same name and
+  a new password. Then add the phone and save the new recovery codes, as at
+  the first setup.
+- This replaces the password, the phone and the recovery codes, and signs out
+  every other browser. Certificates are not touched.
+- The code works once, for 24 hours, and only for that name. A newer code
+  replaces it.
+- Without a name, `setup-code` makes a code for the first account; once an
+  account exists, it refuses.
+
+Anyone who can run `rootwelld` as the service user can do this. It is the way
+back from the server itself.
+
 ## Backup
 
 Online backup comes in Phase 3b. Until then, copy the data directory with the
@@ -57,8 +112,8 @@ service stopped:
 cp -a /private/rootwell-data /private/backup/rootwell-data-2026-11-24
 ```
 
-- The copy holds `rootwell.db` and `access.json`. Every certificate and key in
-  it is sealed; without the key file or the recovery code it opens nothing.
+- The copy holds `rootwell.db`: the certificates, their keys and the account,
+  all sealed. Without the key file or the recovery code it opens nothing.
 - **Never copy the key file to the backup location.** The recovery code, kept
   apart, is the key's backup.
 - Copy while the service runs and the copy may be incomplete: stop it first.
@@ -74,9 +129,8 @@ install -d -m 0700 /private/rootwell-data-restored
 cp -a /private/backup/rootwell-data-2026-11-24/. /private/rootwell-data-restored/
 ```
 
-- `rootwell.db` and `access.json` must stay `0600` and owned by the service
-  user; `cp -a` keeps that. The vault refuses a directory or file that others
-  can read.
+- `rootwell.db` must stay `0600` and owned by the service user; `cp -a` keeps
+  that. The vault refuses a directory or file that others can read.
 - If the key file still exists, start `serve` with the restored directory and
   the same key file.
 - If the key file is lost too, rebuild it, then start `serve`:
@@ -86,7 +140,9 @@ cp -a /private/backup/rootwell-data-2026-11-24/. /private/rootwell-data-restored
   rootwelld key-restore /private/rootwell-data-restored /private/rootwell-key/instance.key
   ```
 
-- Sign in with the password that was current when the copy was made.
+- The account comes back as it was when the copy was made: sign in with the
+  password and phone of that time. If those are lost, make a setup code with
+  the account's name.
 - An older copy brings back certificates deleted since; Rootwell does not
   detect that.
 
@@ -105,43 +161,7 @@ rootwelld key-restore /private/rootwell-data /private/rootwell-key/instance.key
   installation is refused.
 - It never replaces an existing key file. The key directory must be `0700`.
 
-## Sign-in password
-
-These commands work on `access.json` alone. They concern the sign-in password
-only; they do not protect or back up certificates. Stop the service first: a
-Linux operation lock refuses them while it runs.
-
-The **password recovery code** they use is a different code from the instance
-key's recovery code.
-
-1. Once the setup password has been changed, create it:
-
-   ```text
-   rootwelld recovery-enroll /private/rootwell-data
-   ```
-
-   Keep it offline, apart from the data and the backups. If you lose it but
-   still know the password, `recovery-rotate` makes a new one.
-2. If the password is lost, set a new one with the code:
-
-   ```text
-   rootwelld recovery-reset /private/rootwell-data
-   ```
-
-   This also prints a new code; the old one stops working.
-3. An access-only snapshot holds `access.json` alone, never certificates:
-
-   ```text
-   rootwelld access-snapshot /private/rootwell-data /private/backup/rootwell-access.rwab
-   rootwelld access-verify /private/backup/rootwell-access.rwab code
-   rootwelld access-restore /private/backup/rootwell-access.rwab /private/fresh-rootwell-data code
-   ```
-
-   - The snapshot needs both the password and the code, is written `0600`
-     and never replaces a file.
-   - `access-restore` writes only into a new, empty `0700` directory.
-
-After a failed or `uncertain` result, do not repeat a command blindly: first
-look at the directory.
+After a failed command, do not repeat it blindly: first look at the
+directory.
 
 The Docker procedure is in [`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md).

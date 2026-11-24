@@ -248,8 +248,21 @@ These follow Keybash:
    `rootwelld key-restore` rebuilds a lost key file from it. The sign-in
    password now only signs in. This closes audit findings RW-01, RW-11 and
    RW-12.
-3. **Part 3** is next: accounts with TOTP, sessions and HTTPS, and the end of
-   `access.json`.
+3. **Part 3** brought accounts, kept in the vault. `rootwelld init` prints a
+   setup code; the setup page makes the account with a name, a password and
+   an authenticator app on the phone, and shows ten recovery codes once.
+   Sign-in takes the password, then a phone code or a recovery code. Sessions
+   live in memory, end after 15 minutes idle and 8 hours at most, and only
+   wrong tries count against a name or an address. Downloading a key,
+   deleting a certificate with a key, and changing the password, the phone or
+   the recovery codes need a phone code from the last ten minutes; nothing
+   asks for the password again. `rootwelld setup-code` with an account's name
+   is the way back after losing the password, or the phone and the codes. The
+   access file, its password-only commands and `instanceaccess` are gone, and
+   `rootwelld` runs only on Linux. This closes audit findings RW-07, RW-09,
+   RW-10 and RW-14. This release has one account.
+4. **HTTPS** is next, in its own pull request; until then the service speaks
+   plain HTTP on loopback. Then Phase 3b.
 
 Part 2 also removed the old automation early: the hidden Renewals page, the
 session-bound ACME automation, the old encrypted store and its offline
@@ -286,10 +299,13 @@ the data directory made with the service stopped (`RECOVERY.md`).
   Phase 3c makes them general over fixed profiles.
 
 **Replaced in Phase 3:**
-- the password-derived unlock and its ceremonies (`instanceaccess`). Since
-  Phase 3a part 2 the password unlocks no data; the access file and its
-  password-only commands go in part 3;
-- the loopback HTTP session layer (`cmd/rootwelld/gate.go`).
+- the loopback HTTP transport, by HTTPS (the rest of Phase 3a).
+
+**Replaced on 24 November 2026**, in Phase 3a part 3:
+- the password-derived unlock and its ceremonies (`instanceaccess`), with the
+  access file and its password-only commands;
+- the old session layer of `cmd/rootwelld/gate.go`, by accounts and sessions
+  (`internal/accountstore`, `cmd/rootwelld/session.go`).
 
 **Removed on 23 November 2026**, in Phase 3a part 2:
 - the single-image store and its capacity reservations (`inventorystore`,
