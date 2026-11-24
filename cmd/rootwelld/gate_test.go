@@ -593,14 +593,18 @@ func TestTheSessionCookieIsHostOnlySecureAndStrict(t *testing.T) {
 	if c.Name != "__Host-rootwell_session" || !c.Secure || !c.HttpOnly || c.SameSite != http.SameSiteStrictMode || c.Path != "/" || c.Domain != "" || c.MaxAge != int(absoluteLife/time.Second) {
 		t.Fatalf("cookie: %+v", c)
 	}
-	// Two session cookies count as none, so a planted one cannot pick a session.
-	r := httptest.NewRequest("GET", "http://"+localHost+"/certificates", nil)
-	r.AddCookie(c)
-	r.AddCookie(&http.Cookie{Name: cookieName, Value: strings.Repeat("A", 43)})
-	w := httptest.NewRecorder()
-	g.ServeHTTP(w, r)
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("two cookies: %d", w.Code)
+	// Two session cookies count as none, in either order, so a planted one
+	// cannot pick a session.
+	planted := &http.Cookie{Name: cookieName, Value: strings.Repeat("A", 43)}
+	for _, pair := range [][2]*http.Cookie{{c, planted}, {planted, c}} {
+		r := httptest.NewRequest("GET", "http://"+localHost+"/certificates", nil)
+		r.AddCookie(pair[0])
+		r.AddCookie(pair[1])
+		w := httptest.NewRecorder()
+		g.ServeHTTP(w, r)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("two cookies: %d", w.Code)
+		}
 	}
 	// Sign-out ends only this session.
 	other := e.signIn(t)

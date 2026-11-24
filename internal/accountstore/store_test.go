@@ -207,6 +207,13 @@ func TestASetupCodeForAnAccountReplacesItsSignIn(t *testing.T) {
 	if err != nil || a.Revision != 2 || len(recovery) != 10 {
 		t.Fatalf("reset: %+v %v", a, err)
 	}
+	// A reset code works once: whoever saw it cannot replace the sign-in again.
+	if err := s.CheckSetup(setup, "ada"); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a spent reset code still works: %v", err)
+	}
+	if _, _, err := s.FinishSetup(setup, "ada", hash, seed, step(c.at)); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a spent reset code replaced the sign-in again: %v", err)
+	}
 	if _, err := s.CheckPassword("ada", firstPassword); !errors.Is(err, ErrRefused) {
 		t.Fatalf("the old password still works: %v", err)
 	}
