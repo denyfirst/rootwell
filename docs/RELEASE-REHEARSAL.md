@@ -10,6 +10,8 @@ The install and backup commands are in
 ## Evidence CI produces today
 
 - **Container volumes:**
+  - HTTPS whose sign-in page verifies against Rootwell's own authority, over
+    TLS 1.3;
   - a restart;
   - refusal of a busy writer;
   - offline maintenance with no network;
@@ -46,6 +48,7 @@ Cloudflare test, or an independent audit.
 
 | Page | Expected |
 |---|---|
+| HTTPS | The start prints the same authority fingerprint, and the browser shows no warning |
 | Sign-in and Account | The account's password and a phone code sign in; a key download asks for a fresh code; sign-out works |
 | Certificates | The same fingerprints, key status, bundles and notes |
 | Expiry | Dates computed from the server's current clock |
@@ -80,8 +83,9 @@ before acting again.
   [`THREAT-MODEL.md`](THREAT-MODEL.md);
 - [`SECURITY-INVARIANTS.md`](SECURITY-INVARIANTS.md);
 - the sabotage, refusal, fuzz, race, reproducible-build and restore results;
-- the known limits: one account, Linux loopback, sessions of at most
-  8 hours, and no rollback detection.
+- the known limits: one account, Linux only, HTTPS from Rootwell's own
+  certificate authority on loopback and named LAN addresses, sessions of at
+  most 8 hours, and no rollback detection.
 
 Never include secrets, real backups, tokens, passwords, codes or private keys.
 A release is not called audited while a material finding is open.

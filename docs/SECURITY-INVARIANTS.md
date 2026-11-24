@@ -8,6 +8,65 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C112 — Rootwell answers only over TLS 1.3, only to its covered names, and its authority signs only for them (ADR 0088)
+
+`rootwelld serve` speaks HTTPS only, with TLS 1.3 only. Go's defaults choose
+the key exchange, the hybrid post-quantum X25519MLKEM768 first. A TLS 1.2
+client is refused, and plain HTTP to the port gets nothing usable. The server
+listens on port 4180 of `127.0.0.1` and `[::1]` (C33), and on each
+`--listen <address>` as well. A `--listen` address must be an IP address the
+certificate covers: a loopback, unspecified (`0.0.0.0`, `::`) or multicast
+address, a name, or an address it does not cover refuses the start. Rootwell
+never listens on every address.
+
+The covered names are `localhost`, `127.0.0.1` and `::1`, always, and the
+names added with `rootwelld serving-names`: DNS names or IP addresses, no
+wildcards, at most 16 names in all. Every request must come over TLS and carry
+one of them with `:4180` as its Host; any other name, port or spelling gets
+400, so a rebound DNS name or another port reaches nothing (audit RW-02).
+Every change must carry an Origin of exactly `https://` and that same Host, so
+a page on one name cannot act on another. A name that is not loopback gets
+HSTS for a year, without subdomains; loopback names get none, because on
+`localhost` it would force HTTPS on every other local port of the machine.
+
+The first start makes Rootwell's own certificate authority in the vault, one
+sealed record with its key (C107): P-256, ten years, name-constrained to the
+covered names, path length zero, and for server certificates only, so its key
+cannot sign for any other name. It signs a 90-day P-256 server certificate for
+exactly those names. The running server checks every six hours and replaces
+that certificate 30 days before it ends, or when it no longer matches the
+names, without a restart; it writes to the vault only then.
+`/rootwell-ca.pem` gives the authority's certificate to anyone, and every
+start prints its SHA-256 fingerprint, so a person trusts it once, after
+comparing the two. `serving-names <data-dir> <key-file> [name]...` runs only
+with the service stopped and replaces the added names; with none it goes back
+to the loopback names. It always makes a new authority, since an authority's
+names are fixed, and prints the new fingerprint: browsers must trust the new
+one. A refused name changes nothing. It prints no secret, so it needs no
+terminal (C44).
+
+The authority is trusted only where a person trusted it, and publishes no
+revocation list. On `localhost`, browsers share cookies with every other local
+port, so another web server opened there may receive the session cookie; a
+name of Rootwell's own keeps it apart (RW-02).
+
+Guarded by `TestOnlyHTTPSToTheConfiguredNamesIsServed`,
+`TestTheServerSpeaksTLS13OnlyAndTheAuthorityVerifiesIt`,
+`TestListenTakesOnlyCoveredHostAddresses`,
+`TestListenLoopbackHoldsBothAddresses`,
+`TestLinuxServingNamesMakeANewAuthorityForThoseNames`,
+`TestOfflineCommandClassificationAndNoSecretArgv`,
+`TestTheFirstStartMakesAnAuthorityForThisHostOnly`,
+`TestTheServerCertificateIsReplacedAMonthBeforeItEnds`,
+`TestNewNamesMakeANewAuthority`,
+`TestTheAuthorityKeyIsSealedAndTheRecordReadStrictly`,
+`TestNamesAlwaysIncludeLoopbackAndRefuseBadInput`,
+`TestTheServerCertificateVerifiesForEveryNameAndNothingElse`,
+`TestTheAuthorityCannotSignForOtherNames`,
+`TestRenewalIsDueBeforeTheEndOrWhenNamesChange`,
+`TestTheFingerprintReadsLikeABrowserShowsIt`,
+`TestThePackageOpensNoSocket` and `scripts/test-container-volume.sh`.
+
 ## C111 — A key leaves, a key is deleted, or sign-in changes only after a fresh code (ADR 0088)
 
 A signed-in session is fresh for ten minutes after a phone code or a
@@ -78,8 +137,7 @@ for it.
 Sign-out ends only its own session. A password change ends every session of
 the account, this one too. Moving to a new phone, making new recovery codes,
 or using a setup code for an existing account ends every other session and
-gives this one a new token. The service still speaks plain HTTP on loopback;
-HTTPS on its own name comes next (audit RW-02).
+gives this one a new token. The cookie travels only over HTTPS (C112).
 
 Guarded by `TestSignInTakesThePasswordThenACode`,
 `TestCodesMatchRFC6238AndAreNeverAcceptedTwice`,
@@ -157,8 +215,9 @@ takes (RW-01).
 
 The instance key is 32 random bytes in a `0600` file of the service user, in
 a private `0700` directory outside the data directory; `init`, `serve`,
-`setup-code` and `key-restore` refuse a key file inside it, so a copy of the
-data never carries its key. Another key cannot open the vault. `rootwelld
+`setup-code`, `key-restore` and `serving-names` refuse a key file inside it,
+so a copy of the data never carries its key. Another key cannot open the
+vault. `rootwelld
 init` never replaces a key file or a vault. It shows the key's recovery code
 (`RW1-` and grouped base32 with a check) once, and makes the key file and the
 vault only after the person types `SAVED`; then it prints a setup code for the
@@ -168,7 +227,7 @@ the code opens the vault in that data directory. It writes nothing for a code fr
 installation, while `rootwelld serve` holds the vault, or over an existing key
 file. The vault opens only in a `0700` directory owned by the service user,
 and one process holds it at a time. `rootwelld` runs only on Linux: elsewhere
-`init`, `serve`, `setup-code` and `key-restore` refuse and make nothing.
+`init`, `serve` and the offline commands refuse and make nothing.
 
 Account passwords unlock no data; they only sign in (C108). The running
 service holds the instance key, so a compromised live host reveals the keys.
@@ -655,18 +714,21 @@ Retired on 24 November 2026 with the access file (ADR 0088): there is no
 generated setup password any more. `rootwelld init` prints a one-time setup
 code, and an account exists only once its phone is confirmed (C108).
 
-## C33 — The loopback gate serves pages only to a signed-in session
+## C33 — The gate serves pages only to a signed-in session
 
 Only the sign-in and setup pages, their scripts, the stylesheet, the
-colour-scheme script, the icon and the typeface are served before sign-in.
-Every other page, script, worker and API needs a signed-in session; a session
-still at the setup or phone-code step is sent to sign in (C109). The server
-listens on both loopback addresses only, and refuses an unexpected Host, a
-cross-origin or headerless change, a query string, a malformed or oversized
-body, and unknown JSON fields. Forms never fall back to sending a password in
-a URL. It refuses to start when a page file or the engine is missing.
+colour-scheme script, the icon, the typeface and the authority's certificate
+(`/rootwell-ca.pem`) are served before sign-in. Every other page, script,
+worker and API needs a signed-in session; a session still at the setup or
+phone-code step is sent to sign in (C109). The server listens on both loopback
+addresses, and on a LAN or VPN address only when `--listen` names one (C112).
+It refuses a request without TLS, an unexpected Host, a cross-origin or
+headerless change, a query string, a malformed or oversized body, and unknown
+JSON fields. Forms never fall back to sending a password in a URL. It refuses
+to start when a page file or the engine is missing.
 
 Guarded by `TestGateRejectsCrossOriginHostAndMalformedRequests`,
+`TestOnlyHTTPSToTheConfiguredNamesIsServed`,
 `TestAuthFormsCannotFallBackToPasswordInGetURL`,
 `TestGatewayRefusesIncompleteBrowserAssets`,
 `TestCertificatesPageAndItsScriptsRemainBehindReadyAccess`,
@@ -758,11 +820,17 @@ a failed display does not put the code in the error. Off Linux they refuse
 and make nothing. This is not protection against a compromised terminal, its
 scrollback, or a malicious process of the same user.
 
+`serving-names` reads and prints no secret, only the new authority's public
+fingerprint, so it runs without a terminal too, as from a script. While
+`rootwelld serve` holds the vault it cannot open it either, and changes
+nothing (C112).
+
 Guarded by `TestOfflineCommandClassificationAndNoSecretArgv`,
 `TestSetupCodeDisplayFailureDoesNotReturnTheCode`,
 `TestLinuxInitNeedsSAVEDAndLeavesAWorkingSetupCode`,
 `TestLinuxSetupCodeMakesTheFirstAccountOrReplacesItsSignIn`,
 `TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`,
+`TestLinuxServingNamesMakeANewAuthorityForThoseNames`,
 `TestNonLinuxInitCreatesNothing`, and
 `TestNonLinuxOfflineCeremonyFailsClosed`.
 
@@ -782,7 +850,7 @@ with the service stopped (`docs/RECOVERY.md`).
 
 ## C47 — Public inventory upload is explicit, authenticated, and non-verifying
 
-Inspect, Convert and Request upload nothing. Certificates reach the loopback
+Inspect, Convert and Request upload nothing. Certificates reach the
 daemon only through the certificate API, which the Certificates page calls when
 the person adds one; the inventory list only reads. Every route needs a
 signed-in session; a session still at the setup or phone-code step is
@@ -806,12 +874,14 @@ and `scripts/test-certificates.mjs`.
 
 ## C48 — Linux container volumes keep recovery separate and reject unsafe reuse
 
-The development Compose service binds the daemon to Linux host loopback and
-mounts two private directories: the data directory at `/data`, and a separate
-key directory at `/key`, read-only, that holds the instance key file (C107).
-Offline maintenance runs `init`, `setup-code` and `key-restore`. It has no
-network, and mounts `/key` read-write, for the two that write the key file,
-and the backup directory. No password, setup code, recovery code or key is
+The development Compose service runs the daemon on the Linux host's network:
+on loopback, and on a LAN address only when a `compose.override.yaml` adds
+`--listen` (C112). It mounts two private directories: the data directory at
+`/data`, and a separate key directory at `/key`, read-only, that holds the
+instance key file (C107). Offline maintenance runs `init`, `setup-code`,
+`key-restore` and `serving-names`. It has no network, and mounts `/key`
+read-write, for the two that write the key file, and the backup directory.
+No password, setup code, recovery code or key is
 configured through argv or environment. The maintenance service explicitly
 disables Docker logging with driver `none` and no options; TTY alone does not
 prevent retention of interactive secrets. The real-container drill verifies
@@ -823,9 +893,10 @@ retained logs remain outside this boundary.
 A disposable CI drill seeds a volume (with the base commit's drill when the
 base already has the vault, otherwise with the candidate), then reopens it in
 a new container with the candidate and refuses another key. It serves the
-volume, checks that the server mounts only `/data` and `/key`, proves that a
-second opener is refused while the server holds the vault and that a data
-directory others can read is refused, and restarts. A seed made by this
+volume, fetches `/rootwell-ca.pem` and checks that the sign-in page verifies
+against it over TLS 1.3, checks that the server mounts only `/data` and
+`/key`, proves that a second opener is refused while the server holds the
+vault and that a data directory others can read is refused, and restarts. A seed made by this
 release's drill also writes a setup code beside the volume, and the drill
 checks that the server's log never holds it. A restore into a fresh
 volume returns with online backup in Phase 3b. The drill does not establish

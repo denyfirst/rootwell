@@ -128,8 +128,9 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
     upgrade and uninstall scripts.
   - Docker Compose stays as a development profile.
 - HTTPS only. It listens on loopback by default and can also listen on named
-  LAN or VPN networks. For its own certificate it starts with a local test CA
-  at install; later it can use one it issues for itself.
+  LAN or VPN addresses. For its own certificate it makes a local certificate
+  authority at its first start, which a browser trusts once; later it can use
+  a public certificate it obtains for itself.
 - The store is bbolt, as in Keybash, with one record per object. History is a
   rolling log and never blocks a write.
 - The browser tools are the Go core compiled to WebAssembly and run in
@@ -261,8 +262,15 @@ These follow Keybash:
    access file, its password-only commands and `instanceaccess` are gone, and
    `rootwelld` runs only on Linux. This closes audit findings RW-07, RW-09,
    RW-10 and RW-14. This release has one account.
-4. **HTTPS** is next, in its own pull request; until then the service speaks
-   plain HTTP on loopback. Then Phase 3b.
+4. **HTTPS**, the second half of part 3, replaced plain HTTP on loopback.
+   `rootwelld` answers only over HTTPS with TLS 1.3, on port 4180 of the
+   loopback addresses and of any LAN or VPN address named with `--listen`.
+   Its first start makes Rootwell's own certificate authority in the vault,
+   which signs a 90-day server certificate that the running server renews. A
+   person trusts the authority once: `/rootwell-ca.pem`, checked against the
+   fingerprint `rootwelld` prints. `rootwelld serving-names` adds LAN or VPN
+   names, with a new authority. A request needs one of the covered names and
+   an exact `https://` Origin, which closes RW-02 except on `localhost`.
 
 Part 2 also removed the old automation early: the hidden Renewals page, the
 session-bound ACME automation, the old encrypted store and its offline
@@ -272,6 +280,9 @@ hidden, and keeping them would have meant moving them to the vault only to
 delete them in Phase 3c. Renewal comes back in Phase 3c, built on the ACME
 protocol packages that stay (section 8). Until Phase 3b, a backup is a copy of
 the data directory made with the service stopped (`RECOVERY.md`).
+
+**Next:** passkeys, then Phase 3b (online backup and restore, instance key
+rotation and export), then an independent review.
 
 **Later:**
 - roles and invites;
@@ -298,14 +309,13 @@ the data directory made with the service stopped (`RECOVERY.md`).
   `dnsrecord` and `providerretry`. They have no caller in the service until
   Phase 3c makes them general over fixed profiles.
 
-**Replaced in Phase 3:**
-- the loopback HTTP transport, by HTTPS (the rest of Phase 3a).
-
 **Replaced on 24 November 2026**, in Phase 3a part 3:
 - the password-derived unlock and its ceremonies (`instanceaccess`), with the
   access file and its password-only commands;
 - the old session layer of `cmd/rootwelld/gate.go`, by accounts and sessions
-  (`internal/accountstore`, `cmd/rootwelld/session.go`).
+  (`internal/accountstore`, `cmd/rootwelld/session.go`);
+- the loopback HTTP transport, by HTTPS with Rootwell's own certificate
+  authority (`internal/servecert`, `internal/servingstore`).
 
 **Removed on 23 November 2026**, in Phase 3a part 2:
 - the single-image store and its capacity reservations (`inventorystore`,

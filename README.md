@@ -84,10 +84,14 @@ go run ./cmd/rootwelld serve "$HOME/rootwell-data" "$HOME/rootwell-key/instance.
    kept it. Keep the code away from the host and from backups: losing both the
    key file and the code loses every saved certificate and key. `init` then
    prints a setup code, which works once, for 24 hours.
-2. Open `http://localhost:4180/setup` on the same machine. Enter the setup
+2. `serve` makes Rootwell's own certificate authority on its first start, and
+   prints its SHA-256 fingerprint at every start. Trust that authority in
+   your browser once, after checking the fingerprint
+   ([how](docs/RECOVERY.md#trust-rootwells-certificate-authority)).
+3. Open `https://localhost:4180/setup` on the same machine. Enter the setup
    code, a name and a password, add Rootwell to an authenticator app on your
    phone, and save the ten recovery codes.
-3. From then on, sign in with the name, the password and a code from the
+4. From then on, sign in with the name, the password and a code from the
    phone.
 
 The menu has six pages: **Certificates** (the home page), **Website check**,
@@ -95,13 +99,18 @@ The menu has six pages: **Certificates** (the home page), **Website check**,
 Request work on files only inside the browser
 ([the pages](web/workbench/README.md)).
 
-The service listens on this host's loopback addresses only, over plain HTTP
-until HTTPS arrives. A lost phone or password, a lost key file and backups are
-covered in [recovery](docs/RECOVERY.md): until online backups arrive, a backup
-is a copy of the data directory made with the service stopped, and the key
-file never goes with it. A Docker profile is in
-[container recovery](docs/CONTAINER-RECOVERY.md). HTTPS is next; Phase 3b then
-brings backups from the web, and an install script follows later.
+The service speaks only HTTPS, with TLS 1.3, on port 4180 of this host's
+loopback addresses. To reach it from another machine on the LAN or a VPN,
+add the name or address with `rootwelld serving-names`, and start `serve`
+with `--listen <address>`
+([how](docs/RECOVERY.md#reach-rootwell-from-another-machine)). A lost phone
+or password, a lost key file and backups are covered in
+[recovery](docs/RECOVERY.md): until online backups arrive, a backup is a copy
+of the data directory made with the service stopped, and the key file never
+goes with it. A Docker profile is in
+[container recovery](docs/CONTAINER-RECOVERY.md). Next come passkeys, then
+Phase 3b with backups from the web and key rotation, then an independent
+review; an install script follows later.
 
 ## Documents
 
