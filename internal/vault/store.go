@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hkdf"
@@ -46,6 +47,7 @@ type Store struct {
 	instance string
 	wrap     cipher.AEAD
 	indexKey []byte
+	codeKey  []byte
 }
 
 type storeMeta struct {
@@ -188,9 +190,19 @@ func (s *Store) deriveKeys(key []byte) error {
 	if s.wrap, err = randomGCM(wrapKey); err != nil {
 		return ErrRefused
 	}
-	s.indexKey, err = hkdf.Key(sha256.New, key, salt, "rootwell/vault/v1/index", 32)
-	return err
+	if s.indexKey, err = hkdf.Key(sha256.New, key, salt, "rootwell/vault/v1/index", 32); err != nil {
+		return ErrRefused
+	}
+	if s.codeKey, err = hkdf.Key(sha256.New, key, salt, "rootwell/vault/v1/codes", 32); err != nil {
+		return ErrRefused
+	}
+	return nil
 }
+
+// CodeKey is the key one-time codes are digested under: recovery codes and
+// setup codes. It is derived apart from every other key, and a copy is
+// returned for the caller to clear.
+func (s *Store) CodeKey() []byte { return bytes.Clone(s.codeKey) }
 
 // check is the vault's proof that a key is the one it was made with.
 func (s *Store) check() []byte {
