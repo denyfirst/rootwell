@@ -95,11 +95,18 @@ docker compose up -d rootwell
   override file too. The rules for names are in
   [`RECOVERY.md`](RECOVERY.md#reach-rootwell-from-another-machine).
 
-## Lost phone or password
+## Lost phone, passkey or password
+
+Passkeys, added on the Account page, stand in for the phone code; how they
+work, and why they need a DNS name rather than an IP address, is in
+[`RECOVERY.md`](RECOVERY.md#passkeys).
 
 - **Lost phone:** sign in with one of the recovery codes in place of the
   phone code. Then, on the Account page, move to a new phone, or make new
   recovery codes if few are left. Either one signs out every other browser.
+- **Lost passkey device:** sign in with the phone code, or a recovery code,
+  and remove its passkey on the Account page. That signs out every other
+  browser.
 - **Lost password, or lost phone and recovery codes:** make a setup code for
   the account, with its name (`ada` here), and use it on `/setup` with the
   same name and a new password:
@@ -110,7 +117,8 @@ docker compose up -d rootwell
   docker compose up -d rootwell
   ```
 
-  It replaces the password, the phone and the recovery codes, and leaves the
+  It replaces the password, the phone and the recovery codes, removes every
+  passkey, since the device that holds one may be lost too, and leaves the
   certificates alone. The code works once, for 24 hours, and only for that
   name.
 
@@ -148,7 +156,9 @@ docker compose up -d rootwell
 The account comes back as it was when the copy was made: sign in with the
 password and phone of that time, and check that the certificates are there.
 If those are lost, make a setup code with the account's name, as above. The
-certificate authority and its names come back as they were too.
+certificate authority and its names come back as they were too, and so do
+the account's passkeys: on the Account page, remove again any you removed
+since the copy.
 
 If the key file is lost too, point `ROOTWELL_KEY_DIR` at an empty `0700`
 directory owned by the same UID, and rebuild the key file from the recovery

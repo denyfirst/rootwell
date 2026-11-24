@@ -17,7 +17,7 @@ The menu has six pages. `/` leads to Certificates.
 | Inspect | `/inspect` | `inspect.html`, `inspect.js` | Shows who a certificate is for, who issued it, how long it lasts, whether its chain is complete, and whether a private key belongs to it |
 | Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
 | Request | `/request` | `request.html`, `request.js` | Makes a CSR with a new key or an existing one |
-| Account | `/account` | `account.html`, `auth.js` and `qr.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, and says how to get back in from the server |
+| Account | `/account` | `account.html`, `auth.js`, `qr.js` and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, adds and removes passkeys, and says how to get back in from the server |
 
 Every change on Certificates names the list's change count the page last
 read, and the server refuses an out-of-date one. After a save, the page takes
@@ -27,17 +27,19 @@ save is not refused as out of date.
 
 Sign-in (`/login`) and setup (`/setup`) also come from `cmd/rootwelld/auth`.
 Sign-in takes the name and password, then a code from the phone or a
-recovery code. Setup takes a setup code from the server, a name and a
-password, shows a QR code for an authenticator app, and then the ten recovery
-codes, once. The sign-in page also links Rootwell's certificate authority,
-`/rootwell-ca.pem`, for a browser that warned about the page.
+recovery code; when the account has a passkey and the browser can use one,
+it also offers **Use a passkey instead**. Setup takes a setup code from the
+server, a name and a password, shows a QR code for an authenticator app, and
+then the ten recovery codes, once. The sign-in page also links Rootwell's
+certificate authority, `/rootwell-ca.pem`, for a browser that warned about
+the page.
 
 Every page links `/rootwell.css`, loads `/theme.js` for the colour scheme and
 `/session.js` for Sign out, and carries no inline style or script. The
 stylesheet, `theme.js`, `favicon.svg`, the typeface and the sign-in scripts
-(`auth.js`, `qr.js`) are served before sign-in so that the sign-in and setup
-pages work and look like the rest, and so is `/rootwell-ca.pem`; everything
-else needs a signed-in session.
+(`auth.js`, `qr.js`, `passkey.js`) are served before sign-in so that the
+sign-in and setup pages work and look like the rest, and so is
+`/rootwell-ca.pem`; everything else needs a signed-in session.
 
 The hidden Renewals page and its older stylesheet were removed on
 23 November 2026; a new Renewals page comes with real renewal in Phase 3c.
@@ -52,8 +54,15 @@ The hidden Renewals page and its older stylesheet were removed on
 - `theme.js` — the colour scheme switch; it remembers only that choice.
 - `session.js` — Sign out; it talks only to `/api/session`.
 - `fresh.js` — the dialog that asks for a code from the phone when Rootwell
-  answers 428; it talks only to `/api/fresh`. Certificates and Account load
+  answers 428; it sends the code to `/api/fresh`. When the browser can use
+  passkeys, its **Use a passkey** button answers instead, through
+  `/api/passkey/options` and `/api/passkey`. Certificates and Account load
   it.
+- `passkey.js`, from `cmd/rootwelld/auth` — turns Rootwell's passkey options
+  into the browser's WebAuthn request, always asking the device to verify
+  the person, and returns the answer as the fields the server reads. It
+  asks for no attestation and keeps nothing. Sign-in, Certificates and
+  Account load it.
 - `wasm-loader.js` — fetches `rootwell.wasm` from this server, without
   credentials or redirects, and hands the engine to the page.
 - `private-worker-client.js` and `private-key-worker.js`,
@@ -73,11 +82,15 @@ The hidden Renewals page and its older stylesheet were removed on
   again for the transfer, never the PFX itself or its password.
 - No page asks for the Rootwell password again; only changing it on Account
   takes the current one. Downloading a key, deleting a certificate that has
-  one, and changing the password, the phone or the recovery codes need a code
-  from the phone entered in the last ten minutes. Without one the server
-  answers 428 and does nothing; the page calls `rootwellFresh()` from
-  `fresh.js`, which asks for the code in a dialog, and sends the same request
-  once more. Cancel leaves everything as it was.
+  one, changing the password, the phone or the recovery codes, and adding or
+  removing a passkey need a code from the phone, a recovery code or a
+  passkey in the last ten minutes. Without one the server answers 428 and
+  does nothing; the page calls `rootwellFresh()` from `fresh.js`, which asks
+  for the code in a dialog, and sends the same request once more. Cancel
+  leaves everything as it was.
+- A passkey works only on the name the page was opened on, such as
+  `localhost` or a LAN name, never on an IP address; there the pages say so
+  and the server refuses.
 - Private keys, PFX files and requests are handled in a fresh worker for each
   operation, with a deadline, cancellation when the page moves on, and
   clearing of the bytes it was given. The server sends each worker script
@@ -140,7 +153,8 @@ node scripts/test-rootwelld-auth.mjs
 ```
 
 `test-rootwelld-auth.mjs` drives the sign-in, setup and Account pages and the
-fresh-code dialog.
+fresh-code dialog, including a passkey at sign-in and one added and removed
+on Account.
 
 `internal/uicontract` checks the design tokens, contrast, the shared rail,
 one stylesheet (`rootwell.css`) for every page and the capability boundaries

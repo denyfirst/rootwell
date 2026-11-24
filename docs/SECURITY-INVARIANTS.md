@@ -8,6 +8,67 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C113 — A passkey stands in for the phone code only for this site's name, a verified person and a one-time challenge (ADR 0088)
+
+A passkey (WebAuthn) is an optional second factor beside the phone code. It
+resists phishing: the browser lets it sign only for the name it was made on,
+so a look-alike site gets nothing it can use. After the password, a passkey
+stands in for the phone code; when signed in, it counts as a fresh code
+(C111). The phone stays mandatory, and the phone and the recovery codes stay
+the way back. That is also the limit: a person who has a passkey can still be
+tricked into typing a phone code on another site.
+
+An account keeps at most ten passkeys. Adding one, with an optional name of
+up to 64 printable characters, or removing one needs a fresh code, counts a
+revision of the account and ends its other sessions (C109). A setup code that
+replaces an account's sign-in removes its passkeys too, since the device that
+holds them may be lost (C108).
+
+The relying party is the name in the request's Host: `localhost` or a DNS
+name added with `serving-names` (C112). Browsers allow no passkeys on an IP
+address, so there the server refuses with 409 and the pages offer none. A
+passkey made on one name does not work on another: one added on `localhost`
+does not sign in on `rootwell.lan`.
+
+Each ceremony gets a challenge of 32 random bytes, kept with the session in
+memory, for one purpose (sign-in, fresh code or adding a passkey). It is good
+for two minutes, and the first answer uses it up, right or wrong.
+`internal/passkey`, in the tree with no new dependency, then checks:
+
+- the browser's record: the right ceremony, this challenge, an origin of
+  exactly `https://` and the Host, and not from inside another site's page;
+- the authenticator's data: made for this name, with the person present and
+  verified by a fingerprint, a face or a PIN;
+- the key: ES256, Ed25519 or RS256 of 2,048 to 8,192 bits, nothing else;
+- the signature, by the passkey the account added, over that data and the
+  browser's record;
+- the signature count: where the authenticator keeps one, a count that does
+  not grow is refused, since the passkey may have been copied.
+
+Attestation is neither asked for nor trusted: any format is accepted and its
+statement is never read. A passkey proves only that the authenticator added
+earlier signs again, for this name, after the person unlocked it. The
+authenticator's CBOR is read strictly: definite lengths only, no tags or
+floats, at most 8 levels and 64 items, and no duplicate keys. The account
+record keeps each passkey's ID, public key, algorithm, count, name and dates;
+its private key never leaves the authenticator. The WebAuthn user ID is an
+HMAC of the account name under the vault's index key, so it says nothing
+about the name. Only a session past the password learns whether the account
+has a passkey and which IDs it may use. A refused answer counts as a wrong
+code (C109, C110).
+
+Guarded by `TestEachAlgorithmRegistersAndSignsIn`,
+`TestTheBrowsersRecordMustBeThisCeremonyOnThisOrigin`,
+`TestTheAuthenticatorMustBeForThisNameAndVerifyThePerson`,
+`TestOnlyTheThreeAlgorithmsAreAccepted`,
+`TestOnlyASignatureOfThisChallengeByThisPasskeyCounts`,
+`TestACountThatDoesNotGrowIsRefused`, `TestCBORIsReadStrictly`,
+`FuzzDecodeCBOR`, `FuzzVerifyRegistration`,
+`TestPasskeysSignInAndStandInForAFreshCode`,
+`TestPasskeyAnswersAreBoundedAndNamed`,
+`TestPasskeysAreAddedUsedAndRemovedWithTheirRevisions` and
+`scripts/test-rootwelld-auth.mjs`.
+
 ## C112 — Rootwell answers only over TLS 1.3, only to its covered names, and its authority signs only for them (ADR 0088)
 
 `rootwelld serve` speaks HTTPS only, with TLS 1.3 only. Go's defaults choose
@@ -69,14 +130,16 @@ Guarded by `TestOnlyHTTPSToTheConfiguredNamesIsServed`,
 
 ## C111 — A key leaves, a key is deleted, or sign-in changes only after a fresh code (ADR 0088)
 
-A signed-in session is fresh for ten minutes after a phone code or a
-recovery code. Signing in counts, and so does a code entered in the dialog
-that sends it to `/api/fresh`. Without a fresh code the server answers 428 and
+A signed-in session is fresh for ten minutes after a phone code, a recovery
+code or a passkey (C113). Signing in counts, and so does a code entered in
+the dialog that sends it to `/api/fresh`, or a passkey used from its
+**Use a passkey** button. Without a fresh code the server answers 428 and
 does nothing when asked to:
 
 - download a key, with its certificate or alone;
 - delete a certificate that has a saved key (audit RW-10);
-- change the password, move to a new phone, or make new recovery codes.
+- change the password, move to a new phone, make new recovery codes, or add
+  or remove a passkey.
 
 The Certificates and Account pages then ask for a code in a dialog
 (`fresh.js`) and send the same request once more; Cancel changes nothing.
@@ -88,6 +151,7 @@ password field. A wrong code in the dialog counts as a failure (C110), five
 end the session, and a recovery code used there is spent.
 
 Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
+`TestPasskeysSignInAndStandInForAFreshCode`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
 `TestCertificateRequestsRefuseAPasswordField`,
@@ -95,11 +159,12 @@ Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 
 ## C110 — Only failures count, per name and per source (ADR 0088)
 
-A wrong password, phone code, recovery code or setup code counts against the
-account name, which allows 5, and against the source address, which allows
-20; an IPv6 address counts by its /64. Each failure past that makes the next
-try wait: one minute, then twice as long each time, up to fifteen. A waiting
-name or address gets 429 with `Retry-After`, and nothing is checked. Wrong
+A wrong password, phone code, recovery code, passkey answer or setup code
+counts against the account name, which allows 5, and against the source
+address, which allows 20; an IPv6 address counts by its /64. Each failure
+past that makes the next try wait: one minute, then twice as long each time,
+up to fifteen. A waiting name or address gets 429 with `Retry-After`, and
+nothing is checked. Wrong
 setup codes also count against one limit of 20 for the whole installation.
 A success costs nothing (audit RW-07): a complete sign-in or a fresh code
 forgets the name's failures, and failures are forgotten an hour after the
@@ -117,8 +182,9 @@ Guarded by `TestOnlyFailuresCountPerNameAndPerSource`,
 
 Sign-in has two steps: the name and password, then, within five minutes, a
 six-digit phone code (RFC 6238: SHA-1, 30 seconds, one step of drift either
-way) or one recovery code. A phone code is refused once its step, or a later
-one, has been used; a recovery code is taken off the list when it is used.
+way) or one recovery code; a passkey the account added may stand in for the
+phone code (C113). A phone code is refused once its step, or a later one,
+has been used; a recovery code is taken off the list when it is used.
 Until both steps pass, a session reaches only the sign-in endpoints, never a
 page, a script or the certificate API. A setup session has fifteen minutes to
 confirm its phone, and reaches nothing else either.
@@ -136,8 +202,9 @@ for it.
 
 Sign-out ends only its own session. A password change ends every session of
 the account, this one too. Moving to a new phone, making new recovery codes,
-or using a setup code for an existing account ends every other session and
-gives this one a new token. The cookie travels only over HTTPS (C112).
+adding or removing a passkey, or using a setup code for an existing account
+ends every other session and gives this one a new token. The cookie travels
+only over HTTPS (C112).
 
 Guarded by `TestSignInTakesThePasswordThenACode`,
 `TestCodesMatchRFC6238AndAreNeverAcceptedTwice`,
@@ -149,6 +216,7 @@ Guarded by `TestSignInTakesThePasswordThenACode`,
 `TestANewPhoneKeepsThisSessionAndEndsTheOthers`,
 `TestNewRecoveryCodesReplaceTheOldOnes`,
 `TestPasswordPhoneAndRecoveryChangesCountARevision`,
+`TestPasskeysSignInAndStandInForAFreshCode`,
 `TestCertificatesPageAndItsScriptsRemainBehindReadyAccess` and
 `scripts/test-rootwelld-auth.mjs`.
 
@@ -156,7 +224,8 @@ Guarded by `TestSignInTakesThePasswordThenACode`,
 
 Each account is one sealed vault record (C107): its name, an Argon2id hash of
 its password (64 MiB, three passes, four lanes), its phone key, the last
-phone-code step it used, keyed digests of its recovery codes, and a revision.
+phone-code step it used, keyed digests of its recovery codes, the public keys
+of its passkeys (C113), and a revision.
 No name, password, phone key or recovery code reaches the disk in the clear,
 and a record with an unknown field is refused. One-time codes are digested
 under a key the vault derives for them alone, which differs between
@@ -173,8 +242,9 @@ setup code once the key's recovery code is saved, and `rootwelld setup-code`
 makes a new one with the service stopped. A setup code is 120 random bits,
 kept only as a keyed digest; it works once, for 24 hours, and a new one
 replaces the last. Without a name it makes the first account and is refused
-once one exists. With an account's name it works only for that name and
-replaces the account's password and phone. The setup page checks the code,
+once one exists. With an account's name it works only for that name,
+replaces the account's password and phone, and removes its passkeys, since
+the device that holds them may be lost. The setup page checks the code,
 the name and the password, then shows a new phone key as a QR code and as
 text. The account is written only when the phone shows a right code, in the
 same write that spends the setup code, so no account ever signs in with a
@@ -184,6 +254,7 @@ earlier ones stop working.
 Guarded by `TestASetupCodeMakesTheFirstAccountOnce`,
 `TestASetupCodeStopsWorkingAfterADay`,
 `TestASetupCodeForAnAccountReplacesItsSignIn`,
+`TestPasskeysAreAddedUsedAndRemovedWithTheirRevisions`,
 `TestTheAccountIsSealedAndReadStrictly`,
 `TestAnAccountRecordWithAnUnknownFieldIsRefused`,
 `TestNamesAreComparedWithoutCase`, `TestPasswordsHashAndVerifyWithOneLimit`,

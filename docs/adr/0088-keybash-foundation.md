@@ -69,6 +69,28 @@ text below:
 - **HSTS** is sent only on names that are not loopback: on `localhost` it
   would force HTTPS on every other local port.
 
+**Note, 24 November 2026 (passkeys).** Passkeys (WebAuthn) landed as a
+phishing-resistant second factor, checked by `internal/passkey` in the tree
+with no new dependency. The Account page adds and removes them; sign-in
+offers one after the password, and the fresh-code dialog offers one too.
+Where this fills in the text below:
+
+- **Optional, beside TOTP:** a passkey stands in for the phone code, at
+  sign-in and as a fresh code. TOTP stays mandatory, and the phone and the
+  recovery codes stay the way back, so TOTP can still be phished. An account
+  keeps at most ten passkeys. Adding or removing one needs a fresh code and
+  ends the account's other sessions.
+- **No attestation:** Rootwell asks for none, accepts any format and never
+  reads the statement. It requires user verification (a fingerprint, a face
+  or a PIN), accepts ES256, Ed25519 and RS256 only, and refuses a signature
+  count that does not grow.
+- **Bound to a name:** the relying party is the name in the request's Host,
+  so a passkey made on `localhost` does not work on `rootwell.lan`. Browsers
+  allow none on an IP address, so Rootwell offers none there. Each challenge
+  serves one purpose, for two minutes, and one answer.
+- **Reset:** a setup code that replaces an account's sign-in removes its
+  passkeys too, since the device that holds them may be lost.
+
 ## Context
 
 **Today's design** comes from three choices, each careful on its own:

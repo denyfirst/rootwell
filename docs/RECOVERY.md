@@ -7,7 +7,8 @@
     certificates, their keys and the account. Its **recovery code** rebuilds
     the key file;
   - a person signs in with a **name and password**, then a **code from the
-    phone**. Each of ten **recovery codes** stands in for the phone once;
+    phone**. Each of ten **recovery codes** stands in for the phone once, and
+    a **passkey**, if you add one, stands in for it every time;
   - a **setup code**, made on the server, sets up the account, or replaces a
     lost password or phone.
 - Browsers reach Rootwell over HTTPS once they trust its own **certificate
@@ -127,6 +128,28 @@ rootwelld serve /private/rootwell-data /private/rootwell-key/instance.key web/wo
   names the browser also remembers to use only HTTPS, for a year.
 - Do not expose Rootwell to the internet.
 
+## Passkeys
+
+A passkey lets a device, such as the computer you sign in from or a security
+key, stand in for the phone code. The device asks for your fingerprint, your
+face or its PIN, and the passkey cannot be used on a site that only looks
+like Rootwell. It is optional. The phone stays, and it is the way back when
+a passkey is lost.
+
+- **Add one** on the **Account** page: type a name you will recognise, such
+  as `Work laptop`, choose **Add a passkey** and follow the browser. It asks
+  for a code from the phone first, unless you entered one in the last ten
+  minutes. An account keeps up to ten passkeys.
+- **Sign in** with the name and password, then choose **Use a passkey
+  instead**. When Rootwell asks for a code before a change, such as a key
+  download, its dialog offers **Use a passkey** too.
+- **One name only.** A passkey works only on the name it was added on: one
+  added on `https://localhost:4180` does not work on
+  `https://rootwell.lan:4180`. Add one on each name you use. Browsers allow
+  no passkeys on an IP address such as `192.168.1.5`; use a DNS name for the
+  LAN.
+- Adding or removing a passkey signs out every other browser.
+
 ## Lost phone
 
 Sign in with a recovery code in place of the phone code; each one works once.
@@ -138,6 +161,13 @@ Then, on the **Account** page:
   ones stop working.
 
 Either one signs out every other browser.
+
+## Lost passkey device
+
+Sign in with a code from the phone, or a recovery code, as before. Then, on
+the **Account** page, **Remove** the lost device's passkey; that signs out
+every other browser. Until then, whoever holds the device still needs your
+password and the device's fingerprint, face or PIN.
 
 ## Lost password, or lost phone and recovery codes
 
@@ -152,8 +182,10 @@ rootwelld setup-code /private/rootwell-data /private/rootwell-key/instance.key a
 - Start the service, open `/setup`, and enter the code with the same name and
   a new password. Then add the phone and save the new recovery codes, as at
   the first setup.
-- This replaces the password, the phone and the recovery codes, and signs out
-  every other browser. Certificates are not touched.
+- This replaces the password, the phone and the recovery codes, removes
+  every passkey, since the device that holds one may be lost too, and signs
+  out every other browser. Certificates are not touched. Add passkeys again
+  afterwards if you want them.
 - The code works once, for 24 hours, and only for that name. A newer code
   replaces it.
 - Without a name, `setup-code` makes a code for the first account; once an
@@ -202,7 +234,8 @@ cp -a /private/backup/rootwell-data-2026-11-24/. /private/rootwell-data-restored
 
 - The account comes back as it was when the copy was made: sign in with the
   password and phone of that time. If those are lost, make a setup code with
-  the account's name.
+  the account's name. Its passkeys come back as they were too: on the
+  Account page, remove again any you removed since the copy.
 - The certificate authority and its names come back as they were too. If the
   names changed after the copy was made, trust that older authority again,
   or run `serving-names` to make a new one.
