@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -156,6 +157,15 @@ func TestListenTakesOnlyCoveredHostAddresses(t *testing.T) {
 	for _, bad := range []string{"0.0.0.0", "::", "127.0.0.1", "::1", "192.0.2.11", "rootwell.lan", "224.0.0.1", ""} {
 		if _, err := listenAddresses([]string{bad}, s); err == nil {
 			t.Fatalf("--listen %q was accepted", bad)
+		}
+	}
+	// Every address, loopback and multicast stay refused even if a damaged
+	// record listed them as covered.
+	damaged := servingstore.Serving{Names: servecert.Names{IPs: []netip.Addr{netip.IPv4Unspecified(), netip.IPv6Unspecified(),
+		netip.MustParseAddr("127.0.0.1"), netip.MustParseAddr("224.0.0.1")}}}
+	for _, bad := range []string{"0.0.0.0", "::", "127.0.0.1", "224.0.0.1"} {
+		if _, err := listenAddresses([]string{bad}, damaged); err == nil {
+			t.Fatalf("--listen %q was accepted from a damaged record", bad)
 		}
 	}
 	for _, args := range [][]string{{"--listen"}, {"--port", "1"}, {"192.0.2.10"}, {"--listen", "a", "b"}} {
