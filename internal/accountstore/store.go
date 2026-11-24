@@ -13,6 +13,7 @@ package accountstore
 import (
 	"bytes"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/account"
+	"github.com/denyfirst/rootwell/internal/passkey"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
@@ -52,7 +54,19 @@ type Account struct {
 	Name         string
 	Revision     uint64
 	RecoveryLeft int
+	Passkeys     []Passkey
 }
+
+// Passkey is what a page may know about a passkey: never its key.
+type Passkey struct {
+	ID       []byte
+	Name     string
+	Added    string
+	LastUsed string
+}
+
+// MaxPasskeys is how many passkeys an account keeps.
+const MaxPasskeys = 10
 
 type accountRecord struct {
 	Name      string               `json:"name"`
@@ -62,10 +76,22 @@ type accountRecord struct {
 	Recovery  [][]byte             `json:"recovery"`
 	Revision  uint64               `json:"revision"`
 	CreatedAt string               `json:"created_at"`
+	Passkeys  []storedPasskey      `json:"passkeys,omitempty"`
+}
+
+type storedPasskey struct {
+	Credential passkey.Credential `json:"credential"`
+	Name       string             `json:"name"`
+	Added      string             `json:"added"`
+	LastUsed   string             `json:"last_used,omitempty"`
 }
 
 func (r accountRecord) public() Account {
-	return Account{Name: r.Name, Revision: r.Revision, RecoveryLeft: len(r.Recovery)}
+	a := Account{Name: r.Name, Revision: r.Revision, RecoveryLeft: len(r.Recovery)}
+	for _, p := range r.Passkeys {
+		a.Passkeys = append(a.Passkeys, Passkey{ID: bytes.Clone(p.Credential.ID), Name: p.Name, Added: p.Added, LastUsed: p.LastUsed})
+	}
+	return a
 }
 
 // setupRecord is the one setup code that works now. Account names the account
@@ -274,7 +300,9 @@ func (s *Store) FinishSetup(code, name string, password account.PasswordHash, se
 		case err != nil:
 			return err
 		}
-		r.Password, r.Seed, r.LastStep, r.Recovery = password, seed, step, digests
+		// A setup replaces every way the account signs in: passkeys go too,
+		// since the person may have lost the device that holds them.
+		r.Password, r.Seed, r.LastStep, r.Recovery, r.Passkeys = password, seed, step, digests, nil
 		r.Revision++
 		if err := put(t, kindAccount, s.accountID(name), r); err != nil {
 			return err
@@ -444,4 +472,96 @@ func (s *Store) NewRecoveryCodes(name string, revision uint64) ([]string, Accoun
 		return nil, Account{}, err
 	}
 	return codes, a, nil
+}
+
+// UserHandle is the WebAuthn user ID for an account: a keyed digest of its
+// name, the same every time, that says nothing about the name without the
+// instance key.
+func (s *Store) UserHandle(name string) []byte {
+	raw, _ := hex.DecodeString(s.v.Index("passkey-user", name))
+	return raw
+}
+
+// ErrPasskeyLimit says the account keeps MaxPasskeys already, or this one.
+var ErrPasskeyLimit = errors.New("passkey refused")
+
+// AddPasskey keeps a passkey the account added. It counts a revision: how
+// the account signs in changed, so its other sessions end.
+func (s *Store) AddPasskey(name string, revision uint64, credential passkey.Credential, label string) (Account, error) {
+	return s.change(name, revision, func(r *accountRecord) error {
+		if len(r.Passkeys) >= MaxPasskeys {
+			return ErrPasskeyLimit
+		}
+		for _, p := range r.Passkeys {
+			if bytes.Equal(p.Credential.ID, credential.ID) {
+				return ErrPasskeyLimit
+			}
+		}
+		r.Passkeys = append(r.Passkeys, storedPasskey{Credential: credential, Name: label, Added: s.now().UTC().Format(timeLayout)})
+		return nil
+	})
+}
+
+// RemovePasskey forgets one passkey, and counts a revision.
+func (s *Store) RemovePasskey(name string, revision uint64, id []byte) (Account, error) {
+	return s.change(name, revision, func(r *accountRecord) error {
+		kept := r.Passkeys[:0]
+		for _, p := range r.Passkeys {
+			if !bytes.Equal(p.Credential.ID, id) {
+				kept = append(kept, p)
+			}
+		}
+		if len(kept) == len(r.Passkeys) {
+			return ErrRefused
+		}
+		r.Passkeys = kept
+		return nil
+	})
+}
+
+// UsePasskey finds the account's passkey with id and lets verify check its
+// answer; verify returns the passkey's new signature count, which is kept.
+// The account must still be at revision.
+func (s *Store) UsePasskey(name string, revision uint64, id []byte, verify func(passkey.Credential) (uint32, error)) (Account, error) {
+	var out Account
+	err := s.v.Update(func(t *vault.Tx) error {
+		r, err := s.readAccount(t, name)
+		if err != nil {
+			return err
+		}
+		if r.Revision != revision {
+			return ErrChanged
+		}
+		for i := range r.Passkeys {
+			if !bytes.Equal(r.Passkeys[i].Credential.ID, id) {
+				continue
+			}
+			count, err := verify(r.Passkeys[i].Credential)
+			if err != nil {
+				return ErrRefused
+			}
+			r.Passkeys[i].Credential.SignCount = count
+			r.Passkeys[i].LastUsed = s.now().UTC().Format(timeLayout)
+			if err := put(t, kindAccount, s.accountID(name), r); err != nil {
+				return err
+			}
+			out = r.public()
+			return nil
+		}
+		return ErrRefused
+	})
+	return out, err
+}
+
+// PasskeyCredentials lists the credential IDs an account's sign-in may use.
+func (s *Store) PasskeyCredentials(name string) ([][]byte, error) {
+	a, err := s.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([][]byte, 0, len(a.Passkeys))
+	for _, p := range a.Passkeys {
+		ids = append(ids, p.ID)
+	}
+	return ids, nil
 }

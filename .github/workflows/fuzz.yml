@@ -61,6 +61,10 @@ jobs:
             package: ./internal/publicbundle
           - target: FuzzOpenSealedRecord
             package: ./internal/vault
+          - target: FuzzDecodeCBOR
+            package: ./internal/passkey
+          - target: FuzzVerifyRegistration
+            package: ./internal/passkey
           - target: FuzzReadLimited
             package: ./internal/fileinput
           - target: FuzzMatch

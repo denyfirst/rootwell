@@ -92,7 +92,8 @@ go run ./cmd/rootwelld serve "$HOME/rootwell-data" "$HOME/rootwell-key/instance.
    code, a name and a password, add Rootwell to an authenticator app on your
    phone, and save the ten recovery codes.
 4. From then on, sign in with the name, the password and a code from the
-   phone.
+   phone. A passkey added on the Account page can stand in for the code
+   ([recovery](docs/RECOVERY.md#passkeys)).
 
 The menu has six pages: **Certificates** (the home page), **Website check**,
 **Inspect**, **Convert**, **Request** and **Account**. Inspect, Convert and
@@ -108,9 +109,9 @@ or password, a lost key file and backups are covered in
 [recovery](docs/RECOVERY.md): until online backups arrive, a backup is a copy
 of the data directory made with the service stopped, and the key file never
 goes with it. A Docker profile is in
-[container recovery](docs/CONTAINER-RECOVERY.md). Next come passkeys, then
-Phase 3b with backups from the web and key rotation, then an independent
-review; an install script follows later.
+[container recovery](docs/CONTAINER-RECOVERY.md). Passkeys are done. Next
+comes Phase 3b with backups from the web and key rotation, then an
+independent review; an install script follows later.
 
 ## Documents
 

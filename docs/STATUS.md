@@ -7,7 +7,7 @@ only test material. The plan is
 
 Phase 3a of the plan is done: the vault and the instance key, the
 Certificates page on them, accounts with phone codes and short sessions, and
-HTTPS with Rootwell's own certificate authority. Next come passkeys, then
+HTTPS with Rootwell's own certificate authority. Passkeys followed. Next comes
 Phase 3b (online backup and restore, instance key rotation and export), then
 an independent review.
 
@@ -54,8 +54,8 @@ an independent review.
   - download the certificate, the full chain, or the certificate and key;
   - download the key locked with a password.
 - Downloading a key, or deleting a certificate that has one, needs a code
-  from the phone entered in the last ten minutes; the page asks for it when
-  needed.
+  from the phone, or a passkey, in the last ten minutes; the page asks for it
+  when needed.
 - `rootwelld` runs only on Linux, in practice in its container.
 
 **Website check (Linux only)**
@@ -88,15 +88,21 @@ an independent review.
   on the phone, and shows ten recovery codes once.
 - Sign-in on `https://localhost:4180`, or on a name added for the LAN: the
   name and password, then a six-digit code from the phone or a recovery code.
+- **Passkeys**, optional: a passkey added on the Account page signs in in
+  place of the phone code, with the device's fingerprint, face or PIN, and
+  answers the fresh-code dialog too. It works only on the name it was added
+  on, such as `localhost` or a LAN name, never on an IP address. The phone
+  stays mandatory and is the way back.
 - Sessions live in memory: they end after 15 minutes without use, after
   8 hours at most, and when the service restarts.
 - Only wrong tries count, per account name and per address, with a wait that
   grows from one minute to fifteen.
-- The Account page changes the password, moves to a new phone and makes new
-  recovery codes.
+- The Account page changes the password, moves to a new phone, makes new
+  recovery codes, and adds or removes passkeys, up to ten.
 - `rootwelld setup-code` with the account's name replaces a lost password, or
-  a lost phone and recovery codes. `rootwelld key-restore` rebuilds a lost
-  instance key file from its recovery code.
+  a lost phone and recovery codes, and removes the account's passkeys.
+  `rootwelld key-restore` rebuilds a lost instance key file from its recovery
+  code.
 - Backups are, for now, a copy of the data directory made with the service
   stopped; the key file never goes with it
   ([`RECOVERY.md`](RECOVERY.md)).
@@ -111,6 +117,10 @@ an independent review.
   by `serving-names` and `--listen` set in `compose.override.yaml`, another
   machine's connection to `https://<address>:4180` verified against
   Rootwell's authority over TLS 1.3, and failed without it.
+- Passkeys were tested in a real browser on the Linux test machine, with
+  Edge's virtual authenticator: a passkey added on Account, a sign-in with
+  the password and the passkey, and the passkey removed with that sign-in as
+  the fresh code; 71 checks passed.
 - Signed commits only, checked against the base branch's signer list.
 - Thirteen CI checks:
   - Linux race tests;
@@ -127,7 +137,7 @@ an independent review.
   certificates it keeps.
 - Renewal of any kind.
 - Delivery to servers.
-- Passkeys, or more than one account.
+- More than one account.
 - Online backup and restore, from the web or with the service running, and
   instance key rotation.
 - An install script and releases.

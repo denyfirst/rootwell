@@ -1,6 +1,7 @@
 # Certificate library custody — development boundary
 
-Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3, and HTTPS.
+Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3, HTTPS and
+passkeys.
 Decisions: [ADR 0046](adr/0046-unified-certificate-library.md), ADR 0047,
 ADR 0048, ADR 0087 and [ADR 0088](adr/0088-keybash-foundation.md). Single
 operator, Linux daemon over HTTPS, on loopback and on any LAN or VPN address
@@ -28,7 +29,7 @@ its manifest fields and its full snapshots are gone; development data from
 earlier builds is not carried forward.
 
 Matching-pair ZIP refuses a mismatch. Encrypted key-only PEM needs the same
-fresh phone code, exact generation and output-password policy. Public bundle
+fresh code, exact generation and output-password policy. Public bundle
 download includes supplied roots
 without assigning trust. The archive remains unencrypted. ADR 0087 prepares
 PFX contents locally; original PFX containers are not stored. Plaintext custody
@@ -97,15 +98,27 @@ encryption or multi-user RBAC.
   `https://` Origin (C112), same-origin custom header, POST-only operation,
   no query fields, no-store responses and the existing CSP apply. `rootwelld`
   runs only on Linux.
+- Optional passkeys (WebAuthn, C113) stand in for the phone code, at sign-in
+  and as a fresh code. A passkey signs only for the name it was made on, so a
+  look-alike site cannot reuse its answer; it needs the person verified by a
+  fingerprint, face or PIN, and a challenge of 32 random bytes kept with the
+  session, for one purpose, two minutes and one answer. The account keeps
+  only public keys, up to ten. Attestation is not checked, so Rootwell takes
+  the authenticator's word that it verified the person. Adding or removing
+  one needs a fresh code and ends the account's other sessions, and a setup
+  code that replaces the sign-in removes them all. TOTP stays mandatory and
+  a way in, so it can still be phished. Browsers allow no passkeys on an IP
+  address.
 - Explicit Check uploads to the operator's own daemon, not third parties.
   Certificate <=96 KiB, key <=64 KiB, JSON <=1200 KiB, passwords <=256 bytes.
   Single strict certificate; strict bounded PKCS#8/PKCS#1/SEC1 or supported
   encrypted PKCS#8. Mixed/private certificate inputs, unsupported formats,
   CA private custody, unmatched keys, ambiguous JSON and duplicates refuse.
 - One slot for expensive work: password checks and file parsing. Private
-  export needs a phone code from the last ten minutes (C111); wrong codes
-  count against the account's and the address's failure limits, and five end
-  the session. Authenticated Check/Save have bounded inputs and concurrency
+  export needs a fresh code: a phone code, a recovery code or a passkey from
+  the last ten minutes (C111); wrong codes and refused passkey answers count
+  against the account's and the address's failure limits, and five end the
+  session. Authenticated Check/Save have bounded inputs and concurrency
   but no separate per-operation rate budget yet.
   Listing opens no key, and there is no background monitor. The list holds at
   most 500 certificates; authenticated operator resource exhaustion remains a
@@ -124,7 +137,7 @@ encryption or multi-user RBAC.
   input/output password, filename or raw decoder error is persisted or
   returned. Browser renders only fixed error messages and textContent. No
   browser storage.
-- Private ZIP download requires a phone code from the last ten minutes, the
+- Private ZIP download requires a fresh code from the last ten minutes, the
   same signed-in session at the same account revision, the generation and the
   fingerprint, then session/cancellation checks again before output. Exported
   key is password-encrypted PKCS#8 under the previously reviewed PBKDF2/AES
@@ -138,7 +151,7 @@ encryption or multi-user RBAC.
   Save transmission cannot guarantee the server did not commit. An uncertain
   result requires refresh. Browser downloads have no overwrite/permission claim.
 - Note changes leave the key record alone. Deleting a certificate that has a
-  key needs a phone code from the last ten minutes. Delete removes both
+  key needs a fresh code from the last ten minutes. Delete removes both
   records in one transaction, not source files or copies of the data
   directory. Until Phase
   3b, a backup is a copy of the data directory made with the service stopped,
@@ -163,10 +176,10 @@ assurance is provided. The instance key file, or its recovery code,
 together with a copy of the data directory opens every record. A copy of the
 data directory keeps the keys it held, and an older `rootwell.db` swapped in
 whole is not detected. Losing both the key file and the recovery code loses
-every saved certificate and key. The account's password, its phone codes and
-the export password do not protect a compromised host. On `localhost` the
-session cookie is shared with other local ports (C112). Obtain independent
-specialist review before
+every saved certificate and key. The account's password, its phone codes, its
+passkeys and the export password do not protect a compromised host. On
+`localhost` the session cookie is shared with other local ports (C112).
+Obtain independent specialist review before
 real-user custody. Do not import production secrets into a development build.
 
 Evidence: certificatepair generated RSA/ECDSA/Ed25519 and encrypted-key tests;
@@ -174,7 +187,7 @@ vault and certstore sealing, atomicity, refusal and record-binding tests; Linux
 API check/save/key-later/download/delete/restart integration; the container
 volume drill; strict HTTP request tests; bounded stale/hidden/late/read-only UI
 tests, account, session, limit and fresh-code tests, HTTPS and serving
-authority tests, and actual public WASM tests. Invariants C68, C69, C107 and
-C108–C112 name them.
+authority tests, passkey tests with two fuzz targets, and actual public WASM
+tests. Invariants C68, C69, C107 and C108–C113 name them.
 Exact commands and deliberate sabotage outcomes are recorded in the PR and
 ADR. Green CI and self-review are not independent audit.

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/account"
+	"github.com/denyfirst/rootwell/internal/passkey"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
@@ -330,5 +331,76 @@ func TestNamesAreComparedWithoutCase(t *testing.T) {
 		if _, ok := Name(bad); ok {
 			t.Fatalf("Name(%q) was accepted", bad)
 		}
+	}
+}
+
+func TestPasskeysAreAddedUsedAndRemovedWithTheirRevisions(t *testing.T) {
+	s, _, c, _ := newStore(t)
+	setUp(t, s, c, "ada")
+	key := func(id string) passkey.Credential {
+		return passkey.Credential{ID: []byte(id), PublicKey: []byte("spki-" + id), Algorithm: passkey.AlgES256}
+	}
+	a, err := s.AddPasskey("ada", 1, key("laptop"), "Laptop")
+	if err != nil || a.Revision != 2 || len(a.Passkeys) != 1 || a.Passkeys[0].Name != "Laptop" {
+		t.Fatalf("add: %+v %v", a, err)
+	}
+	if _, err := s.AddPasskey("ada", 2, key("laptop"), "Again"); !errors.Is(err, ErrPasskeyLimit) {
+		t.Fatalf("the same passkey twice: %v", err)
+	}
+	if _, err := s.AddPasskey("ada", 1, key("phone"), "Phone"); !errors.Is(err, ErrChanged) {
+		t.Fatalf("an add against an older revision: %v", err)
+	}
+	for i := 1; i < MaxPasskeys; i++ {
+		if a, err = s.AddPasskey("ada", a.Revision, key(fmt.Sprintf("key-%d", i)), "Key"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AddPasskey("ada", a.Revision, key("one-more"), "Key"); !errors.Is(err, ErrPasskeyLimit) {
+		t.Fatalf("past the limit: %v", err)
+	}
+	// Use: the passkey's own check decides, and its count is kept.
+	c.at = c.at.Add(time.Minute)
+	used, err := s.UsePasskey("ada", a.Revision, []byte("laptop"), func(cred passkey.Credential) (uint32, error) {
+		if string(cred.PublicKey) != "spki-laptop" {
+			return 0, errors.New("wrong credential")
+		}
+		return 7, nil
+	})
+	if err != nil || used.Revision != a.Revision || used.Passkeys[0].LastUsed == "" {
+		t.Fatalf("use: %+v %v", used, err)
+	}
+	if _, err := s.UsePasskey("ada", a.Revision, []byte("laptop"), func(cred passkey.Credential) (uint32, error) {
+		if cred.SignCount != 7 {
+			t.Fatalf("the count was not kept: %d", cred.SignCount)
+		}
+		return 0, passkey.ErrRefused
+	}); !errors.Is(err, ErrRefused) {
+		t.Fatalf("a refused answer: %v", err)
+	}
+	if _, err := s.UsePasskey("ada", a.Revision, []byte("unknown"), func(passkey.Credential) (uint32, error) { return 1, nil }); !errors.Is(err, ErrRefused) {
+		t.Fatalf("an unknown passkey: %v", err)
+	}
+	if _, err := s.UsePasskey("ada", a.Revision-1, []byte("laptop"), func(passkey.Credential) (uint32, error) { return 8, nil }); !errors.Is(err, ErrChanged) {
+		t.Fatalf("a use against an older revision: %v", err)
+	}
+	removed, err := s.RemovePasskey("ada", a.Revision, []byte("laptop"))
+	if err != nil || removed.Revision != a.Revision+1 || len(removed.Passkeys) != MaxPasskeys-1 {
+		t.Fatalf("remove: %v", err)
+	}
+	if _, err := s.RemovePasskey("ada", removed.Revision, []byte("laptop")); !errors.Is(err, ErrRefused) {
+		t.Fatalf("removing it twice: %v", err)
+	}
+	// A setup that replaces the sign-in drops every passkey with it.
+	code, _, err := s.NewSetupCode("ada")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := account.HashPassword(nextPassword)
+	seed, _ := account.NewSeed()
+	if _, reset, err := s.FinishSetup(code, "ada", hash, seed, step(c.at)); err != nil || len(reset.Passkeys) != 0 {
+		t.Fatalf("after a reset: %+v %v", reset, err)
+	}
+	if h := s.UserHandle("ada"); len(h) != 32 || bytes.Equal(h, s.UserHandle("bob")) || !bytes.Equal(h, s.UserHandle("ada")) {
+		t.Fatal("the user handle is not a stable digest of the name")
 	}
 }

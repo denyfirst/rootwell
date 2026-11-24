@@ -164,7 +164,7 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
 | Stolen database or backup | Each secret is sealed under its own data key; the data keys are under an instance key kept in a separate file; backups are encrypted | If the instance key is taken too, the protection is gone |
 | Live host compromise | None beyond the operating system: Rootwell must use keys to renew them | This is not a zero-knowledge design |
 | Session theft, CSRF, XSS | HTTPS, a `__Host-` cookie, exact Origin and Fetch Metadata checks, a strict CSP, safe DOM writes | Malicious browser extensions |
-| Password guessing | Argon2id, rate limits per name and per source, mandatory TOTP | TOTP can be phished |
+| Password guessing | Argon2id, rate limits per name and per source, mandatory TOTP, optional passkeys | TOTP can be phished, even when a passkey is added |
 | Server-side request forgery | Fixed hosts for CAs and DNS APIs; website checks dial only checked public addresses; no redirects | Public addresses used internally |
 | Wrong certificate delivered | Delivery only after the chain, names and key match are verified; atomic replace; the previous files are kept | The served result depends on the server's own reload |
 | Hostile files | Bounded parsers, fuzzing, single-use workers | Unknown parser defects |
@@ -192,6 +192,7 @@ These follow Keybash:
 - A one-time bootstrap code for the first account.
 - Argon2id passwords of at least 15 characters, checked against a blocklist.
 - Mandatory TOTP and one-time recovery codes.
+- Optional passkeys, which stand in for the phone code and resist phishing.
 - Sessions end after 15 minutes idle and after 8 hours at most.
 - A fresh phone code (from the last ten minutes) is needed only to:
   - show or download a private key;
@@ -281,8 +282,15 @@ delete them in Phase 3c. Renewal comes back in Phase 3c, built on the ACME
 protocol packages that stay (section 8). Until Phase 3b, a backup is a copy of
 the data directory made with the service stopped (`RECOVERY.md`).
 
-**Next:** passkeys, then Phase 3b (online backup and restore, instance key
-rotation and export), then an independent review.
+**Passkeys** followed Phase 3a, on 24 November 2026 (ADR 0088, invariant
+C113). A passkey added on the Account page stands in for the phone code at
+sign-in and in the fresh-code dialog, with the device's fingerprint, face or
+PIN. It is optional: the phone stays mandatory and is the way back. A passkey
+works only on the name it was added on, never on an IP address, and a setup
+code that replaces the account's sign-in removes them.
+
+**Next:** Phase 3b (online backup and restore, instance key rotation and
+export), then an independent review.
 
 **Later:**
 - roles and invites;

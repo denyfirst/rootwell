@@ -3,9 +3,10 @@
 > **Superseded on 24 November 2026 (ADR 0088, Phase 3a part 3).** The setup
 > password, the access file, the session bound to it and the offline
 > ceremonies described below are gone. A setup code from the server makes the
-> account; sign-in takes a password and a phone code; sessions live in memory
-> with their own limits. See [ADR 0088](adr/0088-keybash-foundation.md),
-> invariants C33 and C108–C111 in `SECURITY-INVARIANTS.md`, and
+> account; sign-in takes a password and a phone code or a passkey; sessions
+> live in memory with their own limits. See
+> [ADR 0088](adr/0088-keybash-foundation.md), invariants C33, C108–C111 and
+> C113 in `SECURITY-INVARIANTS.md`, and
 > `CERTIFICATE-CUSTODY-THREAT-MODEL.md`. This file is kept as history.
 
 **Scope:** single-operator, self-hosted development gateway for the existing
