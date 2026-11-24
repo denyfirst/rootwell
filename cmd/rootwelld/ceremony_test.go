@@ -21,6 +21,11 @@ func TestOfflineCommandClassificationAndNoSecretArgv(t *testing.T) {
 			t.Fatalf("%q classified as an offline command", command)
 		}
 	}
+	for command, secret := range map[string]bool{"key-restore": true, "setup-code": true, "serving-names": false} {
+		if handlesSecrets([]string{command}) != secret {
+			t.Fatalf("%q handles secrets: %v", command, !secret)
+		}
+	}
 	if isOfflineCommand(nil) {
 		t.Fatal("no command classified as offline")
 	}

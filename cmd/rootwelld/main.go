@@ -39,7 +39,7 @@ func run(args []string) int {
 		return 1
 	}
 	if isOfflineCommand(args) {
-		if !terminal(os.Stdin) || !terminal(os.Stdout) {
+		if handlesSecrets(args) && (!terminal(os.Stdin) || !terminal(os.Stdout)) {
 			fmt.Fprintln(os.Stderr, "this command needs an interactive local terminal; no secret was read or shown")
 			return 2
 		}
