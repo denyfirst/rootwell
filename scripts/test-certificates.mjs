@@ -83,7 +83,8 @@ async function fetch(url, options) {
   api.requests.push({ url, body, headers: options.headers });
   assert.equal(options.headers["X-Rootwell-Request"], "1");
   assert.equal(options.credentials, "same-origin");
-  if (url === "/api/inventory") return reply(200, listing(api.records));
+  // holdList keeps the list from coming back until the test lets it.
+  if (url === "/api/inventory") return api.holdList ? api.holdList.then(() => reply(200, listing(api.records))) : reply(200, listing(api.records));
   if (body.expected_generation !== api.generation) return reply(409, "stale generation");
   const target = api.records.find((r) => r.fingerprint === body.fingerprint);
   const change = () => { api.generation++; return reply(200, listing([target])); };
@@ -361,16 +362,25 @@ await dropAdd(new File([bytesOf("issuer")], "chain.pem"), new File([bytesOf("lea
 assert.match($("add-preview").text(), /shop\.test Synthetic Convert Issuing CA · until .+ Key matches/);
 assert.equal($("add-save").disabled, false);
 $("add-place").value = "Caddy on edge-3";
-await $("add-save").listeners.click();
+// The list is slow to come back after the save: the page says Saved at once,
+// and the next change already names the count the save answered with.
+let releaseList;
+api.holdList = new Promise((resolve) => { releaseList = resolve; });
+const saving = $("add-save").listeners.click();
 await settle();
 assert.equal($("add-dialog").hidden, true);
-assert.match($("page-status").text(), /Saved shop\.test/);
+assert.match($("page-status").text(), /Saved shop\.test/, "Saved shows before the list comes back");
 assert.equal(lastRequest("/api/certificates/save").body.location, "Caddy on edge-3");
-assert.equal(rows().length, 4);
 
-// The same certificate again is refused plainly.
+// The same certificate again is refused plainly, even before the list is back.
 await dropAdd(new File([bytesOf("leaf")], "cert.pem"));
+assert.equal(lastRequest("/api/certificates/check").body.expected_generation, api.generation, "the check names the new count");
 assert.match($("add-status").text(), /already saved/);
+api.holdList = null;
+releaseList();
+await saving;
+await settle();
+assert.equal(rows().length, 4);
 $("add-close").listeners.click();
 
 // A protected key asks for its password, then checks again.

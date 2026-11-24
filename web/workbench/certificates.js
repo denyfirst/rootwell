@@ -88,8 +88,10 @@
     pageStatus.replaceChildren(box);
   }
 
+  // load reads the list again. A read already under way may predate the
+  // change that asked for this one, so it is waited for, never reused.
   async function load() {
-    if (loading) return loading;
+    while (loading) await loading;
     loading = (async () => {
       try {
         const answer = await json(await call("/api/inventory", null, "The list could not be read. Reload the page."));
@@ -787,12 +789,15 @@
     say(addStatus, "plain", "Saving…");
     try {
       const body = { ...request(), fingerprint: add.record.fingerprint, allow_mismatch: false };
-      await call("/api/certificates/save", body, "The certificate was not saved.");
+      const saved = await json(await call("/api/certificates/save", body, "The certificate was not saved."));
       if (ticket !== addTicket) return;
+      // The answer carries the list's new count: the next change uses it at
+      // once, without waiting for the list to come back.
+      if (Number.isSafeInteger(saved.generation) && saved.generation > generation) generation = saved.generation;
       const name = nameOf(add.record);
       closeAdd();
-      await load();
       notice("good", "Saved " + name + ".");
+      await load();
     } catch (failure) {
       if (ticket === addTicket) {
         addSave.disabled = false;
