@@ -268,9 +268,11 @@ rootwelld key-rotate /private/rootwell-data /private/rootwell-key/instance.key
 
 - It shows the new key's recovery code once. Type `SAVED` once it is kept;
   until then nothing changes.
-- It then moves the vault to the new key in one step, and puts the new key
+- It then moves the vault to the new key in one step, rewrites the vault's
+  file so nothing left in it opens with the old key, and puts the new key
   file in place of the old one. From then on only the new key, or its new
-  code, opens Rootwell. Everything in the vault stays as it was: accounts,
+  code, opens Rootwell. If rewriting the file fails, it says so: run
+  `key-rotate` once more. Everything in the vault stays as it was: accounts,
   passkeys, certificates, and the recovery and setup codes not yet used.
 - **Backups made before keep opening with the old key and its old recovery
   code only.** Keep the old code as long as you keep those backups, and make

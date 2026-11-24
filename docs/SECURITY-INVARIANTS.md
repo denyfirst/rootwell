@@ -15,8 +15,12 @@ needs a signed-in session, a fresh code (C111), the exact Origin and the
 custom header; GET, another site and a session without a fresh code get
 405, 403 and 428, and nothing is copied. The server copies the whole vault in
 one bbolt read transaction while Rootwell keeps running, so the copy is
-consistent, and sends it as `rootwell-backup-<UTC time>.db`. It holds every
-record as the vault holds it, all sealed (C107): certificates, keys, accounts,
+consistent, and writes it as a compacted file of the live records only:
+pages bbolt freed, such as a deleted key or a record sealed under an earlier
+key, never go out. One backup is made at a time, and it goes only to the
+session that asked, still signed in. It is sent as
+`rootwell-backup-<UTC time>.db` and holds every live record as the vault
+holds it, all sealed (C107): certificates, keys, accounts,
 passkeys and Rootwell's certificate authority. It holds no instance key and
 no plaintext, so it opens only with the key the vault had when it was made.
 A vault larger than 64 MiB gets 507 and is copied on the server with the
@@ -32,14 +36,19 @@ otherwise removes it, so a refused restore leaves nothing. Without a key
 file, it reads the instance key's recovery code at the terminal, and writes
 the key file from it only after the restored vault opens with it.
 
-`rootwelld key-rotate <data-dir> <key-file>` shows the new key's recovery code
-and changes nothing until the person types `SAVED`. It writes the new key
-beside the old one as `<key-file>.new`. Then, in one transaction, it wraps
-every record's data key again under the new key, and seals the index and
-one-time-code keys in the meta record under it, so record IDs and the digests
-of setup and recovery codes stay as they were. Last, it renames the new file
-over the old one. After the transaction the vault refuses the old key, and
-a damaged sealed key too; a vault never rotated opens as before. A `.new`
+`rootwelld key-rotate <data-dir> <key-file>` checks the key's directory, then
+shows the new key's recovery code and changes nothing until the person types
+`SAVED`. It writes the new key beside the old one as `<key-file>.new`. Then,
+in one transaction, it seals every record again under a new data key wrapped
+by the new key, and seals the index and one-time-code keys in the meta record
+under it, so record IDs and the digests of setup and recovery codes stay as
+they were. bbolt keeps the pages it replaced until they are reused, and those
+held every record under the old key, so with the vault closed the command
+rewrites the file with its live records only. Last, it renames the new key
+file over the old one. Afterwards the vault refuses the old key, a damaged
+sealed key too, and nothing left in the file opens with the old key; a vault
+never rotated opens as before. If the transaction reports an error, the new
+key is kept when the vault opens with it, and removed only when it does not. A `.new`
 file left by an interrupted rotation is named and never overwritten: the next
 rotation refuses and says how to finish.
 `rootwelld key-export <data-dir> <key-file>` prints the recovery code of the
@@ -54,9 +63,18 @@ rather than made again, so the old key still derives them, and with the
 current file it can tell whether a certificate it already knows is kept
 there; it opens no record.
 
+
+The vault keeps records confidential, not fresh: someone who can write
+`rootwell.db` without the key can put an older sealed record back, such as an
+earlier password hash or a spent recovery code. The operating system keeps
+the file writable by the service user only (C107).
+
 Guarded by `TestRotationMovesEverySecretToTheNewKey`,
 `TestADamagedSealedIndexKeyIsRefused`,
 `TestABackupIsAWholeVaultThatOpensWithItsKey`,
+`TestNothingSealedBeforeARotationStaysInTheFileOrItsBackups`,
+`TestOneBackupAtATimeAndOnlyToTheSessionThatAsked`,
+`TestLinuxInitShowsNoCodeForAKeyDirectoryOthersCanRead`,
 `TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey`,
 `TestTheInstallationPageSaysHowBrowsersReachRootwell`,
 `TestLinuxKeyExportPrintsTheCodeOfTheKeyThatOpensTheVault`,

@@ -109,8 +109,11 @@ in or depart from the text below:
   installation, and keeps the vault only once it opens with the key; without
   a key file it takes the recovery copy at the terminal and writes the key
   file too. Sessions start afresh.
-- **Rotation keeps record IDs:** `key-rotate` wraps every data key again
-  under the new key in one transaction, as decided. The index and
+- **Rotation keeps record IDs:** `key-rotate` seals every record again under
+  a new data key wrapped by the new key, in one transaction, then rewrites
+  the file with its live records only: bbolt keeps replaced pages until they
+  are reused, and an independent review showed those still opened with the
+  old key. Backups are compacted copies for the same reason. The index and
   one-time-code keys are not derived again from the new key: they are sealed
   in the meta record under it, so record IDs and the digests of setup and
   recovery codes do not move, and a vault never rotated opens as before. The

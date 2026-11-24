@@ -213,8 +213,9 @@ docker compose up -d rootwell
 
 - It shows the new key's recovery code once. Type `SAVED` once it is kept;
   until then nothing changes. It then moves the vault to the new key in one
-  step and puts the new key file in place of the old one. Everything in the
-  vault stays as it was.
+  step, rewrites its file so nothing left in it opens with the old key, and
+  puts the new key file in place of the old one. Everything in the vault
+  stays as it was.
 - **Backups made before keep opening with the old key and its old recovery
   code only.** Keep the old code as long as you keep those backups, and make
   a new backup after rotating.
