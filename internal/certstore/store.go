@@ -37,6 +37,9 @@ var (
 	ErrNotFound = errors.New("the certificate is not in the list")
 	// ErrKeyExists says a key is already saved; a key is never replaced.
 	ErrKeyExists = errors.New("a private key is already saved with this certificate")
+	// ErrKeyNeedsCode says the certificate has a saved key, and deleting it
+	// needs a fresh phone code (ADR 0088).
+	ErrKeyNeedsCode = errors.New("deleting a saved key needs a fresh code")
 	// ErrFull says the list holds MaxCertificates already.
 	ErrFull = errors.New("the list is full")
 	// ErrUnavailable hides a vault refusal: a damaged or unreadable record.
@@ -433,12 +436,16 @@ func (s *Store) SetOwner(expected uint64, fingerprint, owner string) (publicinve
 	})
 }
 
-// Delete removes a certificate and its key.
-func (s *Store) Delete(expected uint64, fingerprint string) (uint64, error) {
+// Delete removes a certificate and its key. A certificate with a key is
+// removed only when keyAllowed: the person entered a fresh phone code.
+func (s *Store) Delete(expected uint64, fingerprint string, keyAllowed bool) (uint64, error) {
 	err := s.change(expected, func(t *vault.Tx) error {
-		_, id, err := s.read(t, fingerprint)
+		c, id, err := s.read(t, fingerprint)
 		if err != nil {
 			return err
+		}
+		if c.HasKey && !keyAllowed {
+			return ErrKeyNeedsCode
 		}
 		if t.Delete(kindKey, id) != nil || t.Delete(kindCertificate, id) != nil {
 			return ErrUnavailable

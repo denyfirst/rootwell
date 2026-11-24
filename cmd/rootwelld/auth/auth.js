@@ -1,126 +1,249 @@
 "use strict";
+
+// Sign-in, setup and the Account page. Every request is JSON to the same
+// origin with the page header; the server's answers are read by status, and
+// only the few shapes it sends on success are accepted.
 (() => {
   const mode = document.body.dataset.mode;
-  const form = document.getElementById("auth-form");
-  const status = document.getElementById("status");
-  const password = document.getElementById("password");
-  const next = document.getElementById("next");
-  const confirm = document.getElementById("confirm");
-  const headers = {"Content-Type":"application/json","X-Rootwell-Request":"1"};
-  const signOut = document.getElementById("sign-out");
-  const submit = form.querySelector("button");
-  const fields = [password, next, confirm].filter(Boolean);
-  let active = null;
+  const $ = (id) => document.getElementById(id);
+  const status = $("status");
+  const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
-  function clearFields() { for (const field of fields) field.value = ""; }
-  function lock(value) {
-    submit.disabled = value;
-    if (signOut) signOut.disabled = value;
-    for (const field of fields) field.disabled = value;
-  }
+  function say(text) { status.textContent = text || ""; }
 
-  // One deadline covers both headers and body. Cancellation cannot undo a
-  // server-side password change or sign-out, so failure never claims either.
-  async function request(path, method, body, needsMode = false) {
+  // send posts body and returns the status and, for JSON answers, the value.
+  // One deadline covers the whole exchange.
+  async function send(path, body, method = "POST") {
     const controller = new AbortController();
-    let reader;
-    let stop;
-    const stopped = new Promise((_, reject) => { stop = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-      reject(new Error("request unconfirmed"));
-    }; });
-    active = { stop };
-    const timer = setTimeout(stop, 15000);
+    const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await Promise.race([fetch(path, {
-        method, headers, credentials:"same-origin", cache:"no-store",
-        signal:controller.signal, body:body === undefined ? undefined : JSON.stringify(body)
-      }), stopped]);
-      if (controller.signal.aborted) throw new Error("request unconfirmed");
-      if (!response.ok || !needsMode) {
-        if (response.body) void response.body.cancel().catch(() => {});
-        return {status:response.status, ok:response.ok};
-      }
-      if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json" || !response.body) {
-        if (response.body) void response.body.cancel().catch(() => {});
-        throw new Error("unexpected response");
-      }
-      reader = response.body.getReader();
-      const chunks = [];
-      let size = 0;
-      while (true) {
-        const part = await Promise.race([reader.read(), stopped]);
-        if (controller.signal.aborted) throw new Error("request unconfirmed");
-        if (part.done) break;
-        if (part.value.byteLength === 0) throw new Error("empty response chunk");
-        size += part.value.byteLength;
-        if (size > 8192) throw new Error("response limit");
-        chunks.push(part.value);
-      }
-      const bytes = new Uint8Array(size);
-      let offset = 0;
-      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-      const text = new TextDecoder("utf-8", {fatal:true}).decode(bytes);
-      // The server's entire login contract is one field with two fixed values.
-      // Refuse aliases, duplicate fields, extra data and remote error text.
-      const match = /^[ \t\r\n]*\{[ \t\r\n]*"mode"[ \t\r\n]*:[ \t\r\n]*"(setup|ready)"[ \t\r\n]*\}[ \t\r\n]*$/.exec(text);
-      if (!match) throw new Error("unexpected sign-in state");
-      return {status:response.status, ok:true, mode:match[1]};
+      const response = await fetch(path, {
+        method, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
+        headers: body === undefined ? { "X-Rootwell-Request": "1" } : { "Content-Type": "application/json", "X-Rootwell-Request": "1" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const text = await response.text();
+      if (text.length > 16384) throw new Error("large answer");
+      let value = null;
+      if (response.ok && (response.headers.get("content-type") || "").split(";")[0].trim() === "application/json") value = JSON.parse(text);
+      return { status: response.status, ok: response.ok, text, value };
     } finally {
       clearTimeout(timer);
-      if (reader) { void reader.cancel().catch(() => {}); reader.releaseLock(); }
-      active = null;
     }
   }
 
-  function leave() { clearFields(); active?.stop(); }
-  document.addEventListener("visibilitychange", () => { if (document.hidden) leave(); });
-  window.addEventListener("pagehide", leave);
+  // A change that needs a fresh phone code asks for one once, then repeats.
+  async function sendFresh(path, body) {
+    let answer = await send(path, body);
+    if (answer.status === 428 && globalThis.rootwellFresh && await globalThis.rootwellFresh()) answer = await send(path, body);
+    return answer;
+  }
 
-  if (signOut) signOut.addEventListener("click", async () => {
-    if (active || document.hidden) return;
-    clearFields();
-    lock(true);
-    try {
-      const response = await request("/api/session", "DELETE");
-      if (document.hidden || !response.ok || response.status !== 204) throw new Error("sign-out failed");
-      window.location.assign("/login");
-    } catch (_) {
-      status.textContent = "Sign-out could not be confirmed. Try again before leaving this device.";
-    } finally { clearFields(); lock(false); }
-  });
-  form.addEventListener("submit", async event => {
-    event.preventDefault();
-    if (active || document.hidden) return;
-    status.textContent = "";
-    if (next && next.value !== confirm.value) { status.textContent = "New passwords do not match."; return; }
-    const value = password.value;
-    const replacement = next ? next.value : undefined;
-    clearFields();
-    lock(true);
-    try {
-      const response = await request(mode === "login" ? "/api/session" : "/api/password", "POST",
-        replacement === undefined ? {password:value} : {password:value,next:replacement}, mode === "login");
-      if (document.hidden) throw new Error("request unconfirmed");
-      if (!response.ok) {
-        status.textContent = response.status === 429 ? "Too many attempts. Wait one minute." :
-          response.status === 401 ? "The current password was not accepted." :
-          response.status === 400 ? "Choose a different password with at least 15 characters and at most 1024 bytes." :
-          "The request could not be completed. Try again or ask the installation operator.";
+  const tooMany = "Too many wrong tries. Wait a little, then try again.";
+  const failed = "That did not go through. Try again.";
+
+  function showPhone(value) {
+    if (!value || typeof value.key !== "string" || !/^[A-Z2-7]{32}$/.test(value.key) || !globalThis.rootwellQR($("phone-qr"), value.qr)) return false;
+    $("phone-key").textContent = globalThis.rootwellGroups(value.key);
+    $("phone-step").hidden = false;
+    $("phone-code").value = "";
+    $("phone-code").focus();
+    return true;
+  }
+
+  function showCodes(value, name) {
+    const codes = value && value.recovery_codes;
+    if (!Array.isArray(codes) || codes.length !== 10 || !codes.every((c) => typeof c === "string" && /^[a-z2-7]{4}(-[a-z2-7]{4}){3}$/.test(c))) return false;
+    $("codes").replaceChildren(...codes.map((code) => {
+      const item = document.createElement("li");
+      item.className = "mono";
+      item.textContent = code;
+      return item;
+    }));
+    const text = "Rootwell recovery codes for " + name + "\nEach one signs in once, in place of a phone code.\n\n" + codes.join("\n") + "\n";
+    $("codes-copy").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        $("codes-copy").textContent = "Copied";
+      } catch {
+        say("Copying is blocked here. Download them instead.");
+      }
+    };
+    $("codes-download").onclick = () => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      link.download = "rootwell-recovery-codes.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    };
+    $("codes-step").hidden = false;
+    return true;
+  }
+
+  function guard(form, run) {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const buttons = form.querySelectorAll("button");
+      if (form.dataset.busy) return;
+      form.dataset.busy = "1";
+      buttons.forEach((b) => { b.disabled = true; });
+      say("");
+      try {
+        await run();
+      } catch {
+        say(failed);
+      } finally {
+        delete form.dataset.busy;
+        buttons.forEach((b) => { b.disabled = false; });
+      }
+    });
+  }
+
+  // ── Sign in ─────────────────────────────────────────────────────────────
+  if (mode === "login") {
+    const passwordForm = $("password-form");
+    const codeForm = $("code-form");
+    const showCode = () => {
+      passwordForm.hidden = true;
+      codeForm.hidden = false;
+      $("code").value = "";
+      $("code").focus();
+    };
+    const showPassword = () => {
+      codeForm.hidden = true;
+      passwordForm.hidden = false;
+      $("code").value = "";
+      $("name").focus();
+    };
+    void send("/api/session", undefined, "GET").then((answer) => {
+      if (answer.ok && answer.value && answer.value.stage === "code") showCode();
+      if (answer.ok && answer.value && answer.value.stage === "ready") window.location.assign("/certificates");
+    }).catch(() => {});
+    guard(passwordForm, async () => {
+      const name = $("name").value.trim();
+      const password = $("password").value;
+      $("password").value = "";
+      if (!NAME.test(name) || !password) return say("That name and password do not match.");
+      const answer = await send("/api/session", { name, password });
+      if (answer.status === 204) return showCode();
+      say(answer.status === 429 ? tooMany : answer.status === 401 ? "That name and password do not match." :
+        answer.status === 503 ? "Rootwell is busy. Try again." : failed);
+    });
+    guard(codeForm, async () => {
+      const code = $("code").value.trim();
+      $("code").value = "";
+      if (!code) return say("Enter the code your phone shows.");
+      const answer = await send("/api/session/code", { code });
+      if (answer.status === 204) return window.location.assign("/certificates");
+      if (answer.status === 409 || (answer.status === 401 && /sign in again/i.test(answer.text))) {
+        showPassword();
+        return say(/too many/i.test(answer.text) ? "Too many wrong codes. Sign in again." : "Sign in again.");
+      }
+      say(answer.status === 429 ? tooMany : answer.status === 401 ? "That code does not match." : failed);
+      $("code").focus();
+    });
+    $("start-over").addEventListener("click", async () => {
+      await send("/api/session", undefined, "DELETE").catch(() => {});
+      say("");
+      showPassword();
+    });
+  }
+
+  // ── Setup ───────────────────────────────────────────────────────────────
+  if (mode === "setup") {
+    let name = "";
+    guard($("setup-form"), async () => {
+      const code = $("setup-code").value.trim();
+      name = $("name").value.trim();
+      const password = $("password").value;
+      const again = $("confirm").value;
+      if (!code) return say("Enter the setup code from the server.");
+      if (!NAME.test(name)) return say("Choose a name of letters and digits; dots, dashes and underscores may follow.");
+      if ([...password].length < 15) return say("Choose a password of at least 15 characters.");
+      if (password !== again) return say("The two passwords differ.");
+      const answer = await send("/api/setup", { code, name, password });
+      if (answer.status === 200 && answer.value && typeof answer.value.name === "string") {
+        $("password").value = "";
+        $("confirm").value = "";
+        $("setup-code").value = "";
+        name = answer.value.name;
+        $("setup-step").hidden = true;
+        if (!showPhone(answer.value)) say(failed);
         return;
       }
-      password.value = "";
-      if (next) {
-        if (response.status !== 204) throw new Error("unexpected response");
-        next.value = ""; confirm.value = ""; window.location.assign("/login"); return;
+      say(answer.status === 429 ? tooMany :
+        answer.status === 401 ? "That setup code does not work for this name. Make a new one on the server with rootwelld setup-code." :
+        answer.status === 400 ? "Choose a password of at least 15 characters that is not a common one." : failed);
+    });
+    guard($("phone-form"), async () => {
+      const code = $("phone-code").value.trim();
+      $("phone-code").value = "";
+      if (!/^\d{6}$/.test(code)) return say("Enter the six digits your phone shows.");
+      const answer = await send("/api/setup/confirm", { code });
+      if (answer.status === 200) {
+        $("phone-step").hidden = true;
+        if (!showCodes(answer.value, name)) say(failed);
+        return;
       }
-      if (response.status !== 200) throw new Error("unexpected response");
-      if (response.mode === "setup") window.location.assign("/setup");
-      else if (response.mode === "ready") window.location.assign("/");
-    } catch (_) { status.textContent = mode === "login" ?
-      "Sign-in could not be confirmed. Refresh this page to check your session before trying again." :
-      "Password change could not be confirmed. Refresh this page and sign in with the password that is active; do not assume the old password still works."; }
-    finally { clearFields(); lock(false); }
-  });
+      if (answer.status === 409 || (answer.status === 401 && /start the setup again/i.test(answer.text))) {
+        $("phone-step").hidden = true;
+        $("setup-step").hidden = false;
+        return say(answer.status === 409 ? "That setup code no longer works. Make a new one on the server with rootwelld setup-code." :
+          "Too many wrong codes, or the time ran out. Start again.");
+      }
+      say(answer.status === 429 ? tooMany : "That code does not match. Check the phone's clock, then enter the code it shows now.");
+      $("phone-code").focus();
+    });
+  }
+
+  // ── Account ─────────────────────────────────────────────────────────────
+  if (mode === "account") {
+    let name = "";
+    const left = (n) => { $("codes-left").textContent = n === 1 ? "1 is left." : n + " are left."; };
+    void send("/api/session", undefined, "GET").then((answer) => {
+      if (!answer.ok || !answer.value || answer.value.stage !== "ready") return window.location.assign("/login");
+      name = String(answer.value.name || "");
+      $("account-name").textContent = name;
+      left(Number(answer.value.recovery_left) || 0);
+    }).catch(() => {});
+    guard($("password-form"), async () => {
+      const password = $("password").value;
+      const next = $("next").value;
+      const again = $("confirm").value;
+      if (next !== again) return say("The two new passwords differ.");
+      if ([...next].length < 15) return say("Choose a new password of at least 15 characters.");
+      const answer = await sendFresh("/api/password", { password, next });
+      if (answer.status === 204) return window.location.assign("/login");
+      if (answer.status === 428) return say("Nothing changed. That needs a code from your phone.");
+      say(answer.status === 429 ? tooMany : answer.status === 401 ? "The current password does not match." :
+        answer.status === 400 ? "Choose a different password: at least 15 characters, not a common one, and not the one you have now." : failed);
+    });
+    window.addEventListener("pagehide", () => { for (const id of ["password", "next", "confirm", "phone-code"]) $(id).value = ""; });
+    $("phone-start").addEventListener("click", async () => {
+      say("");
+      const answer = await sendFresh("/api/phone", {}).catch(() => null);
+      if (answer && answer.status === 200 && showPhone(answer.value)) return;
+      say(answer && answer.status === 428 ? "Nothing changed. That needs a code from your phone." : failed);
+    });
+    guard($("phone-form"), async () => {
+      const code = $("phone-code").value.trim();
+      $("phone-code").value = "";
+      if (!/^\d{6}$/.test(code)) return say("Enter the six digits the new phone shows.");
+      const answer = await sendFresh("/api/phone/confirm", { code });
+      if (answer.status === 204) {
+        $("phone-step").hidden = true;
+        return say("Rootwell now uses the new phone. Other browsers are signed out.");
+      }
+      if (answer.status === 401 && /signed out/i.test(answer.text)) return window.location.assign("/login");
+      say(answer.status === 409 ? "Start again with Move to a new phone." : "That code does not match. Check the phone's clock, then enter the code it shows now.");
+    });
+    $("codes-new").addEventListener("click", async () => {
+      say("");
+      const answer = await sendFresh("/api/recovery-codes", {}).catch(() => null);
+      if (answer && answer.status === 200 && showCodes(answer.value, name)) return left(10);
+      say(answer && answer.status === 428 ? "Nothing changed. That needs a code from your phone." : failed);
+    });
+  }
 })();

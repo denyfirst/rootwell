@@ -50,7 +50,9 @@ const record = (n, name, days, extra = {}) => ({ fingerprint: hexFingerprint(n),
   dns_names: [name], not_before: iso(Date.now() - 30 * day), not_after: iso(Date.now() + days * day), owner: "", location: "", locations: [],
   import_generation: 1, imported_at: iso(Date.now() - 2 * day), has_private_key: false, key_status: "not-added", bundle_count: 0,
   expiry: { status: "valid" }, ...extra });
-const api = { generation: 1, records: [], requests: [], selection: false, password: "the-rootwell-password" };
+// fresh: a phone code was entered in the last ten minutes. freshAnswer is what
+// the page's code dialog does when Rootwell asks for one.
+const api = { generation: 1, records: [], requests: [], selection: false, fresh: true, freshAnswer: true, freshAsked: 0 };
 const pemBlocks = (text) => text.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
 function parse(body) {
   const bytes = Buffer.from(body.certificate, "base64");
@@ -90,17 +92,19 @@ async function fetch(url, options) {
     case "/api/inventory/locations": target.locations.push(body.location); target.location ||= body.location; return change();
     case "/api/inventory/locations/change": target.locations = target.locations.filter((l) => l !== body.old_location); target.location = target.locations[0] || ""; return change();
     case "/api/inventory/delete":
+      if (target.has_private_key && !api.fresh) return reply(428, "Enter a code from your phone first.");
       assert.equal(body.typed_fingerprint, body.fingerprint);
       assert.equal(body.confirmation, "delete-public-record");
       api.records = api.records.filter((r) => r !== target);
       api.generation++;
       return reply(200, { fingerprint: body.fingerprint, generation: api.generation, deleted: true });
     case "/api/certificates/download":
-      if ((body.pair || body.key_only) && body.password !== api.password) return reply(401, "password not accepted");
+      assert.equal("password" in body, false, "no Rootwell password is sent");
+      if ((body.pair || body.key_only) && !api.fresh) return reply(428, "Enter a code from your phone first.");
       return new Response(body.pair ? "zip-bytes" : "-----BEGIN CERTIFICATE-----\n", { status: 200 });
     case "/api/certificates/key/check":
     case "/api/certificates/key/save": {
-      if (url.endsWith("save") && body.password !== api.password) return reply(401, "password not accepted");
+      assert.equal("password" in body, false, "no Rootwell password is sent");
       const status = Buffer.from(body.private_key, "base64").toString().includes("synthetic-mismatch") ? "mismatch" : "matched";
       if (url.endsWith("save")) { target.has_private_key = true; target.key_status = status; api.generation++; }
       return reply(200, listing([{ ...target, has_private_key: true, key_status: status }]));
@@ -142,7 +146,7 @@ class Node {
   text() { return [this.textContent, ...this.children.map((c) => c.text())].join(" ").replace(/\s+/g, " ").trim(); }
 }
 const ids = {};
-const $ = (id) => (ids[id] ??= new Node(/file$|password|place$|owner$|search|key-auth/.test(id) ? "input" : "div"));
+const $ = (id) => (ids[id] ??= new Node(/file$|password|place$|owner$|search/.test(id) ? "input" : "div"));
 const document = { getElementById: $, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), body: new Node("body"),
   activeElement: null, listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } };
 const downloads = [];
@@ -160,6 +164,7 @@ const win = {
     if (!answer || answer.ok !== true) throw new Error("PFX preparation failed");
     return answer.result;
   } },
+  rootwellFresh: async () => { api.freshAsked++; api.fresh = api.freshAnswer; return api.freshAnswer; },
   listeners: {},
   addEventListener(name, fn) { this.listeners[name] = fn; },
 };
@@ -252,7 +257,8 @@ assert.equal(ownerSaves(), ownerSavesBefore + 1, "an unchanged owner is not sent
 assert.equal($("sheet-owner-save").hidden, true);
 assert.match(status(), /Owner saved/);
 
-// Downloads: the certificate plainly, the key only with both passwords.
+// Downloads: the certificate plainly; the key locked with its own password, and
+// only after a code from the phone in the last ten minutes.
 $("sheet-download").listeners.click();
 assert.deepEqual($("download-choices").children.map((c) => c.children[1].textContent), ["Certificate", "Full chain", "Certificate and key", "Key only"]);
 await $("download-go").listeners.click();
@@ -266,45 +272,43 @@ const choose = (container, value) => {
 choose($("download-choices"), "pair");
 assert.equal($("download-secret").hidden, false);
 assert.equal($("download-go-name").textContent, "Download shop.test.zip");
-await $("download-go").listeners.click();
-assert.match(status(), /Enter your Rootwell password/);
-$("download-password").value = "the-rootwell-password";
 $("download-key-password").value = "short";
 await $("download-go").listeners.click();
 assert.match(status(), /20 to 128/);
 $("download-generate").listeners.click();
 const keyPassword = $("download-key-password").value;
-$("download-password").value = "not-the-password";
+api.fresh = false;
+api.freshAnswer = false;
+const downloadsBefore = downloads.length;
 await $("download-go").listeners.click();
 await settle();
-assert.match(status(), /That Rootwell password is not right/);
-assert.equal($("download-password").value, "", "the Rootwell password field is emptied after each try");
-$("download-password").value = "the-rootwell-password";
+assert.equal(api.freshAsked, 1, "the page asks for a phone code");
+assert.match(status(), /Nothing changed. That needs a code from your phone/);
+assert.equal(downloads.length, downloadsBefore, "nothing is downloaded without the code");
+api.freshAnswer = true;
 await $("download-go").listeners.click();
 await settle();
+assert.equal(api.freshAsked, 2);
 assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 6, pair: true,
-  password: "the-rootwell-password", output_password: Buffer.from(keyPassword).toString("base64") });
+  output_password: Buffer.from(keyPassword).toString("base64") });
 assert.equal(downloads.at(-1).name, "shop.test.zip");
 assert.equal(downloads.at(-1).blob.type, "application/zip");
 
-// A certificate without a key: the key is checked, then saved with the password.
+// A certificate without a key: the key is checked, then saved.
 const mail = api.records[1];
 await go(mail);
 assert.match($("sheet-facts").text(), /Private key Not saved Add the key/);
 $("sheet-facts").children[0].children[2].listeners.click();
 assert.equal($("key-panel").hidden, false);
 $("key-file").files = [new File(["synthetic-mismatch key"], "wrong.key")];
-$("key-auth").value = "the-rootwell-password";
 await $("key-save").listeners.click();
 await settle();
 assert.match(status(), /does not belong to the certificate/);
 assert.equal(mail.has_private_key, false);
-// Closing the sheet while the key is checked saves nothing; closing empties
-// the password field, so a save then would go out without the password.
+// Closing the sheet while the key is checked saves nothing.
 const saves = () => api.requests.filter((r) => r.url === "/api/certificates/key/save").length;
 const savesBefore = saves();
 $("key-file").files = [new File(["synthetic key"], "mail.key")];
-$("key-auth").value = "the-rootwell-password";
 const closedMidway = $("key-save").listeners.click();
 $("sheet-close").listeners.click();
 await closedMidway;
@@ -314,12 +318,10 @@ assert.equal(mail.has_private_key, false);
 await go(mail);
 $("sheet-facts").children[0].children[2].listeners.click();
 $("key-file").files = [new File(["synthetic key"], "mail.key")];
-$("key-auth").value = "the-rootwell-password";
 await $("key-save").listeners.click();
 await settle();
-assert.equal(lastRequest("/api/certificates/key/save").body.password, "the-rootwell-password");
+assert.equal(lastRequest("/api/certificates/key/save").body.allow_mismatch, false);
 assert.match(status(), /The key is saved/);
-assert.equal($("key-auth").value, "");
 assert.match($("sheet-facts").text(), /Private key Saved/);
 
 // Delete asks first, then the list and the sheet let it go.
@@ -329,6 +331,15 @@ assert.equal($("delete-dialog").hidden, false);
 assert.equal($("delete-text").textContent, "old.test and its saved key leave Rootwell. Servers that use it are not changed.");
 $("delete-cancel").listeners.click();
 assert.equal($("delete-dialog").hidden, true);
+// It has a saved key, so deleting it needs a phone code too.
+api.fresh = false;
+api.freshAnswer = false;
+$("sheet-delete").listeners.click();
+await $("delete-go").listeners.click();
+await settle();
+assert.match(status(), /Nothing changed. That needs a code from your phone/);
+assert.equal(rows().length, 4, "nothing was deleted");
+api.freshAnswer = true;
 $("sheet-delete").listeners.click();
 await $("delete-go").listeners.click();
 await settle();
@@ -418,6 +429,6 @@ assert.equal($("add-save").disabled, false);
 document.listeners.keydown({ key: "Escape" });
 assert.equal($("add-dialog").hidden, true);
 win.listeners.pagehide();
-assert.equal($("download-password").value, "");
+assert.equal($("download-key-password").value, "", "the key file password is forgotten");
 
 console.log("Certificates lists, filters, edits, downloads, deletes and adds certificates through the inventory API.");

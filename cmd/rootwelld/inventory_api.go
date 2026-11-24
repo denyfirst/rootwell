@@ -74,14 +74,6 @@ func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	if s.setup {
-		http.Error(w, "change the setup password first", http.StatusForbidden)
-		return
-	}
-	if g.certificates == nil {
-		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
-		return
-	}
 	if !g.sameOrigin(r) {
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
@@ -169,14 +161,6 @@ func (g *gate) inventoryLocationChangeEndpoint(w http.ResponseWriter, r *http.Re
 	}
 	if !signedIn {
 		http.Error(w, "sign in first", http.StatusUnauthorized)
-		return
-	}
-	if s.setup {
-		http.Error(w, "change the setup password first", http.StatusForbidden)
-		return
-	}
-	if g.certificates == nil {
-		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	if !g.sameOrigin(r) {
@@ -287,14 +271,6 @@ func (g *gate) inventoryOwnerEndpoint(w http.ResponseWriter, r *http.Request, s 
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	if s.setup {
-		http.Error(w, "change the setup password first", http.StatusForbidden)
-		return
-	}
-	if g.certificates == nil {
-		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
-		return
-	}
 	if !g.sameOrigin(r) {
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
@@ -388,14 +364,6 @@ func (g *gate) inventoryDeleteEndpoint(w http.ResponseWriter, r *http.Request, s
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	if s.setup {
-		http.Error(w, "change the setup password first", http.StatusForbidden)
-		return
-	}
-	if g.certificates == nil {
-		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
-		return
-	}
 	if !g.sameOrigin(r) {
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
@@ -404,7 +372,7 @@ func (g *gate) inventoryDeleteEndpoint(w http.ResponseWriter, r *http.Request, s
 	if !ok {
 		return
 	}
-	generation, err := g.certificates.Delete(input.ExpectedGeneration, input.Fingerprint)
+	generation, err := g.certificates.Delete(input.ExpectedGeneration, input.Fingerprint, s.isFresh(g.now()))
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -493,14 +461,6 @@ func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	if s.setup {
-		http.Error(w, "change the setup password first", http.StatusForbidden)
-		return
-	}
-	if g.certificates == nil {
-		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
-		return
-	}
 	if r.Header.Get("X-Rootwell-Request") != "1" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
@@ -527,6 +487,8 @@ func inventoryError(w http.ResponseWriter, err error) {
 		http.Error(w, "location is unchanged", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrOwnerUnchanged):
 		http.Error(w, "owner is unchanged", http.StatusConflict)
+	case errors.Is(err, certstore.ErrKeyNeedsCode):
+		needFresh(w)
 	case errors.Is(err, certstore.ErrNotFound):
 		http.Error(w, "certificate is no longer in the inventory; refresh first", http.StatusNotFound)
 	case errors.Is(err, certstore.ErrStale):

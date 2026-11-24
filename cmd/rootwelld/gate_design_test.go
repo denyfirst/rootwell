@@ -12,7 +12,8 @@ import (
 // drawn like every other page; the engine is public code the browser may keep
 // and revalidate (audit RW-21); everything else stays no-store.
 func TestTheTypefaceIsPublicAndTheEngineRevalidates(t *testing.T) {
-	g, _ := testGate(t)
+	e := newTestEnv(t).withAccount(t)
+	g := e.g
 	font := call(g, "GET", "/schibsted-grotesk.woff2", "", nil)
 	sum := sha256.Sum256(font.Body.Bytes())
 	if font.Code != http.StatusOK || font.Header().Get("Content-Type") != "font/woff2" ||
@@ -32,12 +33,7 @@ func TestTheTypefaceIsPublicAndTheEngineRevalidates(t *testing.T) {
 		}
 	}
 
-	setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	changed := call(g, "POST", "/api/password", `{"password":"`+initialTestPassword+`","next":"`+nextTestPassword+`"}`, sessionCookie(t, setup))
-	if changed.Code != http.StatusNoContent {
-		t.Fatalf("password change: %d", changed.Code)
-	}
-	ready := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
+	ready := e.signIn(t)
 	for route, cache := range map[string]string{
 		"/rootwell.wasm": "no-cache", "/wasm_exec.js": "no-cache",
 		"/certificates": "no-store", "/certificates.js": "no-store", "/session.js": "no-store", "/theme.js": "no-store",
@@ -53,13 +49,8 @@ func TestTheTypefaceIsPublicAndTheEngineRevalidates(t *testing.T) {
 // styles, images, fonts and connections only from this server, the engine
 // allowed to compile, and nothing inline.
 func TestEveryPageIsServedUnderTheStrictContentSecurityPolicy(t *testing.T) {
-	g, _ := testGate(t)
-	setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if call(g, "POST", "/api/password", `{"password":"`+initialTestPassword+`","next":"`+nextTestPassword+`"}`, sessionCookie(t, setup)).Code != http.StatusNoContent {
-		t.Fatal("password change failed")
-	}
-	ready := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
-	pages := map[string]*http.Cookie{"/login": nil, "/certificates": ready, "/website-check": ready, "/inspect": ready,
+	g, ready, _ := readyGate(t)
+	pages := map[string]*http.Cookie{"/login": nil, "/setup": nil, "/certificates": ready, "/website-check": ready, "/inspect": ready,
 		"/convert": ready, "/request": ready, "/account": ready}
 	for route, cookie := range pages {
 		w := call(g, "GET", route, "", cookie)

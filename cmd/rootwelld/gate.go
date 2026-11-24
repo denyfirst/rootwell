@@ -1,14 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
 	"embed"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"io"
-	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -16,30 +10,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/accountstore"
 	"github.com/denyfirst/rootwell/internal/certstore"
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/vault"
 )
 
 //go:embed auth/*
 var authAssets embed.FS
 
-const cookieName = "__Host-rootwell_session"
-
-type session struct {
-	setup    bool
-	expires  time.Time
-	revision [32]byte
-}
-
 type gate struct {
-	accessPath   string
 	assets       *os.Root
 	host         string
 	now          func() time.Time
 	derive       chan struct{}
 	mu           sync.Mutex
-	sessions     map[[32]byte]session
-	attempts     []time.Time
+	sessions     map[[32]byte]*session
+	failures     map[string]*failures
+	crowded      time.Time
+	accounts     *accountstore.Store
 	certificates *certstore.Store
 	closed       bool
 	websiteCheck websiteCheck
@@ -47,30 +35,31 @@ type gate struct {
 	websiteLast  time.Time
 }
 
-// newGate serves the pages. certificates is the vault-backed list; nil means
-// this host keeps no certificates (a preview off Linux).
-func newGate(accessPath, assetsDir, host string, certificates *certstore.Store) (*gate, error) {
+// newGate serves the pages for the accounts and certificates in v.
+func newGate(v *vault.Store, assetsDir, host string) (*gate, error) {
 	root, err := os.OpenRoot(assetsDir)
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "ui.js", "rootwell.css", "theme.js", "session.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "ui.js", "rootwell.css", "theme.js", "session.js", "fresh.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
 			return nil, errors.New("workbench assets are incomplete; build the browser engine first")
 		}
 	}
-	return &gate{accessPath: accessPath, assets: root, host: host, now: time.Now,
-		derive: make(chan struct{}, 1), sessions: make(map[[32]byte]session), certificates: certificates}, nil
+	g := &gate{assets: root, host: host, now: time.Now, derive: make(chan struct{}, 1),
+		sessions: make(map[[32]byte]*session), failures: make(map[string]*failures)}
+	clock := func() time.Time { return g.now() }
+	g.accounts = accountstore.New(v, clock)
+	g.certificates = certstore.New(v)
+	return g, nil
 }
 
 func (g *gate) Close() error {
 	g.mu.Lock()
 	g.closed = true
-	for id := range g.sessions {
-		g.forgetSessionLocked(id)
-	}
+	clear(g.sessions)
 	g.mu.Unlock()
 	return g.assets.Close()
 }
@@ -95,38 +84,41 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "query strings are not accepted", http.StatusBadRequest)
 		return
 	}
-	s, signedIn := g.currentSession(r)
 	switch r.URL.Path {
-	case "/api/website-check":
-		g.websiteCheckEndpoint(w, r, s, signedIn)
+	// The account's own pieces: each finds and checks its session itself.
+	case "/api/session":
+		g.sessionEndpoint(w, r)
 		return
-	case "/website-check", "/website-check.js":
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			methodNotAllowed(w)
-			return
-		}
-		if !signedIn {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-		if s.setup {
-			http.Redirect(w, r, "/setup", http.StatusSeeOther)
-			return
-		}
-		switch r.URL.Path {
-		case "/website-check":
-			g.authAsset(w, r, "auth/website-check.html", "text/html; charset=utf-8")
-		case "/website-check.js":
-			g.authAsset(w, r, "auth/website-check.js", "text/javascript; charset=utf-8")
-		}
+	case "/api/session/code":
+		g.codeEndpoint(w, r)
 		return
+	case "/api/setup":
+		g.setupEndpoint(w, r)
+		return
+	case "/api/setup/confirm":
+		g.setupConfirmEndpoint(w, r)
+		return
+	case "/api/fresh":
+		g.freshEndpoint(w, r)
+		return
+	case "/api/password":
+		g.passwordEndpoint(w, r)
+		return
+	case "/api/phone":
+		g.phoneEndpoint(w, r)
+		return
+	case "/api/phone/confirm":
+		g.phoneConfirmEndpoint(w, r)
+		return
+	case "/api/recovery-codes":
+		g.recoveryCodesEndpoint(w, r)
+		return
+	// Public: the look every page shares, so sign-in and setup wear it too.
 	case "/schibsted-grotesk.woff2":
-		// The one typeface, the file Porch and Keybash pin; public, so sign-in uses it too.
 		w.Header().Set("Cache-Control", "no-cache")
 		g.authAsset(w, r, "auth/schibsted-grotesk.woff2", "font/woff2")
 		return
 	case "/rootwell.css", "/theme.js", "/favicon.svg":
-		// The look every page shares, public so sign-in and setup wear it too.
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -136,26 +128,30 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/auth.js":
 		g.authAsset(w, r, "auth/auth.js", "text/javascript; charset=utf-8")
 		return
-	case "/login":
+	case "/qr.js":
+		g.authAsset(w, r, "auth/qr.js", "text/javascript; charset=utf-8")
+		return
+	}
+	_, s, ok := g.currentSession(r, true)
+	signedIn := ok && s.stage == stageReady
+	switch r.URL.Path {
+	case "/login", "/setup":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
 		}
 		if signedIn {
-			if s.setup {
-				http.Redirect(w, r, "/setup", http.StatusSeeOther)
-			} else {
-				http.Redirect(w, r, "/", http.StatusSeeOther)
-			}
+			http.Redirect(w, r, "/certificates", http.StatusSeeOther)
 			return
 		}
-		g.authAsset(w, r, "auth/login.html", "text/html; charset=utf-8")
+		page := "auth/login.html"
+		if r.URL.Path == "/setup" {
+			page = "auth/setup.html"
+		}
+		g.authAsset(w, r, page, "text/html; charset=utf-8")
 		return
-	case "/api/session":
-		g.sessionEndpoint(w, r, signedIn)
-		return
-	case "/api/password":
-		g.passwordEndpoint(w, r, s, signedIn)
+	case "/api/website-check":
+		g.websiteCheckEndpoint(w, r, s, signedIn)
 		return
 	case "/api/inventory":
 		g.inventoryEndpoint(w, r, s, signedIn)
@@ -175,57 +171,6 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/delete":
 		g.inventoryDeleteEndpoint(w, r, s, signedIn)
 		return
-	case "/certificate-pfx.js", "/certificate-pfx-worker.js":
-		// The Certificates page opens a PFX with these, in a worker that has no
-		// network access.
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			methodNotAllowed(w)
-			return
-		}
-		if !signedIn {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-		if s.setup {
-			http.Redirect(w, r, "/setup", http.StatusSeeOther)
-			return
-		}
-		name := "auth/certificate-pfx.js"
-		if r.URL.Path == "/certificate-pfx-worker.js" {
-			name = "auth/certificate-pfx-worker.js"
-		}
-		g.authAsset(w, r, name, "text/javascript; charset=utf-8")
-		return
-	case "/setup":
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			methodNotAllowed(w)
-			return
-		}
-		if !signedIn {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-		if !s.setup {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-		g.authAsset(w, r, "auth/setup.html", "text/html; charset=utf-8")
-		return
-	case "/account":
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			methodNotAllowed(w)
-			return
-		}
-		if !signedIn {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-		if s.setup {
-			http.Redirect(w, r, "/setup", http.StatusSeeOther)
-			return
-		}
-		g.authAsset(w, r, "auth/account.html", "text/html; charset=utf-8")
-		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		methodNotAllowed(w)
@@ -235,268 +180,37 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	if s.setup {
-		http.Redirect(w, r, "/setup", http.StatusSeeOther)
-		return
-	}
-	// Certificates is the home page.
-	if r.URL.Path == "/" {
+	switch r.URL.Path {
+	case "/":
+		// Certificates is the home page.
 		http.Redirect(w, r, "/certificates", http.StatusSeeOther)
-		return
+	case "/account":
+		g.authAsset(w, r, "auth/account.html", "text/html; charset=utf-8")
+	case "/website-check":
+		g.authAsset(w, r, "auth/website-check.html", "text/html; charset=utf-8")
+	case "/website-check.js":
+		g.authAsset(w, r, "auth/website-check.js", "text/javascript; charset=utf-8")
+	case "/certificate-pfx.js":
+		// The Certificates page opens a PFX with these, in a worker that has no
+		// network access.
+		g.authAsset(w, r, "auth/certificate-pfx.js", "text/javascript; charset=utf-8")
+	case "/certificate-pfx-worker.js":
+		g.authAsset(w, r, "auth/certificate-pfx-worker.js", "text/javascript; charset=utf-8")
+	default:
+		g.workbenchAsset(w, r)
 	}
-	g.workbenchAsset(w, r)
 }
 
-func (g *gate) currentSession(r *http.Request) (session, bool) {
-	c, err := r.Cookie(cookieName)
-	if err != nil || len(c.Value) != 43 {
-		return session{}, false
-	}
-	id := sha256.Sum256([]byte(c.Value))
-	revision, revisionErr := instanceaccess.Revision(g.accessPath)
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	s, ok := g.sessions[id]
-	if !ok || revisionErr != nil || s.revision != revision || !g.now().Before(s.expires) {
-		g.forgetSessionLocked(id)
-		return session{}, false
-	}
-	return s, true
+// stillReady says whether the request's session is still the signed-in one s
+// was: the same account at the same revision.
+func (g *gate) stillReady(r *http.Request, s session) bool {
+	_, current, ok := g.currentSession(r, false)
+	return ok && current.stage == stageReady && current.name == s.name && current.revision == s.revision
 }
 
 func (g *gate) sameOrigin(r *http.Request) bool {
 	return r.Header.Get("Origin") == "http://"+g.host && r.Header.Get("X-Rootwell-Request") == "1" &&
 		r.Header.Get("Sec-Fetch-Site") != "cross-site"
-}
-
-func (g *gate) allowAttempt() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	now := g.now()
-	keep := g.attempts[:0]
-	for _, at := range g.attempts {
-		if now.Sub(at) < time.Minute {
-			keep = append(keep, at)
-		}
-	}
-	g.attempts = keep
-	if len(g.attempts) >= 5 {
-		return false
-	}
-	g.attempts = append(g.attempts, now)
-	return true
-}
-
-func (g *gate) startDerivation() bool {
-	select {
-	case g.derive <- struct{}{}:
-		return true
-	default:
-		return false
-	}
-}
-
-func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte) error {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		return errors.New("session could not be created")
-	}
-	token := base64.RawURLEncoding.EncodeToString(raw)
-	id := sha256.Sum256([]byte(token))
-	lifetime := 12 * time.Hour
-	if setup {
-		lifetime = 15 * time.Minute
-	}
-	g.mu.Lock()
-	for len(g.sessions) >= 32 {
-		var oldest [32]byte
-		var earliest time.Time
-		for key, value := range g.sessions {
-			if earliest.IsZero() || value.expires.Before(earliest) {
-				oldest, earliest = key, value.expires
-			}
-		}
-		g.forgetSessionLocked(oldest)
-	}
-	g.sessions[id] = session{setup: setup, expires: g.now().Add(lifetime), revision: revision}
-	g.mu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", MaxAge: int(lifetime / time.Second),
-		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
-	return nil
-}
-
-func (g *gate) revokeAll(w http.ResponseWriter) {
-	g.mu.Lock()
-	for id := range g.sessions {
-		g.forgetSessionLocked(id)
-	}
-	g.sessions = make(map[[32]byte]session)
-	g.mu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/", MaxAge: -1,
-		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
-}
-
-func (g *gate) revokeSession(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(cookieName); err == nil {
-		id := sha256.Sum256([]byte(c.Value))
-		g.mu.Lock()
-		g.forgetSessionLocked(id)
-		g.mu.Unlock()
-	}
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Path: "/", MaxAge: -1,
-		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
-}
-
-func (g *gate) forgetSessionLocked(id [32]byte) {
-	delete(g.sessions, id)
-}
-
-type passwordInput struct {
-	Password string `json:"password"`
-	Next     string `json:"next,omitempty"`
-}
-
-func readPasswordInput(w http.ResponseWriter, r *http.Request) (passwordInput, bool) {
-	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || media != "application/json" {
-		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
-		return passwordInput{}, false
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 2048)
-	var body passwordInput
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&body) != nil || decoder.Decode(new(any)) != io.EOF || body.Password == "" {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return passwordInput{}, false
-	}
-	return body, true
-}
-
-func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request, signedIn bool) {
-	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
-		methodNotAllowed(w)
-		return
-	}
-	if !g.sameOrigin(r) {
-		http.Error(w, "request origin refused", http.StatusForbidden)
-		return
-	}
-	if r.Method == http.MethodDelete {
-		g.revokeSession(w, r)
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if signedIn {
-		http.Error(w, "sign out first", http.StatusConflict)
-		return
-	}
-	if !g.allowAttempt() {
-		w.Header().Set("Retry-After", "60")
-		http.Error(w, "too many attempts", http.StatusTooManyRequests)
-		return
-	}
-	body, ok := readPasswordInput(w, r)
-	if !ok || body.Next != "" {
-		if ok {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-		}
-		return
-	}
-	if !g.startDerivation() {
-		http.Error(w, "another check is running", http.StatusServiceUnavailable)
-		return
-	}
-	defer func() { <-g.derive }()
-	revisionBefore, err := instanceaccess.Revision(g.accessPath)
-	if err != nil {
-		http.Error(w, "installation unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	setup, err := instanceaccess.Authenticate(g.accessPath, body.Password)
-	if err != nil {
-		if errors.Is(err, instanceaccess.ErrWrongPassword) {
-			http.Error(w, "password not accepted", http.StatusUnauthorized)
-		} else {
-			http.Error(w, "installation unavailable", http.StatusServiceUnavailable)
-		}
-		return
-	}
-	revisionAfter, err := instanceaccess.Revision(g.accessPath)
-	if err != nil || revisionBefore != revisionAfter {
-		http.Error(w, "installation changed during sign-in", http.StatusServiceUnavailable)
-		return
-	}
-	if err := g.issueSession(w, setup, revisionAfter); err != nil {
-		http.Error(w, "session unavailable", http.StatusServiceUnavailable)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if setup {
-		_, _ = io.WriteString(w, `{"mode":"setup"}`)
-	} else {
-		_, _ = io.WriteString(w, `{"mode":"ready"}`)
-	}
-}
-
-func (g *gate) passwordEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
-	if r.Method != http.MethodPost {
-		methodNotAllowed(w)
-		return
-	}
-	if !g.sameOrigin(r) {
-		http.Error(w, "request origin refused", http.StatusForbidden)
-		return
-	}
-	if !signedIn {
-		http.Error(w, "sign in first", http.StatusUnauthorized)
-		return
-	}
-	if !g.allowAttempt() {
-		w.Header().Set("Retry-After", "60")
-		http.Error(w, "too many attempts", http.StatusTooManyRequests)
-		return
-	}
-	body, ok := readPasswordInput(w, r)
-	if !ok {
-		return
-	}
-	if !g.startDerivation() {
-		http.Error(w, "another check is running", http.StatusServiceUnavailable)
-		return
-	}
-	defer func() { <-g.derive }()
-	var err error
-	if s.setup {
-		err = instanceaccess.ChangeInitialPassword(g.accessPath, body.Password, body.Next)
-	} else {
-		err = instanceaccess.ChangePassword(g.accessPath, body.Password, body.Next)
-	}
-	if err != nil {
-		g.passwordChangeError(w, err)
-		return
-	}
-	g.revokeAll(w)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (g *gate) passwordChangeError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, instanceaccess.ErrWrongPassword):
-		http.Error(w, "current password not accepted", http.StatusUnauthorized)
-	case errors.Is(err, instanceaccess.ErrWeakPassword),
-		errors.Is(err, instanceaccess.ErrPasswordTooLong),
-		errors.Is(err, instanceaccess.ErrPasswordUnchanged):
-		http.Error(w, "choose a different password between 15 characters and 1024 bytes", http.StatusBadRequest)
-	case errors.Is(err, instanceaccess.ErrAccessBusy):
-		w.Header().Set("Retry-After", "1")
-		http.Error(w, "another installation change is running; retry later", http.StatusServiceUnavailable)
-	case errors.Is(err, instanceaccess.ErrWriteUncertain):
-		g.revokeAll(w)
-		http.Error(w, "password change outcome is uncertain; sign in again before taking further action", http.StatusServiceUnavailable)
-	default:
-		http.Error(w, "password change could not be confirmed", http.StatusConflict)
-	}
 }
 
 func (g *gate) authAsset(w http.ResponseWriter, r *http.Request, name, contentType string) {
@@ -522,7 +236,7 @@ var workbenchFiles = map[string]string{
 	"/convert": "convert.html", "/convert.js": "convert.js",
 	"/request": "request.html", "/request.js": "request.js",
 	"/ui.js": "ui.js", "/rootwell.css": "rootwell.css", "/theme.js": "theme.js",
-	"/session.js": "session.js", "/favicon.svg": "favicon.svg",
+	"/session.js": "session.js", "/fresh.js": "fresh.js", "/favicon.svg": "favicon.svg",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",
 	"/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",
 	"/csr-worker-client.js": "csr-worker-client.js", "/csr-worker.js": "csr-worker.js",

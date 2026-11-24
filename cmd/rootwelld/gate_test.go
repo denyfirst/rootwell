@@ -2,72 +2,175 @@ package main
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha1" // #nosec G505 -- RFC 6238 fixes HMAC-SHA1; the tests compute phone codes independently.
+	"encoding/base32"
+	"encoding/binary"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/denyfirst/rootwell/internal/certstore"
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/account"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
-const initialTestPassword = "an initial password for testing"
-const nextTestPassword = "a different long test password"
-
-func testGate(t *testing.T) (*gate, string) {
-	g, path, _ := testGateWithKey(t)
-	return g, path
-}
-
-// testKeys and testVaults remember each test gate's key and open vault by its
-// access path, so a test can close and reopen the vault as a restart does.
-var (
-	testKeys   = map[string][]byte{}
-	testVaults = map[string]*vault.Store{}
+const (
+	testName         = "ada"
+	testPassword     = "an account password for testing"
+	nextTestPassword = "a different long test password"
 )
 
-// testGateWithKey also returns the instance key of the gate's vault, so a
-// test can reopen it as a restart would. Off Linux there is no vault.
-func testGateWithKey(t *testing.T) (*gate, string, []byte) {
+type testClock struct {
+	mu sync.Mutex
+	at time.Time
+}
+
+func (c *testClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.at
+}
+
+func (c *testClock) add(d time.Duration) {
+	c.mu.Lock()
+	c.at = c.at.Add(d)
+	c.mu.Unlock()
+}
+
+// testEnv is a gate on its own vault, with a clock the test moves.
+type testEnv struct {
+	g        *gate
+	v        *vault.Store
+	dir      string
+	key      []byte
+	assets   string
+	clock    *testClock
+	seed     string
+	recovery []string
+}
+
+func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
-	data := t.TempDir()
-	if runtime.GOOS == "linux" {
-		if err := os.Chmod(data, 0o700); err != nil {
-			t.Fatal(err)
-		}
+	if !custody() {
+		t.Skip("the vault opens only in a private Linux directory")
 	}
-	path := filepath.Join(data, "access.json")
-	if err := instanceaccess.Create(path, initialTestPassword); err != nil {
+	e := &testEnv{dir: t.TempDir(), assets: testWorkbenchAssets(t),
+		clock: &testClock{at: time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)}}
+	if err := os.Chmod(e.dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	var certificates *certstore.Store
-	var key []byte
-	if custody() {
-		var err error
-		if key, err = vault.NewInstanceKey(); err != nil {
-			t.Fatal(err)
-		}
-		v, err := vault.Create(data, key)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = v.Close() })
-		certificates = certstore.New(v)
-		testKeys[path], testVaults[path] = key, v
+	var err error
+	if e.key, err = vault.NewInstanceKey(); err != nil {
+		t.Fatal(err)
 	}
-	g, err := newGate(path, testWorkbenchAssets(t), localHost, certificates)
+	if e.v, err = vault.Create(e.dir, e.key); err != nil {
+		t.Fatal(err)
+	}
+	if e.g, err = newGate(e.v, e.assets, localHost); err != nil {
+		t.Fatal(err)
+	}
+	e.g.now = e.clock.now
+	t.Cleanup(func() {
+		_ = e.g.Close()
+		_ = e.v.Close()
+	})
+	return e
+}
+
+// reopen closes the gate and the vault and opens them again, as a restart
+// does: sessions are gone, the vault is not.
+func (e *testEnv) reopen(t *testing.T) {
+	t.Helper()
+	_ = e.g.Close()
+	if err := e.v.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	if e.v, err = vault.Open(e.dir, e.key); err != nil {
+		t.Fatal(err)
+	}
+	if e.g, err = newGate(e.v, e.assets, localHost); err != nil {
+		t.Fatal(err)
+	}
+	e.g.now = e.clock.now
+}
+
+// withAccount makes the test account the way the setup page does, straight
+// through the store.
+func (e *testEnv) withAccount(t *testing.T) *testEnv {
+	t.Helper()
+	code, _, err := e.g.accounts.NewSetupCode("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = g.Close() })
-	return g, path, key
+	hash, err := account.HashPassword(testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.seed, err = account.NewSeed(); err != nil {
+		t.Fatal(err)
+	}
+	if e.recovery, _, err = e.g.accounts.FinishSetup(code, testName, hash, e.seed, e.clock.now().Unix()/30); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+// phoneCode is RFC 6238, computed apart from the code under test.
+func phoneCode(t *testing.T, seed string, at time.Time) string {
+	t.Helper()
+	key, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var message [8]byte
+	binary.BigEndian.PutUint64(message[:], uint64(at.Unix()/30))
+	mac := hmac.New(sha1.New, key)
+	mac.Write(message[:])
+	sum := mac.Sum(nil)
+	offset := sum[len(sum)-1] & 0x0f
+	return fmt.Sprintf("%06d", (binary.BigEndian.Uint32(sum[offset:offset+4])&0x7fffffff)%1000000)
+}
+
+// code moves to the next 30-second step and returns the phone's code there.
+func (e *testEnv) code(t *testing.T) string {
+	t.Helper()
+	e.clock.add(30 * time.Second)
+	return phoneCode(t, e.seed, e.clock.now())
+}
+
+func (e *testEnv) passwordStep(t *testing.T, password string) *http.Cookie {
+	t.Helper()
+	w := call(e.g, "POST", "/api/session", `{"name":"`+testName+`","password":"`+password+`"}`, nil)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("password step: %d %s", w.Code, w.Body)
+	}
+	return sessionCookie(t, w)
+}
+
+// signIn signs in with the password and a phone code.
+func (e *testEnv) signIn(t *testing.T) *http.Cookie {
+	t.Helper()
+	c := e.passwordStep(t, testPassword)
+	w := call(e.g, "POST", "/api/session/code", `{"code":"`+e.code(t)+`"}`, c)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("code step: %d %s", w.Code, w.Body)
+	}
+	return sessionCookie(t, w)
+}
+
+// readyGate is a gate with the test account signed in.
+func readyGate(t *testing.T) (*gate, *http.Cookie, *testEnv) {
+	t.Helper()
+	e := newTestEnv(t).withAccount(t)
+	return e.g, e.signIn(t), e
 }
 
 func testWorkbenchAssets(t *testing.T) string {
@@ -106,427 +209,6 @@ func call(g *gate, method, route, body string, cookie *http.Cookie) *httptest.Re
 	return w
 }
 
-func sessionCookie(t *testing.T, w *httptest.ResponseRecorder) *http.Cookie {
-	t.Helper()
-	for _, c := range w.Result().Cookies() {
-		if c.Name == cookieName {
-			return c
-		}
-	}
-	t.Fatal("no session cookie")
-	return nil
-}
-
-func TestInitialLoginIsSetupOnlyUntilPasswordChange(t *testing.T) {
-	g, path := testGate(t)
-	if w := call(g, "GET", "/", "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("unguarded Workbench: %d %q", w.Code, w.Header().Get("Location"))
-	}
-	for _, route := range []string{"/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/session.js", "/wasm-loader.js", "/private-worker-client.js", "/pfx-worker-client.js", "/csr-worker-client.js", "/csr-worker.js"} {
-		if w := call(g, "GET", route, "", nil); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-			t.Fatalf("unguarded page or script %s: %d", route, w.Code)
-		}
-	}
-	// Only the shared look is public, so sign-in and setup wear it too.
-	for route, kind := range map[string]string{"/rootwell.css": "text/css; charset=utf-8", "/theme.js": "text/javascript; charset=utf-8", "/favicon.svg": "image/svg+xml"} {
-		if w := call(g, "GET", route, "", nil); w.Code != http.StatusOK || w.Header().Get("Content-Type") != kind || w.Header().Get("Cache-Control") != "no-store" {
-			t.Fatalf("public look %s: %d %q", route, w.Code, w.Header().Get("Content-Type"))
-		}
-		if w := call(g, "POST", route, "", nil); w.Code != http.StatusMethodNotAllowed {
-			t.Fatalf("public look %s accepted a POST: %d", route, w.Code)
-		}
-	}
-	if w := call(g, "GET", "/private-key-worker.js", "", nil); w.Code != http.StatusSeeOther {
-		t.Fatalf("unguarded private-key worker: %d", w.Code)
-	}
-	if w := call(g, "GET", "/pfx-worker.js", "", nil); w.Code != http.StatusSeeOther {
-		t.Fatalf("unguarded PFX worker: %d", w.Code)
-	}
-	loginPage := call(g, "GET", "/login", "", nil)
-	if loginPage.Code != http.StatusOK || loginPage.Header().Get("Cache-Control") != "no-store" ||
-		!strings.Contains(loginPage.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
-		t.Fatal("login page is unavailable or missing security headers")
-	}
-	login := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if login.Code != http.StatusOK || !strings.Contains(login.Body.String(), `"mode":"setup"`) {
-		t.Fatalf("setup sign-in: %d %s", login.Code, login.Body.String())
-	}
-	cookie := sessionCookie(t, login)
-	if !cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteStrictMode || cookie.Path != "/" || cookie.Domain != "" {
-		t.Fatal("session cookie lacks required protections")
-	}
-	if cookie.MaxAge != 15*60 {
-		t.Fatal("setup session lives longer than fifteen minutes")
-	}
-	secondLogin := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if secondLogin.Code != http.StatusOK {
-		t.Fatalf("second setup session: %d", secondLogin.Code)
-	}
-	secondCookie := sessionCookie(t, secondLogin)
-	for _, route := range []string{"/", "/certificates", "/certificates.js", "/inspect", "/inspect.js", "/convert", "/convert.js", "/request", "/request.js", "/ui.js", "/session.js", "/private-worker-client.js", "/private-key-worker.js", "/pfx-worker-client.js", "/pfx-worker.js", "/csr-worker-client.js", "/csr-worker.js", "/rootwell.wasm", "/website-check", "/account"} {
-		w := call(g, "GET", route, "", cookie)
-		if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/setup" {
-			t.Fatalf("setup credential reached %s: %d", route, w.Code)
-		}
-	}
-	if w := call(g, "GET", "/setup", "", cookie); w.Code != http.StatusOK {
-		t.Fatalf("setup page unavailable: %d", w.Code)
-	}
-	bad := call(g, "POST", "/api/password", `{"password":"wrong current password","next":"`+nextTestPassword+`"}`, cookie)
-	if bad.Code != http.StatusUnauthorized {
-		t.Fatalf("wrong current password: %d", bad.Code)
-	}
-	if _, err := instanceaccess.Open(path, initialTestPassword); !errors.Is(err, instanceaccess.ErrChangeRequired) {
-		t.Fatalf("failed change activated key: %v", err)
-	}
-	changed := call(g, "POST", "/api/password", `{"password":"`+initialTestPassword+`","next":"`+nextTestPassword+`"}`, cookie)
-	if changed.Code != http.StatusNoContent {
-		t.Fatalf("password change: %d %s", changed.Code, changed.Body.String())
-	}
-	if w := call(g, "GET", "/", "", cookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("setup session survived change: %d", w.Code)
-	}
-	if w := call(g, "GET", "/setup", "", secondCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("second setup session survived change: %d", w.Code)
-	}
-	key, err := instanceaccess.Open(path, nextTestPassword)
-	if err != nil || len(key) != 32 {
-		t.Fatalf("new password did not open key: %v", err)
-	}
-	if _, err := instanceaccess.Open(path, initialTestPassword); !errors.Is(err, instanceaccess.ErrWrongPassword) {
-		t.Fatalf("initial password still works: %v", err)
-	}
-	ready := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
-	if ready.Code != http.StatusOK || !strings.Contains(ready.Body.String(), `"mode":"ready"`) {
-		t.Fatalf("ready sign-in: %d %s", ready.Code, ready.Body.String())
-	}
-	readyCookie := sessionCookie(t, ready)
-	// Certificates is the home page.
-	if w := call(g, "GET", "/", "", readyCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/certificates" {
-		t.Fatalf("home page after change: %d %q", w.Code, w.Header().Get("Location"))
-	}
-	for route, title := range map[string]string{"/certificates": "Certificates", "/inspect": "Inspect", "/convert": "Convert", "/request": "Request", "/website-check": "Website check", "/account": "Account"} {
-		w := call(g, "GET", route, "", readyCookie)
-		if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" || !strings.Contains(w.Body.String(), "<title>"+title+" · Rootwell</title>") {
-			t.Fatalf("%s unavailable after change: %d", route, w.Code)
-		}
-	}
-	for _, route := range []string{"/certificates.js", "/inspect.js", "/convert.js", "/request.js", "/ui.js"} {
-		if w := call(g, "GET", route, "", readyCookie); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" || w.Body.Len() == 0 {
-			t.Fatalf("protected script %s: %d", route, w.Code)
-		}
-	}
-	worker := call(g, "GET", "/private-key-worker.js", "", readyCookie)
-	if worker.Code != http.StatusOK || worker.Header().Get("Cache-Control") != "no-store" ||
-		!strings.Contains(worker.Header().Get("Content-Security-Policy"), "connect-src 'none'") ||
-		!strings.Contains(worker.Header().Get("Content-Security-Policy"), "worker-src 'none'") {
-		t.Fatalf("private worker missing authenticated access or isolated CSP: %d", worker.Code)
-	}
-	pfxWorker := call(g, "GET", "/pfx-worker.js", "", readyCookie)
-	if pfxWorker.Code != http.StatusOK || !strings.Contains(pfxWorker.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(pfxWorker.Header().Get("Content-Security-Policy"), "worker-src 'none'") {
-		t.Fatalf("PFX worker missing authenticated access or isolated CSP: %d", pfxWorker.Code)
-	}
-	csrWorker := call(g, "GET", "/csr-worker.js", "", readyCookie)
-	if csrWorker.Code != http.StatusOK || !strings.Contains(csrWorker.Header().Get("Content-Security-Policy"), "connect-src 'none'") || !strings.Contains(csrWorker.Header().Get("Content-Security-Policy"), "worker-src 'none'") {
-		t.Fatalf("CSR worker lacks isolated authenticated access: %d", csrWorker.Code)
-	}
-	if w := call(g, "GET", "/access.json", "", readyCookie); w.Code != http.StatusNotFound {
-		t.Fatalf("access file route exposed: %d", w.Code)
-	}
-}
-
-func TestSessionIsRevokedWhenAccessFileChangesOutsideGate(t *testing.T) {
-	g, path := testGate(t)
-	setup := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if setup.Code != http.StatusOK {
-		t.Fatalf("setup sign-in: %d", setup.Code)
-	}
-	setupCookie := sessionCookie(t, setup)
-	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
-		t.Fatal(err)
-	}
-	if w := call(g, "GET", "/setup", "", setupCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("externally changed setup credential survived: %d", w.Code)
-	}
-	ready := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
-	if ready.Code != http.StatusOK {
-		t.Fatalf("ready sign-in: %d", ready.Code)
-	}
-	readyCookie := sessionCookie(t, ready)
-	if err := instanceaccess.ChangePassword(path, nextTestPassword, "a third sufficiently long password"); err != nil {
-		t.Fatal(err)
-	}
-	if w := call(g, "GET", "/", "", readyCookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("externally rotated credential reached Workbench: %d", w.Code)
-	}
-	newLogin := call(g, "POST", "/api/session", `{"password":"a third sufficiently long password"}`, nil)
-	if newLogin.Code != http.StatusOK {
-		t.Fatalf("new password was refused: %d", newLogin.Code)
-	}
-	if err := os.WriteFile(path, []byte("malformed"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if w := call(g, "GET", "/", "", sessionCookie(t, newLogin)); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("session survived malformed access file: %d", w.Code)
-	}
-}
-
-func TestGateRejectsCrossOriginHostAndMalformedAuthentication(t *testing.T) {
-	g, _ := testGate(t)
-	malformed := []string{`{`, `{"password":"x","unknown":1}`, `{"password":"x"}{}`, strings.Repeat("x", 2049)}
-	for _, body := range malformed {
-		w := call(g, "POST", "/api/session", body, nil)
-		if w.Code != http.StatusBadRequest {
-			t.Fatalf("malformed request was accepted: %d", w.Code)
-		}
-	}
-	r := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader(`{"password":"`+initialTestPassword+`"}`))
-	r.Header.Set("Content-Type", "application/json")
-	r.Header.Set("Origin", "http://attacker.invalid")
-	r.Header.Set("X-Rootwell-Request", "1")
-	w := httptest.NewRecorder()
-	g.ServeHTTP(w, r)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("cross-origin login: %d", w.Code)
-	}
-	r.Header.Set("Origin", "http://"+localHost)
-	r.Host = "attacker.invalid"
-	w = httptest.NewRecorder()
-	g.ServeHTTP(w, r)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("DNS-rebound Host: %d", w.Code)
-	}
-	r.Host = localHost
-	r.Header.Del("X-Rootwell-Request")
-	w = httptest.NewRecorder()
-	g.ServeHTTP(w, r)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("request without anti-CSRF header: %d", w.Code)
-	}
-	r.Header.Set("X-Rootwell-Request", "1")
-	r.Header.Set("Sec-Fetch-Site", "cross-site")
-	w = httptest.NewRecorder()
-	g.ServeHTTP(w, r)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("cross-site Fetch Metadata accepted: %d", w.Code)
-	}
-	if w := call(g, "GET", "/%2e%2e/access.json", "", nil); w.Code == http.StatusOK {
-		t.Fatal("path traversal returned a file")
-	}
-	if w := call(g, "GET", "/login?password=secret", "", nil); w.Code != http.StatusBadRequest {
-		t.Fatalf("password-bearing query accepted: %d", w.Code)
-	}
-}
-
-func TestGateRateLimitsAndExpiresSessions(t *testing.T) {
-	g, _ := testGate(t)
-	now := time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)
-	g.now = func() time.Time { return now }
-	for i := 0; i < 5; i++ {
-		w := call(g, "POST", "/api/session", `{"password":"incorrect password"}`, nil)
-		if w.Code != http.StatusUnauthorized {
-			t.Fatalf("attempt %d: %d", i, w.Code)
-		}
-	}
-	if w := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil); w.Code != http.StatusTooManyRequests {
-		t.Fatalf("limit bypass: %d", w.Code)
-	}
-	now = now.Add(time.Minute)
-	login := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if login.Code != http.StatusOK {
-		t.Fatalf("after rate-limit interval: %d", login.Code)
-	}
-	cookie := sessionCookie(t, login)
-	now = now.Add(15 * time.Minute)
-	if w := call(g, "GET", "/setup", "", cookie); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/login" {
-		t.Fatalf("expired session still active: %d", w.Code)
-	}
-}
-
-func TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn(t *testing.T) {
-	g, path := testGate(t)
-	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
-		t.Fatal(err)
-	}
-	first := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
-	second := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
-	if first.Code != http.StatusOK || second.Code != http.StatusOK {
-		t.Fatalf("ready sign-in failed: %d %d", first.Code, second.Code)
-	}
-	firstCookie, secondCookie := sessionCookie(t, first), sessionCookie(t, second)
-	if w := call(g, "DELETE", "/api/session", "", firstCookie); w.Code != http.StatusNoContent {
-		t.Fatalf("sign-out failed: %d", w.Code)
-	}
-	if w := call(g, "GET", "/certificates", "", firstCookie); w.Code != http.StatusSeeOther {
-		t.Fatal("signed-out session still opens Workbench")
-	}
-	if w := call(g, "GET", "/certificates", "", secondCookie); w.Code != http.StatusOK {
-		t.Fatal("signing out one session revoked another")
-	}
-	third := call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil)
-	if third.Code != http.StatusOK {
-		t.Fatalf("third sign-in failed: %d", third.Code)
-	}
-	thirdCookie := sessionCookie(t, third)
-	replacement := "a third distinct and long password"
-	changed := call(g, "POST", "/api/password", `{"password":"`+nextTestPassword+`","next":"`+replacement+`"}`, secondCookie)
-	if changed.Code != http.StatusNoContent {
-		t.Fatalf("ready password change failed: %d", changed.Code)
-	}
-	for _, oldCookie := range []*http.Cookie{secondCookie, thirdCookie} {
-		if w := call(g, "GET", "/certificates", "", oldCookie); w.Code != http.StatusSeeOther {
-			t.Fatal("password change left a ready session active")
-		}
-	}
-	if _, err := instanceaccess.Open(path, nextTestPassword); !errors.Is(err, instanceaccess.ErrWrongPassword) {
-		t.Fatalf("old ready password still works: %v", err)
-	}
-	if key, err := instanceaccess.Open(path, replacement); err != nil || len(key) != 32 {
-		t.Fatalf("new ready password does not open key: %v", err)
-	}
-}
-
-func TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess(t *testing.T) {
-	g, _ := testGate(t)
-	login := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if login.Code != http.StatusOK {
-		t.Fatalf("setup sign-in failed: %d", login.Code)
-	}
-	cookie := sessionCookie(t, login)
-	w := httptest.NewRecorder()
-	g.passwordChangeError(w, instanceaccess.ErrWriteUncertain)
-	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "uncertain") {
-		t.Fatalf("uncertain write was misreported: %d %q", w.Code, w.Body.String())
-	}
-	if response := call(g, "GET", "/setup", "", cookie); response.Code != http.StatusSeeOther {
-		t.Fatal("uncertain write left an authenticated session active")
-	}
-	w = httptest.NewRecorder()
-	g.passwordChangeError(w, instanceaccess.ErrAccessBusy)
-	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") != "1" {
-		t.Fatal("busy writer was not reported as temporary")
-	}
-}
-
-func TestInitRequiresSaveConfirmationAndNeverReprintsPassword(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "private")
-	keyDir := t.TempDir()
-	if err := os.Chmod(keyDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	keyFile := filepath.Join(keyDir, "instance.key")
-	var output bytes.Buffer
-	if err := initialize(dir, filepath.Join(dir, "instance.key"), strings.NewReader("SAVED\n"), &output); err == nil || output.Len() != 0 {
-		t.Fatal("a key file inside the data directory was accepted")
-	}
-	if err := initialize(dir, keyFile, strings.NewReader("NO\n"), &output); err == nil {
-		t.Fatal("unconfirmed init created installation")
-	}
-	for _, name := range []string{filepath.Join(dir, "access.json"), filepath.Join(dir, "rootwell.db"), keyFile} {
-		if _, err := os.Stat(name); !os.IsNotExist(err) {
-			t.Fatalf("unconfirmed init left %s", name)
-		}
-	}
-	output.Reset()
-	if err := initialize(dir, keyFile, strings.NewReader("SAVED\n"), &output); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(output.String(), "setup password") {
-		t.Fatal("interactive init did not show password")
-	}
-	if custody() {
-		// The recovery code printed is the key written, and the key opens the
-		// vault made beside the access file.
-		key, err := vault.ReadKeyFile(keyFile)
-		if err != nil {
-			t.Fatal(err)
-		}
-		code, err := vault.RecoveryCode(key)
-		if err != nil || !strings.Contains(output.String(), code) {
-			t.Fatal("init did not show the instance key's recovery code")
-		}
-		v, err := vault.Open(dir, key)
-		if err != nil {
-			t.Fatalf("the new vault does not open with the new key: %v", err)
-		}
-		_ = v.Close()
-	}
-	output.Reset()
-	if err := initialize(dir, keyFile, strings.NewReader("SAVED\n"), &output); err == nil || output.Len() != 0 {
-		t.Fatal("existing password was reprinted or replaced")
-	}
-	body, err := os.ReadFile(filepath.Join(dir, "access.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var envelope map[string]any
-	if err := json.Unmarshal(body, &envelope); err != nil || envelope["state"] != "change-required" {
-		t.Fatalf("unexpected init state: %v", err)
-	}
-}
-
-func TestAuthFormsCannotFallBackToPasswordInGetURL(t *testing.T) {
-	for _, item := range []struct{ name, action string }{
-		{"auth/login.html", "/api/session"},
-		{"auth/setup.html", "/api/password"},
-		{"auth/account.html", "/api/password"},
-	} {
-		body, err := authAssets.ReadFile(item.name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Contains(body, []byte(`method="post" action="`+item.action+`"`)) {
-			t.Fatalf("%s could submit a password by default GET", item.name)
-		}
-	}
-	g, _ := testGate(t)
-	r := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader("password="+initialTestPassword))
-	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r.Header.Set("Origin", "http://"+localHost)
-	w := httptest.NewRecorder()
-	g.ServeHTTP(w, r)
-	if w.Code == http.StatusOK || strings.Contains(w.Body.String(), initialTestPassword) {
-		t.Fatal("non-JavaScript form submission was accepted or echoed a password")
-	}
-}
-
-func TestGatewayRefusesIncompleteBrowserAssets(t *testing.T) {
-	assets := t.TempDir()
-	if err := os.WriteFile(filepath.Join(assets, "certificates.html"), []byte("partial"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if g, err := newGate(filepath.Join(t.TempDir(), "access.json"), assets, localHost, nil); err == nil {
-		_ = g.Close()
-		t.Fatal("gateway started with missing browser engine")
-	}
-}
-
-func TestPasswordChangeValidationIsSpecificWithoutEchoingSecrets(t *testing.T) {
-	g, _ := testGate(t)
-	login := call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil)
-	if login.Code != http.StatusOK {
-		t.Fatalf("setup sign-in: %d", login.Code)
-	}
-	cookie := sessionCookie(t, login)
-	for _, next := range []string{initialTestPassword, strings.Repeat("x", 1025)} {
-		w := call(g, "POST", "/api/password", `{"password":"`+initialTestPassword+`","next":"`+next+`"}`, cookie)
-		if w.Code != http.StatusBadRequest || strings.Contains(w.Body.String(), next) {
-			t.Fatalf("replacement validation was unsafe or unclear: %d", w.Code)
-		}
-	}
-}
-
-// readyGate signs in with a changed password, as a person does after setup.
-func readyGate(t *testing.T) (*gate, *http.Cookie, string) {
-	t.Helper()
-	g, path := testGate(t)
-	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
-		t.Fatal(err)
-	}
-	cookie := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
-	return g, cookie, path
-}
-
 // apiCall sends a request with an explicit Origin and, when header is set, the
 // page's X-Rootwell-Request header.
 func apiCall(g *gate, method, route, body string, cookie *http.Cookie, origin string, header bool) *httptest.ResponseRecorder {
@@ -546,4 +228,480 @@ func apiCall(g *gate, method, route, body string, cookie *http.Cookie, origin st
 	w := httptest.NewRecorder()
 	g.ServeHTTP(w, r)
 	return w
+}
+
+func sessionCookie(t *testing.T, w *httptest.ResponseRecorder) *http.Cookie {
+	t.Helper()
+	for _, c := range w.Result().Cookies() {
+		if c.Name == cookieName && c.MaxAge > 0 {
+			return c
+		}
+	}
+	t.Fatal("no session cookie")
+	return nil
+}
+
+func status(t *testing.T, g *gate, c *http.Cookie) map[string]any {
+	t.Helper()
+	w := call(g, "GET", "/api/session", "", c)
+	if w.Code != http.StatusOK {
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func page(g *gate, path string, c *http.Cookie) int {
+	return call(g, "GET", path, "", c).Code
+}
+
+func TestSetupSavesTheAccountOnlyOnceThePhoneIsConfirmed(t *testing.T) {
+	e := newTestEnv(t)
+	code, _, err := e.g.accounts.NewSetupCode("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, public := range []string{"/login", "/setup"} {
+		if got := page(e.g, public, nil); got != http.StatusOK {
+			t.Fatalf("%s: %d", public, got)
+		}
+	}
+	if w := call(e.g, "POST", "/api/setup", `{"code":"aaaaaa-bbbbbb-cccccc-dddddd","name":"ada","password":"`+testPassword+`"}`, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a wrong setup code: %d", w.Code)
+	}
+	if w := call(e.g, "POST", "/api/setup", `{"code":"`+code+`","name":"ada","password":"too short"}`, nil); w.Code != http.StatusBadRequest || strings.Contains(w.Body.String(), "too short") {
+		t.Fatalf("a short password: %d %s", w.Code, w.Body)
+	}
+	if w := call(e.g, "POST", "/api/setup", `{"code":"`+code+`","name":"ada lovelace","password":"`+testPassword+`"}`, nil); w.Code != http.StatusBadRequest {
+		t.Fatalf("a name with a space: %d", w.Code)
+	}
+	w := call(e.g, "POST", "/api/setup", `{"code":"`+code+`","name":"Ada","password":"`+testPassword+`"}`, nil)
+	var started struct {
+		Name string   `json:"name"`
+		Key  string   `json:"key"`
+		QR   []string `json:"qr"`
+	}
+	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &started) != nil || started.Name != "ada" || len(started.Key) != 32 || len(started.QR) < 21 {
+		t.Fatalf("setup start: %d %s", w.Code, w.Body)
+	}
+	for _, row := range started.QR {
+		if len(row) != len(started.QR) || strings.Trim(row, "01") != "" {
+			t.Fatalf("a QR row that is not modules: %q", row)
+		}
+	}
+	setup := sessionCookie(t, w)
+	if exists, _ := e.g.accounts.Exists(); exists {
+		t.Fatal("the account was saved before its phone was confirmed")
+	}
+	if got := page(e.g, "/certificates", setup); got != http.StatusSeeOther {
+		t.Fatalf("a setup session reached a page: %d", got)
+	}
+	if w := call(e.g, "POST", "/api/setup/confirm", `{"code":"000000"}`, setup); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a wrong phone code: %d", w.Code)
+	}
+	w = call(e.g, "POST", "/api/setup/confirm", `{"code":"`+phoneCode(t, started.Key, e.clock.now())+`"}`, setup)
+	var finished struct {
+		Codes []string `json:"recovery_codes"`
+	}
+	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &finished) != nil || len(finished.Codes) != 10 {
+		t.Fatalf("setup confirm: %d %s", w.Code, w.Body)
+	}
+	ready := sessionCookie(t, w)
+	if ready.Value == setup.Value {
+		t.Fatal("the session kept its token from setup")
+	}
+	if got := page(e.g, "/certificates", ready); got != http.StatusOK {
+		t.Fatalf("signed in after setup: %d", got)
+	}
+	if got := status(t, e.g, setup); got != nil {
+		t.Fatalf("the setup token still works: %v", got)
+	}
+	if w := call(e.g, "POST", "/api/setup", `{"code":"`+code+`","name":"bob","password":"`+testPassword+`"}`, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a spent setup code: %d", w.Code)
+	}
+}
+
+func TestSignInTakesThePasswordThenACode(t *testing.T) {
+	e := newTestEnv(t).withAccount(t)
+	wrong := call(e.g, "POST", "/api/session", `{"name":"ada","password":"not the password at all"}`, nil)
+	unknown := call(e.g, "POST", "/api/session", `{"name":"bob","password":"`+testPassword+`"}`, nil)
+	if wrong.Code != http.StatusUnauthorized || unknown.Code != http.StatusUnauthorized || wrong.Body.String() != unknown.Body.String() {
+		t.Fatalf("a wrong password and an unknown name differ: %d %q, %d %q", wrong.Code, wrong.Body, unknown.Code, unknown.Body)
+	}
+	c := e.passwordStep(t, testPassword)
+	if got := status(t, e.g, c); got["stage"] != "code" || got["name"] != nil {
+		t.Fatalf("after the password: %v", got)
+	}
+	if got := page(e.g, "/certificates", c); got != http.StatusSeeOther {
+		t.Fatalf("the code stage reached a page: %d", got)
+	}
+	if w := call(e.g, "GET", "/api/inventory", "", c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("the code stage reached the list: %d", w.Code)
+	}
+	if w := call(e.g, "POST", "/api/session/code", `{"code":"000000"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a wrong code: %d", w.Code)
+	}
+	w := call(e.g, "POST", "/api/session/code", `{"code":"`+e.code(t)+`"}`, c)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("the code: %d %s", w.Code, w.Body)
+	}
+	ready := sessionCookie(t, w)
+	if ready.Value == c.Value || status(t, e.g, c) != nil {
+		t.Fatal("the session kept its token from the password step")
+	}
+	got := status(t, e.g, ready)
+	if got["stage"] != "ready" || got["name"] != testName || got["recovery_left"] != float64(10) || got["fresh"] != true {
+		t.Fatalf("signed in: %v", got)
+	}
+	// A recovery code signs in instead of the phone, once.
+	c = e.passwordStep(t, testPassword)
+	if w := call(e.g, "POST", "/api/session/code", `{"code":"`+strings.ToUpper(e.recovery[0])+`"}`, c); w.Code != http.StatusNoContent {
+		t.Fatalf("a recovery code: %d", w.Code)
+	}
+	c = e.passwordStep(t, testPassword)
+	if w := call(e.g, "POST", "/api/session/code", `{"code":"`+e.recovery[0]+`"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a recovery code twice: %d", w.Code)
+	}
+	// The code step waits five minutes for the code.
+	c = e.passwordStep(t, testPassword)
+	e.clock.add(codeLife)
+	if w := call(e.g, "POST", "/api/session/code", `{"code":"`+e.code(t)+`"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a code after five minutes: %d", w.Code)
+	}
+}
+
+func TestSessionsEndWhenIdleOrOldAndAStatusCheckIsNotUse(t *testing.T) {
+	g, c, e := readyGate(t)
+	e.clock.add(14 * time.Minute)
+	if got := page(g, "/certificates", c); got != http.StatusOK {
+		t.Fatalf("after 14 minutes: %d", got)
+	}
+	e.clock.add(14 * time.Minute)
+	if status(t, g, c) == nil {
+		t.Fatal("the session ended early")
+	}
+	e.clock.add(2 * time.Minute)
+	if got := page(g, "/certificates", c); got != http.StatusSeeOther {
+		t.Fatalf("16 minutes idle: %d", got)
+	}
+	c = e.signIn(t)
+	for range 47 {
+		e.clock.add(10 * time.Minute)
+		if got := page(g, "/certificates", c); got != http.StatusOK {
+			t.Fatalf("in use within eight hours: %d", got)
+		}
+	}
+	e.clock.add(10 * time.Minute)
+	if got := page(g, "/certificates", c); got != http.StatusSeeOther {
+		t.Fatalf("after eight hours: %d", got)
+	}
+	// A restart ends every session; the account stays.
+	c = e.signIn(t)
+	e.reopen(t)
+	if status(t, e.g, c) != nil {
+		t.Fatal("a session survived a restart")
+	}
+	e.signIn(t)
+}
+
+func signInFrom(g *gate, source, name, password string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader(`{"name":"`+name+`","password":"`+password+`"}`))
+	r.RemoteAddr = source
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Origin", "http://"+localHost)
+	r.Header.Set("X-Rootwell-Request", "1")
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	return w
+}
+
+func TestOnlyFailuresCountPerNameAndPerSource(t *testing.T) {
+	e := newTestEnv(t).withAccount(t)
+	// Successes cost nothing.
+	for range 8 {
+		e.passwordStep(t, testPassword)
+	}
+	for i := range nameFailures {
+		if w := signInFrom(e.g, "192.0.2.1:1", testName, "not the password at all"); w.Code != http.StatusUnauthorized {
+			t.Fatalf("failure %d: %d", i, w.Code)
+		}
+	}
+	w := signInFrom(e.g, "192.0.2.1:1", testName, testPassword)
+	if w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "60" {
+		t.Fatalf("after five failures: %d %q", w.Code, w.Header().Get("Retry-After"))
+	}
+	// The name waits from every address; other names do not.
+	if w := signInFrom(e.g, "198.51.100.7:1", testName, testPassword); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("the name from another address: %d", w.Code)
+	}
+	if w := signInFrom(e.g, "192.0.2.1:1", "bob", "not the password at all"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("another name: %d", w.Code)
+	}
+	e.clock.add(time.Minute)
+	if w := signInFrom(e.g, "192.0.2.1:1", testName, "not the password at all"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("after the wait: %d", w.Code)
+	}
+	if w := signInFrom(e.g, "192.0.2.1:1", testName, testPassword); w.Code != http.StatusTooManyRequests || w.Header().Get("Retry-After") != "120" {
+		t.Fatalf("the next failure doubles the wait: %d %q", w.Code, w.Header().Get("Retry-After"))
+	}
+	// Twenty failures from one address, over any names, make it wait.
+	for i := range sourceFailures {
+		signInFrom(e.g, "[2001:db8::1]:1", fmt.Sprintf("name%d", i), "not the password at all")
+	}
+	if w := signInFrom(e.g, "[2001:db8::2]:1", "carol", "not the password at all"); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("the same /64: %d", w.Code)
+	}
+	if w := signInFrom(e.g, "[2001:db8:0:1::1]:1", "carol", "not the password at all"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("another /64: %d", w.Code)
+	}
+}
+
+func TestAFullFailureTableHoldsNewNamesRatherThanForgetALock(t *testing.T) {
+	e := newTestEnv(t)
+	now := e.clock.now()
+	for i := range maxLimitKeys {
+		e.g.failures[fmt.Sprintf("name:n%d", i)] = &failures{count: nameFailures, last: now, until: now.Add(time.Hour)}
+	}
+	e.g.fail(nameLimit("fresh"))
+	if len(e.g.failures) != maxLimitKeys || e.g.wait(nameLimit("fresh")) != time.Minute || e.g.wait(nameLimit("n1")) <= time.Minute {
+		t.Fatalf("full table: %d entries, wait %v", len(e.g.failures), e.g.wait(nameLimit("fresh")))
+	}
+}
+
+func TestAFreshCodeGuardsChangesToHowTheAccountSignsIn(t *testing.T) {
+	g, c, e := readyGate(t)
+	w := call(g, "POST", "/api/recovery-codes", `{}`, c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("right after sign-in: %d", w.Code)
+	}
+	c = sessionCookie(t, w)
+	e.clock.add(freshLife)
+	for _, route := range []string{"/api/recovery-codes", "/api/phone"} {
+		if w := call(g, "POST", route, `{}`, c); w.Code != http.StatusPreconditionRequired {
+			t.Fatalf("%s ten minutes later: %d", route, w.Code)
+		}
+	}
+	if w := call(g, "POST", "/api/password", `{"password":"`+testPassword+`","next":"`+nextTestPassword+`"}`, c); w.Code != http.StatusPreconditionRequired {
+		t.Fatalf("a password change ten minutes later: %d", w.Code)
+	}
+	if w := call(g, "POST", "/api/fresh", `{"code":"000000"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a wrong fresh code: %d", w.Code)
+	}
+	if w := call(g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, c); w.Code != http.StatusNoContent {
+		t.Fatalf("a fresh code: %d", w.Code)
+	}
+	if w := call(g, "POST", "/api/phone", `{}`, c); w.Code != http.StatusOK {
+		t.Fatalf("after a fresh code: %d", w.Code)
+	}
+	// Five wrong codes end the session.
+	for i := range wrongCodesEnd {
+		w := call(g, "POST", "/api/fresh", `{"code":"000000"}`, c)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("wrong code %d: %d", i, w.Code)
+		}
+	}
+	if status(t, g, c) != nil {
+		t.Fatal("the session outlived five wrong codes")
+	}
+}
+
+func TestAPasswordChangeEndsEverySession(t *testing.T) {
+	g, first, e := readyGate(t)
+	second := e.signIn(t)
+	if w := call(g, "POST", "/api/password", `{"password":"not the password at all","next":"`+nextTestPassword+`"}`, first); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a wrong current password: %d", w.Code)
+	}
+	for _, next := range []string{testPassword, "too short", strings.Repeat("x", 1025)} {
+		w := call(g, "POST", "/api/password", `{"password":"`+testPassword+`","next":"`+next+`"}`, first)
+		if w.Code != http.StatusBadRequest || strings.Contains(w.Body.String(), next) {
+			t.Fatalf("new password %.20q: %d %s", next, w.Code, w.Body)
+		}
+	}
+	w := call(g, "POST", "/api/password", `{"password":"`+testPassword+`","next":"`+nextTestPassword+`"}`, first)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("password change: %d %s", w.Code, w.Body)
+	}
+	if status(t, g, first) != nil || status(t, g, second) != nil {
+		t.Fatal("a session outlived the password change")
+	}
+	if w := call(g, "POST", "/api/session", `{"name":"ada","password":"`+testPassword+`"}`, nil); w.Code != http.StatusUnauthorized {
+		t.Fatalf("the old password: %d", w.Code)
+	}
+	e.passwordStep(t, nextTestPassword)
+}
+
+func TestANewPhoneKeepsThisSessionAndEndsTheOthers(t *testing.T) {
+	g, first, e := readyGate(t)
+	second := e.signIn(t)
+	w := call(g, "POST", "/api/phone", `{}`, first)
+	var started struct {
+		Key string `json:"key"`
+	}
+	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &started) != nil || started.Key == e.seed {
+		t.Fatalf("new phone: %d %s", w.Code, w.Body)
+	}
+	if w := call(g, "POST", "/api/phone/confirm", `{"code":"`+e.code(t)+`"}`, first); w.Code != http.StatusUnauthorized {
+		t.Fatalf("the old phone confirmed the new key: %d", w.Code)
+	}
+	old := e.seed
+	e.seed = started.Key
+	w = call(g, "POST", "/api/phone/confirm", `{"code":"`+e.code(t)+`"}`, first)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("confirm: %d %s", w.Code, w.Body)
+	}
+	kept := sessionCookie(t, w)
+	if status(t, g, kept) == nil || status(t, g, second) != nil || status(t, g, first) != nil {
+		t.Fatal("the phone change kept the wrong sessions")
+	}
+	c := e.passwordStep(t, testPassword)
+	e.clock.add(30 * time.Second)
+	if w := call(g, "POST", "/api/session/code", `{"code":"`+phoneCode(t, old, e.clock.now())+`"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("the old phone signed in: %d", w.Code)
+	}
+	if w := call(g, "POST", "/api/session/code", `{"code":"`+phoneCode(t, e.seed, e.clock.now())+`"}`, c); w.Code != http.StatusNoContent {
+		t.Fatalf("the new phone: %d", w.Code)
+	}
+}
+
+func TestNewRecoveryCodesReplaceTheOldOnes(t *testing.T) {
+	g, c, e := readyGate(t)
+	w := call(g, "POST", "/api/recovery-codes", `{}`, c)
+	var out struct {
+		Codes []string `json:"recovery_codes"`
+	}
+	if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out.Codes) != 10 {
+		t.Fatalf("new codes: %d %s", w.Code, w.Body)
+	}
+	c = e.passwordStep(t, testPassword)
+	if w := call(g, "POST", "/api/session/code", `{"code":"`+e.recovery[1]+`"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("an old recovery code: %d", w.Code)
+	}
+	if w := call(g, "POST", "/api/session/code", `{"code":"`+out.Codes[1]+`"}`, c); w.Code != http.StatusNoContent {
+		t.Fatalf("a new recovery code: %d", w.Code)
+	}
+}
+
+func TestTheSessionCookieIsHostOnlySecureAndStrict(t *testing.T) {
+	g, c, e := readyGate(t)
+	if c.Name != "__Host-rootwell_session" || !c.Secure || !c.HttpOnly || c.SameSite != http.SameSiteStrictMode || c.Path != "/" || c.Domain != "" || c.MaxAge != int(absoluteLife/time.Second) {
+		t.Fatalf("cookie: %+v", c)
+	}
+	// Two session cookies count as none, so a planted one cannot pick a session.
+	r := httptest.NewRequest("GET", "http://"+localHost+"/certificates", nil)
+	r.AddCookie(c)
+	r.AddCookie(&http.Cookie{Name: cookieName, Value: strings.Repeat("A", 43)})
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("two cookies: %d", w.Code)
+	}
+	// Sign-out ends only this session.
+	other := e.signIn(t)
+	if w := call(g, "DELETE", "/api/session", "", c); w.Code != http.StatusNoContent {
+		t.Fatalf("sign out: %d", w.Code)
+	}
+	if status(t, g, c) != nil || status(t, g, other) == nil {
+		t.Fatal("sign-out ended the wrong session")
+	}
+}
+
+func TestTheSessionTableIsBoundedWithoutEndingOtherAccounts(t *testing.T) {
+	e := newTestEnv(t)
+	for i := range maxSessions {
+		if err := e.g.issue(httptest.NewRecorder(), [32]byte{}, session{stage: stageReady, name: fmt.Sprintf("n%d", i%2)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.g.issue(httptest.NewRecorder(), [32]byte{}, session{stage: stageReady, name: "third"}); err != errTooManySessions {
+		t.Fatalf("a full table took a third account: %v", err)
+	}
+	if err := e.g.issue(httptest.NewRecorder(), [32]byte{}, session{stage: stageReady, name: "n0"}); err != nil || len(e.g.sessions) != maxSessions {
+		t.Fatalf("an account's newest session: %v, %d sessions", err, len(e.g.sessions))
+	}
+}
+
+func TestGateRejectsCrossOriginHostAndMalformedRequests(t *testing.T) {
+	e := newTestEnv(t).withAccount(t)
+	g := e.g
+	malformed := []string{`{`, `{"name":"ada","password":"x","unknown":1}`, `{"name":"ada","password":"x"}{}`, strings.Repeat("x", 4097)}
+	for _, body := range malformed {
+		if w := call(g, "POST", "/api/session", body, nil); w.Code != http.StatusBadRequest {
+			t.Fatalf("a malformed request: %d", w.Code)
+		}
+	}
+	r := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader(`{"name":"ada","password":"`+testPassword+`"}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Origin", "http://attacker.invalid")
+	r.Header.Set("X-Rootwell-Request", "1")
+	w := httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin sign-in: %d", w.Code)
+	}
+	r.Header.Set("Origin", "http://"+localHost)
+	r.Host = "attacker.invalid"
+	w = httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("DNS-rebound Host: %d", w.Code)
+	}
+	r.Host = localHost
+	r.Header.Del("X-Rootwell-Request")
+	w = httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("a request without the page header: %d", w.Code)
+	}
+	r.Header.Set("X-Rootwell-Request", "1")
+	r.Header.Set("Sec-Fetch-Site", "cross-site")
+	w = httptest.NewRecorder()
+	g.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("cross-site Fetch Metadata: %d", w.Code)
+	}
+	if w := call(g, "GET", "/%2e%2e/rootwell.db", "", nil); w.Code == http.StatusOK {
+		t.Fatal("path traversal returned a file")
+	}
+	if w := call(g, "GET", "/login?password=secret", "", nil); w.Code != http.StatusBadRequest {
+		t.Fatalf("a password-bearing query: %d", w.Code)
+	}
+	form := httptest.NewRequest("POST", "http://"+localHost+"/api/session", strings.NewReader("name=ada&password="+testPassword))
+	form.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	form.Header.Set("Origin", "http://"+localHost)
+	form.Header.Set("X-Rootwell-Request", "1")
+	w = httptest.NewRecorder()
+	g.ServeHTTP(w, form)
+	if w.Code < 400 || strings.Contains(w.Body.String(), testPassword) {
+		t.Fatalf("a form post was accepted or echoed: %d", w.Code)
+	}
+}
+
+func TestAuthFormsCannotFallBackToPasswordInGetURL(t *testing.T) {
+	for _, item := range []struct{ name, action string }{
+		{"auth/login.html", "/api/session"},
+		{"auth/setup.html", "/api/setup"},
+		{"auth/account.html", "/api/password"},
+	} {
+		body, err := authAssets.ReadFile(item.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(body, []byte(`method="post" action="`+item.action+`"`)) {
+			t.Fatalf("%s could submit a password by default GET", item.name)
+		}
+	}
+}
+
+func TestGatewayRefusesIncompleteBrowserAssets(t *testing.T) {
+	assets := t.TempDir()
+	if err := os.WriteFile(filepath.Join(assets, "certificates.html"), []byte("partial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if g, err := newGate(nil, assets, localHost); err == nil {
+		_ = g.Close()
+		t.Fatal("gateway started with missing browser engine")
+	}
 }

@@ -46,8 +46,7 @@ func newStore(t *testing.T) (*Store, *vault.Store, *clock, string) {
 	}
 	t.Cleanup(func() { _ = v.Close() })
 	c := &clock{at: time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)}
-	s := New(v)
-	s.now = c.now
+	s := New(v, c.now)
 	return s, v, c, dir
 }
 

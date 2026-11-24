@@ -84,8 +84,8 @@ type Store struct {
 	dummy account.PasswordHash
 }
 
-// New uses an open vault.
-func New(v *vault.Store) *Store { return &Store{v: v, now: time.Now} }
+// New uses an open vault and a clock: code checks and setup codes read it.
+func New(v *vault.Store, now func() time.Time) *Store { return &Store{v: v, now: now} }
 
 // Name turns what a person typed into an account name: letters are compared
 // without case. It reports false for anything that cannot be a name.

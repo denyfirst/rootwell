@@ -17,13 +17,20 @@
   <p class="wordmark">rootwell<span class="wordmark-stop">.</span></p>
   <section class="card" aria-labelledby="title"><div class="card-body">
     <h1 id="title">Sign in</h1>
-    <form class="stack" id="auth-form" method="post" action="/api/session">
-      <div class="field"><label for="password">Password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required autofocus></div>
-      <button class="btn btn-block" type="submit">Sign in</button>
-      <p class="error-text" id="status" role="alert" aria-live="polite"></p>
+    <form class="stack" id="password-form" method="post" action="/api/session">
+      <div class="field"><label for="name">Name</label><input class="input" id="name" name="name" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required autofocus></div>
+      <div class="field"><label for="password">Password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn btn-block" type="submit">Continue</button>
     </form>
+    <form class="stack" id="code-form" method="post" action="/api/session/code" hidden>
+      <p class="soft">Open the authenticator app on your phone and enter the six-digit code for Rootwell. No phone at hand? Enter one of your recovery codes.</p>
+      <div class="field"><label for="code">Code</label><input class="input mono" id="code" name="code" type="text" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" maxlength="64" required></div>
+      <button class="btn btn-block" type="submit">Sign in</button>
+      <button class="btn btn-ghost btn-block" id="start-over" type="button">Use another name</button>
+    </form>
+    <p class="error-text" id="status" role="alert" aria-live="polite"></p>
   </div></section>
-  <p class="meta center">The first password is shown once by <code>rootwelld init</code> on the server.</p>
+  <p class="meta center">First time here, or lost both your phone and your recovery codes? <a class="link" href="/setup">Use a setup code</a>.</p>
   <p class="credit center">rootwell, by denyfirst<span class="credit-stop">.</span></p>
 </div></main>
 </body>

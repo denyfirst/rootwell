@@ -5,36 +5,23 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
 )
 
 // Certificates, the home page, and the scripts it runs are served only to a
 // ready session; the PFX reader runs in a worker with no network and no
 // further workers.
 func TestCertificatesPageAndItsScriptsRemainBehindReadyAccess(t *testing.T) {
-	g, _ := testGate(t)
-	revision, err := instanceaccess.Revision(g.accessPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	w := httptest.NewRecorder()
-	if err := g.issueSession(w, false, revision); err != nil {
-		t.Fatal(err)
-	}
-	cookie := sessionCookie(t, w)
-	setup := httptest.NewRecorder()
-	if err := g.issueSession(setup, true, revision); err != nil {
-		t.Fatal(err)
-	}
+	g, cookie, e := readyGate(t)
+	// The password alone, without the phone code, is not signed in.
+	codeStage := e.passwordStep(t, testPassword)
 	for _, path := range []string{"/certificates", "/certificates.js", "/ui.js", "/certificate-pfx.js", "/certificate-pfx-worker.js"} {
 		anonymous := call(g, "GET", path, "", nil)
 		if anonymous.Code != http.StatusSeeOther || anonymous.Header().Get("Location") != "/login" {
 			t.Fatalf("anonymous access to %s", path)
 		}
-		setupOnly := call(g, "GET", path, "", sessionCookie(t, setup))
-		if setupOnly.Code != http.StatusSeeOther || setupOnly.Header().Get("Location") != "/setup" {
-			t.Fatalf("setup access to %s", path)
+		passwordOnly := call(g, "GET", path, "", codeStage)
+		if passwordOnly.Code != http.StatusSeeOther || passwordOnly.Header().Get("Location") != "/login" {
+			t.Fatalf("code-stage access to %s: %d", path, passwordOnly.Code)
 		}
 		ready := call(g, "GET", path, "", cookie)
 		if ready.Code != http.StatusOK || ready.Header().Get("Cache-Control") != "no-store" || ready.Body.Len() == 0 {

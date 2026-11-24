@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -40,8 +41,9 @@ func TestWebsiteComparisonCannotUploadCertificatesOrTrustToAPI(t *testing.T) {
 }
 
 func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testing.T) {
-	g, cookie, path := readyGate(t)
-	before, err := os.ReadFile(path)
+	g, cookie, e := readyGate(t)
+	vaultFile := filepath.Join(e.dir, "rootwell.db")
+	before, err := os.ReadFile(vaultFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,8 +90,7 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
 		t.Fatal("repeat not bounded")
 	}
-	base := g.now()
-	g.now = func() time.Time { return base.Add(31 * time.Second) }
+	e.clock.add(31 * time.Second)
 	g.websiteBusy = true
 	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 429 || calls != 1 {
 		t.Fatal("concurrent check accepted")
@@ -102,23 +103,26 @@ func TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing(t *testin
 	if w.Code != 502 || strings.Contains(w.Body.String(), "sentinel") {
 		t.Fatal("raw peer error reflected")
 	}
-	after, err := os.ReadFile(path)
+	after, err := os.ReadFile(vaultFile)
 	if err != nil || !bytes.Equal(before, after) {
-		t.Fatal("read-only check modified access image")
+		t.Fatal("read-only check modified the vault")
 	}
 }
 
-func TestWebsiteSetupAndLateSessionCannotPublish(t *testing.T) {
-	g, _ := testGate(t)
-	cookie := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil))
+// The password alone, without the phone code, cannot use the website check,
+// and a session that ended while a check ran never receives its result.
+func TestWebsiteCodeStageAndLateSessionCannotPublish(t *testing.T) {
+	e := newTestEnv(t).withAccount(t)
+	g := e.g
+	codeStage := e.passwordStep(t, testPassword)
 	g.websiteCheck = func(context.Context, string, func() bool) (websitechain.Report, error) {
-		t.Fatal("setup authorized network")
+		t.Fatal("a code-stage session authorized network")
 		return websitechain.Report{}, nil
 	}
-	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, cookie, "http://"+localHost, true); w.Code != 403 {
-		t.Fatal("setup accepted")
+	if w := apiCall(g, "POST", "/api/website-check", websiteConsent, codeStage, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+		t.Fatalf("code stage accepted: %d", w.Code)
 	}
-	g, cookie, _ = readyGate(t)
+	cookie := e.signIn(t)
 	g.websiteCheck = func(_ context.Context, _ string, permit func() bool) (websitechain.Report, error) {
 		if !permit() {
 			t.Fatal("initial permit refused")

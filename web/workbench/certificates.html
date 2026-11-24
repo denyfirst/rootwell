@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/rootwell.css">
   <script src="/theme.js"></script>
   <script src="/session.js" defer></script>
+  <script src="/fresh.js" defer></script>
   <script src="/wasm_exec.js" defer></script>
   <script src="/wasm-loader.js" defer></script>
   <script src="/ui.js" defer></script>
@@ -58,7 +59,6 @@
       <span class="label">Download</span>
       <div class="choices" id="download-choices"></div>
       <div class="stack" id="download-secret" hidden>
-        <div class="field"><label for="download-password">Your Rootwell password</label><input class="input" id="download-password" type="password" autocomplete="current-password"></div>
         <div class="field"><label for="download-key-password">Password for the key file</label><div class="input-row"><input class="input mono" id="download-key-password" type="password" autocomplete="new-password" spellcheck="false"><button class="btn btn-secondary" id="download-generate" type="button">Generate</button><button class="btn btn-secondary" id="download-copy" type="button" hidden>Copy</button></div><span class="meta" id="download-note" hidden>Save this password now. Rootwell does not keep it.</span></div>
       </div>
       <div><button class="btn" id="download-go" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></svg><span id="download-go-name">Download</span></button></div>
@@ -67,7 +67,6 @@
       <span class="label">Add the private key</span>
       <input class="input" id="key-file" type="file" accept=".key,.pem,.der,.txt" aria-label="Key file">
       <div class="field" id="key-password-field" hidden><label for="key-password">Key password</label><input class="input" id="key-password" type="password" autocomplete="off"></div>
-      <div class="field"><label for="key-auth">Your Rootwell password</label><input class="input" id="key-auth" type="password" autocomplete="current-password"></div>
       <div><button class="btn" id="key-save" type="button">Save the key</button></div>
     </div>
     <div class="sheet-section" id="sheet-status" role="status" aria-live="polite"></div>

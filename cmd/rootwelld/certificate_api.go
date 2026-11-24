@@ -17,7 +17,6 @@ import (
 	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/denyfirst/rootwell/internal/certificatepair"
 	"github.com/denyfirst/rootwell/internal/certstore"
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -29,7 +28,6 @@ type certificateInput struct {
 	Location       string
 	Fingerprint    string
 	Expected       uint64
-	Password       string
 	OutputPassword []byte
 	Pair           bool
 	KeyOnly        bool
@@ -47,16 +45,8 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	if s.setup {
-		http.Error(w, "change the setup password first", http.StatusForbidden)
-		return
-	}
 	if !g.sameOrigin(r) {
 		http.Error(w, "request origin refused", http.StatusForbidden)
-		return
-	}
-	if g.certificates == nil {
-		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	input, ok := readCertificateInput(w, r)
@@ -65,16 +55,19 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		clear(input.PrivateKey)
 		clear(input.KeyPassword)
 		clear(input.OutputPassword)
-		input.Password = ""
 	}()
 	if !ok {
 		return
 	}
-	if !g.startDerivation() {
-		http.Error(w, "another key or password check is running; retry shortly", http.StatusServiceUnavailable)
+	if r.URL.Path == "/api/certificates/download" && (input.Pair || input.KeyOnly) && !s.isFresh(g.now()) {
+		needFresh(w)
 		return
 	}
-	defer func() { <-g.derive }()
+	if !g.slot(r) {
+		http.Error(w, "Another key or password check is running. Try again.", http.StatusServiceUnavailable)
+		return
+	}
+	defer g.release()
 	if r.URL.Path == "/api/certificates/key/check" || r.URL.Path == "/api/certificates/key/save" {
 		g.attachCertificateKey(w, r, s, input)
 		return
@@ -101,7 +94,7 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 	if err != nil {
 		var choice *certificatepair.SelectionRequired
 		if r.URL.Path == "/api/certificates/check" && errors.As(err, &choice) {
-			if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+			if !g.stillReady(r, s) || r.Context().Err() != nil {
 				http.Error(w, "session no longer available", http.StatusUnauthorized)
 				return
 			}
@@ -123,7 +116,7 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 			return
 		}
 	}
-	if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+	if !g.stillReady(r, s) || r.Context().Err() != nil {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
@@ -145,8 +138,7 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 }
 
 func (g *gate) publishCertificateSave(w http.ResponseWriter, r *http.Request, s session, record publicinventory.Record, generation uint64) {
-	current, ready := g.currentSession(r)
-	if !ready || current.setup || current.revision != s.revision || r.Context().Err() != nil {
+	if !g.stillReady(r, s) || r.Context().Err() != nil {
 		// The commit may already be durable. Never turn publication loss into a
 		// definite pre-write refusal that would encourage a blind duplicate Save.
 		http.Error(w, "Save outcome uncertain; sign in and refresh before retrying.", http.StatusServiceUnavailable)
@@ -269,11 +261,6 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 			}
 		case "expected_generation":
 			err = d.Decode(&input.Expected)
-		case "password":
-			if !download && !attachSave {
-				return bad()
-			}
-			err = readString(&input.Password)
 		case "output_password":
 			if !download {
 				return bad()
@@ -301,16 +288,16 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 	if err != nil || token != json.Delim('}') {
 		return bad()
 	}
-	if _, err := d.Token(); err != io.EOF || !seen["expected_generation"] || input.Expected == 0 || len(input.Certificate) > certificatepair.MaxBundleBytes || len(input.PrivateKey) > 64<<10 || len(input.KeyPassword) > 256 || len(input.OutputPassword) > 256 || len(input.Password) > 256 || !publicinventory.ValidOwner(input.Owner) || (input.Location != "" && publicinventory.ValidateLocation(input.Location) != nil) || (seen["primary_fingerprint"] && !publicinventory.ValidFingerprint(input.Primary)) {
+	if _, err := d.Token(); err != io.EOF || !seen["expected_generation"] || input.Expected == 0 || len(input.Certificate) > certificatepair.MaxBundleBytes || len(input.PrivateKey) > 64<<10 || len(input.KeyPassword) > 256 || len(input.OutputPassword) > 256 || !publicinventory.ValidOwner(input.Owner) || (input.Location != "" && publicinventory.ValidateLocation(input.Location) != nil) || (seen["primary_fingerprint"] && !publicinventory.ValidFingerprint(input.Primary)) {
 		return bad()
 	}
 	if attach {
-		if !publicinventory.ValidFingerprint(input.Fingerprint) || len(input.PrivateKey) == 0 || (attachSave && input.Password == "") {
+		if !publicinventory.ValidFingerprint(input.Fingerprint) || len(input.PrivateKey) == 0 {
 			return bad()
 		}
 	} else if download {
 		secret := input.Pair || input.KeyOnly
-		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || (input.Pair && input.KeyOnly) || (input.Bundle && secret) || (!secret && (seen["password"] || seen["output_password"])) || (secret && (input.Password == "" || len(input.OutputPassword) == 0)) {
+		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || (input.Pair && input.KeyOnly) || (input.Bundle && secret) || (!secret && seen["output_password"]) || (secret && len(input.OutputPassword) == 0) {
 			return bad()
 		}
 	} else if len(input.Certificate) == 0 || (r.URL.Path == "/api/certificates/save" && !publicinventory.ValidFingerprint(input.Fingerprint)) || (r.URL.Path == "/api/certificates/check" && seen["fingerprint"]) {
@@ -321,23 +308,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 
 func (g *gate) attachCertificateKey(w http.ResponseWriter, r *http.Request, s session, input certificateInput) {
 	save := r.URL.Path == "/api/certificates/key/save"
-	if save {
-		if !g.allowAttempt() {
-			w.Header().Set("Retry-After", "60")
-			http.Error(w, "too many attempts; wait one minute", http.StatusTooManyRequests)
-			return
-		}
-		setup, err := instanceaccess.Authenticate(g.accessPath, input.Password)
-		if err != nil || setup {
-			if errors.Is(err, instanceaccess.ErrWrongPassword) {
-				http.Error(w, "password not accepted", http.StatusUnauthorized)
-			} else {
-				http.Error(w, "authentication unavailable", http.StatusServiceUnavailable)
-			}
-			return
-		}
-	}
-	if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+	if !g.stillReady(r, s) || r.Context().Err() != nil {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
@@ -363,7 +334,7 @@ func (g *gate) attachCertificateKey(w http.ResponseWriter, r *http.Request, s se
 		}
 		return
 	}
-	if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+	if !g.stillReady(r, s) || r.Context().Err() != nil {
 		if save {
 			// The atomic write completed, but this session cannot receive confirmation.
 			// Do not classify it as a definitive pre-write authentication refusal.
@@ -377,26 +348,6 @@ func (g *gate) attachCertificateKey(w http.ResponseWriter, r *http.Request, s se
 }
 
 func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s session, input certificateInput) {
-	if input.Pair || input.KeyOnly {
-		if !g.allowAttempt() {
-			w.Header().Set("Retry-After", "60")
-			http.Error(w, "too many attempts; wait one minute", http.StatusTooManyRequests)
-			return
-		}
-		setup, err := instanceaccess.Authenticate(g.accessPath, input.Password)
-		if err != nil || setup {
-			if errors.Is(err, instanceaccess.ErrWrongPassword) {
-				http.Error(w, "password not accepted", http.StatusUnauthorized)
-			} else {
-				http.Error(w, "authentication unavailable", http.StatusServiceUnavailable)
-			}
-			return
-		}
-		if bytes.Equal([]byte(input.Password), input.OutputPassword) {
-			http.Error(w, "Use a separate password for the downloaded key.", http.StatusBadRequest)
-			return
-		}
-	}
 	var output []byte
 	defer func() { clear(output) }()
 	err := g.certificates.WithCertificate(input.Expected, input.Fingerprint,
@@ -467,7 +418,7 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 		}
 		return
 	}
-	if _, current := g.currentSession(r); !current || r.Context().Err() != nil {
+	if !g.stillReady(r, s) || r.Context().Err() != nil {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}

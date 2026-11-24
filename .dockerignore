@@ -26,6 +26,7 @@
 !web/workbench/rootwell.css
 !web/workbench/theme.js
 !web/workbench/session.js
+!web/workbench/fresh.js
 !web/workbench/favicon.svg
 !web/workbench/wasm-loader.js
 !web/workbench/private-worker-client.js

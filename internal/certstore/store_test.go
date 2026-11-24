@@ -283,11 +283,25 @@ func TestDeleteTakesTheKeyWithIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g, err = s.Delete(g, a.fingerprint); err != nil {
+	// A saved key goes only with a fresh phone code; without one nothing changes.
+	if _, err := s.Delete(g, a.fingerprint, false); !errors.Is(err, ErrKeyNeedsCode) {
+		t.Fatalf("a key was deleted without a fresh code: %v", err)
+	}
+	if _, generation, _ := s.List(); generation != g {
+		t.Fatalf("a refused delete counted a generation: %d", generation)
+	}
+	if g, err = s.Delete(g, a.fingerprint, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Delete(g, a.fingerprint); !errors.Is(err, ErrNotFound) {
+	if _, err := s.Delete(g, a.fingerprint, true); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("a second delete: %v", err)
+	}
+	b := issue(t, "b.example")
+	if _, g, err = s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Delete(g, b.fingerprint, false); err != nil {
+		t.Fatalf("a certificate without a key needs no code: %v", err)
 	}
 	_ = v.View(func(t2 *vault.Tx) error {
 		certificates, _ := t2.IDs(kindCertificate)

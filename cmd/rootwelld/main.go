@@ -1,4 +1,5 @@
-// Command rootwelld provides an operator-initialized, loopback-only Workbench.
+// Command rootwelld serves Rootwell's pages on this host's loopback addresses
+// and keeps its accounts and certificates in the vault.
 package main
 
 import (
@@ -16,15 +17,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/denyfirst/rootwell/internal/certstore"
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/accountstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 	"golang.org/x/term"
 )
 
 const localHost = "localhost:4180"
 
-const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> | rootwelld key-restore <private-data-dir> <instance-key-file> | rootwelld recovery-enroll|recovery-rotate|recovery-reset <private-data-dir> | rootwelld access-snapshot <private-data-dir> <new-snapshot-file> | rootwelld access-verify <snapshot-file> password|code | rootwelld access-restore <snapshot-file> <fresh-private-data-dir> password|code"
+const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file>"
+
+var errLinuxOnly = errors.New("rootwelld keeps keys only on Linux; run it there, or in its container")
 
 func main() { os.Exit(run(os.Args[1:])) }
 
@@ -35,7 +37,7 @@ func run(args []string) int {
 	}
 	if isOfflineCommand(args) {
 		if !terminal(os.Stdin) || !terminal(os.Stdout) {
-			fmt.Fprintln(os.Stderr, "offline recovery commands require an interactive local terminal; no secret was read")
+			fmt.Fprintln(os.Stderr, "this command needs an interactive local terminal; no secret was read or shown")
 			return 2
 		}
 		if err := runOfflineCommand(args, readTerminalSecret, os.Stdout); err != nil {
@@ -46,7 +48,7 @@ func run(args []string) int {
 	}
 	if len(args) == 3 && args[0] == "init" {
 		if !terminal(os.Stdin) || !terminal(os.Stdout) {
-			fmt.Fprintln(os.Stderr, "init requires an interactive local terminal; no password was printed")
+			fmt.Fprintln(os.Stderr, "init needs an interactive local terminal; nothing was created")
 			return 2
 		}
 		if err := initialize(args[1], args[2], os.Stdin, os.Stdout); err != nil {
@@ -85,12 +87,26 @@ func keyOutsideData(dir, keyFile string) error {
 	return nil
 }
 
-// custody says whether this host keeps certificates. Only Linux has the
-// private-file checks the vault relies on; elsewhere the pages open as a
-// preview and saving is turned off.
+// custody says whether this host can keep keys. Only Linux has the
+// private-file checks the vault relies on.
 func custody() bool { return runtime.GOOS == "linux" }
 
+func privateDirectory(dir string) error {
+	// #nosec G703 -- dir is a local operator CLI path, never an HTTP input.
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() || info.Mode().Perm()&0o077 != 0 {
+		return errors.New("the data directory must be private to its owner (0700)")
+	}
+	return nil
+}
+
+// initialize makes the instance key and the vault, and prints a setup code
+// for the first account. The key's recovery code is shown once and must be
+// confirmed as saved before anything is written.
 func initialize(dir, keyFile string, input io.Reader, output io.Writer) error {
+	if !custody() {
+		return errLinuxOnly
+	}
 	if dir == "" || keyFile == "" {
 		return errors.New("a private data directory and an instance key file are required")
 	}
@@ -99,119 +115,97 @@ func initialize(dir, keyFile string, input io.Reader, output io.Writer) error {
 	}
 	// #nosec G703 -- dir is a local operator CLI path, never an HTTP input.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return errors.New("private data directory could not be created")
+		return errors.New("the data directory could not be created")
 	}
-	// #nosec G703 -- dir is a local operator CLI path, never an HTTP input.
-	info, err := os.Stat(dir)
-	if err != nil || !info.IsDir() || (runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
-		return errors.New("data directory must be private to its owner")
-	}
-	accessPath := filepath.Join(dir, "access.json")
-	// #nosec G703 -- accessPath is derived from the local operator CLI path.
-	if _, err := os.Lstat(accessPath); err == nil {
-		return errors.New("installation already exists; its password cannot be redisplayed")
-	} else if !os.IsNotExist(err) {
-		return errors.New("installation access file could not be checked")
-	}
-	if custody() {
-		// #nosec G703 -- keyFile is a local operator CLI path, never an HTTP input.
-		if _, err := os.Lstat(keyFile); !os.IsNotExist(err) {
-			return errors.New("an instance key file already exists there; Rootwell never replaces one")
-		}
-	}
-	password, err := instanceaccess.GenerateInitialPassword()
-	if err != nil {
+	if err := privateDirectory(dir); err != nil {
 		return err
 	}
-	var key []byte
-	var code string
-	if custody() {
-		if key, err = vault.NewInstanceKey(); err != nil {
-			return errors.New("an instance key could not be made")
-		}
-		defer clear(key)
-		if code, err = vault.RecoveryCode(key); err != nil {
-			return errors.New("an instance key could not be made")
-		}
+	// #nosec G703 -- keyFile is a local operator CLI path, never an HTTP input.
+	if _, err := os.Lstat(keyFile); !os.IsNotExist(err) {
+		return errors.New("an instance key file already exists there; Rootwell never replaces one")
 	}
-	message := fmt.Sprintf("Rootwell setup password (shown only here; save it now):\n\n  %s\n\n", password)
-	if custody() {
-		message += fmt.Sprintf("Instance key recovery code (shown only here). It rebuilds the key file %s if that file is lost; without both, every saved certificate and key is lost. Keep it apart from this host and from backups:\n\n  %s\n\n", keyFile, code)
+	// #nosec G703 -- the path is derived from the local operator CLI path.
+	if _, err := os.Lstat(filepath.Join(dir, "rootwell.db")); !os.IsNotExist(err) {
+		return errors.New("this data directory holds an installation already; for a new setup code, use rootwelld setup-code")
 	}
-	if _, err := io.WriteString(output, message+"Type SAVED and press Enter to activate them: "); err != nil {
-		return errors.New("the setup secrets could not be shown; installation was not created")
+	key, err := vault.NewInstanceKey()
+	if err != nil {
+		return errors.New("an instance key could not be made")
+	}
+	defer clear(key)
+	recovery, err := vault.RecoveryCode(key)
+	if err != nil {
+		return errors.New("an instance key could not be made")
+	}
+	message := fmt.Sprintf("Instance key recovery code (shown only here). It rebuilds the key file %s if that file is lost; without both, every saved certificate and key is lost. Keep it apart from this host and from backups:\n\n  %s\n\nType SAVED and press Enter once it is written down: ", keyFile, recovery)
+	if _, err := io.WriteString(output, message); err != nil {
+		return errors.New("the recovery code could not be shown; nothing was created")
 	}
 	line, err := bufio.NewReader(input).ReadString('\n')
 	if err != nil || strings.TrimSpace(line) != "SAVED" {
-		return errors.New("installation was not created because saving the secrets was not confirmed")
+		return errors.New("nothing was created, because saving the recovery code was not confirmed")
 	}
-	if custody() {
-		// The key comes first and access last: an installation exists only once
-		// its access file does, so a failed start leaves nothing that serves.
-		if err := vault.WriteKeyFile(keyFile, key); err != nil {
-			return errors.New("the instance key file could not be written; its directory must be private (0700) and owned by this user")
-		}
-		v, err := vault.Create(dir, key)
-		if err != nil {
-			return errors.New("the certificate vault could not be created in the data directory; remove the new key file before trying again")
-		}
-		if err := v.Close(); err != nil {
-			return errors.New("the certificate vault could not be closed cleanly; remove the new key file and the vault before trying again")
-		}
+	if err := vault.WriteKeyFile(keyFile, key); err != nil {
+		return errors.New("the instance key file could not be written; its directory must be private (0700) and owned by this user")
 	}
-	if err := instanceaccess.Create(accessPath, password); err != nil {
-		return err
+	v, err := vault.Create(dir, key)
+	if err != nil {
+		return errors.New("the vault could not be created in the data directory; remove the new key file before trying again")
 	}
-	if _, err := io.WriteString(output, "\nInstallation created. Sign in on localhost and change this password before using Rootwell.\n"); err != nil {
-		return errors.New("installation was created, but the final confirmation could not be shown")
+	code, until, err := accountstore.New(v, time.Now).NewSetupCode("")
+	if closeErr := v.Close(); err == nil && closeErr != nil {
+		err = closeErr
+	}
+	if err != nil {
+		return errors.New("the installation was created, but its setup code was not saved; make one with rootwelld setup-code")
+	}
+	if _, err := io.WriteString(output, "\nInstallation created.\n\n"); err != nil {
+		return errors.New("the installation was created, but its setup code could not be shown; make one with rootwelld setup-code")
+	}
+	return showSetupCode(output, code, until, "")
+}
+
+// showSetupCode prints a setup code and what to do with it.
+func showSetupCode(out io.Writer, code string, until time.Time, name string) error {
+	with := "the name and the password you want"
+	if name != "" {
+		with = "the name " + name + " and the new password you want; this replaces its password and phone"
+	}
+	_, err := fmt.Fprintf(out, "Setup code (works once, until %s UTC):\n\n  %s\n\nWith rootwelld running, open its setup page, /setup, and enter this code with %s. If the time runs out, make a new code with rootwelld setup-code.\n",
+		until.UTC().Format("2006-01-02 15:04"), code, with)
+	if err != nil {
+		return errors.New("the setup code could not be shown; make a new one with rootwelld setup-code")
 	}
 	return nil
 }
 
 func serve(dir, keyFile, assetsDir string) error {
-	// #nosec G703 -- dir is a local operator CLI path, never an HTTP input.
-	directory, err := os.Stat(dir)
-	if err != nil || !directory.IsDir() || (runtime.GOOS != "windows" && directory.Mode().Perm()&0o077 != 0) {
-		return errors.New("installation data directory must be private to its owner")
+	if !custody() {
+		return errLinuxOnly
+	}
+	if err := privateDirectory(dir); err != nil {
+		return err
 	}
 	if err := keyOutsideData(dir, keyFile); err != nil {
 		return err
 	}
-	accessPath := filepath.Join(dir, "access.json")
-	// #nosec G703 -- accessPath is derived from the local operator CLI path.
-	accessInfo, err := os.Lstat(accessPath)
+	key, err := vault.ReadKeyFile(keyFile)
 	if err != nil {
-		return errors.New("installation is not initialized; run rootwelld init locally first")
+		return errors.New("the instance key file could not be read; it must be a private 0600 file of this user")
 	}
-	if !accessInfo.Mode().IsRegular() || (runtime.GOOS != "windows" && accessInfo.Mode().Perm()&0o077 != 0) {
-		return errors.New("installation access file must be private and regular")
-	}
-	releaseOperation, err := instanceaccess.AcquireOperationLock(accessPath)
+	v, err := vault.Open(dir, key)
+	clear(key)
 	if err != nil {
-		return err
+		return errors.New("the vault did not open with this instance key, or another rootwelld holds it")
 	}
-	defer releaseOperation()
-	var certificates *certstore.Store
-	if custody() {
-		key, err := vault.ReadKeyFile(keyFile)
-		if err != nil {
-			return errors.New("the instance key file could not be read; it must be a private 0600 file of this user")
-		}
-		v, err := vault.Open(dir, key)
-		clear(key)
-		if err != nil {
-			return errors.New("the certificate vault did not open with this instance key")
-		}
-		defer v.Close()
-		certificates = certstore.New(v)
-	}
-	gate, err := newGate(accessPath, assetsDir, localHost, certificates)
+	defer v.Close()
+	gate, err := newGate(v, assetsDir, localHost)
 	if err != nil {
 		return err
 	}
 	defer gate.Close()
 	server := &http.Server{
-		Addr: "127.0.0.1:4180", Handler: gate,
+		Handler:           gate,
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 		WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second,
 		MaxHeaderBytes: 8192,
@@ -221,6 +215,9 @@ func serve(dir, keyFile, assetsDir string) error {
 		return err
 	}
 	fmt.Fprintln(os.Stdout, "Rootwell is available at http://localhost:4180 (this host only)")
+	if exists, err := gate.accounts.Exists(); err == nil && !exists {
+		fmt.Fprintln(os.Stdout, "No account yet: open http://localhost:4180/setup and enter the setup code from rootwelld init.")
+	}
 	served := make(chan error, len(listeners))
 	for _, listener := range listeners {
 		go func() { served <- server.Serve(listener) }()
