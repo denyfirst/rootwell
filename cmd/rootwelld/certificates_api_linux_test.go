@@ -59,7 +59,7 @@ func post(t *testing.T, e *testEnv, cookie *http.Cookie, route string, input map
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := apiCall(e.g, "POST", route, string(b), cookie, "http://"+localHost, true)
+	w := apiCall(e.g, "POST", route, string(b), cookie, "https://"+localHost, true)
 	return &httpResponse{w.Code, w.Body.Bytes(), w.Header()}
 }
 
@@ -100,7 +100,7 @@ func TestLinuxCertificatesNeedAReadySessionAndThePageHeader(t *testing.T) {
 		"/api/inventory/locations/change": `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":1}`,
 		"/api/inventory/delete":           `{"fingerprint":"x","typed_fingerprint":"x","confirmation":"delete-public-record","expected_generation":1}`,
 	} {
-		if w := apiCall(g, "POST", route, body, codeStage, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+		if w := apiCall(g, "POST", route, body, codeStage, "https://"+localHost, true); w.Code != http.StatusUnauthorized {
 			t.Fatalf("a code-stage session reached %s: %d", route, w.Code)
 		}
 	}
@@ -115,7 +115,7 @@ func TestLinuxCertificatesNeedAReadySessionAndThePageHeader(t *testing.T) {
 	if out := listCertificates(t, g, ready); out.Generation != 1 || len(out.Records) != 0 {
 		t.Fatalf("a new vault's list: %+v", out)
 	}
-	if w := apiCall(g, "POST", "/api/inventory", `{"certificate":"AA=="}`, ready, "http://"+localHost, true); w.Code != http.StatusMethodNotAllowed {
+	if w := apiCall(g, "POST", "/api/inventory", `{"certificate":"AA=="}`, ready, "https://"+localHost, true); w.Code != http.StatusMethodNotAllowed {
 		t.Fatal("the list accepted a write; certificates are added only through Save")
 	}
 }
@@ -169,7 +169,7 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 	if w := apiCall(e.g, "POST", "/api/certificates/save", encode(request), cookie, "http://evil.invalid", true); w.Code != 403 {
 		t.Fatal("cross-origin save accepted")
 	}
-	if w := apiCall(e.g, "POST", "/api/certificates/save", encode(request), cookie, "http://"+localHost, false); w.Code != 403 {
+	if w := apiCall(e.g, "POST", "/api/certificates/save", encode(request), cookie, "https://"+localHost, false); w.Code != 403 {
 		t.Fatal("headerless save accepted")
 	}
 	saved := invoke("/api/certificates/save", request)
@@ -250,7 +250,7 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 			t.Fatalf("a public download asked for a fresh code: %d", w.code)
 		}
 	}
-	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "http://"+localHost, true); w.Code != http.StatusNoContent {
+	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "https://"+localHost, true); w.Code != http.StatusNoContent {
 		t.Fatalf("fresh code: %d %s", w.Code, w.Body)
 	}
 	if keyOnly := invoke("/api/certificates/download", map[string]any{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false, "key_only": true, "output_password": []byte("new-download-password")}); keyOnly.code != 200 ||
@@ -282,7 +282,7 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 	if out := listCertificates(t, e.g, cookie); out.Generation != 5 || len(out.Records) != 1 || !out.Records[0].HasPrivateKey {
 		t.Fatalf("a refused delete wrote: %+v", out)
 	}
-	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "http://"+localHost, true); w.Code != http.StatusNoContent {
+	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "https://"+localHost, true); w.Code != http.StatusNoContent {
 		t.Fatalf("fresh code: %d", w.Code)
 	}
 	if w := invoke("/api/inventory/delete", remove); w.code != 200 {

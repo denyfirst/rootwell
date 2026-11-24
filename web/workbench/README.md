@@ -19,17 +19,25 @@ The menu has six pages. `/` leads to Certificates.
 | Request | `/request` | `request.html`, `request.js` | Makes a CSR with a new key or an existing one |
 | Account | `/account` | `account.html`, `auth.js` and `qr.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, and says how to get back in from the server |
 
+Every change on Certificates names the list's change count the page last
+read, and the server refuses an out-of-date one. After a save, the page takes
+the new count from the save's answer and says Saved at once; a list read
+already under way is waited for, not reused, so an add made right after a
+save is not refused as out of date.
+
 Sign-in (`/login`) and setup (`/setup`) also come from `cmd/rootwelld/auth`.
 Sign-in takes the name and password, then a code from the phone or a
 recovery code. Setup takes a setup code from the server, a name and a
 password, shows a QR code for an authenticator app, and then the ten recovery
-codes, once.
+codes, once. The sign-in page also links Rootwell's certificate authority,
+`/rootwell-ca.pem`, for a browser that warned about the page.
 
 Every page links `/rootwell.css`, loads `/theme.js` for the colour scheme and
 `/session.js` for Sign out, and carries no inline style or script. The
 stylesheet, `theme.js`, `favicon.svg`, the typeface and the sign-in scripts
 (`auth.js`, `qr.js`) are served before sign-in so that the sign-in and setup
-pages work and look like the rest; everything else needs a signed-in session.
+pages work and look like the rest, and so is `/rootwell-ca.pem`; everything
+else needs a signed-in session.
 
 The hidden Renewals page and its older stylesheet were removed on
 23 November 2026; a new Renewals page comes with real renewal in Phase 3c.
@@ -109,8 +117,9 @@ cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/workbench/wasm_exec.js
 ```
 
 Then serve this directory with
-`rootwelld serve <data-dir> <instance-key-file> web/workbench`. The daemon
-refuses to start when a page file or the engine is missing.
+`rootwelld serve <data-dir> <instance-key-file> web/workbench`, and open
+`https://localhost:4180`. The daemon refuses to start when a page file or the
+engine is missing.
 
 ## Tests
 

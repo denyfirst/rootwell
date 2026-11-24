@@ -1,5 +1,6 @@
 // Package servecert makes the certificate Rootwell serves its own pages with
-// (ADR 0088). `rootwelld init` creates a local CA whose name constraints allow
+// (ADR 0088). rootwelld creates a local CA on its first start, and
+// `rootwelld serving-names` replaces it; its name constraints allow
 // only the names this installation answers to, so a stolen CA key cannot sign
 // for anything else; the CA signs a short-lived P-256 server certificate that
 // rootwelld renews by itself. A browser trusts the CA once, by its printed
@@ -211,4 +212,17 @@ func Fingerprint(certificate *x509.Certificate) string {
 func hexByte(b byte) string {
 	const digits = "0123456789abcdef"
 	return string([]byte{digits[b>>4], digits[b&0x0f]})
+}
+
+// Hosts lists each name as a browser writes it in the Host header, with port,
+// and says whether it is a loopback name.
+func (n Names) Hosts(port string) map[string]bool {
+	hosts := make(map[string]bool, len(n.DNS)+len(n.IPs))
+	for _, name := range n.DNS {
+		hosts[net.JoinHostPort(name, port)] = name == "localhost"
+	}
+	for _, ip := range n.IPs {
+		hosts[net.JoinHostPort(ip.String(), port)] = ip.IsLoopback()
+	}
+	return hosts
 }

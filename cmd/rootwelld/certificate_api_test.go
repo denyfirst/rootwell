@@ -12,7 +12,7 @@ import (
 // it were sent to route, and says whether it was accepted.
 func parseCertificateRequest(t *testing.T, route, body string) (*httptest.ResponseRecorder, bool) {
 	t.Helper()
-	r := httptest.NewRequest("POST", "http://"+localHost+route, strings.NewReader(body))
+	r := httptest.NewRequest("POST", "https://"+localHost+route, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	input, ok := readCertificateInput(w, r)
@@ -141,7 +141,7 @@ func TestCertificateRequestBoundsAndDownloadMode(t *testing.T) {
 			t.Fatalf("valid download request refused: %d", w.Code)
 		}
 	}
-	r := httptest.NewRequest("POST", "http://"+localHost+"/api/certificates/download", strings.NewReader(`{"fingerprint":"`+fp+`","expected_generation":1,"pair":false}`))
+	r := httptest.NewRequest("POST", "https://"+localHost+"/api/certificates/download", strings.NewReader(`{"fingerprint":"`+fp+`","expected_generation":1,"pair":false}`))
 	r.Header.Set("Content-Type", "application/json")
 	if input, ok := readCertificateInput(httptest.NewRecorder(), r); !ok || input.Fingerprint != fp || input.Expected != 1 {
 		t.Fatal("a download request lost its fingerprint or generation")

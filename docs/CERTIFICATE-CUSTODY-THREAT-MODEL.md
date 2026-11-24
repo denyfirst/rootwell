@@ -1,10 +1,11 @@
 # Certificate library custody — development boundary
 
-Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3. Decisions:
-[ADR 0046](adr/0046-unified-certificate-library.md), ADR 0047, ADR 0048,
-ADR 0087 and [ADR 0088](adr/0088-keybash-foundation.md). Single operator,
-Linux loopback daemon only; not externally audited or ready for real-user
-secret custody. Porch and the offline Workbench remain separate.
+Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3, and HTTPS.
+Decisions: [ADR 0046](adr/0046-unified-certificate-library.md), ADR 0047,
+ADR 0048, ADR 0087 and [ADR 0088](adr/0088-keybash-foundation.md). Single
+operator, Linux daemon over HTTPS, on loopback and on any LAN or VPN address
+named with `--listen`; not externally audited or ready for real-user secret
+custody. Porch and the offline Workbench remain separate.
 
 ADR 0047 updates the first matched-only increment. New imports accept one
 primary certificate or related public PEM bundle (16 certificates, 768 KiB;
@@ -31,7 +32,8 @@ fresh phone code, exact generation and output-password policy. Public bundle
 download includes supplied roots
 without assigning trust. The archive remains unencrypted. ADR 0087 prepares
 PFX contents locally; original PFX containers are not stored. Plaintext custody
-export, remote listener, multiuser policy and production claims remain excluded.
+export, an internet-facing listener, multiuser policy and production claims
+remain excluded.
 
 ## Assets and trust
 
@@ -70,8 +72,9 @@ session-bound ACME automation (ADR 0088). Renewal returns in Phase 3c.
 
 Certificate DER, optional matching private key, key-input password, the
 account's password, phone key and recovery codes, setup codes, session
-tokens, output password, the instance key file, its recovery code, copies of
-the data directory, and internal service notes are sensitive. Public key is
+tokens, output password, the instance key file, its recovery code, the key of
+Rootwell's own certificate authority, copies of the data directory, and
+internal service notes are sensitive. Public key is
 part of the selected certificate, not a second standalone input. Notes declare
 intended usage; matching a key proves mathematical identity, not trust or
 deployment.
@@ -90,9 +93,10 @@ encryption or multi-user RBAC.
   on the server, and signs in with its password and then a phone code or a
   recovery code; sessions live in memory, end after 15 minutes idle and
   8 hours at most, and only failures count against the name and the address
-  (invariants C108–C110). Exact loopback host/origin, same-origin custom
-  header, POST-only operation, no query fields, no-store responses and the
-  existing CSP apply. `rootwelld` runs only on Linux.
+  (invariants C108–C110). HTTPS with TLS 1.3 only, an exact covered Host and
+  `https://` Origin (C112), same-origin custom header, POST-only operation,
+  no query fields, no-store responses and the existing CSP apply. `rootwelld`
+  runs only on Linux.
 - Explicit Check uploads to the operator's own daemon, not third parties.
   Certificate <=96 KiB, key <=64 KiB, JSON <=1200 KiB, passwords <=256 bytes.
   Single strict certificate; strict bounded PKCS#8/PKCS#1/SEC1 or supported
@@ -154,14 +158,14 @@ The renewal result of ADR 0065 was retired on 23 November 2026 with the
 session-bound ACME automation (ADR 0088).
 
 No reliable runtime/OS zeroization, external anti-rollback anchor,
-cryptographic erasure, CA signer custody, remote TLS gateway, HSM isolation or
-production assurance is provided. The instance key file, or its recovery code,
+cryptographic erasure, CA signer custody, HSM isolation or production
+assurance is provided. The instance key file, or its recovery code,
 together with a copy of the data directory opens every record. A copy of the
 data directory keeps the keys it held, and an older `rootwell.db` swapped in
 whole is not detected. Losing both the key file and the recovery code loses
 every saved certificate and key. The account's password, its phone codes and
-the export password do not protect a compromised host, and the session cookie
-travels over plain HTTP on loopback until HTTPS lands. Obtain independent
+the export password do not protect a compromised host. On `localhost` the
+session cookie is shared with other local ports (C112). Obtain independent
 specialist review before
 real-user custody. Do not import production secrets into a development build.
 
@@ -169,7 +173,8 @@ Evidence: certificatepair generated RSA/ECDSA/Ed25519 and encrypted-key tests;
 vault and certstore sealing, atomicity, refusal and record-binding tests; Linux
 API check/save/key-later/download/delete/restart integration; the container
 volume drill; strict HTTP request tests; bounded stale/hidden/late/read-only UI
-tests, account, session, limit and fresh-code tests, and actual public WASM
-tests. Invariants C68, C69, C107 and C108–C111 name them.
+tests, account, session, limit and fresh-code tests, HTTPS and serving
+authority tests, and actual public WASM tests. Invariants C68, C69, C107 and
+C108–C112 name them.
 Exact commands and deliberate sabotage outcomes are recorded in the PR and
 ADR. Green CI and self-review are not independent audit.

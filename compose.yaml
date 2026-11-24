@@ -1,5 +1,6 @@
-# Linux-only local development. Host networking is required because rootwelld
-# deliberately binds 127.0.0.1; this is not a remote-access configuration.
+# Linux only. Host networking is required because rootwelld listens on the
+# host's own addresses: always 127.0.0.1 and ::1, and a LAN or VPN address only
+# when compose.override.yaml adds --listen for one its certificate covers.
 services:
   rootwell:
     build: .

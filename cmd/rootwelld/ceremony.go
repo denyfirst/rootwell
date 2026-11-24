@@ -17,11 +17,18 @@ func isOfflineCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "key-restore", "setup-code":
+	case "key-restore", "setup-code", "serving-names":
 		return true
 	default:
 		return false
 	}
+}
+
+// handlesSecrets names the offline commands that read or print a secret: they
+// run only at an interactive terminal, so nothing lands in a pipe or a log.
+// serving-names prints only a public fingerprint, and may run from a script.
+func handlesSecrets(args []string) bool {
+	return len(args) > 0 && (args[0] == "key-restore" || args[0] == "setup-code")
 }
 
 // readTerminalSecret never accepts a recovery code through argv, environment,

@@ -10,6 +10,8 @@
     phone**. Each of ten **recovery codes** stands in for the phone once;
   - a **setup code**, made on the server, sets up the account, or replaces a
     lost password or phone.
+- Browsers reach Rootwell over HTTPS once they trust its own **certificate
+  authority**, which it keeps in the vault.
 - Phase 3b of `PRODUCT-PLAN.md` adds backups and restores started from the
   Installation page, and key rotation. Until then, this page is the procedure.
 - `rootwelld` runs only on Linux, or in its container.
@@ -48,7 +50,12 @@ Then start the service:
 rootwelld serve /private/rootwell-data /private/rootwell-key/instance.key web/workbench
 ```
 
-Open `http://localhost:4180/setup` on the same host:
+On its first start, `serve` makes Rootwell's own certificate authority. At
+every start it prints where it answers and the authority's SHA-256
+fingerprint. An installation from before HTTPS keeps its accounts and
+certificates, and gets its authority at its next start. Trust the authority
+in your browser first ([below](#trust-rootwells-certificate-authority)), then
+open `https://localhost:4180/setup` on the same host:
 
 1. Enter the setup code, a name, and a password of at least 15 characters,
    twice.
@@ -66,6 +73,59 @@ If the setup code runs out first, stop the service and make a new one:
 ```text
 rootwelld setup-code /private/rootwell-data /private/rootwell-key/instance.key
 ```
+
+## Trust Rootwell's certificate authority
+
+Rootwell speaks only HTTPS, with TLS 1.3, on port 4180. Its certificate comes
+from its own authority, which no browser knows until you trust it. Do this
+once on each computer you use Rootwell from:
+
+1. Open `https://localhost:4180` (or the name you added). The browser warns
+   that it does not know the certificate; this first time, that is expected.
+   Continue, but do not sign in yet.
+2. Download the authority with the link on the sign-in page,
+   `/rootwell-ca.pem`.
+3. Check that its SHA-256 fingerprint is the one `rootwelld` printed, every
+   pair of characters, for example on the host with
+   `openssl x509 -in rootwell-ca.pem -noout -fingerprint -sha256`. If they
+   differ, stop: something else answered. A file you checked can be copied
+   to your other computers.
+4. Trust the file as an authority that identifies websites, in the browser's
+   certificate settings or in the operating system's trusted root
+   certificates. Reload: the warning is gone.
+
+The authority lasts ten years and can sign only for this installation's
+names. It publishes no revocation list, so on Windows `curl` and other
+command-line tools that use the system's TLS (schannel) need
+`--ssl-no-revoke` for Rootwell; browsers do not.
+
+## Reach Rootwell from another machine
+
+By default Rootwell answers only on this host: `localhost`, `127.0.0.1` and
+`::1`. To reach it over the LAN or a VPN, give it the names people will type,
+then the address to listen on. `192.168.1.5` and `rootwell.lan` are examples:
+
+```text
+# stop rootwelld serve first
+rootwelld serving-names /private/rootwell-data /private/rootwell-key/instance.key 192.168.1.5 rootwell.lan
+rootwelld serve /private/rootwell-data /private/rootwell-key/instance.key web/workbench --listen 192.168.1.5
+```
+
+- `serving-names` takes DNS names and IP addresses, no wildcards, at most 16
+  names with the three loopback ones included. It replaces the names given
+  before; with none, Rootwell goes back to this host only.
+- **Every change of names makes a new authority**, since an authority's names
+  are fixed. `serving-names` prints its fingerprint. Trust the new one on
+  every computer, as above, and remove the old one.
+- `--listen` takes an IP address of this host that the names cover; repeat it
+  for another. Loopback is always there; `0.0.0.0`, `::`, a multicast
+  address and an address not covered are refused. Rootwell never listens on
+  every address.
+- A DNS name must lead to that address: through your DNS, or each computer's
+  hosts file.
+- Open `https://192.168.1.5:4180` or `https://rootwell.lan:4180`. On these
+  names the browser also remembers to use only HTTPS, for a year.
+- Do not expose Rootwell to the internet.
 
 ## Lost phone
 
@@ -143,6 +203,9 @@ cp -a /private/backup/rootwell-data-2026-11-24/. /private/rootwell-data-restored
 - The account comes back as it was when the copy was made: sign in with the
   password and phone of that time. If those are lost, make a setup code with
   the account's name.
+- The certificate authority and its names come back as they were too. If the
+  names changed after the copy was made, trust that older authority again,
+  or run `serving-names` to make a new one.
 - An older copy brings back certificates deleted since; Rootwell does not
   detect that.
 

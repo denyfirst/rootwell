@@ -46,6 +46,29 @@ from the text below:
   without a vault is gone. The `rootwell` command and the browser tools are
   unchanged.
 
+**Note, 24 November 2026 (Phase 3a, part 3, HTTPS).** HTTPS landed as decided
+below: TLS 1.3 only, on port 4180 of every name, with Go's default key
+exchange, hybrid post-quantum first. Where it fills in or departs from the
+text below:
+
+- **Authority:** the first start of `rootwelld serve` makes it, not `init`, as
+  one sealed vault record with its key. An installation from before keeps its
+  accounts and certificates and gets its authority at its next start. Every
+  start prints the authority's fingerprint, and `/rootwell-ca.pem` serves its
+  certificate without sign-in, for a browser to trust it once. The running
+  server checks the 90-day server certificate every six hours and replaces it
+  30 days before it ends, without a restart.
+- **Names:** `localhost`, `127.0.0.1` and `::1` are always covered.
+  `rootwelld serving-names <data-dir> <key-file> [name]...`, with the service
+  stopped, replaces the added names and makes a new authority, since an
+  authority's names are fixed; browsers must trust the new one. It prints only
+  a public fingerprint, so it needs no terminal.
+- **Listening:** `--listen` takes only an IP address of this host that the
+  authority covers; loopback, unspecified and multicast addresses are
+  refused.
+- **HSTS** is sent only on names that are not loopback: on `localhost` it
+  would force HTTPS on every other local port.
+
 ## Context
 
 **Today's design** comes from three choices, each careful on its own:

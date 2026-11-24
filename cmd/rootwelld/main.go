@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -14,17 +15,19 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/accountstore"
+	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 	"golang.org/x/term"
 )
 
 const localHost = "localhost:4180"
 
-const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file>"
+const usage = "usage: rootwelld init <private-data-dir> <instance-key-file> | rootwelld serve <private-data-dir> <instance-key-file> <workbench-assets-dir> [--listen <address>]... | rootwelld serving-names <private-data-dir> <instance-key-file> [name]... | rootwelld setup-code <private-data-dir> <instance-key-file> [account-name] | rootwelld key-restore <private-data-dir> <instance-key-file>"
 
 var errLinuxOnly = errors.New("rootwelld keeps keys only on Linux; run it there, or in its container")
 
@@ -36,7 +39,7 @@ func run(args []string) int {
 		return 1
 	}
 	if isOfflineCommand(args) {
-		if !terminal(os.Stdin) || !terminal(os.Stdout) {
+		if handlesSecrets(args) && (!terminal(os.Stdin) || !terminal(os.Stdout)) {
 			fmt.Fprintln(os.Stderr, "this command needs an interactive local terminal; no secret was read or shown")
 			return 2
 		}
@@ -57,8 +60,13 @@ func run(args []string) int {
 		}
 		return 0
 	}
-	if len(args) == 4 && args[0] == "serve" {
-		if err := serve(args[1], args[2], args[3]); err != nil {
+	if len(args) >= 4 && args[0] == "serve" {
+		listen, ok := listenFlags(args[4:])
+		if !ok {
+			fmt.Fprintln(os.Stderr, usage)
+			return 2
+		}
+		if err := serve(args[1], args[2], args[3], listen); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -179,7 +187,27 @@ func showSetupCode(out io.Writer, code string, until time.Time, name string) err
 	return nil
 }
 
-func serve(dir, keyFile, assetsDir string) error {
+// listenFlags reads "--listen <address>" pairs.
+func listenFlags(rest []string) ([]string, bool) {
+	var listen []string
+	for len(rest) > 0 {
+		if len(rest) < 2 || rest[0] != "--listen" {
+			return nil, false
+		}
+		listen = append(listen, rest[1])
+		rest = rest[2:]
+	}
+	return listen, true
+}
+
+// tlsConfig serves the current certificate with TLS 1.3 only. Go's defaults
+// choose the key exchange, hybrid post-quantum first.
+func tlsConfig(current *atomic.Pointer[tls.Certificate]) *tls.Config {
+	return &tls.Config{MinVersion: tls.VersionTLS13,
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return current.Load(), nil }}
+}
+
+func serve(dir, keyFile, assetsDir string, listen []string) error {
 	if !custody() {
 		return errLinuxOnly
 	}
@@ -199,13 +227,23 @@ func serve(dir, keyFile, assetsDir string) error {
 		return errors.New("the vault did not open with this instance key, or another rootwelld holds it")
 	}
 	defer v.Close()
-	gate, err := newGate(v, assetsDir, localHost)
+	serving, made, err := servingstore.Ensure(v, time.Now())
+	if err != nil {
+		return errors.New("the serving certificate could not be read or made")
+	}
+	extra, err := listenAddresses(listen, serving)
+	if err != nil {
+		return err
+	}
+	gate, err := newGate(v, assetsDir, serving)
 	if err != nil {
 		return err
 	}
 	defer gate.Close()
+	var current atomic.Pointer[tls.Certificate]
+	current.Store(serving.Certificate)
 	server := &http.Server{
-		Handler:           gate,
+		Handler: gate, TLSConfig: tlsConfig(&current),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 		WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second,
 		MaxHeaderBytes: 8192,
@@ -214,17 +252,69 @@ func serve(dir, keyFile, assetsDir string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stdout, "Rootwell is available at http://localhost:4180 (this host only)")
-	if exists, err := gate.accounts.Exists(); err == nil && !exists {
-		fmt.Fprintln(os.Stdout, "No account yet: open http://localhost:4180/setup with the setup code from rootwelld init, or a new one from rootwelld setup-code.")
+	for _, address := range extra {
+		l, err := net.Listen("tcp", net.JoinHostPort(address, servePort))
+		if err != nil {
+			for _, open := range listeners {
+				_ = open.Close()
+			}
+			return errors.New("Rootwell could not listen on " + address + "; is it an address of this host, and is the port free?")
+		}
+		listeners = append(listeners, l)
 	}
+	where := "https://localhost:4180 (this host only)"
+	if len(extra) > 0 {
+		where = "https://localhost:4180 and on " + strings.Join(extra, ", ")
+	}
+	if made {
+		fmt.Fprintln(os.Stdout, "Made Rootwell's own certificate authority for this host.")
+	}
+	fmt.Fprintf(os.Stdout, "Rootwell is available at %s.\nBrowsers trust it once they trust Rootwell's certificate authority: download /rootwell-ca.pem and check that its SHA-256 fingerprint is\n  %s\n", where, serving.Fingerprint())
+	if exists, err := gate.accounts.Exists(); err == nil && !exists {
+		fmt.Fprintln(os.Stdout, "No account yet: open https://localhost:4180/setup with the setup code from rootwelld init, or a new one from rootwelld setup-code.")
+	}
+	go func() {
+		// The server certificate lasts 90 days and is replaced a month early.
+		for range time.Tick(6 * time.Hour) {
+			next, changed, err := servingstore.Renew(v, time.Now())
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "the serving certificate could not be renewed; Rootwell tries again in six hours")
+				continue
+			}
+			if changed {
+				current.Store(next.Certificate)
+				fmt.Fprintln(os.Stdout, "Renewed the serving certificate until "+next.Certificate.Leaf.NotAfter.UTC().Format("2006-01-02")+".")
+			}
+		}
+	}()
 	served := make(chan error, len(listeners))
 	for _, listener := range listeners {
-		go func() { served <- server.Serve(listener) }()
+		go func() { served <- server.ServeTLS(listener, "", "") }()
 	}
 	err = <-served
 	_ = server.Close()
 	return err
+}
+
+// listenAddresses checks each --listen address: a LAN or VPN address that is
+// already among the names the serving certificate covers.
+func listenAddresses(listen []string, serving servingstore.Serving) ([]string, error) {
+	covered := map[string]bool{}
+	for _, ip := range serving.Names.IPs {
+		covered[ip.String()] = true
+	}
+	var out []string
+	for _, value := range listen {
+		ip := net.ParseIP(value)
+		if ip == nil || ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() {
+			return nil, errors.New("--listen takes one address of this host, such as 192.168.1.5; Rootwell always listens on loopback, and never on every address")
+		}
+		if !covered[ip.String()] {
+			return nil, errors.New("the serving certificate does not cover " + ip.String() + "; add it with rootwelld serving-names first")
+		}
+		out = append(out, ip.String())
+	}
+	return out, nil
 }
 
 // listenLoopback opens the port on both loopback addresses. Browsers often try
