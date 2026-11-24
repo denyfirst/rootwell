@@ -36,6 +36,7 @@ type gate struct {
 	crowded      time.Time
 	accounts     *accountstore.Store
 	certificates *certstore.Store
+	vault        *vault.Store
 	closed       bool
 	websiteCheck websiteCheck
 	websiteBusy  bool
@@ -67,6 +68,7 @@ func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, e
 	clock := func() time.Time { return g.now() }
 	g.accounts = accountstore.New(v, clock)
 	g.certificates = certstore.New(v)
+	g.vault = v
 	return g, nil
 }
 
@@ -149,6 +151,12 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/passkeys/remove":
 		g.passkeyRemoveEndpoint(w, r)
 		return
+	case "/api/installation":
+		g.installationEndpoint(w, r)
+		return
+	case "/api/backup":
+		g.backupEndpoint(w, r)
+		return
 	// Public: the look every page shares, so sign-in and setup wear it too.
 	case "/schibsted-grotesk.woff2":
 		w.Header().Set("Cache-Control", "no-cache")
@@ -230,6 +238,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/certificates", http.StatusSeeOther)
 	case "/account":
 		g.authAsset(w, r, "auth/account.html", "text/html; charset=utf-8")
+	case "/installation":
+		g.authAsset(w, r, "auth/installation.html", "text/html; charset=utf-8")
 	case "/website-check":
 		g.authAsset(w, r, "auth/website-check.html", "text/html; charset=utf-8")
 	case "/website-check.js":

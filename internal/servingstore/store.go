@@ -261,3 +261,15 @@ func SetNames(v *vault.Store, added []string, now time.Time) (Serving, error) {
 	err = v.Update(func(t *vault.Tx) error { return write(t, v, r) })
 	return out, err
 }
+
+// Load reads the serving certificate and changes nothing.
+func Load(v *vault.Store) (Serving, error) {
+	r, ok, err := current(v)
+	if err != nil {
+		return Serving{}, err
+	}
+	if !ok {
+		return Serving{}, ErrUnavailable
+	}
+	return open(r)
+}

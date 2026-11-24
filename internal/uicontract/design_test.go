@@ -43,7 +43,7 @@ func sharedSheet(t *testing.T) string {
 	return repositoryFile(t, "web", "workbench", "rootwell.css")
 }
 
-// The six pages in the menu.
+// The seven pages in the menu.
 func menuPages(t *testing.T) map[string]string {
 	return map[string]string{
 		"Certificates":  repositoryFile(t, "web", "workbench", "certificates.html"),
@@ -52,6 +52,7 @@ func menuPages(t *testing.T) map[string]string {
 		"Convert":       repositoryFile(t, "web", "workbench", "convert.html"),
 		"Request":       repositoryFile(t, "web", "workbench", "request.html"),
 		"Account":       repositoryFile(t, "cmd", "rootwelld", "auth", "account.html"),
+		"Installation":  repositoryFile(t, "cmd", "rootwelld", "auth", "installation.html"),
 	}
 }
 
@@ -263,11 +264,11 @@ func TestTheToolColourIsNeverAVerdictColour(t *testing.T) {
 	}
 }
 
-// Every page in the menu carries the same rail: the wordmark, the six pages
+// Every page in the menu carries the same rail: the wordmark, the seven pages
 // with the current one marked, the colour scheme, Sign out and the credit.
 func TestEveryWorkspacePageCarriesTheSharedShell(t *testing.T) {
 	paths := map[string]string{"Certificates": "/certificates", "Website check": "/website-check", "Inspect": "/inspect",
-		"Convert": "/convert", "Request": "/request", "Account": "/account"}
+		"Convert": "/convert", "Request": "/request", "Account": "/account", "Installation": "/installation"}
 	for current, page := range menuPages(t) {
 		if !strings.Contains(page, `<a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a>`) {
 			t.Errorf("%s: the rail does not carry the wordmark", current)

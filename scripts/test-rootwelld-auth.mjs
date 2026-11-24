@@ -405,4 +405,30 @@ const buffer = (...b) => new Uint8Array(b).buffer;
   }
 }
 
+{
+  // Installation: the facts, and a backup after a fresh code, as a download.
+  let backups = 0;
+  let asked = 0;
+  const page = load("installation", (url) => {
+    if (url === "/api/installation") return json(200, { names: ["localhost", "127.0.0.1", "::1"], fingerprint: "AB:CD", serving_until: "2027-02-22T11:36:48Z", certificates: 4 });
+    if (url === "/api/backup") {
+      return backups++ === 0 ? text(428, "Enter a code from your phone first.") :
+        new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "application/octet-stream", "content-disposition": 'attachment; filename="rootwell-backup-20261124T120000Z.db"' } });
+    }
+    throw new Error("unexpected " + url);
+  }, { fresh: async () => { asked++; return true; } });
+  for (let i = 0; i < 3; i++) await page.settle();
+  assert.equal(page.$("names").textContent, "localhost, 127.0.0.1, ::1");
+  assert.equal(page.$("fingerprint").textContent, "AB:CD");
+  assert.match(page.$("serving").textContent, /until 2027-02-22\./);
+  assert.equal(page.$("contents").textContent, "4 certificates are saved.");
+  await page.$("backup-download").fire("click");
+  assert.equal(asked, 1, "the backup asked for a fresh code once");
+  assert.equal(backups, 2);
+  assert.match(page.$("status").textContent, /^Downloaded rootwell-backup-20261124T120000Z\.db\./);
+  const link = page.context.document.body.children.at(-1);
+  assert.equal(link.download, "rootwell-backup-20261124T120000Z.db");
+  assert.equal(link.clicked, true);
+}
+
 console.log("sign-in, setup, account and fresh-code pages behave as expected");
