@@ -82,9 +82,10 @@ The pages in the menu:
 | Convert | A certificate, key or PFX into the format a server needs |
 | Request | A CSR for a commercial CA, then finish it when the certificate arrives |
 | Account | Password, phone codes, recovery codes |
+| Installation | How browsers reach Rootwell; a backup |
 
 **Renewals** comes back to the menu when real renewal works (Phase 3c).
-Users, Activity and Installation come later.
+Users and Activity come later.
 
 **Removed** on 22 November 2026, as noise for a person:
 
@@ -279,8 +280,7 @@ commands. ADR 0088 planned to remove them as their replacements land. They
 went now because nothing has been released, there are no users, the page was
 hidden, and keeping them would have meant moving them to the vault only to
 delete them in Phase 3c. Renewal comes back in Phase 3c, built on the ACME
-protocol packages that stay (section 8). Until Phase 3b, a backup is a copy of
-the data directory made with the service stopped (`RECOVERY.md`).
+protocol packages that stay (section 8).
 
 **Passkeys** followed Phase 3a, on 24 November 2026 (ADR 0088, invariant
 C113). A passkey added on the Account page stands in for the phone code at
@@ -289,8 +289,21 @@ PIN. It is optional: the phone stays mandatory and is the way back. A passkey
 works only on the name it was added on, never on an IP address, and a setup
 code that replaces the account's sign-in removes them.
 
-**Next:** Phase 3b (online backup and restore, instance key rotation and
-export), then an independent review.
+**Phase 3b** followed on 24 November 2026 (ADR 0088, invariant C114). The
+**Installation** page shows how browsers reach Rootwell and, after a fresh
+code, downloads a backup while it runs: a consistent copy of the whole vault,
+sealed, which never holds the instance key and opens only with the key it was
+made under. On the server, with the service stopped, `rootwelld restore` puts
+a backup into an empty data directory, with the key file or its recovery
+code; `rootwelld key-rotate` moves the vault to a new instance key, which
+closes RW-04; and `rootwelld key-export` shows the key's recovery code again.
+A backup from the page, restored through the container into an empty data
+directory on a test machine, brought back its four certificates with their
+places, owner and saved key, which meets the exit condition. The rolling
+history in the table was not built: the vault keeps no history, so it never
+refuses a write (RW-01), and an activity log stays under Later.
+
+**Next:** an independent review, then Phase 3c (renewal).
 
 **Later:**
 - roles and invites;

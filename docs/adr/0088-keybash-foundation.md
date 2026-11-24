@@ -91,6 +91,40 @@ Where this fills in the text below:
 - **Reset:** a setup code that replaces an account's sign-in removes its
   passkeys too, since the device that holds them may be lost.
 
+**Note, 24 November 2026 (Phase 3b).** Online backup, restore, key rotation,
+key export and the Installation page landed (invariant C114). Where they fill
+in or depart from the text below:
+
+- **Backup by download:** the Installation page downloads the backup, after
+  a fresh code, as `rootwell-backup-<UTC time>.db`: the whole vault, copied
+  in one read transaction while the service runs. There is no
+  `rootwelld backup` and no backup directory the service writes to, so the
+  service keeps its two mounts, `/data` and a read-only `/key`, and the copy
+  leaves the host at once. Up to 64 MiB goes through the page; a larger vault
+  is copied on the server with the service stopped.
+- **Restore on the server:**
+  `rootwelld restore <backup-file> <data-dir> <key-file>`, with the service
+  stopped, not from a page, since it needs the instance key or its recovery
+  copy. It writes only into an empty directory, so it never replaces an
+  installation, and keeps the vault only once it opens with the key; without
+  a key file it takes the recovery copy at the terminal and writes the key
+  file too. Sessions start afresh.
+- **Rotation keeps record IDs:** `key-rotate` wraps every data key again
+  under the new key in one transaction, as decided. The index and
+  one-time-code keys are not derived again from the new key: they are sealed
+  in the meta record under it, so record IDs and the digests of setup and
+  recovery codes do not move, and a vault never rotated opens as before. The
+  cost is that the old key still derives those two keys: with the current
+  file, it can tell whether a certificate it already knows is kept there,
+  but it opens no record. The new recovery copy must be confirmed with
+  `SAVED` before anything changes. Backups made before still open with the
+  old key only. This closes RW-04.
+- **Export:** `key-export` prints the recovery copy only after the key file
+  opens the vault.
+- **Not in this step:** the rolling history. The vault keeps no history, so
+  no write is ever refused (RW-01). Nothing compares generations, so an older
+  file swapped in, or an older backup restored, is not detected (RW-13).
+
 ## Context
 
 **Today's design** comes from three choices, each careful on its own:

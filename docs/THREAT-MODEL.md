@@ -154,7 +154,7 @@ format require their own boundary review before implementation.
 
 ## Browser pages boundary
 
-Since 22 November 2026 the browser side is six pages served by `rootwelld`
+Since 24 November 2026 the browser side is seven pages served by `rootwelld`
 after sign-in (see [`web/workbench/README.md`](../web/workbench/README.md)).
 Three of them work on files a person chooses and never send them anywhere:
 

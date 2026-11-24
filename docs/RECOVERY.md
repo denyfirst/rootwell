@@ -13,14 +13,16 @@
     lost password or phone.
 - Browsers reach Rootwell over HTTPS once they trust its own **certificate
   authority**, which it keeps in the vault.
-- Phase 3b of `PRODUCT-PLAN.md` adds backups and restores started from the
-  Installation page, and key rotation. Until then, this page is the procedure.
+- A **backup** is downloaded from the **Installation** page while Rootwell
+  runs. Restoring one, moving to a new instance key and showing the key's
+  recovery code again are done on the server, with the service stopped.
 - `rootwelld` runs only on Linux, or in its container.
 
 Codes are never accepted as command arguments or environment variables:
-`key-restore` asks for the recovery code on the local terminal, and `init` and
-`setup-code` print their codes there. Keep codes out of shell history, chat,
-tickets and logs, and protect the terminal's scrollback.
+`key-restore`, and `restore` without a key file, ask for the recovery code on
+the local terminal, and `init`, `setup-code`, `key-rotate` and `key-export`
+print their codes there. Keep codes out of shell history, chat, tickets and
+logs, and protect the terminal's scrollback.
 
 ## Setup
 
@@ -196,51 +198,100 @@ back from the server itself.
 
 ## Backup
 
-Online backup comes in Phase 3b. Until then, copy the data directory with the
-service stopped:
+On the **Installation** page, in the menu under Account, choose **Download a
+backup**. Rootwell asks for a code from the phone, a recovery code or a
+passkey, unless you entered one in the last ten minutes, and the browser
+saves `rootwell-backup-<date and time>.db`. Rootwell keeps running.
+
+- A backup is a copy of the whole vault, made in one step while Rootwell
+  works, so it is consistent. It holds every certificate and key, the
+  account, its passkeys and Rootwell's certificate authority, all sealed.
+- It holds no instance key: it opens only with the key Rootwell had when the
+  backup was made, or that key's recovery code. Store backups somewhere
+  safe, apart from the code.
+- Make a new backup after changes you want to keep. Rootwell makes no
+  automatic backups.
+
+The page hands out up to 64 MiB. For a larger vault, or without a browser,
+copy the vault file on the server with the service stopped; a copy made while
+it runs may be incomplete:
 
 ```text
 # stop rootwelld serve first
-cp -a /private/rootwell-data /private/backup/rootwell-data-2026-11-24
+cp -a /private/rootwell-data/rootwell.db /private/backup/rootwell-backup-2026-11-24.db
 ```
 
-- The copy holds `rootwell.db`: the certificates, their keys and the account,
-  all sealed. Without the key file or the recovery code it opens nothing.
-- **Never copy the key file to the backup location.** The recovery code, kept
-  apart, is the key's backup.
-- Copy while the service runs and the copy may be incomplete: stop it first.
-- Make a new copy after changes you want to keep, under a new name. Rootwell
-  makes no automatic backups.
+**Never copy the key file to the backup location.** The recovery code, kept
+apart, is the key's backup.
 
 ## Restore
 
-Restore into a new, empty `0700` directory, **never the live one**:
+`restore` puts a backup into a new, empty data directory, **never the live
+one**. Stop the service first, then start it on the restored directory:
 
 ```text
-install -d -m 0700 /private/rootwell-data-restored
-cp -a /private/backup/rootwell-data-2026-11-24/. /private/rootwell-data-restored/
+# stop rootwelld serve first
+rootwelld restore /private/backup/rootwell-backup-20261124T120000Z.db /private/rootwell-data-restored /private/rootwell-key/instance.key
+rootwelld serve /private/rootwell-data-restored /private/rootwell-key/instance.key web/workbench
 ```
 
-- `rootwell.db` must stay `0600` and owned by the service user; `cp -a` keeps
-  that. The vault refuses a directory or file that others can read.
-- If the key file still exists, start `serve` with the restored directory and
-  the same key file.
-- If the key file is lost too, rebuild it, then start `serve`:
-
-  ```text
-  install -d -m 0700 /private/rootwell-key
-  rootwelld key-restore /private/rootwell-data-restored /private/rootwell-key/instance.key
-  ```
-
-- The account comes back as it was when the copy was made: sign in with the
-  password and phone of that time. If those are lost, make a setup code with
-  the account's name. Its passkeys come back as they were too: on the
-  Account page, remove again any you removed since the copy.
+- It makes the directory, `0700`, if it is missing, and refuses one that is
+  not empty. Keep the old directory until the restored Rootwell works.
+- It keeps the backup only if it opens with the key; otherwise it leaves
+  nothing in the directory. A backup opens only with the key the vault had
+  when it was made: after a [key rotation](#move-to-a-new-instance-key), an
+  older backup needs the old key, or its old recovery code.
+- **If the key file is lost too,** name a key file that does not exist yet,
+  in a `0700` directory (`install -d -m 0700 /private/rootwell-key`).
+  `restore` asks for the instance key's recovery code, and writes the key
+  file from it once the backup opens with it.
+- A copy made on the server restores the same way: give its `rootwell.db`.
+- The account comes back as it was when the backup was made: sign in again,
+  with the password and phone of that time. If those are lost, make a setup
+  code with the account's name. Its passkeys come back as they were too: on
+  the Account page, remove again any you removed since the backup.
 - The certificate authority and its names come back as they were too. If the
-  names changed after the copy was made, trust that older authority again,
+  names changed after the backup was made, trust that older authority again,
   or run `serving-names` to make a new one.
-- An older copy brings back certificates deleted since; Rootwell does not
+- An older backup brings back certificates deleted since; Rootwell does not
   detect that.
+
+## Move to a new instance key
+
+Move to a new instance key when the key file or its recovery code may have
+been seen or copied:
+
+```text
+# stop rootwelld serve first
+rootwelld key-rotate /private/rootwell-data /private/rootwell-key/instance.key
+```
+
+- It shows the new key's recovery code once. Type `SAVED` once it is kept;
+  until then nothing changes.
+- It then moves the vault to the new key in one step, and puts the new key
+  file in place of the old one. From then on only the new key, or its new
+  code, opens Rootwell. Everything in the vault stays as it was: accounts,
+  passkeys, certificates, and the recovery and setup codes not yet used.
+- **Backups made before keep opening with the old key and its old recovery
+  code only.** Keep the old code as long as you keep those backups, and make
+  a new backup after rotating. A rotation cannot reach a copy already taken:
+  whoever holds one with the old code can still open it.
+- If it is interrupted, it leaves `instance.key.new` beside the key file, and
+  the next `key-rotate` refuses and says what to do. If `serve` does not
+  start with `instance.key`, the vault moved already: rename
+  `instance.key.new` to `instance.key`. Otherwise remove `instance.key.new`
+  and rotate again.
+
+## Show the recovery code again
+
+`key-export` prints the recovery code of the key in the key file, once it has
+checked that the key opens the vault. Use it when the written code is lost
+but the key file is not, or to check the copy you kept:
+
+```text
+# stop rootwelld serve first
+rootwelld key-export /private/rootwell-data /private/rootwell-key/instance.key
+```
 
 ## Lost key file
 

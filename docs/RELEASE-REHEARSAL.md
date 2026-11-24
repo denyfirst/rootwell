@@ -19,8 +19,8 @@ The install and backup commands are in
     server's log.
 - **Upgrade drill:** the test binary of the protected base commit creates a
   synthetic volume; the candidate opens it and serves it. This proves
-  compatibility between those two commits only. A restore into an empty
-  volume returns with online backup in Phase 3b.
+  compatibility between those two commits only. It does not restore a
+  backup; `rootwelld restore` has its own tests.
 - **Reproducible build:** two separate checkouts and build caches build the
   same commit. Their outputs must match byte for byte for:
   - the CLI;
@@ -37,12 +37,12 @@ Cloudflare test, or an independent audit.
 
 1. Record the running source commit and the binary or image ID. Keep the old
    image and its Compose file. A mutable `latest` tag is not a way back.
-2. Sign out and stop the daemon.
-3. Copy the data directory under a new name, as in
-   [`RECOVERY.md`](RECOVERY.md). Keep the key file and its recovery code; the
-   copy carries neither.
-4. Leave the live data directory untouched. Restore the copy into another
-   empty `0700` directory and try the candidate there first.
+2. Download a backup from the Installation page, then sign out and stop the
+   daemon ([`RECOVERY.md`](RECOVERY.md#backup)). Keep the key file and its
+   recovery code; the backup carries neither.
+3. Leave the live data directory untouched. Restore the backup into another
+   empty directory with `rootwelld restore` and try the candidate there
+   first.
 
 ## Checks on the restored candidate
 
@@ -53,12 +53,12 @@ Cloudflare test, or an independent audit.
 | Certificates | The same fingerprints, key status, bundles and notes |
 | Expiry | Dates computed from the server's current clock |
 | Inspect, Convert, Request | A synthetic file inspects and converts correctly, and a request is made |
-| Backup | A new copy from the candidate opens in another empty directory |
+| Backup | A new backup from the candidate's Installation page restores into another empty directory |
 
 When every check passes, repeat on the original installation:
 
-1. Stop the daemon.
-2. Make a new copy of the data directory.
+1. Download a new backup.
+2. Stop the daemon.
 3. Start the candidate.
 
 ## Rolling back

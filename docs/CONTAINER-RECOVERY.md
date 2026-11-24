@@ -3,8 +3,7 @@
 **Status:** development design.
 
 - `compose.yaml` is for local use and testing on a Linux host.
-- Phase 3 of `PRODUCT-PLAN.md` replaces these steps with an install script and
-  backups started from the Installation page.
+- Phase 3e of `PRODUCT-PLAN.md` replaces these steps with an install script.
 
 The daemon answers over HTTPS on port 4180 of the host's loopback addresses,
 `127.0.0.1` and `[::1]`, and on a LAN address only when you add one
@@ -124,48 +123,75 @@ work, and why they need a DNS name rather than an IP address, is in
 
 ## Backup
 
-Online backup comes in Phase 3b. Until then, copy the data directory with the
-service stopped:
+On the **Installation** page, in the menu under Account, choose **Download a
+backup**. Rootwell asks for a code from the phone, a recovery code or a
+passkey, unless you entered one in the last ten minutes, and the browser
+saves `rootwell-backup-<date and time>.db`. The service keeps running.
+
+- The backup is a consistent copy of the whole vault: every certificate and
+  key, the account, its passkeys and Rootwell's certificate authority, all
+  sealed. It holds no instance key, so it opens only with the key Rootwell
+  had when it was made, or that key's recovery code.
+- Keep it off-site, apart from the recovery code. To restore it, copy it into
+  `ROOTWELL_BACKUP_DIR`, readable by the same UID.
+- Rootwell makes no automatic backups. Make a new one after changes you want
+  to keep, and rehearse a restore from time to time.
+
+The page hands out up to 64 MiB. A larger vault is copied on the host with
+the service stopped:
 
 ```sh
 docker compose stop rootwell
-cp -a "$ROOTWELL_DATA_DIR" "$ROOTWELL_BACKUP_DIR/data-2026-11-24"
+cp -a "$ROOTWELL_DATA_DIR/rootwell.db" "$ROOTWELL_BACKUP_DIR/rootwell-backup-2026-11-24.db"
 docker compose up -d rootwell
 ```
 
-- The copy holds `rootwell.db`: the certificates, their keys and the account,
-  all sealed. Without the key file or the recovery code it opens nothing.
-- **Never copy `ROOTWELL_KEY_DIR` to the backup location.** The recovery code
-  is the key's backup.
-- Rootwell makes no automatic backups. Copy backups off-site and rehearse a
-  restore from time to time.
+**Never copy `ROOTWELL_KEY_DIR` to the backup location.** The recovery code
+is the key's backup.
 
 ## Restore on a clean volume
 
-Prepare a new, empty `0700` data directory owned by the same UID, copy the
-backup into it and point `ROOTWELL_DATA_DIR` at it. Keep the old volume.
+`restore` writes a backup only into an empty data directory, so point
+`ROOTWELL_DATA_DIR` at a new one owned by the same UID, and keep the old one
+until the restored Rootwell works. The backup must be in
+`ROOTWELL_BACKUP_DIR`, which the container sees as `/backup`; its name below
+is an example:
 
 ```sh
 docker compose stop rootwell
 export ROOTWELL_DATA_DIR=/srv/rootwell-private/restored
 install -d -m 0700 "$ROOTWELL_DATA_DIR"
-cp -a "$ROOTWELL_BACKUP_DIR/data-2026-11-24/." "$ROOTWELL_DATA_DIR/"
+docker compose run --rm maintenance restore /backup/rootwell-backup-20261124T120000Z.db /data /key/instance.key
 docker compose up -d rootwell
 ```
 
-The account comes back as it was when the copy was made: sign in with the
-password and phone of that time, and check that the certificates are there.
-If those are lost, make a setup code with the account's name, as above. The
-certificate authority and its names come back as they were too, and so do
-the account's passkeys: on the Account page, remove again any you removed
-since the copy.
+- `restore` keeps the backup only if it opens with `/key/instance.key`;
+  otherwise it leaves `/data` empty. A backup opens only with the key the
+  vault had when it was made: after a key rotation, an older backup needs the
+  old key, or its old recovery code.
+- **If the key file is lost too,** point `ROOTWELL_KEY_DIR` at an empty `0700`
+  directory owned by the same UID first. `restore` then asks for the instance
+  key's recovery code, and writes the key file from it once the backup opens
+  with it.
+- A copy made on the host restores the same way.
 
-If the key file is lost too, point `ROOTWELL_KEY_DIR` at an empty `0700`
-directory owned by the same UID, and rebuild the key file from the recovery
-code before starting the service:
+The account comes back as it was when the backup was made: sign in again,
+with the password and phone of that time, and check that the certificates
+are there. If those are lost, make a setup code with the account's name, as
+above. The certificate authority and its names come back as they were too,
+and so do the account's passkeys: on the Account page, remove again any you
+removed since the backup.
+
+## Lost key file
+
+If the key file is lost but the data directory is not, point
+`ROOTWELL_KEY_DIR` at an empty `0700` directory owned by the same UID, and
+rebuild the key file from the recovery code before starting the service:
 
 ```sh
+docker compose stop rootwell
 docker compose run --rm maintenance key-restore /data /key/instance.key
+docker compose up -d rootwell
 ```
 
 - It asks for the code on the terminal and checks that the code opens the
@@ -173,6 +199,39 @@ docker compose run --rm maintenance key-restore /data /key/instance.key
   is refused.
 - It refuses while the service runs, because the service holds the vault.
 - It never replaces an existing key file.
+
+## Move to a new instance key
+
+Move to a new instance key when the key file or its recovery code may have
+been seen or copied:
+
+```sh
+docker compose stop rootwell
+docker compose run --rm maintenance key-rotate /data /key/instance.key
+docker compose up -d rootwell
+```
+
+- It shows the new key's recovery code once. Type `SAVED` once it is kept;
+  until then nothing changes. It then moves the vault to the new key in one
+  step and puts the new key file in place of the old one. Everything in the
+  vault stays as it was.
+- **Backups made before keep opening with the old key and its old recovery
+  code only.** Keep the old code as long as you keep those backups, and make
+  a new backup after rotating.
+- If it is interrupted, the next `key-rotate` finds `instance.key.new` beside
+  the key file, refuses and says what to do, as in
+  [`RECOVERY.md`](RECOVERY.md#move-to-a-new-instance-key).
+
+## Show the recovery code again
+
+`key-export` prints the recovery code of the key in `/key/instance.key`, once
+it has checked that the key opens the vault:
+
+```sh
+docker compose stop rootwell
+docker compose run --rm maintenance key-export /data /key/instance.key
+docker compose up -d rootwell
+```
 
 ## What CI proves
 
@@ -193,6 +252,7 @@ directory for the test) and checks:
 - maintenance output never reaches `docker logs`;
 - when the seed writes a setup code, the server's log never holds it.
 
-A restore into a fresh volume returns to the drill with online backup in
-Phase 3b. This does not cover every storage fault, a compromised host or
-off-site durability.
+The drill does not restore a backup yet. `rootwelld restore` has its own
+tests, and a backup from the Installation page was restored through the
+maintenance container on a test machine by hand (`STATUS.md`). This does not
+cover every storage fault, a compromised host or off-site durability.
