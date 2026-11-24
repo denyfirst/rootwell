@@ -4,7 +4,9 @@
 // notes people add. A private key, when there is one, is a record of its own,
 // opened only to hand it out, so reading the list never opens a key (audit
 // RW-11). Every change names the generation it was made against, so a page
-// that shows an older list cannot overwrite a newer one.
+// that shows an older list cannot overwrite a newer one. The generation is the
+// list's own count, kept in a record of its own: sign-in writes to the same
+// vault, and must not make an open Certificates page out of date.
 package certstore
 
 import (
@@ -22,6 +24,7 @@ import (
 const (
 	kindCertificate = "certificate"
 	kindKey         = "certificate-key"
+	kindList        = "certificate-list"
 	// MaxCertificates is how many certificates the list holds.
 	MaxCertificates = 500
 	maxKeyBytes     = 64 << 10
@@ -34,6 +37,9 @@ var (
 	ErrNotFound = errors.New("the certificate is not in the list")
 	// ErrKeyExists says a key is already saved; a key is never replaced.
 	ErrKeyExists = errors.New("a private key is already saved with this certificate")
+	// ErrKeyNeedsCode says the certificate has a saved key, and deleting it
+	// needs a fresh phone code (ADR 0088).
+	ErrKeyNeedsCode = errors.New("deleting a saved key needs a fresh code")
 	// ErrFull says the list holds MaxCertificates already.
 	ErrFull = errors.New("the list is full")
 	// ErrUnavailable hides a vault refusal: a damaged or unreadable record.
@@ -84,6 +90,12 @@ type keyRecord struct {
 	MismatchAcknowledged bool `json:"mismatch_acknowledged,omitempty"`
 }
 
+// listRecord counts the changes made to the list. A vault without one has
+// never changed the list, and is at generation 1.
+type listRecord struct {
+	Generation uint64 `json:"generation"`
+}
+
 func (c certificateRecord) record() publicinventory.Record {
 	r := publicinventory.Record{
 		Fingerprint: c.Fingerprint, ImportGeneration: c.Added, ImportedAt: c.AddedAt,
@@ -117,8 +129,8 @@ func (s *Store) List() ([]publicinventory.Record, uint64, error) {
 	var generation uint64
 	err := s.v.View(func(t *vault.Tx) error {
 		var err error
-		if generation, err = t.Generation(); err != nil {
-			return ErrUnavailable
+		if generation, err = s.generation(t); err != nil {
+			return err
 		}
 		ids, err := t.IDs(kindCertificate)
 		if err != nil {
@@ -202,16 +214,44 @@ func strictJSON(data []byte, v any) error {
 	return nil
 }
 
+// generation reads the list's change count.
+func (s *Store) generation(t *vault.Tx) (uint64, error) {
+	plain, _, err := t.Get(kindList, s.v.Index(kindList, "list"))
+	defer clear(plain)
+	if errors.Is(err, vault.ErrMissing) {
+		return 1, nil
+	}
+	var l listRecord
+	if err != nil || strictJSON(plain, &l) != nil || l.Generation < 2 {
+		return 0, ErrUnavailable
+	}
+	return l.Generation, nil
+}
+
 // fresh refuses a change made against any generation but the current one.
-func fresh(t *vault.Tx, expected uint64) error {
-	generation, err := t.Generation()
+func (s *Store) fresh(t *vault.Tx, expected uint64) error {
+	generation, err := s.generation(t)
 	if err != nil {
-		return ErrUnavailable
+		return err
 	}
 	if expected == 0 || expected != generation {
 		return ErrStale
 	}
 	return nil
+}
+
+// change runs fn in one write transaction made against expected and counts
+// it, so the list is then at expected + 1.
+func (s *Store) change(expected uint64, fn func(t *vault.Tx) error) error {
+	return s.v.Update(func(t *vault.Tx) error {
+		if err := s.fresh(t, expected); err != nil {
+			return err
+		}
+		if err := fn(t); err != nil {
+			return err
+		}
+		return put(t, kindList, s.v.Index(kindList, "list"), listRecord{Generation: expected + 1})
+	})
 }
 
 // Save adds one certificate, with the related certificates sent beside it and
@@ -237,10 +277,7 @@ func (s *Store) Save(expected uint64, files, key, keyPassword []byte, owner, loc
 	if location != "" {
 		c.Locations = []string{location}
 	}
-	err = s.v.Update(func(t *vault.Tx) error {
-		if err := fresh(t, expected); err != nil {
-			return err
-		}
+	err = s.change(expected, func(t *vault.Tx) error {
 		ids, err := t.IDs(kindCertificate)
 		if err != nil {
 			return ErrUnavailable
@@ -297,7 +334,7 @@ func prepareKey(c certificateRecord, key, keyPassword []byte) (publicinventory.R
 func (s *Store) CheckKey(expected uint64, fingerprint string, key, keyPassword []byte) (publicinventory.Record, error) {
 	var out publicinventory.Record
 	err := s.v.View(func(t *vault.Tx) error {
-		if err := fresh(t, expected); err != nil {
+		if err := s.fresh(t, expected); err != nil {
 			return err
 		}
 		c, _, err := s.read(t, fingerprint)
@@ -316,10 +353,7 @@ func (s *Store) CheckKey(expected uint64, fingerprint string, key, keyPassword [
 // a key. A key that does not match is kept only with ack.
 func (s *Store) AttachKey(expected uint64, fingerprint string, key, keyPassword []byte, ack bool) (publicinventory.Record, uint64, error) {
 	var out publicinventory.Record
-	err := s.v.Update(func(t *vault.Tx) error {
-		if err := fresh(t, expected); err != nil {
-			return err
-		}
+	err := s.change(expected, func(t *vault.Tx) error {
 		c, id, err := s.read(t, fingerprint)
 		if err != nil {
 			return err
@@ -353,10 +387,7 @@ func (s *Store) AttachKey(expected uint64, fingerprint string, key, keyPassword 
 
 func (s *Store) edit(expected uint64, fingerprint string, change func(publicinventory.Record) (publicinventory.Record, error)) (publicinventory.Record, uint64, error) {
 	var out publicinventory.Record
-	err := s.v.Update(func(t *vault.Tx) error {
-		if err := fresh(t, expected); err != nil {
-			return err
-		}
+	err := s.change(expected, func(t *vault.Tx) error {
 		c, id, err := s.read(t, fingerprint)
 		if err != nil {
 			return err
@@ -405,15 +436,16 @@ func (s *Store) SetOwner(expected uint64, fingerprint, owner string) (publicinve
 	})
 }
 
-// Delete removes a certificate and its key.
-func (s *Store) Delete(expected uint64, fingerprint string) (uint64, error) {
-	err := s.v.Update(func(t *vault.Tx) error {
-		if err := fresh(t, expected); err != nil {
-			return err
-		}
-		_, id, err := s.read(t, fingerprint)
+// Delete removes a certificate and its key. A certificate with a key is
+// removed only when keyAllowed: the person entered a fresh phone code.
+func (s *Store) Delete(expected uint64, fingerprint string, keyAllowed bool) (uint64, error) {
+	err := s.change(expected, func(t *vault.Tx) error {
+		c, id, err := s.read(t, fingerprint)
 		if err != nil {
 			return err
+		}
+		if c.HasKey && !keyAllowed {
+			return ErrKeyNeedsCode
 		}
 		if t.Delete(kindKey, id) != nil || t.Delete(kindCertificate, id) != nil {
 			return ErrUnavailable
@@ -436,7 +468,7 @@ func (s *Store) WithCertificate(expected uint64, fingerprint string, use func(pu
 	var k keyRecord
 	defer func() { clear(k.Key) }()
 	err := s.v.View(func(t *vault.Tx) error {
-		if err := fresh(t, expected); err != nil {
+		if err := s.fresh(t, expected); err != nil {
 			return err
 		}
 		var id string

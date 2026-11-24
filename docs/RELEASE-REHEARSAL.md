@@ -12,12 +12,13 @@ The install and backup commands are in
 - **Container volumes:**
   - a restart;
   - refusal of a busy writer;
-  - a full restore into an empty volume;
   - offline maintenance with no network;
-  - secret output kept out of Docker logs.
+  - secret output kept out of Docker logs, and a setup code kept out of the
+    server's log.
 - **Upgrade drill:** the test binary of the protected base commit creates a
-  synthetic volume and backup; the candidate opens it, serves it and restores
-  it. This proves compatibility between those two commits only.
+  synthetic volume; the candidate opens it and serves it. This proves
+  compatibility between those two commits only. A restore into an empty
+  volume returns with online backup in Phase 3b.
 - **Reproducible build:** two separate checkouts and build caches build the
   same commit. Their outputs must match byte for byte for:
   - the CLI;
@@ -34,29 +35,27 @@ Cloudflare test, or an independent audit.
 
 1. Record the running source commit and the binary or image ID. Keep the old
    image and its Compose file. A mutable `latest` tag is not a way back.
-2. Stop running automation, sign out and stop the daemon. A CA or DNS request
-   that was already sent is not undone.
-3. Make a **new full encrypted backup** under a new name and verify it with
-   the recovery code.
-4. Leave the live data directory untouched. Restore the backup into another
+2. Sign out and stop the daemon.
+3. Copy the data directory under a new name, as in
+   [`RECOVERY.md`](RECOVERY.md). Keep the key file and its recovery code; the
+   copy carries neither.
+4. Leave the live data directory untouched. Restore the copy into another
    empty `0700` directory and try the candidate there first.
 
 ## Checks on the restored candidate
 
 | Page | Expected |
 |---|---|
-| Sign-in and Access | The backup's password works; sign-out works |
+| Sign-in and Account | The account's password and a phone code sign in; a key download asks for a fresh code; sign-out works |
 | Certificates | The same fingerprints, key status, bundles and notes |
 | Expiry | Dates computed from the server's current clock |
-| Change history | Active and archived history are intact |
 | Inspect, Convert, Request | A synthetic file inspects and converts correctly, and a request is made |
-| Automation | The same account, order, DNS and wait state; no old job starts by itself |
-| Full backup | A new backup from the candidate restores into another empty directory |
+| Backup | A new copy from the candidate opens in another empty directory |
 
 When every check passes, repeat on the original installation:
 
 1. Stop the daemon.
-2. Make a new full backup and verify it.
+2. Make a new copy of the data directory.
 3. Start the candidate.
 
 ## Rolling back
@@ -81,8 +80,8 @@ before acting again.
   [`THREAT-MODEL.md`](THREAT-MODEL.md);
 - [`SECURITY-INVARIANTS.md`](SECURITY-INVARIANTS.md);
 - the sabotage, refusal, fuzz, race, reproducible-build and restore results;
-- the known limits: one operator, Linux loopback, sessions of at most
-  12 hours, and no rollback detection.
+- the known limits: one account, Linux loopback, sessions of at most
+  8 hours, and no rollback detection.
 
 Never include secrets, real backups, tokens, passwords, codes or private keys.
 A release is not called audited while a material finding is open.

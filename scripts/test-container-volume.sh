@@ -127,8 +127,8 @@ if [[ "$mounts" != "/data,/key" ]]; then
 fi
 volume_test busy
 server_logs="$(docker compose -f compose.yaml -p rootwell-volume-ci logs --no-color rootwell)"
-if grep -Fq 'test-only disposable container volume password' <<< "$server_logs"; then
-  echo "test password leaked into server logs" >&2
+if [[ -s "$drill_root/recovery/setup-code" ]] && grep -Fq "$(cat "$drill_root/recovery/setup-code")" <<< "$server_logs"; then
+  echo "the setup code leaked into server logs" >&2
   exit 1
 fi
 docker compose -f compose.yaml -p rootwell-volume-ci stop rootwell

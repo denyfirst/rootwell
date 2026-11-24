@@ -1,187 +1,291 @@
+// Drives the sign-in, setup and Account pages' real scripts (auth.js, qr.js,
+// fresh.js) against a stand-in DOM and server, and checks what they send and
+// show.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
-const source = fs.readFileSync(new URL("../cmd/rootwelld/auth/auth.js", import.meta.url), "utf8");
-assert.doesNotMatch(source, /innerHTML|localStorage|sessionStorage|console\.|sendBeacon/);
-const loginResponse = (mode) => new Response(JSON.stringify({mode}), {headers:{"content-type":"application/json"}});
-const changedResponse = () => new Response(null, {status:204});
+const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
+const scripts = {
+  auth: read("../cmd/rootwelld/auth/auth.js"),
+  qr: read("../cmd/rootwelld/auth/qr.js"),
+  fresh: read("../web/workbench/fresh.js"),
+};
+for (const [name, source] of Object.entries(scripts)) {
+  assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|console\.|sendBeacon|eval\(|new Function/, name);
+}
 
-function page(mode, fetchImpl) {
-  const handlers = {}, redirects = [], timers = new Map(), requests = [];
-  let timerId = 0;
-  const elements = {
-    "auth-form": {
-      addEventListener(name, callback) { handlers[`form:${name}`] = callback; },
-      querySelector() { return elements.submit; },
-    },
-    status: {textContent:""},
-    password: {value:"initial test password", disabled:false},
-    next: {value:"a long replacement password", disabled:false},
-    confirm: {value:"a long replacement password", disabled:false},
-    "sign-out": {
-      disabled:false,
-      addEventListener(name, callback) { handlers[`sign-out:${name}`] = callback; },
-    },
-    submit: {disabled:false},
-  };
+const secrets = /an account password for testing|aaaaaa-bbbbbb|123456|abcd-efgh/;
+const json = (status, value) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
+const empty = (status) => new Response(null, { status });
+const text = (status, body) => new Response(body, { status, headers: { "content-type": "text/plain; charset=utf-8" } });
+const rows = Array.from({ length: 21 }, (_, y) => Array.from({ length: 21 }, (_, x) => ((x * y + x) % 3 === 0 ? "1" : "0")).join(""));
+const key = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+const codes = Array.from({ length: 10 }, (_, i) => "abcd-efgh-ijkl-mn" + "234567ab".slice(i % 8, i % 8 + 1) + "q");
+
+class Node {
+  constructor(tag, id) {
+    Object.assign(this, { tag, id, value: "", hidden: false, disabled: false, textContent: "", children: [], attributes: {}, dataset: {}, listeners: {}, className: "" });
+  }
+  addEventListener(name, fn) { (this.listeners[name] ??= []).push(fn); }
+  async fire(name, event = {}) {
+    for (const fn of this.listeners[name] || []) await fn({ preventDefault() {}, key: event.key, ...event });
+  }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  replaceChildren(...nodes) { this.children = nodes; }
+  append(...nodes) { this.children.push(...nodes); }
+  appendChild(node) { this.children.push(node); return node; }
+  remove() {}
+  focus() { this.focused = true; }
+  click() { this.clicked = true; }
+  querySelectorAll() { return this.buttons || []; }
+}
+
+function load(mode, server, { fresh = async () => true } = {}) {
+  const nodes = {};
+  const $ = (id) => (nodes[id] ??= new Node("div", id));
+  const requests = [];
+  const redirects = [];
+  const pageHandlers = {};
+  const forms = ["password-form", "code-form", "setup-form", "phone-form"];
+  for (const id of forms) $(id).buttons = [new Node("button")];
+  $("code-form").hidden = true;
+  for (const id of ["phone-step", "codes-step"]) $(id).hidden = true;
+  const body = new Node("body");
+  body.dataset.mode = mode;
   const document = {
-    hidden:false, body:{dataset:{mode}},
-    getElementById(id) { return mode === "login" && ["next", "confirm", "sign-out"].includes(id) ? null : elements[id]; },
-    addEventListener(name, callback) { handlers[name] = callback; },
+    body,
+    getElementById: $,
+    createElement: (tag) => new Node(tag),
+    createElementNS: (_, tag) => new Node(tag),
+    addEventListener() {},
   };
-  vm.runInNewContext(source, {
-    document,
-    window: {
-      location: {assign(url) { redirects.push(url); }},
-      addEventListener(name, callback) { handlers[name] = callback; },
+  const context = {
+    document, URL: { createObjectURL: () => "blob:x", revokeObjectURL() {} }, Blob,
+    navigator: { clipboard: { writeText: async (value) => { context.copied = value; } } },
+    window: { location: { assign: (url) => redirects.push(url) }, addEventListener: (name, fn) => { pageHandlers[name] = fn; } },
+    AbortController, setTimeout: (fn, delay) => { assert.ok(delay <= 15000); return 0; }, clearTimeout() {},
+    fetch: async (url, options) => {
+      const sent = options.body ? JSON.parse(options.body) : undefined;
+      requests.push({ url, method: options.method, body: sent, headers: { ...options.headers } });
+      assert.equal(options.credentials, "same-origin");
+      assert.equal(options.redirect, "error");
+      assert.equal(options.headers["X-Rootwell-Request"], "1");
+      return server(url, options.method, sent);
     },
-    AbortController, TextDecoder, Uint8Array,
-    setTimeout(fn, delay) { assert.equal(delay, 15000); const id = ++timerId; timers.set(id, fn); return id; },
-    clearTimeout(id) { timers.delete(id); },
-    fetch(url, options) { requests.push({url, options}); return fetchImpl(url, options); },
-  }, {filename:"auth.js"});
-  return {handlers, redirects, elements, requests, timers, document,
-    submit() { return handlers["form:submit"]({preventDefault(){}}); },
-    expire() { assert.equal(timers.size, 1); [...timers.values()][0](); },
   };
-}
-function finished(f) {
-  assert.equal(f.elements.submit.disabled, false);
-  assert.equal(f.elements.password.disabled, false);
-  assert.equal(f.elements.password.value, "");
-  if (f.document.body.dataset.mode !== "login") {
-    for (const id of ["next", "confirm"]) { assert.equal(f.elements[id].value, ""); assert.equal(f.elements[id].disabled, false); }
-    assert.equal(f.elements["sign-out"].disabled, false);
-  }
-  assert.equal(f.timers.size, 0);
-  assert.doesNotMatch(f.elements.status.textContent, /secret-sentinel|initial test password|replacement password/);
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(scripts.qr, context, { filename: "qr.js" });
+  context.rootwellFresh = fresh;
+  vm.runInContext(scripts.auth, context, { filename: "auth.js" });
+  return { $, requests, redirects, context, pageHandlers, submit: (id) => $(id).fire("submit"), settle: () => new Promise((r) => setTimeout(r, 0)) };
 }
 
-for (const mode of ["setup", "ready"]) {
-  const f = page("login", async () => loginResponse(mode));
-  assert.equal(f.requests.length, 0, "login must not request on page load");
-  await f.submit();
-  const {url, options} = f.requests[0];
-  assert.equal(url, "/api/session"); assert.equal(options.method, "POST");
-  assert.equal(options.credentials, "same-origin"); assert.equal(options.cache, "no-store");
-  assert.equal(options.headers["X-Rootwell-Request"], "1");
-  assert.equal(JSON.parse(options.body).password, "initial test password");
-  assert.deepEqual(f.redirects, [mode === "setup" ? "/setup" : "/"]);
-  finished(f);
+function noSecrets(page) {
+  assert.doesNotMatch(page.$("status").textContent, secrets);
 }
+
+// ── Sign in: the password, then the phone code ─────────────────────────────
 {
-  const f = page("setup", async () => { throw new Error("fetch must not run"); });
-  f.elements.confirm.value = "different";
-  await f.submit();
-  assert.match(f.elements.status.textContent, /do not match/i);
-  assert.equal(f.requests.length, 0); assert.deepEqual(f.redirects, []);
-}
-for (const mode of ["setup", "account"]) {
-  const f = page(mode, async () => changedResponse());
-  await f.submit();
-  assert.equal(f.requests[0].url, "/api/password");
-  assert.equal(JSON.parse(f.requests[0].options.body).next, "a long replacement password");
-  assert.deepEqual(f.redirects, ["/login"]); finished(f);
-}
-{
-  const f = page("account", async () => changedResponse());
-  await f.handlers["sign-out:click"]();
-  assert.equal(f.requests[0].url, "/api/session"); assert.equal(f.requests[0].options.method, "DELETE");
-  assert.equal(f.requests[0].options.body, undefined);
-  assert.deepEqual(f.redirects, ["/login"]); finished(f);
-}
-
-// Refusals never reflect server text or retain entered credentials.
-for (const status of [400, 401, 429, 500]) {
-  const f = page("login", async () => new Response("secret-sentinel", {status}));
-  await f.submit(); assert.deepEqual(f.redirects, []); finished(f);
-}
-for (const action of ["password", "logout"]) {
-  for (const status of [400, 401, 429, 500]) {
-    const f = page("account", async () => new Response("secret-sentinel", {status}));
-    await (action === "password" ? f.submit() : f.handlers["sign-out:click"]());
-    assert.deepEqual(f.redirects, []); finished(f);
-  }
-}
-for (const text of ['null', '{"mode":"remote"}', '{"Mode":"ready"}', '{"mode":"ready","x":1}',
-  '{"mode":"setup","mode":"ready"}', '<html>secret-sentinel</html>', 'x'.repeat(8193)]) {
-  const f = page("login", async () => new Response(text, {headers:{"content-type":"application/json"}}));
-  await f.submit(); assert.deepEqual(f.redirects, []); finished(f);
-}
-for (const response of [
-  () => new Response('{"mode":"ready"}', {headers:{"content-type":"text/html"}}),
-  () => new Response(new Uint8Array([0xff]), {headers:{"content-type":"application/json"}}),
-  () => new Response(null, {headers:{"content-type":"application/json"}}),
-  () => new Response('{"mode":"ready"}', {status:201, headers:{"content-type":"application/json"}}),
-  () => { throw new Error("secret-sentinel"); },
-]) {
-  const f = page("login", async () => response()); await f.submit();
-  assert.deepEqual(f.redirects, []); finished(f);
-}
-for (const action of ["password", "logout"]) {
-  const f = page("account", async () => new Response("secret-sentinel"));
-  await (action === "password" ? f.submit() : f.handlers["sign-out:click"]());
-  assert.deepEqual(f.redirects, []); assert.match(f.elements.status.textContent, /could not be confirmed/); finished(f);
-}
-
-// Cancellation settles the UI even if synthetic fetch ignores AbortSignal.
-for (const action of ["login", "password", "logout"]) {
-  for (const boundary of ["deadline", "hidden", "pagehide"]) {
-    let release;
-    const f = page(action === "login" ? "login" : "account", () => new Promise(resolve => { release = resolve; }));
-    const work = action === "logout" ? f.handlers["sign-out:click"]() : f.submit();
-    assert.equal(f.elements.submit.disabled, true); assert.equal(f.elements.password.value, "");
-    if (boundary === "deadline") f.expire();
-    else if (boundary === "hidden") { f.document.hidden = true; f.handlers.visibilitychange(); }
-    else f.handlers.pagehide();
-    await work;
-    assert.equal(f.requests[0].options.signal.aborted, true);
-    assert.deepEqual(f.redirects, []); assert.match(f.elements.status.textContent, /could not be confirmed/); finished(f);
-    release(action === "login" ? loginResponse("ready") : changedResponse());
-    await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(f.redirects, [], "late success must not restore authority");
-  }
-}
-
-for (const kind of ["stall", "broken", "too-big", "empty", "chunks"]) {
-  let cancelled = false;
-  const body = new ReadableStream({
-    start(controller) {
-      if (kind === "broken") controller.error(new Error("secret-sentinel"));
-      if (kind === "too-big") controller.enqueue(new Uint8Array(8193));
-      if (kind === "empty") controller.enqueue(new Uint8Array(0));
-      if (kind === "chunks") {
-        controller.enqueue(new TextEncoder().encode('{"mode":'));
-        controller.enqueue(new TextEncoder().encode('"ready"}')); controller.close();
-      }
-    },
-    cancel() { cancelled = true; },
+  let codeAnswer = empty(401);
+  const page = load("login", (url, method) => {
+    if (url === "/api/session" && method === "GET") return json(200, { stage: "none" });
+    if (url === "/api/session" && method === "POST") return empty(204);
+    if (url === "/api/session/code") return codeAnswer;
+    if (url === "/api/session" && method === "DELETE") return empty(204);
+    throw new Error("unexpected " + url);
   });
-  const f = page("login", async () => new Response(body, {headers:{"content-type":"application/json"}}));
-  const work = f.submit();
-  if (kind === "stall") { await new Promise(resolve => setImmediate(resolve)); f.expire(); }
-  await work;
-  assert.deepEqual(f.redirects, kind === "chunks" ? ["/"] : []); finished(f);
-  if (kind === "stall" || kind === "too-big") assert.equal(cancelled, true);
+  await page.settle();
+  page.$("name").value = "not a name";
+  page.$("password").value = "an account password for testing";
+  await page.submit("password-form");
+  assert.equal(page.requests.length, 1, "a malformed name is refused before anything is sent");
+  assert.equal(page.$("password").value, "", "the password field is emptied");
+  page.$("name").value = " ada ";
+  page.$("password").value = "an account password for testing";
+  await page.submit("password-form");
+  assert.deepEqual(page.requests.at(-1), { url: "/api/session", method: "POST", body: { name: "ada", password: "an account password for testing" },
+    headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" } });
+  assert.equal(page.$("password-form").hidden, true);
+  assert.equal(page.$("code-form").hidden, false);
+  assert.equal(page.$("code").focused, true);
+  page.$("code").value = "123456";
+  await page.submit("code-form");
+  assert.deepEqual(page.requests.at(-1).body, { code: "123456" });
+  assert.equal(page.$("status").textContent, "That code does not match.");
+  assert.equal(page.$("code").value, "");
+  noSecrets(page);
+  codeAnswer = text(429, "Too many wrong tries.");
+  page.$("code").value = "123456";
+  await page.submit("code-form");
+  assert.match(page.$("status").textContent, /Too many wrong tries/);
+  codeAnswer = text(401, "Too many wrong codes. Sign in again.");
+  page.$("code").value = "123456";
+  await page.submit("code-form");
+  assert.equal(page.$("code-form").hidden, true, "five wrong codes go back to the password");
+  assert.equal(page.$("password-form").hidden, false);
+  assert.match(page.$("status").textContent, /Sign in again/);
+  await page.submit("password-form");
+  codeAnswer = empty(204);
+  page.$("code").value = "abcd-efgh-ijkl-mnop";
+  await page.submit("code-form");
+  assert.deepEqual(page.redirects, ["/certificates"]);
 }
 {
-  let release;
-  const f = page("account", () => new Promise(resolve => { release = resolve; }));
-  const work = f.submit();
-  await f.submit(); await f.handlers["sign-out:click"]();
-  assert.equal(f.requests.length, 1, "overlapping actions are refused");
-  f.expire(); await work;
-  release(changedResponse()); await new Promise(resolve => setImmediate(resolve));
-  f.elements.password.value = "fresh password";
-  f.elements.next.value = f.elements.confirm.value = "fresh replacement password";
-  const retry = f.submit(); assert.equal(f.requests.length, 2, "timeout must not permanently lock controls");
-  release(changedResponse()); await retry; assert.deepEqual(f.redirects, ["/login"]); finished(f);
+  // Reloading after the password goes straight to the code.
+  const page = load("login", () => json(200, { stage: "code" }));
+  await page.settle();
+  await page.settle();
+  assert.equal(page.$("code-form").hidden, false);
+}
+
+// ── Setup: the code, then the phone, then the recovery codes ───────────────
+{
+  let setupAnswer = text(401, "no");
+  let confirmAnswer = text(401, "That code does not match.");
+  const page = load("setup", (url) => {
+    if (url === "/api/setup") return setupAnswer;
+    if (url === "/api/setup/confirm") return confirmAnswer;
+    throw new Error("unexpected " + url);
+  });
+  const fill = () => {
+    page.$("setup-code").value = "aaaaaa-bbbbbb-cccccc-dddddd";
+    page.$("name").value = "ada";
+    page.$("password").value = "an account password for testing";
+    page.$("confirm").value = "an account password for testing";
+  };
+  fill();
+  page.$("confirm").value = "something else entirely here";
+  await page.submit("setup-form");
+  assert.equal(page.requests.length, 0, "differing passwords are caught on the page");
+  assert.match(page.$("status").textContent, /differ/);
+  fill();
+  await page.submit("setup-form");
+  assert.deepEqual(page.requests.at(-1).body, { code: "aaaaaa-bbbbbb-cccccc-dddddd", name: "ada", password: "an account password for testing" });
+  assert.match(page.$("status").textContent, /setup code does not work/);
+  assert.equal(page.$("phone-step").hidden, true);
+  noSecrets(page);
+  setupAnswer = json(200, { name: "ada", key, qr: rows });
+  fill();
+  await page.submit("setup-form");
+  assert.equal(page.$("setup-step").hidden, true);
+  assert.equal(page.$("phone-step").hidden, false);
+  for (const id of ["password", "confirm", "setup-code"]) assert.equal(page.$(id).value, "", id + " is emptied");
+  assert.equal(page.$("phone-key").textContent, "JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP");
+  const qr = page.$("phone-qr");
+  assert.equal(qr.attributes.viewBox, "-4 -4 29 29");
+  assert.match(qr.children[0].attributes.d, /^(M\d+ \d+h\d+v1h-\d+z)+$/);
+  page.$("phone-code").value = "12345";
+  await page.submit("phone-form");
+  assert.equal(page.requests.length, 2, "a code that is not six digits is not sent");
+  page.$("phone-code").value = "123456";
+  await page.submit("phone-form");
+  assert.match(page.$("status").textContent, /does not match/);
+  confirmAnswer = json(200, { recovery_codes: codes });
+  page.$("phone-code").value = "123456";
+  await page.submit("phone-form");
+  assert.equal(page.$("phone-step").hidden, true);
+  assert.equal(page.$("codes-step").hidden, false);
+  assert.deepEqual(page.$("codes").children.map((li) => li.textContent), codes);
+  await page.$("codes-copy").onclick();
+  assert.match(page.context.copied, /^Rootwell recovery codes for ada\n/);
 }
 {
-  const f = page("setup", async () => { throw new Error("hidden page must not request"); });
-  f.document.hidden = true; f.handlers.visibilitychange();
-  await f.submit(); await f.handlers["sign-out:click"]();
-  assert.equal(f.requests.length, 0); assert.equal(f.elements.password.value, "");
+  // A QR that is not modules is refused, and nothing is drawn.
+  const page = load("setup", () => json(200, { name: "ada", key, qr: ["0101", "x"] }));
+  page.$("setup-code").value = "aaaaaa-bbbbbb-cccccc-dddddd";
+  page.$("name").value = "ada";
+  page.$("password").value = page.$("confirm").value = "an account password for testing";
+  await page.submit("setup-form");
+  assert.equal(page.$("phone-step").hidden, true);
+  assert.match(page.$("status").textContent, /did not go through/);
 }
-console.log("Rootwell auth UI: success/refusal, strict bounded body, whole-request deadline, uncertain writes, hidden/late cancellation and credential clearing passed.");
+
+// ── Account: a change that needs a fresh code asks once, then repeats ──────
+{
+  let asked = 0;
+  const sent = [];
+  const page = load("account", (url, method, body) => {
+    if (url === "/api/session") return json(200, { stage: "ready", name: "ada", recovery_left: 4, fresh: false });
+    sent.push(url);
+    if (sent.filter((u) => u === url).length === 1) return text(428, "Enter a code from your phone first.");
+    if (url === "/api/password") return empty(204);
+    if (url === "/api/recovery-codes") return json(200, { recovery_codes: codes });
+    if (url === "/api/phone") return json(200, { name: "ada", key, qr: rows });
+    if (url === "/api/phone/confirm") return empty(204);
+    throw new Error("unexpected " + url);
+  }, { fresh: async () => { asked++; return true; } });
+  await page.settle();
+  await page.settle();
+  assert.equal(page.$("account-name").textContent, "ada");
+  assert.equal(page.$("codes-left").textContent, "4 are left.");
+  await page.$("codes-new").fire("click");
+  assert.equal(asked, 1);
+  assert.deepEqual(page.$("codes").children.map((li) => li.textContent), codes);
+  assert.equal(page.$("codes-left").textContent, "10 are left.");
+  await page.$("phone-start").fire("click");
+  assert.equal(page.$("phone-step").hidden, false);
+  page.$("phone-code").value = "123456";
+  await page.submit("phone-form");
+  assert.match(page.$("status").textContent, /new phone/);
+  page.$("password").value = "an account password for testing";
+  page.$("next").value = page.$("confirm").value = "a different long test password";
+  await page.submit("password-form");
+  assert.deepEqual(page.redirects, ["/login"]);
+  assert.equal(asked, 4);
+  page.pageHandlers.pagehide();
+  for (const id of ["password", "next", "confirm", "phone-code"]) assert.equal(page.$(id).value, "", id + " is emptied on leaving");
+}
+{
+  // A cancelled code changes nothing and says so.
+  const page = load("account", (url) => url === "/api/session" ? json(200, { stage: "ready", name: "ada", recovery_left: 10 }) : text(428, "code"),
+    { fresh: async () => false });
+  await page.settle();
+  await page.$("codes-new").fire("click");
+  assert.match(page.$("status").textContent, /Nothing changed/);
+  assert.equal(page.$("codes-step").hidden, true);
+}
+
+// ── The fresh-code dialog itself ───────────────────────────────────────────
+{
+  const created = [];
+  let answer = text(401, "That code does not match.");
+  const document = {
+    body: { append: (...nodes) => created.push(...nodes) },
+    createElement: (tag) => new Node(tag),
+  };
+  const context = {
+    document, window: { location: { assign() {} }, addEventListener() {} },
+    fetch: async (url, options) => {
+      assert.equal(url, "/api/fresh");
+      assert.equal(options.headers["X-Rootwell-Request"], "1");
+      context.last = JSON.parse(options.body);
+      return answer;
+    },
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(scripts.fresh, context, { filename: "fresh.js" });
+  const waiting = context.rootwellFresh();
+  const [scrim, dialog] = created;
+  assert.equal(dialog.hidden, false);
+  assert.equal(scrim.hidden, false);
+  const form = dialog.children[0];
+  const input = form.children[1].children[1].children[1];
+  input.value = " 123456 ";
+  await form.fire("submit");
+  assert.deepEqual(context.last, { code: "123456" });
+  assert.equal(input.value, "", "a wrong code is emptied");
+  assert.equal(dialog.hidden, false);
+  answer = empty(204);
+  input.value = "654321";
+  await form.fire("submit");
+  assert.equal(await waiting, true);
+  assert.equal(dialog.hidden, true);
+  const cancelled = context.rootwellFresh();
+  await dialog.fire("keydown", { key: "Escape" });
+  assert.equal(await cancelled, false);
+}
+
+console.log("sign-in, setup, account and fresh-code pages behave as expected");

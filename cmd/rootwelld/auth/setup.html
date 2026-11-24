@@ -5,28 +5,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="color-scheme" content="light dark">
-  <title>Choose your password · Rootwell</title>
+  <title>Set up · Rootwell</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/rootwell.css">
   <script src="/theme.js"></script>
+  <script src="/qr.js" defer></script>
   <script src="/auth.js" defer></script>
 </head>
 <body data-mode="setup">
 <main class="signin"><div class="signin-box">
   <p class="wordmark">rootwell<span class="wordmark-stop">.</span></p>
   <section class="card" aria-labelledby="title"><div class="card-body">
-    <h1 id="title">Choose your password</h1>
-    <p class="soft">Replace the first password before you start. Keep the new one in your password manager.</p>
-    <form class="stack" id="auth-form" method="post" action="/api/password">
-      <div class="field"><label for="password">First password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required autofocus></div>
-      <div class="field"><label for="next">New password<span class="muted">At least 15 characters</span></label><input class="input" id="next" name="next" type="password" autocomplete="new-password" minlength="15" required></div>
-      <div class="field"><label for="confirm">New password again</label><input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="15" required></div>
-      <button class="btn btn-block" type="submit">Save password</button>
-      <p class="error-text" id="status" role="alert" aria-live="polite"></p>
-    </form>
+    <div id="setup-step">
+      <h1 id="title">Set up</h1>
+      <form class="stack" id="setup-form" method="post" action="/api/setup">
+        <p class="soft">The setup code comes from the server: <code>rootwelld init</code> prints one, and <code>rootwelld setup-code</code> makes a new one.</p>
+        <div class="field"><label for="setup-code">Setup code</label><input class="input mono" id="setup-code" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64" required autofocus></div>
+        <div class="field"><label for="name">Name<span class="muted">Letters and digits; you sign in with it</span></label><input class="input" id="name" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required></div>
+        <div class="field"><label for="password">Password<span class="muted">At least 15 characters</span></label><input class="input" id="password" type="password" autocomplete="new-password" minlength="15" required></div>
+        <div class="field"><label for="confirm">Password again</label><input class="input" id="confirm" type="password" autocomplete="new-password" minlength="15" required></div>
+        <button class="btn btn-block" type="submit">Continue</button>
+      </form>
+    </div>
+    <div class="stack" id="phone-step" hidden>
+      <h1>Add Rootwell to your phone</h1>
+      <p class="soft">Scan this with an authenticator app on your phone. Then enter the six-digit code it shows.</p>
+      <svg class="qr" id="phone-qr" role="img" aria-label="QR code with the key for your phone"></svg>
+      <p class="meta">Cannot scan? Type this key into the app: <span class="mono" id="phone-key"></span></p>
+      <form class="stack" id="phone-form" method="post" action="/api/setup/confirm">
+        <div class="field"><label for="phone-code">Code from the phone</label><input class="input mono" id="phone-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
+        <button class="btn btn-block" type="submit">Confirm</button>
+      </form>
+    </div>
+    <div class="stack" id="codes-step" hidden>
+      <h1>Save your recovery codes</h1>
+      <p class="soft">Each one signs you in once, in place of a phone code. Keep them somewhere apart from your phone, such as your password manager. They are shown only now.</p>
+      <ol class="code-list" id="codes"></ol>
+      <div class="inline"><button class="btn btn-secondary" id="codes-copy" type="button">Copy</button><button class="btn btn-secondary" id="codes-download" type="button">Download</button></div>
+      <a class="btn btn-block" href="/certificates" id="codes-done">I saved them</a>
+    </div>
+    <p class="error-text" id="status" role="alert" aria-live="polite"></p>
   </div></section>
-  <button class="btn btn-ghost btn-block" type="button" id="sign-out">Sign out</button>
+  <p class="meta center"><a class="link" href="/login">Sign in instead</a></p>
   <p class="credit center">rootwell, by denyfirst<span class="credit-stop">.</span></p>
 </div></main>
 </body>

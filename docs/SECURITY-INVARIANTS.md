@@ -8,6 +8,135 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C111 — A key leaves, a key is deleted, or sign-in changes only after a fresh code (ADR 0088)
+
+A signed-in session is fresh for ten minutes after a phone code or a
+recovery code. Signing in counts, and so does a code entered in the dialog
+that sends it to `/api/fresh`. Without a fresh code the server answers 428 and
+does nothing when asked to:
+
+- download a key, with its certificate or alone;
+- delete a certificate that has a saved key (audit RW-10);
+- change the password, move to a new phone, or make new recovery codes.
+
+The Certificates and Account pages then ask for a code in a dialog
+(`fresh.js`) and send the same request once more; Cancel changes nothing.
+Nothing else asks: a public download, notes, adding a key to a saved
+certificate and deleting a certificate without a key need only a signed-in
+session. No request asks for the account password again, except a password
+change, which also needs the current one; the certificate API refuses a
+password field. A wrong code in the dialog counts as a failure (C110), five
+end the session, and a recovery code used there is spent.
+
+Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
+`TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
+`TestCertificateRequestsRefuseAPasswordField`,
+`scripts/test-certificates.mjs` and `scripts/test-rootwelld-auth.mjs`.
+
+## C110 — Only failures count, per name and per source (ADR 0088)
+
+A wrong password, phone code, recovery code or setup code counts against the
+account name, which allows 5, and against the source address, which allows
+20; an IPv6 address counts by its /64. Each failure past that makes the next
+try wait: one minute, then twice as long each time, up to fifteen. A waiting
+name or address gets 429 with `Retry-After`, and nothing is checked. Wrong
+setup codes also count against one limit of 20 for the whole installation.
+A success costs nothing (audit RW-07): a complete sign-in or a fresh code
+forgets the name's failures, and failures are forgotten an hour after the
+last. The table holds 4,096 names and addresses; when every entry is waiting
+out a lock, a name or address not yet counted waits a minute rather than
+anyone's lock being forgotten. One password check (Argon2id, 64 MiB) runs at
+a time; a request waits up to five seconds for it, and a busy answer is not a
+failure.
+
+Guarded by `TestOnlyFailuresCountPerNameAndPerSource`,
+`TestAFullFailureTableHoldsNewNamesRatherThanForgetALock` and
+`scripts/test-rootwelld-auth.mjs`.
+
+## C109 — Sign-in takes a password and a one-time code, and sessions stay short and in memory (ADR 0088)
+
+Sign-in has two steps: the name and password, then, within five minutes, a
+six-digit phone code (RFC 6238: SHA-1, 30 seconds, one step of drift either
+way) or one recovery code. A phone code is refused once its step, or a later
+one, has been used; a recovery code is taken off the list when it is used.
+Until both steps pass, a session reaches only the sign-in endpoints, never a
+page, a script or the certificate API. A setup session has fifteen minutes to
+confirm its phone, and reaches nothing else either.
+
+A session token is 256 random bits. The server keeps only its SHA-256, in
+memory, so a restart signs everyone out. The cookie is
+`__Host-rootwell_session`: Secure, HttpOnly, SameSite=Strict, path `/` and no
+domain. Every step issues a new token and ends the old one, and a request
+carrying two session cookies counts as having none. A signed-in session ends
+after 15 minutes without use and 8 hours at most; a page asking for its
+status (`GET /api/session`) is not use. Five wrong codes end a session. At
+most 64 sessions are kept: when the table is full, an account's oldest
+session makes room for its newest, and no other account's session is ended
+for it.
+
+Sign-out ends only its own session. A password change ends every session of
+the account, this one too. Moving to a new phone, making new recovery codes,
+or using a setup code for an existing account ends every other session and
+gives this one a new token. The service still speaks plain HTTP on loopback;
+HTTPS on its own name comes next (audit RW-02).
+
+Guarded by `TestSignInTakesThePasswordThenACode`,
+`TestCodesMatchRFC6238AndAreNeverAcceptedTwice`,
+`TestSignInTakesThePasswordThenOneCodeOnce`,
+`TestSessionsEndWhenIdleOrOldAndAStatusCheckIsNotUse`,
+`TestTheSessionCookieIsHostOnlySecureAndStrict`,
+`TestTheSessionTableIsBoundedWithoutEndingOtherAccounts`,
+`TestAPasswordChangeEndsEverySession`,
+`TestANewPhoneKeepsThisSessionAndEndsTheOthers`,
+`TestNewRecoveryCodesReplaceTheOldOnes`,
+`TestPasswordPhoneAndRecoveryChangesCountARevision`,
+`TestCertificatesPageAndItsScriptsRemainBehindReadyAccess` and
+`scripts/test-rootwelld-auth.mjs`.
+
+## C108 — Accounts live in the vault, and only a setup code from the server makes or resets one (ADR 0088)
+
+Each account is one sealed vault record (C107): its name, an Argon2id hash of
+its password (64 MiB, three passes, four lanes), its phone key, the last
+phone-code step it used, keyed digests of its recovery codes, and a revision.
+No name, password, phone key or recovery code reaches the disk in the clear,
+and a record with an unknown field is refused. One-time codes are digested
+under a key the vault derives for them alone, which differs between
+installations. This release has one account (`MaxAccounts`).
+
+A name is 1 to 64 letters and digits, with `.`, `-` and `_` allowed after the
+first, and is compared without case. A password is at least 15 characters,
+not a common one or a short pattern repeated, and at most 1,024 bytes: one
+limit everywhere (audit RW-09). A wrong name gets the same answer, after the
+same work, as a wrong password.
+
+There is no default password and no open sign-up. `rootwelld init` prints a
+setup code once the key's recovery code is saved, and `rootwelld setup-code`
+makes a new one with the service stopped. A setup code is 120 random bits,
+kept only as a keyed digest; it works once, for 24 hours, and a new one
+replaces the last. Without a name it makes the first account and is refused
+once one exists. With an account's name it works only for that name and
+replaces the account's password and phone. The setup page checks the code,
+the name and the password, then shows a new phone key as a QR code and as
+text. The account is written only when the phone shows a right code, in the
+same write that spends the setup code, so no account ever signs in with a
+password alone. Ten recovery codes of 80 random bits are then shown once;
+earlier ones stop working.
+
+Guarded by `TestASetupCodeMakesTheFirstAccountOnce`,
+`TestASetupCodeStopsWorkingAfterADay`,
+`TestASetupCodeForAnAccountReplacesItsSignIn`,
+`TestTheAccountIsSealedAndReadStrictly`,
+`TestAnAccountRecordWithAnUnknownFieldIsRefused`,
+`TestNamesAreComparedWithoutCase`, `TestPasswordsHashAndVerifyWithOneLimit`,
+`TestTheCommonPasswordListIsThePinnedOne`,
+`TestBootstrapCodesAreLongAndKeyed`, `TestRecoveryCodesWorkOnceInAnyCase`,
+`TestNewSeedsDrawAsAuthenticatorQRCodes`,
+`TestSetupSavesTheAccountOnlyOnceThePhoneIsConfirmed`,
+`TestLinuxInitNeedsSAVEDAndLeavesAWorkingSetupCode`,
+`TestLinuxSetupCodeMakesTheFirstAccountOrReplacesItsSignIn` and
+`scripts/test-rootwelld-auth.mjs`.
+
 ## C107 — Certificates live in the vault, opened by an instance key kept apart (ADR 0088)
 
 The Certificates page's list lives in `rootwell.db`, a bbolt file in the
@@ -18,29 +147,30 @@ its revision, so a record moved, replayed at another revision or changed by
 one byte is refused. Record IDs are HMACs of the fingerprint under another
 derived key, so the file does not list domain names, and the same certificate
 gets a different ID in another vault (audit RW-12). No plaintext, fingerprint
-or name reaches the disk. A failed write keeps nothing. Every committed write
-counts one generation, and every change names the generation the page read,
-so a stale page gets 409. A private key is a record of its own: listing never
-opens one, and only a download borrows it (RW-11). The list holds at most 500 certificates; nothing
-else limits how many writes the vault takes (RW-01).
+or name reaches the disk. A failed write keeps nothing. The certificate list
+counts its own changes, in a record of its own, and every change names the
+count the page read, so a stale page gets 409; a write outside the list, such
+as a sign-in, leaves an open page current. A private key is a record of its
+own: listing never opens one, and only a download borrows it (RW-11). The list
+holds at most 500 certificates; nothing else limits how many writes the vault
+takes (RW-01).
 
 The instance key is 32 random bytes in a `0600` file of the service user, in
-a private `0700` directory outside the data directory; `init`, `serve` and
-`key-restore` refuse a key file inside it, so a copy of the data never carries
-its key. Another key cannot open the vault. `rootwelld init` never replaces a
-key file, a vault or an access file. It shows the setup password and the key's
-recovery code (`RW1-` and grouped base32 with a check) once, and makes the key
-file, the vault and the access file only after the person types `SAVED`.
-`rootwelld key-restore <data-dir> <key-file>` reads that code from the
-terminal and rebuilds a lost key file only after the code opens the vault in
-that data directory. It writes nothing for a code from another installation,
-while `rootwelld serve` holds the vault, or over an existing key file. The
-vault opens only in a `0700` directory owned by the service user, and one
-process holds it at a time. Off Linux no key file or vault is made: the pages
-open as a preview, and the certificate routes say saving is off instead of
-saving.
+a private `0700` directory outside the data directory; `init`, `serve`,
+`setup-code` and `key-restore` refuse a key file inside it, so a copy of the
+data never carries its key. Another key cannot open the vault. `rootwelld
+init` never replaces a key file or a vault. It shows the key's recovery code
+(`RW1-` and grouped base32 with a check) once, and makes the key file and the
+vault only after the person types `SAVED`; then it prints a setup code for the
+first account (C108). `rootwelld key-restore <data-dir> <key-file>` reads the
+key's recovery code from the terminal and rebuilds a lost key file only after
+the code opens the vault in that data directory. It writes nothing for a code from another
+installation, while `rootwelld serve` holds the vault, or over an existing key
+file. The vault opens only in a `0700` directory owned by the service user,
+and one process holds it at a time. `rootwelld` runs only on Linux: elsewhere
+`init`, `serve`, `setup-code` and `key-restore` refuse and make nothing.
 
-The sign-in password no longer unlocks any data; it only signs in. The running
+Account passwords unlock no data; they only sign in (C108). The running
 service holds the instance key, so a compromised live host reveals the keys.
 Swapping in a whole older `rootwell.db` is not detected (RW-13). Losing both
 the key file and the recovery code loses every saved certificate and key.
@@ -56,15 +186,16 @@ Guarded by `TestRecordsRoundTripWithRevisionsAndGenerations`,
 `TestTheCheckedVaultNeedsAPrivateDirectory`,
 `TestTheKeyFileIsPrivateAndNeverReplaced`, `FuzzOpenSealedRecord`,
 `TestSaveListsTheCertificateAndRefusesAStalePageOrADuplicate`,
+`TestWritesOutsideTheListLeaveAnOpenPageCurrent`,
 `TestAKeyIsSavedApartAndOnlyALoanOpensIt`,
 `TestARecordMovedToAnotherCertificateIsRefused`,
 `TestTheListStopsAtItsLimit`, `TestStoredRecordsHoldNoUnknownFields`,
 `TestContainerVolumeDrill`,
 `TestLinuxCertificatesNeedAReadySessionAndThePageHeader`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
-`TestLinuxAGateWithoutCustodySaysSoInsteadOfSaving`,
-`TestInitRequiresSaveConfirmationAndNeverReprintsPassword`, and
-`TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`.
+`TestLinuxInitNeedsSAVEDAndLeavesAWorkingSetupCode`,
+`TestNonLinuxInitCreatesNothing`, `TestNonLinuxOfflineCeremonyFailsClosed`,
+and `TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`.
 
 ## C106 — PFX import cannot bypass public/key custody boundaries (ADR 0087)
 
@@ -135,7 +266,7 @@ Guarded by `TestTrustedPathDoesNotNeedServerSentRoot`,
 `TestHandshakeCancellationAndPostHandshakeRevocationPublishNothing`,
 `TestBoundedConnectionStopsUnboundedPeerInputAndWrites`,
 `TestWebsiteGateNeedsReadyOriginConsentAndThrottleAndWritesNothing`,
-`TestWebsiteSetupAndLateSessionCannotPublish`, `FuzzAnalyzePublicChain`,
+`TestWebsiteCodeStageAndLateSessionCannotPublish`, `FuzzAnalyzePublicChain`,
 `FuzzTarget`, `FuzzWebsiteConsent` and `scripts/test-website-check.mjs`.
 
 ## C1 — Diagnostics do not reflect command input
@@ -520,49 +651,36 @@ download is gone. Nothing replaces it.
 
 ## C32 — Initial installation password cannot open stored data
 
-The generated password is per-installation and exists only for first-use
-rotation. The access envelope authenticates its state. Before rotation,
-`Open` never returns the data key; after rotation, the initial password no
-longer works. Failed and weak changes leave the original setup state intact.
-An existing access file is not overwritten and malformed or unsafe files fail
-closed. This package is not yet an HTTP login or production vault.
+Retired on 24 November 2026 with the access file (ADR 0088): there is no
+generated setup password any more. `rootwelld init` prints a one-time setup
+code, and an account exists only once its phone is confirmed (C108).
 
-Guarded by `TestInitialPasswordRequiresChangeBeforeDataKeyIsAvailable`,
-`TestFailedChangesKeepInitialPasswordAndRejectWeakReplacement`,
-`TestInitialPasswordIsUniqueAndNotStoredInPlaintext`, and
-`TestMalformedAndUnsafeAccessFilesFailClosed`.
+## C33 — The loopback gate serves pages only to a signed-in session
 
-## C33 — Loopback gate separates setup from normal access
+Only the sign-in and setup pages, their scripts, the stylesheet, the
+colour-scheme script, the icon and the typeface are served before sign-in.
+Every other page, script, worker and API needs a signed-in session; a session
+still at the setup or phone-code step is sent to sign in (C109). The server
+listens on both loopback addresses only, and refuses an unexpected Host, a
+cross-origin or headerless change, a query string, a malformed or oversized
+body, and unknown JSON fields. Forms never fall back to sending a password in
+a URL. It refuses to start when a page file or the engine is missing.
 
-Only a local interactive init can show a new per-installation setup password.
-An initial-password session can see the password-change page, never the
-workspace pages or their assets. A successful change invalidates every prior
-session; normal access requires fresh sign-in with the replacement password. The server
-binds loopback only and rejects unexpected Host, cross-origin mutation,
-malformed requests, oversized bodies and excess password attempts. No vault or
-remote transport is implied.
-
-Guarded by `TestInitialLoginIsSetupOnlyUntilPasswordChange`,
-`TestGateRejectsCrossOriginHostAndMalformedAuthentication`,
-`TestGateRateLimitsAndExpiresSessions`,
-`TestInitRequiresSaveConfirmationAndNeverReprintsPassword`,
-`TestReadyPasswordChangeRevokesAllSessionsAndLogoutOnlyOwn`,
+Guarded by `TestGateRejectsCrossOriginHostAndMalformedRequests`,
 `TestAuthFormsCannotFallBackToPasswordInGetURL`,
 `TestGatewayRefusesIncompleteBrowserAssets`,
-`TestPasswordChangeValidationIsSpecificWithoutEchoingSecrets`, and
+`TestCertificatesPageAndItsScriptsRemainBehindReadyAccess`,
+`TestSetupSavesTheAccountOnlyOnceThePhoneIsConfirmed`,
+`TestSignInTakesThePasswordThenACode`,
+`TestListenLoopbackHoldsBothAddresses`, and
 `scripts/test-rootwelld-auth.mjs`.
 
 ## C34 — Sessions cannot silently survive an observed access-file change
 
-A session is tied to the exact encrypted access-file bytes seen during login.
-The gateway refuses login if that file changes across password verification.
-For subsequent requests, an unreadable, reader-rejected, or different access file
-invalidates the old session, including external password rotation. A new
-password can create a new session. This does not provide interprocess locking,
-request-atomic authorization, or protection against same-byte rollback.
-
-Guarded by `TestSessionIsRevokedWhenAccessFileChangesOutsideGate` and
-`TestInitialLoginIsSetupOnlyUntilPasswordChange`.
+Retired on 24 November 2026 with the access file (ADR 0088): accounts live in
+the vault, which one process holds at a time, so nothing changes them behind
+the running service. A change of password, phone or recovery codes ends the
+account's other sessions itself (C109).
 
 ## C35 — Draft inventory cannot accept secret-bearing or partial imports
 
@@ -587,133 +705,65 @@ every record under its own key, bound to its kind, ID and revision (C107);
 
 ## C37 — New installation identity is authenticated and stable
 
-Each new access envelope has a random 128-bit ID authenticated by the wrapped
-data-key AEAD. Setup cannot release the key; password changes preserve key
-and ID; malformed or altered identity is refused. Legacy v1 files remain
-readable and rotatable but cannot claim an ID or silently migrate. No durable
-inventory, recovery credential, or backup is enabled by this invariant.
-
-Guarded by `TestV2IdentityIsUniqueAuthenticatedAndSurvivesPasswordChanges`,
-`TestLegacyV1CanStillOpenButCannotClaimAnIdentity`, and
-`TestV2RejectsMalformedIdentityAndVersion`.
+Retired on 24 November 2026 with the access file (ADR 0088): the access
+envelope and its installation ID are gone with `internal/instanceaccess`.
+The vault binds every record to itself (C107).
 
 ## C38 — Offline recovery codec does not silently enroll credentials
 
-The standalone codec generates a fresh 256-bit random code and wraps only an
-existing 256-bit data key for an explicit 128-bit installation ID. Wrong code,
-altered wrap, changed ID, malformed input, and cross-installation substitution
-return no key. It creates no file or endpoint, and is not a backup or working
-lost-password recovery ceremony.
-
-Guarded by `TestRecoveryWrapRoundTripIsRandomAndBoundToInstallation`,
-`TestRecoveryWrapRejectsTamperingAndMalformedInputs`, and
-`FuzzOpenRecoveryWrap`.
+Retired on 24 November 2026 with the access file (ADR 0088): the password
+recovery wrap is gone. An account's recovery codes are kept as keyed digests
+in its vault record (C108).
 
 ## C39 — Legacy identity preparation does not mutate access
 
-Only a password-authenticated, ready v1 access snapshot can prepare an
-encrypted v2 candidate. It preserves the exact data key and password, creates
-a fresh random ID, and binds the candidate to the source revision. Wrong
-password, setup state, already-v2 state, malformed/oversized input, and symlink
-are refused without a candidate. The source file is never changed. A revision
-alone is not a lock or authorization to install the candidate.
-
-Guarded by `TestPrepareIdentityUpgradePreservesKeyWithoutChangingSource` and
-`TestPrepareIdentityUpgradeRefusesWrongStateAndUnsafeInput`.
+Retired on 24 November 2026 with the access file (ADR 0088): there are no
+access files to upgrade.
 
 ## C40 — Linux access changes serialize cooperating writers
 
-Linux access-password changes require an exclusive advisory lock on a stable,
-private lock file inside an owner-private directory. Busy, permissive, and
-symlink lock paths are refused without changing access. Once replacement
-succeeds, the directory is synced; a failure leaves an explicitly uncertain
-outcome. The lock protocol does not bind external writers or network volumes.
-
-Guarded by `TestLinuxAccessWriterLockRejectsConcurrentPasswordChange` and
-`TestLinuxAccessWriterRefusesUnsafeDirectoryAndLock`, and
-`TestPostReplaceSyncFailureReportsUncertainOutcome`, and
-`TestUncertainPasswordChangeRevokesSessionsWithoutFalseSuccess`.
+Retired on 24 November 2026 with the access file (ADR 0088): account changes
+are vault transactions, and one process holds the vault at a time (C107).
 
 ## C41 — Linux identity installation validates before replacing
 
-Under the private Linux writer lock, installation requires the exact source
-revision, authenticated ready v1 source, authenticated ready v2 candidate,
-same password and data key, and matching candidate ID. Stale, replayed,
-tampered, wrong-key, busy, and unsupported-platform attempts fail closed.
-Pre-rename errors preserve the original; post-rename sync/readback errors
-report uncertainty. No CLI/browser migration or backup is enabled.
-
-Guarded by `TestLinuxIdentityUpgradeCommitsOnlyMatchingReadyV1`,
-`TestLinuxIdentityUpgradeRejectsStaleCandidate`,
-`TestLinuxIdentityUpgradeRejectsTamperingWrongKeyAndBusyLock`,
-`TestLinuxIdentityUpgradeFaultsPreserveOrReportUncertain`, and
-`TestIdentityUpgradeCoreRejectsWrongKeyAndStaleRevision`,
-`TestIdentityUpgradeCorePreservesPrewriteFailureAndReportsPostwriteUncertainty`,
-`TestIdentityUpgradeCoreUsesOneCandidateSnapshot`,
-and `TestNonLinuxIdentityUpgradeFailsClosed`.
+Retired on 24 November 2026 with the access file (ADR 0088): there are no
+access files to install.
 
 ## C42 — Linux offline recovery keeps the same data key and rotates authority
 
-Only a password-authenticated ready v2 installation may enroll recovery;
-ready v3 requires the password to rotate it. The recovery wrap and a keyed
-confirmation are embedded in one v3 access envelope and password-authenticated.
-A valid code can reset the password while preserving the data key and ID, but
-the current envelope receives a fresh code so replay of the old code fails.
-Wrong credentials, tampering, unsafe directory, busy lock, and unsupported OS
-do not write. Pre-replacement faults preserve the source; post-replacement
-sync/readback faults are uncertain and return no code. This is internal core,
-not a backup or operator-facing recovery promise; old offline backups remain
-usable with their old codes.
-
-Guarded by `TestRecoveryEnrollmentRotationAndPasswordResetPreserveIdentity`,
-`TestRecoveryWrapSurvivesPasswordRotation`,
-`TestRecoveryRefusesWrongCredentialAndTamperedEnvelopeWithoutWriting`,
-`TestRecoveryWriteFaultsDoNotReturnCode`,
-`TestLinuxRecoveryCeremonySerializesAndPreservesDataKey`,
-`TestLinuxRecoveryRefusesUnsafeStore`, and
-`TestNonLinuxRecoveryCeremonyFailsClosed`, plus
-`FuzzRecoveryEnvelopeParsing`.
+Retired on 24 November 2026 with the access file (ADR 0088):
+`recovery-enroll`, `recovery-rotate` and `recovery-reset` are gone. A lost
+phone is replaced with a recovery code on the Account page; a lost password,
+or a lost phone together with the recovery codes, with
+`rootwelld setup-code` and the account's name (C108).
 
 ## C43 — Access snapshots prove both recovery paths and never overwrite
 
-Linux access-only export requires an authenticated ready v3 source, current
-password, and matching offline recovery code under the access writer lock.
-The snapshot has a fresh ID and data-key MAC over its exact bounded encrypted
-access bytes. It is written as a new private file in a separate private
-directory, synced, and read back. Verification refuses wrong credentials,
-tampering, truncation, trailing data, and oversized input without releasing a
-key. Restore verifies before writing and accepts only an otherwise empty
-private directory; it never overwrites an installation. Post-write faults are
-uncertain. This does not back up inventory records or prevent old-snapshot
-replay.
-
-Guarded by `TestAccessSnapshotVerifiesWithPasswordOrRecoveryCode`,
-`TestAccessSnapshotRejectsWrongCredentialsTamperingAndTruncation`,
-`TestAccessSnapshotRequiresEnrolledRecovery`,
-`TestLinuxAccessSnapshotFreshRestoreDrill`,
-`TestLinuxAccessSnapshotRefusesUnsafePathsAndTampering`,
-`TestLinuxAccessSnapshotPostWriteSyncFailureIsUncertain`,
-`TestNonLinuxAccessSnapshotFilesystemOperationsFailClosed`, and
-`FuzzOpenAccessSnapshot`.
+Retired on 24 November 2026 with the access file (ADR 0088):
+`access-snapshot`, `access-verify` and `access-restore` are gone. Until online
+backup in Phase 3b, a backup is a copy of the data directory made with the
+service stopped (`docs/RECOVERY.md`).
 
 ## C44 — Offline Linux ceremonies never take secrets from argv or a live daemon
 
-The operator commands require interactive stdin/stdout terminals and read
-passwords and recovery codes without local echo. Their argv contains only
-paths and the non-secret unlock method. A private operation lock excludes a
-running Linux daemon and another offline ceremony. Recovery output is printed
-only to the trusted terminal after persistence; display failure does not
-return the code in an error. Linux-only filesystem operations refuse on other
-platforms. This is not protection against compromised terminals, shell
-history containing user-supplied secret arguments, an older non-cooperating
-daemon, or a malicious same-user process.
+`rootwelld init`, `setup-code` and `key-restore` need an interactive local
+terminal for both input and output; without one they read and print nothing.
+`key-restore` reads the instance key's recovery code without echo, never from
+argv, the environment, a pipe or a file. Their argv holds only paths and, for
+`setup-code`, an account name, which is not secret. While `rootwelld serve`
+holds the vault, `setup-code` and `key-restore` cannot open it and change
+nothing. A setup code is printed to the terminal only after it is saved, and
+a failed display does not put the code in the error. Off Linux they refuse
+and make nothing. This is not protection against a compromised terminal, its
+scrollback, or a malicious process of the same user.
 
 Guarded by `TestOfflineCommandClassificationAndNoSecretArgv`,
-`TestRecoveryCodeDisplayFailureDoesNotReturnTheCode`,
-`TestLinuxOfflineCeremonyEnrolsSnapshotsRestoresAndResets`,
-`TestLinuxOfflineCeremonyRefusesRunningDaemonAndBadArguments`,
-`TestLinuxOperationLockExcludesAnotherDaemonOrCeremony`,
-`TestLinuxOperationLockRefusesUnsafeDirectoryAndLock`, and
+`TestSetupCodeDisplayFailureDoesNotReturnTheCode`,
+`TestLinuxInitNeedsSAVEDAndLeavesAWorkingSetupCode`,
+`TestLinuxSetupCodeMakesTheFirstAccountOrReplacesItsSignIn`,
+`TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`,
+`TestNonLinuxInitCreatesNothing`, and
 `TestNonLinuxOfflineCeremonyFailsClosed`.
 
 ## C45 — Complete inventory images authenticate context before releasing records
@@ -734,20 +784,20 @@ with the service stopped (`docs/RECOVERY.md`).
 
 Inspect, Convert and Request upload nothing. Certificates reach the loopback
 daemon only through the certificate API, which the Certificates page calls when
-the person adds one; the inventory list only reads. Every route needs a ready
-session, and a setup session is refused. POST also requires exact same-origin
+the person adds one; the inventory list only reads. Every route needs a
+signed-in session; a session still at the setup or phone-code step is
+refused. POST also requires exact same-origin
 and the custom header, rejects duplicate or unknown JSON fields and oversized
 bodies, and runs the strict public parser again before the vault write. GET
-requires the custom header and refuses cross-site fetch metadata. Without a
-vault (any host but Linux) the routes say saving is off instead of saving.
+requires the custom header and refuses cross-site fetch metadata.
 Responses omit DER and private bytes, claim no verification, and carry the
-vault generation and the server-clock save time. No automatic backup, trust,
+list's change count and the server-clock save time. No automatic backup, trust,
 deployment, revocation or notification follows. The running service holds the
 instance key; a compromised process is outside this boundary.
 
 Guarded by `TestLinuxCertificatesNeedAReadySessionAndThePageHeader`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
-`TestLinuxAGateWithoutCustodySaysSoInsteadOfSaving`,
+`TestCertificateEndpointsNeedASignedInSession`,
 `TestCertificateRequestModesRejectMalformedAndAmbiguousJSON`,
 `TestCertificateRequestBoundsAndDownloadMode`,
 `TestInventoryOutputNeverSerializesCertificateBytes`,
@@ -759,8 +809,9 @@ and `scripts/test-certificates.mjs`.
 The development Compose service binds the daemon to Linux host loopback and
 mounts two private directories: the data directory at `/data`, and a separate
 key directory at `/key`, read-only, that holds the instance key file (C107).
-Offline maintenance has no network; it mounts `/key` read-write for `init` and
-`key-restore`, and the backup directory. No password, recovery code or key is
+Offline maintenance runs `init`, `setup-code` and `key-restore`. It has no
+network, and mounts `/key` read-write, for the two that write the key file,
+and the backup directory. No password, setup code, recovery code or key is
 configured through argv or environment. The maintenance service explicitly
 disables Docker logging with driver `none` and no options; TTY alone does not
 prevent retention of interactive secrets. The real-container drill verifies
@@ -774,7 +825,9 @@ base already has the vault, otherwise with the candidate), then reopens it in
 a new container with the candidate and refuses another key. It serves the
 volume, checks that the server mounts only `/data` and `/key`, proves that a
 second opener is refused while the server holds the vault and that a data
-directory others can read is refused, and restarts. A restore into a fresh
+directory others can read is refused, and restarts. A seed made by this
+release's drill also writes a setup code beside the volume, and the drill
+checks that the server's log never holds it. A restore into a fresh
 volume returns with online backup in Phase 3b. The drill does not establish
 offsite durability, automatic backup, external anti-rollback, Windows support,
 or production readiness.
@@ -867,7 +920,10 @@ One saved certificate, its notes and its key can be removed only by an
 authenticated ready same-origin POST with the displayed generation, a
 duplicated exact fingerprint, and a fixed confirmation phrase. The
 Certificates page asks first in a dialog that says servers are not changed,
-then sends the exact fingerprint twice with the fixed phrase. The certificate
+then sends the exact fingerprint twice with the fixed phrase. A certificate
+with a saved key is deleted only within ten minutes of a phone code; without
+one the server answers 428 and writes nothing, and the page asks for a code
+(C111). The certificate
 record and its key record go in one vault transaction; other certificates keep
 their records. Stale, absent, malformed, anonymous, cross-origin and headerless
 attempts do not write. This does not securely erase old bytes from the
@@ -877,6 +933,7 @@ deletion occurs.
 
 Guarded by `TestDeleteTakesTheKeyWithIt`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
+`TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
 `TestInventoryDeleteInputRequiresTypedFingerprintConfirmationAndGeneration`,
 and `scripts/test-certificates.mjs`.
 
@@ -1019,8 +1076,9 @@ Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
 `FuzzInspectPrivateKeyNoSecretEcho`,
 `TestEncryptedInputAndPlaintextTargets`,
 `TestEncryptedInputRefusesUnsafeProfilesAndNoPartialExport`,
-`TestPagesSeparateFileAndNetworkCapabilities`, and
-`TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`TestEveryPageIsServedUnderTheStrictContentSecurityPolicy`, and
+`TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork`, plus
 `scripts/test-browser-wasm.mjs`, `scripts/test-convert.mjs` and
 `scripts/test-workbench-private-worker.mjs`.
 
@@ -1052,8 +1110,9 @@ release still requires independent security audit.
 Guarded by `TestCreateInspectExtractAndRefuse`,
 `TestCreatePFXFromEncryptedKey`, `TestEncryptedPFXCreationRefusesUnsafeInputs`,
 `TestPFXRevealReauthenticatesAndMatches`,
-`TestPagesSeparateFileAndNetworkCapabilities`, and
-`TestInitialLoginIsSetupOnlyUntilPasswordChange`, plus
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`TestEveryPageIsServedUnderTheStrictContentSecurityPolicy`, and
+`TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork`, plus
 `scripts/test-browser-pfx.mjs`, `scripts/test-workbench-pfx-worker.mjs` and
 `scripts/test-convert.mjs`.
 
@@ -1290,13 +1349,13 @@ terms, malformed or foreign answers and lost authority without a retry
 ADR 0048 permits only adding a strict key to a saved certificate that has
 none, under the exact generation and fingerprint. A saved key is never
 replaced. The store repeats the check and keeps a mismatch only with an
-explicit acknowledgement sealed with the key; Save also requires the current
-sign-in password through the shared attempt and concurrency budget. A key
+explicit acknowledgement sealed with the key. Adding a key needs a signed-in
+session and no fresh code, since it hands nothing out (C111); Check and Save
+take the one slot for expensive checks. A key
 check writes nothing. The certificate, its bundle, the time it was added and
 its notes stay as they were; the key becomes a record of its own (C68).
 
-The Certificates page adds a key to a saved certificate only with the
-Rootwell password, which is emptied after each try. It checks the key first
+The Certificates page checks a key first
 and stops on a mismatch, and its Save never asks to keep one, so a key that
 belongs to another certificate is not saved; Save revalidates on the server.
 Errors are fixed messages, never server or file text. Key/bundle/notes/trust
@@ -1306,7 +1365,7 @@ file selection in Convert. No CA/network/production claim follows.
 Guarded by `TestAKeyAddedLaterIsCheckedFirstAndNeverReplaced`,
 `TestAMismatchedKeyNeedsTheAcknowledgementAndOnlyThen`,
 `TestKeyAttachmentRequestModesAreStrict`,
-`TestLinuxAKeyAddedLaterNeedsThePasswordAndIsNeverReplaced`, and
+`TestLinuxAKeyAddedLaterIsCheckedAndNeverReplaced`, and
 `scripts/test-certificates.mjs`.
 
 ## C66 — Bulk preview is local and Save is exact and atomic
@@ -1337,18 +1396,20 @@ Guarded by `TestComparisonTracksAllNamesKeyAndDatesWithoutTrust`,
 
 ## C74 — Access UI cannot claim a timed-out write or navigate on late results
 
-The access client uses one fifteen-second header/body deadline, an 8 KiB
-streamed fatal-UTF-8 login response, exact one-field setup/ready mode and
-confirmed status contracts. Malformed/duplicate/extra/error text never selects
-a destination or appears in diagnostics. One operation at a time; captured
-credentials are removed from fields, hidden/pagehide aborts work, and late
-success cannot restore navigation. Failure releases controls and reports
-uncertainty, never rollback, assumed unchanged password or unconfirmed logout.
-Existing server setup/revision/cookie/auth/crypto budgets remain unchanged;
-cancellation cannot undo an already-committed write or promise memory erasure.
+Since 24 November 2026 the sign-in, setup and Account pages share one client
+(`auth.js`). Each request is JSON to the same origin, with one fifteen-second
+deadline for the whole exchange and at most 16 KiB of answer read. The pages
+act on the status alone, and accept only the shapes the server sends on
+success: a phone key of 32 base32 letters with its QR rows, and exactly ten
+recovery codes in their printed form. They show fixed messages, never server
+text. Each form runs one operation at a time. Sign-in takes the password and
+the code out of their fields once read; setup empties its fields when the
+phone step starts, and Account empties its fields when the page is left. A
+timeout or a broken answer never counts as success, and cancelling cannot
+undo a write the server already made.
 
-Guarded by `scripts/test-rootwelld-auth.mjs`; existing server-side gates remain
-covered by C32–C34. See ADR 0055. VM assertions are not browser visual QA.
+Guarded by `scripts/test-rootwelld-auth.mjs`; the server side is C33 and
+C108–C111. See ADR 0055. VM assertions are not browser visual QA.
 
 ## C75 — Manual DNS instructions cannot recreate an uncertain order or claim verification
 
@@ -1555,12 +1616,12 @@ holding unknown fields, is refused. Public output contains key presence and
 status only. Note changes leave the key record alone; deletion removes both in
 one transaction.
 
-Private download requires the current sign-in password under the shared
-attempt budget, the exact displayed generation and fingerprint, and a final
-session check. Only an encrypted PKCS#8 key, alone or with the certificate in
-an unencrypted ZIP, is exposed here; there is no plaintext custody export or
-reveal. The output password must differ from the sign-in password and meet the
-export policy. The Certificates page checks each selection before Save and
+Private download requires a phone code from the last ten minutes (C111), the
+exact displayed generation and fingerprint, and a final check that the same
+signed-in session is still there. Only an encrypted PKCS#8 key, alone or with
+the certificate in an unencrypted ZIP, is exposed here; there is no plaintext
+custody export or reveal. The output password must meet the export policy.
+The Certificates page checks each selection before Save and
 forgets it on leaving the page. Untrusted parser, network and file error text
 is never rendered. Copies of the data directory, compromised hosts and runtime
 copies remain risks. This is single-operator development custody, not audited
@@ -1572,8 +1633,8 @@ key. The page checks first; Save always revalidates. A computed mismatch is
 kept only with an explicit acknowledgement sealed with the key, and is never
 labelled matched. Ambiguous selection requires an exact supplied fingerprint;
 issuer signatures are not trust. Matched-pair downloads refuse a mismatch; the
-encrypted key-only download has the same password, attempt-limit and
-separate-password gates. Included public bundle export does not establish
+encrypted key-only download has the same fresh-code and output-password
+gates. Included public bundle export does not establish
 trust. Inspect's Check a private key uses a one-shot offline worker with no
 save, export or network capability; a locked or unreadable key is never
 reported as a mismatch. Inspect's certificate picker still refuses

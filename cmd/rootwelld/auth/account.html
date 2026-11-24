@@ -11,9 +11,11 @@
   <link rel="stylesheet" href="/rootwell.css">
   <script src="/theme.js"></script>
   <script src="/session.js" defer></script>
+  <script src="/fresh.js" defer></script>
+  <script src="/qr.js" defer></script>
   <script src="/auth.js" defer></script>
 </head>
-<body>
+<body data-mode="account">
 <div class="shell">
 <aside class="rail" aria-label="Menu">
   <a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a>
@@ -28,23 +30,50 @@
   </div>
 </aside>
 <main class="page"><div class="page-inner">
-<div class="page-head"><div><h1>Account</h1><p>The password that opens this Rootwell.</p></div></div>
+<div class="page-head"><div><h1>Account</h1><p>Signed in as <strong id="account-name"></strong>. You sign in with your password and a code from your phone.</p></div></div>
 <div class="stack narrow-page">
+  <p class="status-line" id="status" role="status" aria-live="polite"></p>
   <section class="card" aria-labelledby="password-heading">
-    <div class="card-head"><h3 id="password-heading">Change your password</h3></div>
+    <div class="card-head"><h3 id="password-heading">Password</h3></div>
     <div class="card-body">
-      <form class="stack" id="auth-form" method="post" action="/api/password">
-        <div class="field"><label for="password">Current password</label><input class="input" id="password" name="password" type="password" autocomplete="current-password" required></div>
-        <div class="field"><label for="next">New password<span class="muted">At least 15 characters</span></label><input class="input" id="next" name="next" type="password" autocomplete="new-password" minlength="15" required></div>
-        <div class="field"><label for="confirm">New password again</label><input class="input" id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="15" required></div>
+      <form class="stack" id="password-form" method="post" action="/api/password">
+        <div class="field"><label for="password">Current password</label><input class="input" id="password" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label for="next">New password<span class="muted">At least 15 characters</span></label><input class="input" id="next" type="password" autocomplete="new-password" minlength="15" required></div>
+        <div class="field"><label for="confirm">New password again</label><input class="input" id="confirm" type="password" autocomplete="new-password" minlength="15" required></div>
         <div class="inline"><button class="btn" type="submit">Change password</button><span class="meta">Every browser signs out, this one too.</span></div>
-        <p class="error-text" id="status" role="alert" aria-live="polite"></p>
       </form>
     </div>
   </section>
-  <section class="card" aria-labelledby="recovery-heading">
-    <div class="card-head"><h3 id="recovery-heading">If you lose the password</h3></div>
-    <div class="card-body"><p class="soft">The recovery code you stored offline resets it on the server while Rootwell is stopped. The recovery guide in the documentation walks through it.</p></div>
+  <section class="card" aria-labelledby="phone-heading">
+    <div class="card-head"><h3 id="phone-heading">Phone</h3></div>
+    <div class="card-body stack">
+      <p class="soft">A new phone, or a new authenticator app: add Rootwell to it here. The old phone's codes stop working.</p>
+      <div><button class="btn btn-secondary" id="phone-start" type="button">Move to a new phone</button></div>
+      <div class="stack" id="phone-step" hidden>
+        <svg class="qr" id="phone-qr" role="img" aria-label="QR code with the key for your phone"></svg>
+        <p class="meta">Cannot scan? Type this key into the app: <span class="mono" id="phone-key"></span></p>
+        <form class="stack" id="phone-form" method="post" action="/api/phone/confirm">
+          <div class="field"><label for="phone-code">Code from the new phone</label><input class="input mono" id="phone-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
+          <div class="inline"><button class="btn" type="submit">Use this phone</button><span class="meta">Other browsers sign out.</span></div>
+        </form>
+      </div>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="codes-heading">
+    <div class="card-head"><h3 id="codes-heading">Recovery codes</h3></div>
+    <div class="card-body stack">
+      <p class="soft">Each one signs you in once without the phone. <span id="codes-left"></span></p>
+      <div><button class="btn btn-secondary" id="codes-new" type="button">Make new codes</button></div>
+      <div class="stack" id="codes-step" hidden>
+        <p class="soft">The old codes no longer work. Keep these apart from your phone; they are shown only now.</p>
+        <ol class="code-list" id="codes"></ol>
+        <div class="inline"><button class="btn btn-secondary" id="codes-copy" type="button">Copy</button><button class="btn btn-secondary" id="codes-download" type="button">Download</button></div>
+      </div>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="lost-heading">
+    <div class="card-head"><h3 id="lost-heading">If you lose the phone and the codes</h3></div>
+    <div class="card-body"><p class="soft">On the server, <code>rootwelld setup-code</code> with your name makes a setup code. On the setup page it sets a new password and phone for this account.</p></div>
   </section>
 </div>
 </div></main>

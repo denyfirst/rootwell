@@ -122,6 +122,38 @@ func TestSaveListsTheCertificateAndRefusesAStalePageOrADuplicate(t *testing.T) {
 	}
 }
 
+func TestWritesOutsideTheListLeaveAnOpenPageCurrent(t *testing.T) {
+	s, v := newStore(t)
+	a := issue(t, "a.example")
+	if _, _, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false); err != nil {
+		t.Fatal(err)
+	}
+	// A sign-in writes its account record to the same vault.
+	if err := v.Update(func(tx *vault.Tx) error {
+		return tx.Put("account", v.Index("account", "ada"), []byte(`{"name":"ada"}`))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, generation, err := s.List(); err != nil || generation != 2 {
+		t.Fatalf("another record moved the list: %d: %v", generation, err)
+	}
+	if _, next, err := s.SetOwner(2, a.fingerprint, "Platform team"); err != nil || next != 3 {
+		t.Fatalf("a page read before the other write was refused: %d: %v", next, err)
+	}
+	if _, generation, err := s.List(); err != nil || generation != 3 {
+		t.Fatalf("the list after its own change: %d: %v", generation, err)
+	}
+	// A damaged counter is refused, never read as a fresh list.
+	if err := v.Update(func(tx *vault.Tx) error {
+		return tx.Put(kindList, v.Index(kindList, "list"), []byte(`{"generation":0}`))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.List(); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("a damaged counter was read: %v", err)
+	}
+}
+
 func TestAKeyIsSavedApartAndOnlyALoanOpensIt(t *testing.T) {
 	s, v := newStore(t)
 	a := issue(t, "a.example")
@@ -142,7 +174,6 @@ func TestAKeyIsSavedApartAndOnlyALoanOpensIt(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	generation++
 	if records, _, err := s.List(); err != nil || len(records) != 1 || !records[0].HasPrivateKey {
 		t.Fatalf("the list opened the key record: %+v %v", records, err)
 	}
@@ -252,11 +283,25 @@ func TestDeleteTakesTheKeyWithIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g, err = s.Delete(g, a.fingerprint); err != nil {
+	// A saved key goes only with a fresh phone code; without one nothing changes.
+	if _, err := s.Delete(g, a.fingerprint, false); !errors.Is(err, ErrKeyNeedsCode) {
+		t.Fatalf("a key was deleted without a fresh code: %v", err)
+	}
+	if _, generation, _ := s.List(); generation != g {
+		t.Fatalf("a refused delete counted a generation: %d", generation)
+	}
+	if g, err = s.Delete(g, a.fingerprint, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Delete(g, a.fingerprint); !errors.Is(err, ErrNotFound) {
+	if _, err := s.Delete(g, a.fingerprint, true); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("a second delete: %v", err)
+	}
+	b := issue(t, "b.example")
+	if _, g, err = s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Delete(g, b.fingerprint, false); err != nil {
+		t.Fatalf("a certificate without a key needs no code: %v", err)
 	}
 	_ = v.View(func(t2 *vault.Tx) error {
 		certificates, _ := t2.IDs(kindCertificate)
@@ -315,7 +360,7 @@ func TestTheListStopsAtItsLimit(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	g++
+	// The fillers went in beside the store, so the list's own count is unchanged.
 	b := issue(t, "b.example")
 	if _, _, err := s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false); !errors.Is(err, ErrFull) {
 		t.Fatalf("one past the limit: %v", err)

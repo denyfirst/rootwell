@@ -82,7 +82,7 @@ const reviewedSourceIncludes = new Set([
   '!cmd/rootwelld/auth/schibsted-grotesk.woff2', '!internal/**/*.go',
   '!internal/account/password-blocklist.txt',
   ...['certificates.html', 'certificates.js', 'inspect.html', 'inspect.js', 'convert.html', 'convert.js',
-    'request.html', 'request.js', 'ui.js', 'rootwell.css', 'theme.js', 'session.js', 'favicon.svg',
+    'request.html', 'request.js', 'ui.js', 'rootwell.css', 'theme.js', 'session.js', 'fresh.js', 'favicon.svg',
     'wasm-loader.js', 'private-worker-client.js', 'private-key-worker.js', 'pfx-worker-client.js', 'pfx-worker.js',
     'csr-worker-client.js', 'csr-worker.js'].map((name) => `!web/workbench/${name}`),
 ]);

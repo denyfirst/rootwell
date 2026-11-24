@@ -75,7 +75,7 @@ func (g *gate) websiteCheckEndpoint(w http.ResponseWriter, r *http.Request, s se
 		http.Error(w, "sign in first", http.StatusUnauthorized)
 		return
 	}
-	if s.setup || !g.sameOrigin(r) {
+	if !g.sameOrigin(r) {
 		http.Error(w, "request refused", http.StatusForbidden)
 		return
 	}
@@ -85,11 +85,11 @@ func (g *gate) websiteCheckEndpoint(w http.ResponseWriter, r *http.Request, s se
 		return
 	}
 	permit := func() bool {
-		current, ok := g.currentSession(r)
+		ok := g.stillReady(r, s)
 		g.mu.Lock()
 		closed := g.closed
 		g.mu.Unlock()
-		return !closed && ok && !current.setup && current.revision == s.revision && r.Context().Err() == nil
+		return !closed && ok && r.Context().Err() == nil
 	}
 	if !permit() {
 		http.Error(w, "session no longer available", http.StatusUnauthorized)

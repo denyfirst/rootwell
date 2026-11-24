@@ -21,10 +21,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/certificatepair"
-	"github.com/denyfirst/rootwell/internal/certstore"
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
 	"github.com/denyfirst/rootwell/internal/keymatch"
-	"github.com/denyfirst/rootwell/internal/vault"
 )
 
 type httpResponse struct {
@@ -55,6 +52,17 @@ func listCertificates(t *testing.T, g *gate, cookie *http.Cookie) listed {
 	return out
 }
 
+// post sends a page request with a JSON body to the env's current gate.
+func post(t *testing.T, e *testEnv, cookie *http.Cookie, route string, input map[string]any) *httpResponse {
+	t.Helper()
+	b, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := apiCall(e.g, "POST", route, string(b), cookie, "http://"+localHost, true)
+	return &httpResponse{w.Code, w.Body.Bytes(), w.Header()}
+}
+
 // selfSigned makes a leaf certificate and its PKCS #8 key.
 func selfSigned(t *testing.T, name string) ([]byte, []byte) {
 	t.Helper()
@@ -76,13 +84,15 @@ func selfSigned(t *testing.T, name string) ([]byte, []byte) {
 }
 
 func TestLinuxCertificatesNeedAReadySessionAndThePageHeader(t *testing.T) {
-	g, path := testGate(t)
+	e := newTestEnv(t).withAccount(t)
+	g := e.g
 	if w := apiCall(g, "GET", "/api/inventory", "", nil, "", true); w.Code != http.StatusUnauthorized {
 		t.Fatal("anonymous list opened")
 	}
-	setup := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+initialTestPassword+`"}`, nil))
-	if w := apiCall(g, "GET", "/api/inventory", "", setup, "", true); w.Code != http.StatusForbidden {
-		t.Fatal("setup session opened the list")
+	// The password alone, without the phone code, is not signed in.
+	codeStage := e.passwordStep(t, testPassword)
+	if w := apiCall(g, "GET", "/api/inventory", "", codeStage, "", true); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a code-stage session opened the list: %d", w.Code)
 	}
 	for route, body := range map[string]string{
 		"/api/inventory/locations":        `{"fingerprint":"x","location":"server","expected_generation":1}`,
@@ -90,14 +100,11 @@ func TestLinuxCertificatesNeedAReadySessionAndThePageHeader(t *testing.T) {
 		"/api/inventory/locations/change": `{"fingerprint":"x","old_location":"server","action":"remove","expected_generation":1}`,
 		"/api/inventory/delete":           `{"fingerprint":"x","typed_fingerprint":"x","confirmation":"delete-public-record","expected_generation":1}`,
 	} {
-		if w := apiCall(g, "POST", route, body, setup, "http://"+localHost, true); w.Code != http.StatusForbidden {
-			t.Fatalf("setup session reached %s: %d", route, w.Code)
+		if w := apiCall(g, "POST", route, body, codeStage, "http://"+localHost, true); w.Code != http.StatusUnauthorized {
+			t.Fatalf("a code-stage session reached %s: %d", route, w.Code)
 		}
 	}
-	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
-		t.Fatal(err)
-	}
-	ready := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
+	ready := e.signIn(t)
 	if w := apiCall(g, "GET", "/api/inventory", "", ready, "", false); w.Code != http.StatusForbidden {
 		t.Fatal("a list without the page header was answered")
 	}
@@ -114,7 +121,7 @@ func TestLinuxCertificatesNeedAReadySessionAndThePageHeader(t *testing.T) {
 }
 
 func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
-	g, cookie, path := readyGate(t)
+	_, cookie, e := readyGate(t)
 	cert, private := selfSigned(t, "library.rootwell.invalid")
 	defer clear(private)
 	record, canonical, err := certificatepair.Prepare(cert, private, nil, "", "Nginx")
@@ -129,18 +136,15 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 		}
 		return string(b)
 	}
-	invoke := func(route string, input map[string]any) *httpResponse {
-		w := apiCall(g, "POST", route, encode(input), cookie, "http://"+localHost, true)
-		return &httpResponse{w.Code, w.Body.Bytes(), w.Header()}
-	}
-	db := filepath.Join(filepath.Dir(path), "rootwell.db")
+	invoke := func(route string, input map[string]any) *httpResponse { return post(t, e, cookie, route, input) }
+	db := filepath.Join(e.dir, "rootwell.db")
 	request := map[string]any{"certificate": cert, "private_key": private, "expected_generation": 1, "location": "Nginx"}
 
 	// Check shows the pair and writes nothing.
 	if checked := invoke("/api/certificates/check", request); checked.code != 200 || !bytes.Contains(checked.body, []byte(`"has_private_key":true`)) {
 		t.Fatalf("check: %d %s", checked.code, checked.body)
 	}
-	if out := listCertificates(t, g, cookie); out.Generation != 1 || len(out.Records) != 0 {
+	if out := listCertificates(t, e.g, cookie); out.Generation != 1 || len(out.Records) != 0 {
 		t.Fatal("check wrote")
 	}
 	request["fingerprint"] = record.Fingerprint
@@ -148,6 +152,7 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 		func(m map[string]any) { m["private_key"] = []byte("secret-sentinel-malformed") },
 		func(m map[string]any) { m["expected_generation"] = 2 },
 		func(m map[string]any) { m["fingerprint"] = "00:00" },
+		func(m map[string]any) { m["password"] = testPassword },
 	} {
 		bad := map[string]any{}
 		for key, value := range request {
@@ -158,13 +163,13 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 			t.Fatal("a bad save was accepted or reflected")
 		}
 	}
-	if out := listCertificates(t, g, cookie); out.Generation != 1 {
+	if out := listCertificates(t, e.g, cookie); out.Generation != 1 {
 		t.Fatal("a refused save wrote")
 	}
-	if w := apiCall(g, "POST", "/api/certificates/save", encode(request), cookie, "http://evil.invalid", true); w.Code != 403 {
+	if w := apiCall(e.g, "POST", "/api/certificates/save", encode(request), cookie, "http://evil.invalid", true); w.Code != 403 {
 		t.Fatal("cross-origin save accepted")
 	}
-	if w := apiCall(g, "POST", "/api/certificates/save", encode(request), cookie, "http://"+localHost, false); w.Code != 403 {
+	if w := apiCall(e.g, "POST", "/api/certificates/save", encode(request), cookie, "http://"+localHost, false); w.Code != 403 {
 		t.Fatal("headerless save accepted")
 	}
 	saved := invoke("/api/certificates/save", request)
@@ -175,7 +180,7 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 		again.header.Get("X-Rootwell-Refusal") != "duplicate-certificate" {
 		t.Fatalf("a second copy: %d", again.code)
 	}
-	listing := apiCall(g, "GET", "/api/inventory", "", cookie, "", true)
+	listing := apiCall(e.g, "GET", "/api/inventory", "", cookie, "", true)
 	if bytes.Contains(listing.Body.Bytes(), []byte(base64.StdEncoding.EncodeToString(private))) {
 		t.Fatal("the list carried the key")
 	}
@@ -201,28 +206,98 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 		t.Fatalf("an owner from an older page: %d", w.code)
 	}
 
-	// Downloads: the public file freely; the key only after the password.
+	// Downloads: the public file freely; the key right after sign-in, or after
+	// a fresh phone code.
 	download := map[string]any{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false}
 	if public := invoke("/api/certificates/download", download); public.code != 200 || !bytes.Contains(public.body, []byte("BEGIN CERTIFICATE")) || bytes.Contains(public.body, []byte("PRIVATE KEY")) {
 		t.Fatalf("public download: %d", public.code)
 	}
 	download["pair"] = true
-	download["password"] = "wrong-password"
+	download["password"] = testPassword
 	download["output_password"] = []byte("new-download-password")
-	if failed := invoke("/api/certificates/download", download); failed.code != 401 || bytes.Contains(failed.body, []byte("PRIVATE KEY")) {
-		t.Fatal("the key left without the password")
+	if failed := invoke("/api/certificates/download", download); failed.code != 400 || bytes.Contains(failed.body, []byte("PRIVATE KEY")) {
+		t.Fatalf("a download with the sign-in password field: %d", failed.code)
 	}
-	download["password"] = nextTestPassword
-	download["output_password"] = []byte(nextTestPassword)
-	if failed := invoke("/api/certificates/download", download); failed.code != 400 {
-		t.Fatal("the sign-in password was reused for the download")
+	delete(download, "password")
+	for _, refused := range []string{"short-password", "a password with spaces in it"} {
+		download["output_password"] = []byte(refused)
+		if failed := invoke("/api/certificates/download", download); failed.code != 400 || bytes.Contains(failed.body, []byte("PRIVATE KEY")) {
+			t.Fatalf("an output password the export refuses (%q): %d", refused, failed.code)
+		}
 	}
 	download["output_password"] = []byte("new-download-password")
 	pair := invoke("/api/certificates/download", download)
 	if pair.code != 200 || pair.header.Get("Content-Type") != "application/zip" || pair.header.Get("Cache-Control") != "no-store" || bytes.Contains(pair.body, private) {
-		t.Fatalf("pair download: %d", pair.code)
+		t.Fatalf("pair download right after sign-in: %d %s", pair.code, pair.body)
 	}
-	archive, err := zip.NewReader(bytes.NewReader(pair.body), int64(len(pair.body)))
+	openPair(t, cert, pair.body)
+
+	// Ten minutes on, the key needs a fresh phone code; the public file never does.
+	e.clock.add(freshLife)
+	for _, secret := range []map[string]any{
+		{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": true, "output_password": []byte("new-download-password")},
+		{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false, "key_only": true, "output_password": []byte("new-download-password")},
+	} {
+		if late := invoke("/api/certificates/download", secret); late.code != http.StatusPreconditionRequired || bytes.Contains(late.body, []byte("PRIVATE KEY")) {
+			t.Fatalf("a key download without a fresh code: %d", late.code)
+		}
+	}
+	for _, public := range []map[string]any{
+		{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false},
+		{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false, "bundle": true},
+	} {
+		if w := invoke("/api/certificates/download", public); w.code != 200 || !bytes.Contains(w.body, []byte("BEGIN CERTIFICATE")) {
+			t.Fatalf("a public download asked for a fresh code: %d", w.code)
+		}
+	}
+	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "http://"+localHost, true); w.Code != http.StatusNoContent {
+		t.Fatalf("fresh code: %d %s", w.Code, w.Body)
+	}
+	if keyOnly := invoke("/api/certificates/download", map[string]any{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false, "key_only": true, "output_password": []byte("new-download-password")}); keyOnly.code != 200 ||
+		!bytes.Contains(keyOnly.body, []byte("ENCRYPTED PRIVATE KEY")) {
+		t.Fatalf("a key download after a fresh code: %d %s", keyOnly.code, keyOnly.body)
+	}
+	pair = invoke("/api/certificates/download", download)
+	if pair.code != 200 || pair.header.Get("Content-Type") != "application/zip" {
+		t.Fatalf("pair download after a fresh code: %d %s", pair.code, pair.body)
+	}
+	openPair(t, cert, pair.body)
+
+	// A restart: the same vault, opened again with the same key, holds it all.
+	e.reopen(t)
+	cookie = e.signIn(t)
+	after := listCertificates(t, e.g, cookie)
+	if after.Generation != 5 || len(after.Records) != 1 || after.Records[0].Owner != "Platform" ||
+		strings.Join(after.Records[0].Locations, ",") != "Web,Mail" || !after.Records[0].HasPrivateKey || after.Records[0].KeyStatus != "matched" {
+		t.Fatalf("after a restart: %+v", after)
+	}
+
+	// Delete needs the typed fingerprint and takes the key with it; with a key
+	// saved, it needs a fresh phone code too.
+	remove := map[string]any{"fingerprint": record.Fingerprint, "typed_fingerprint": record.Fingerprint, "confirmation": "delete-public-record", "expected_generation": 5}
+	e.clock.add(freshLife)
+	if w := invoke("/api/inventory/delete", remove); w.code != http.StatusPreconditionRequired {
+		t.Fatalf("delete with a key, without a fresh code: %d %s", w.code, w.body)
+	}
+	if out := listCertificates(t, e.g, cookie); out.Generation != 5 || len(out.Records) != 1 || !out.Records[0].HasPrivateKey {
+		t.Fatalf("a refused delete wrote: %+v", out)
+	}
+	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "http://"+localHost, true); w.Code != http.StatusNoContent {
+		t.Fatalf("fresh code: %d", w.Code)
+	}
+	if w := invoke("/api/inventory/delete", remove); w.code != 200 {
+		t.Fatalf("delete: %d %s", w.code, w.body)
+	}
+	if out := listCertificates(t, e.g, cookie); out.Generation != 6 || len(out.Records) != 0 {
+		t.Fatalf("after delete: %+v", out)
+	}
+}
+
+// openPair checks a pair download: its key opens with the download password
+// alone and is the certificate's own key.
+func openPair(t *testing.T, cert, archiveBytes []byte) {
+	t.Helper()
+	archive, err := zip.NewReader(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,30 +321,10 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 	if result, err := keymatch.Match(cert, exported); err != nil || !result.Match {
 		t.Fatal("the download changed the key")
 	}
-
-	// A restart: the same vault, opened again with the same key, holds it all.
-	g2, err := reopenGate(t, path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cookie2 := sessionCookie(t, call(g2, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
-	after := listCertificates(t, g2, cookie2)
-	if after.Generation != 5 || len(after.Records) != 1 || after.Records[0].Owner != "Platform" ||
-		strings.Join(after.Records[0].Locations, ",") != "Web,Mail" || !after.Records[0].HasPrivateKey || after.Records[0].KeyStatus != "matched" {
-		t.Fatalf("after a restart: %+v", after)
-	}
-
-	// Delete needs the typed fingerprint and takes the key with it.
-	if w := apiCall(g2, "POST", "/api/inventory/delete", encode(map[string]any{"fingerprint": record.Fingerprint, "typed_fingerprint": record.Fingerprint, "confirmation": "delete-public-record", "expected_generation": 5}), cookie2, "http://"+localHost, true); w.Code != 200 {
-		t.Fatalf("delete: %d %s", w.Code, w.Body.String())
-	}
-	if out := listCertificates(t, g2, cookie2); out.Generation != 6 || len(out.Records) != 0 {
-		t.Fatalf("after delete: %+v", out)
-	}
 }
 
-func TestLinuxAKeyAddedLaterNeedsThePasswordAndIsNeverReplaced(t *testing.T) {
-	g, cookie, _ := readyGate(t)
+func TestLinuxAKeyAddedLaterIsCheckedAndNeverReplaced(t *testing.T) {
+	_, cookie, e := readyGate(t)
 	cert, private := selfSigned(t, "later.rootwell.invalid")
 	_, other := selfSigned(t, "other.rootwell.invalid")
 	record, canonical, err := certificatepair.Prepare(cert, nil, nil, "", "")
@@ -277,64 +332,57 @@ func TestLinuxAKeyAddedLaterNeedsThePasswordAndIsNeverReplaced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	post := func(route string, input map[string]any) *httpResponse {
-		b, _ := json.Marshal(input)
-		w := apiCall(g, "POST", route, string(b), cookie, "http://"+localHost, true)
-		return &httpResponse{w.Code, w.Body.Bytes(), w.Header()}
-	}
-	if w := post("/api/certificates/save", map[string]any{"certificate": cert, "expected_generation": 1, "fingerprint": record.Fingerprint}); w.code != 201 {
+	if w := post(t, e, cookie, "/api/certificates/save", map[string]any{"certificate": cert, "expected_generation": 1, "fingerprint": record.Fingerprint}); w.code != 201 {
 		t.Fatalf("save: %d %s", w.code, w.body)
 	}
-	if w := post("/api/certificates/key/check", map[string]any{"fingerprint": record.Fingerprint, "private_key": private, "expected_generation": 2}); w.code != 200 || !bytes.Contains(w.body, []byte(`"key_status":"matched"`)) {
+	if w := post(t, e, cookie, "/api/certificates/key/check", map[string]any{"fingerprint": record.Fingerprint, "private_key": private, "expected_generation": 2}); w.code != 200 || !bytes.Contains(w.body, []byte(`"key_status":"matched"`)) {
 		t.Fatalf("key check: %d %s", w.code, w.body)
 	}
-	if out := listCertificates(t, g, cookie); out.Generation != 2 || out.Records[0].HasPrivateKey {
+	if out := listCertificates(t, e.g, cookie); out.Generation != 2 || out.Records[0].HasPrivateKey {
 		t.Fatal("the key check wrote")
 	}
-	if w := post("/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": private, "expected_generation": 2, "password": "wrong-password"}); w.code != 401 {
-		t.Fatalf("a key saved without the password: %d", w.code)
+	// The sign-in password is no part of attaching a key.
+	if w := post(t, e, cookie, "/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": private, "expected_generation": 2, "password": testPassword}); w.code != 400 {
+		t.Fatalf("a key save with a password field: %d", w.code)
 	}
-	if w := post("/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": private, "expected_generation": 2, "password": nextTestPassword}); w.code != 200 {
+	if w := post(t, e, cookie, "/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": other, "expected_generation": 2}); w.code < 400 {
+		t.Fatalf("a key that does not match was saved without the acknowledgement: %d", w.code)
+	}
+	if out := listCertificates(t, e.g, cookie); out.Generation != 2 || out.Records[0].HasPrivateKey {
+		t.Fatal("a refused key save wrote")
+	}
+	if w := post(t, e, cookie, "/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": private, "expected_generation": 2}); w.code != 200 {
 		t.Fatalf("key save: %d %s", w.code, w.body)
 	}
-	if w := post("/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": other, "expected_generation": 3, "password": nextTestPassword, "allow_mismatch": true}); w.code != 409 ||
+	if out := listCertificates(t, e.g, cookie); out.Generation != 3 || !out.Records[0].HasPrivateKey || out.Records[0].KeyStatus != "matched" {
+		t.Fatalf("after the key save: %+v", out)
+	}
+	if w := post(t, e, cookie, "/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": other, "expected_generation": 3, "allow_mismatch": true}); w.code != 409 ||
 		w.header.Get("X-Rootwell-Refusal") != "key-already-attached" {
 		t.Fatalf("a second key: %d", w.code)
 	}
 }
 
-func TestLinuxAGateWithoutCustodySaysSoInsteadOfSaving(t *testing.T) {
-	g, path := testGate(t)
-	g.certificates = nil
-	if err := instanceaccess.ChangeInitialPassword(path, initialTestPassword, nextTestPassword); err != nil {
+// Only a saved key makes a delete ask for a fresh phone code.
+func TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode(t *testing.T) {
+	_, cookie, e := readyGate(t)
+	cert, _ := selfSigned(t, "public.rootwell.invalid")
+	record, canonical, err := certificatepair.Prepare(cert, nil, nil, "", "")
+	clear(canonical)
+	if err != nil {
 		t.Fatal(err)
 	}
-	cookie := sessionCookie(t, call(g, "POST", "/api/session", `{"password":"`+nextTestPassword+`"}`, nil))
-	if w := apiCall(g, "GET", "/api/inventory", "", cookie, "", true); w.Code != http.StatusNotImplemented {
-		t.Fatalf("list without a vault: %d", w.Code)
+	if w := post(t, e, cookie, "/api/certificates/save", map[string]any{"certificate": cert, "expected_generation": 1, "fingerprint": record.Fingerprint}); w.code != 201 {
+		t.Fatalf("save: %d %s", w.code, w.body)
 	}
-	if w := apiCall(g, "POST", "/api/certificates/save", `{"expected_generation":1}`, cookie, "http://"+localHost, true); w.Code != http.StatusNotImplemented {
-		t.Fatalf("save without a vault: %d", w.Code)
+	e.clock.add(freshLife)
+	if got := status(t, e.g, cookie); got == nil || got["fresh"] != false {
+		t.Fatalf("the session should be signed in and not fresh: %v", got)
 	}
-}
-
-// reopenGate opens the test gate's vault again in a new gate, as a restart of
-// rootwelld does. The first gate's vault is closed first: bbolt allows one
-// writer process.
-func reopenGate(t *testing.T, path string) (*gate, error) {
-	t.Helper()
-	key := testKeys[path]
-	if closer, ok := testVaults[path]; ok {
-		_ = closer.Close()
+	if w := post(t, e, cookie, "/api/inventory/delete", map[string]any{"fingerprint": record.Fingerprint, "typed_fingerprint": record.Fingerprint, "confirmation": "delete-public-record", "expected_generation": 2}); w.code != 200 {
+		t.Fatalf("delete without a key: %d %s", w.code, w.body)
 	}
-	v, err := vault.Open(filepath.Dir(path), key)
-	if err != nil {
-		return nil, err
+	if out := listCertificates(t, e.g, cookie); out.Generation != 3 || len(out.Records) != 0 {
+		t.Fatalf("after delete: %+v", out)
 	}
-	t.Cleanup(func() { _ = v.Close() })
-	g, err := newGate(path, testWorkbenchAssets(t), localHost, certstore.New(v))
-	if err == nil {
-		t.Cleanup(func() { _ = g.Close() })
-	}
-	return g, err
 }

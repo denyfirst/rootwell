@@ -8,5 +8,5 @@ import (
 )
 
 func runOfflineCommand(_ []string, _ secretReader, _ io.Writer) error {
-	return errors.New("offline recovery commands require the reviewed Linux storage writer")
+	return errors.New("rootwelld keeps keys only on Linux; run it there, or in its container")
 }

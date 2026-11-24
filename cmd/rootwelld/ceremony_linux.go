@@ -4,125 +4,23 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"path/filepath"
+	"time"
 
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/accountstore"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
 
-var errOfflineUsage = errors.New("invalid offline recovery command or arguments; see rootwelld usage")
+var errOfflineUsage = errors.New("invalid offline command or arguments; see rootwelld usage")
 
 func runOfflineCommand(args []string, read secretReader, out io.Writer) error {
 	switch args[0] {
 	case "key-restore":
 		return restoreKeyFile(args, read, out)
-	case "recovery-enroll", "recovery-rotate", "recovery-reset":
-		if len(args) != 2 {
-			return errOfflineUsage
-		}
-		path := filepath.Join(args[1], "access.json")
-		if args[0] == "recovery-reset" {
-			code, err := read("Recovery code: ")
-			if err != nil {
-				return err
-			}
-			next, err := read("New login password: ")
-			if err != nil {
-				return err
-			}
-			confirm, err := read("Repeat new login password: ")
-			if err != nil {
-				return err
-			}
-			if next != confirm {
-				return errors.New("new passwords do not match")
-			}
-			newCode, err := instanceaccess.RecoverPassword(path, code, next)
-			if err != nil {
-				return err
-			}
-			return showRecoveryCode(out, newCode)
-		}
-		password, err := read("Current login password: ")
-		if err != nil {
-			return err
-		}
-		var code string
-		if args[0] == "recovery-enroll" {
-			code, err = instanceaccess.EnrollRecovery(path, password)
-		} else {
-			code, err = instanceaccess.RotateRecovery(path, password)
-		}
-		if err != nil {
-			return err
-		}
-		return showRecoveryCode(out, code)
-	case "access-snapshot":
-		if len(args) != 3 {
-			return errOfflineUsage
-		}
-		password, err := read("Current login password: ")
-		if err != nil {
-			return err
-		}
-		code, err := read("Recovery code: ")
-		if err != nil {
-			return err
-		}
-		if err := instanceaccess.ExportAccessSnapshot(filepath.Join(args[1], "access.json"), args[2], password, code); err != nil {
-			return err
-		}
-		_, err = io.WriteString(out, "Access-only snapshot written and verified. It does not contain certificate inventory or vault data.\n")
-		return err
-	case "access-verify", "access-restore":
-		want := 3
-		if args[0] == "access-restore" {
-			want = 4
-		}
-		if len(args) != want {
-			return errOfflineUsage
-		}
-		method, err := parseUnlockMethod(args[len(args)-1])
-		if err != nil {
-			return err
-		}
-		credential, err := read("Snapshot password or recovery code: ")
-		if err != nil {
-			return err
-		}
-		if args[0] == "access-verify" {
-			id, err := instanceaccess.VerifyAccessSnapshot(args[1], credential, method)
-			if err != nil {
-				return err
-			}
-			_, err = fmt.Fprintf(out, "Access-only snapshot authenticated. Installation ID: %x\n", id)
-			return err
-		}
-		path := filepath.Join(args[2], "access.json")
-		if err := instanceaccess.RestoreAccessSnapshot(args[1], path, credential, method); err != nil {
-			return err
-		}
-		message := "Access-only snapshot restored into a fresh private directory.\n"
-		if method == instanceaccess.SnapshotRecoveryCode {
-			message += "If the old password is lost, run recovery-reset on the restored directory before starting rootwelld.\n"
-		}
-		_, err = io.WriteString(out, message)
-		return err
+	case "setup-code":
+		return printSetupCode(args, out)
 	default:
 		return errOfflineUsage
-	}
-}
-
-func parseUnlockMethod(value string) (instanceaccess.SnapshotUnlock, error) {
-	switch value {
-	case "password":
-		return instanceaccess.SnapshotPassword, nil
-	case "code":
-		return instanceaccess.SnapshotRecoveryCode, nil
-	default:
-		return 0, errOfflineUsage
 	}
 }
 
@@ -159,4 +57,45 @@ func restoreKeyFile(args []string, read secretReader, out io.Writer) error {
 	}
 	_, err = io.WriteString(out, "Instance key file restored. Start rootwelld with it.\n")
 	return err
+}
+
+// printSetupCode makes a new setup code, with the service stopped. Without a
+// name it makes the first account. With one, it replaces that account's
+// password and phone: the way back after losing both the phone and the
+// recovery codes, or the password.
+func printSetupCode(args []string, out io.Writer) error {
+	if len(args) != 3 && len(args) != 4 {
+		return errOfflineUsage
+	}
+	dir, keyFile := args[1], args[2]
+	if err := keyOutsideData(dir, keyFile); err != nil {
+		return err
+	}
+	name := ""
+	if len(args) == 4 {
+		var ok bool
+		if name, ok = accountstore.Name(args[3]); !ok {
+			return errors.New("that is not an account name")
+		}
+	}
+	key, err := vault.ReadKeyFile(keyFile)
+	if err != nil {
+		return errors.New("the instance key file could not be read; it must be a private 0600 file of this user")
+	}
+	v, err := vault.Open(dir, key)
+	clear(key)
+	if err != nil {
+		return errors.New("the vault did not open with this key, or rootwelld is still running; stop it first")
+	}
+	defer v.Close()
+	code, until, err := accountstore.New(v, time.Now).NewSetupCode(name)
+	switch {
+	case errors.Is(err, accountstore.ErrRefused) && name == "":
+		return errors.New("an account exists already; to replace how it signs in, add its name: rootwelld setup-code <data-dir> <key-file> <name>")
+	case errors.Is(err, accountstore.ErrRefused):
+		return errors.New("there is no account with that name")
+	case err != nil:
+		return errors.New("the setup code could not be saved")
+	}
+	return showSetupCode(out, code, until, name)
 }

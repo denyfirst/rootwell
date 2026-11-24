@@ -25,21 +25,26 @@
     401: "Your session has ended. Sign in again.",
     409: "The list changed in the meantime. It is up to date now; try again.",
     422: "This key is protected. Enter its password.",
-    429: "Too many password attempts. Wait a minute, then try again.",
-    501: "Saved certificates need the Rootwell service on Linux.",
+    429: "Too many wrong tries. Wait a little, then try again.",
     503: "Rootwell is busy. Try again in a moment.",
   };
 
-  async function call(path, body, expect) {
+  // A key download, or deleting a certificate with a key, needs a code from the
+  // phone in the last ten minutes. The server answers 428 without one: the page
+  // asks for it once, then sends the same request again.
+  async function call(path, body, expect, asked) {
     const response = await fetch(path, {
       method: body ? "POST" : "GET", credentials: "same-origin", cache: "no-store", redirect: "error",
       headers: body ? { "Content-Type": "application/json", "X-Rootwell-Request": "1" } : { "X-Rootwell-Request": "1" },
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (response.status === 428 && !asked) {
+      if (await globalThis.rootwellFresh()) return call(path, body, expect, true);
+      throw new Plain("Nothing changed. That needs a code from your phone.");
+    }
     if (!response.ok) {
       if (response.status === 409 && response.headers.get("X-Rootwell-Refusal") === "duplicate-certificate") throw new Plain("This certificate is already saved.");
       if (response.status === 409) void load();
-      if (response.status === 401 && /password not accepted/i.test(await response.text().catch(() => ""))) throw new Plain("That Rootwell password is not right.");
       throw new Plain(messages[response.status] || expect || "Rootwell could not do that. Try again.");
     }
     return response;
@@ -349,7 +354,6 @@
 
   const downloadChoices = $("download-choices");
   const downloadSecret = $("download-secret");
-  const downloadPassword = $("download-password");
   const keyPassword = $("download-key-password");
   const generate = $("download-generate");
   const copy = $("download-copy");
@@ -359,7 +363,6 @@
   let downloadOptions = [];
 
   function resetDownload() {
-    downloadPassword.value = "";
     keyPassword.value = "";
     keyPassword.type = "password";
     note.hidden = true;
@@ -413,21 +416,17 @@
     const choice = downloadChoice();
     const body = { fingerprint: open.fingerprint, expected_generation: generation, pair: false, ...choice.body };
     if (choice.secret) {
-      if (!downloadPassword.value) return say(sheetStatus, "bad", "Enter your Rootwell password.");
       if (!ui.isStrongPassword(keyPassword.value)) return say(sheetStatus, "bad", "Use 20 to 128 letters, digits or symbols for the key file, or press Generate.");
-      if (keyPassword.value === downloadPassword.value) return say(sheetStatus, "bad", "Use a key password different from your Rootwell password.");
-      body.password = downloadPassword.value;
       const bytes = encoder.encode(keyPassword.value);
       body.output_password = base64(bytes);
       bytes.fill(0);
     }
-    downloadPassword.value = "";
     downloadGo.disabled = true;
     const name = choice.file(ui.friendlyName(nameOf(open), "certificate"));
     say(sheetStatus, "plain", "Preparing " + name + "…");
     let bytes = null;
     try {
-      const response = await call("/api/certificates/download", body, choice.secret ? "Check your Rootwell password and try again." : "The download did not start. Try again.");
+      const response = await call("/api/certificates/download", body, "The download did not start. Try again.");
       bytes = new Uint8Array(await response.arrayBuffer());
       if (!bytes.byteLength || bytes.byteLength > 1200 * 1024) throw new Error("size");
       ui.download(bytes, name, choice.id === "pair" ? "application/zip" : "application/x-pem-file");
@@ -471,13 +470,11 @@
   const keyFile = $("key-file");
   const keyFilePassword = $("key-password");
   const keyFilePasswordField = $("key-password-field");
-  const keyAuth = $("key-auth");
   const keySave = $("key-save");
 
   function resetKeyPanel() {
     keyFile.value = "";
     keyFilePassword.value = "";
-    keyAuth.value = "";
     keyFilePasswordField.hidden = true;
   }
 
@@ -485,11 +482,8 @@
     if (!open) return;
     const file = keyFile.files && keyFile.files[0];
     if (!file) return say(sheetStatus, "bad", "Choose the key file.");
-    if (!keyAuth.value) return say(sheetStatus, "bad", "Enter your Rootwell password.");
     if (!file.size || file.size > 64 * 1024) return say(sheetStatus, "bad", "This is not a key file Rootwell can read.");
     const target = open;
-    // Taken now: closing the sheet while the key is checked empties the field.
-    const auth = keyAuth.value;
     let key = null, password = null;
     keySave.disabled = true;
     say(sheetStatus, "plain", "Checking the key…");
@@ -503,14 +497,12 @@
       if (record.key_status !== "matched") throw new Plain("This key does not belong to the certificate.");
       // The person closed or switched the sheet while the key was checked: save nothing.
       if (open !== target) return;
-      await call("/api/certificates/key/save", { ...body, password: auth, allow_mismatch: false }, "Check your Rootwell password and try again.");
-      keyAuth.value = "";
+      await call("/api/certificates/key/save", { ...body, allow_mismatch: false }, "The key was not saved. Try again.");
       keyPanel.hidden = true;
       resetKeyPanel();
       await load();
       say(sheetStatus, "good", "The key is saved with the certificate.");
     } catch (failure) {
-      keyAuth.value = "";
       if (failure instanceof Plain && failure.message === messages[422]) keyFilePasswordField.hidden = false;
       say(sheetStatus, "bad", failure instanceof Plain ? failure.message : "The key was not saved. Try again.");
     } finally {

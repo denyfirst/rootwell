@@ -7,8 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/accountstore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 	"github.com/denyfirst/rootwell/internal/vault"
 )
@@ -17,9 +18,8 @@ import (
 // the image, one phase per run, against bind-mounted /data and /key. It never
 // runs by itself: without the phase variable it skips.
 const (
-	drillData     = "/data"
-	drillKey      = "/key/instance.key"
-	drillPassword = "test-only disposable container volume password"
+	drillData = "/data"
+	drillKey  = "/key/instance.key"
 )
 
 func TestContainerVolumeDrill(t *testing.T) {
@@ -62,7 +62,8 @@ func drillReadKey(t *testing.T) []byte {
 }
 
 // drillSeed does what rootwelld init does, without a terminal, and saves one
-// certificate with its key.
+// certificate with its key. The setup code goes to /recovery, so the script
+// can check that the server never logs it.
 func drillSeed(t *testing.T) {
 	entries, err := os.ReadDir(drillData)
 	if err != nil || len(entries) != 0 {
@@ -80,8 +81,12 @@ func drillSeed(t *testing.T) {
 		t.Fatalf("vault: %v", err)
 	}
 	defer v.Close()
-	if err := instanceaccess.Create(filepath.Join(drillData, "access.json"), drillPassword); err != nil {
-		t.Fatalf("access: %v", err)
+	setup, _, err := accountstore.New(v, time.Now).NewSetupCode("")
+	if err != nil {
+		t.Fatalf("setup code: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(drillData, "..", "recovery", "setup-code"), []byte(setup), 0o600); err != nil {
+		t.Fatalf("the setup code for the log check: %v", err)
 	}
 	a := issue(t, "volume.example")
 	if _, _, err := New(v).Save(1, a.certificate, a.key, nil, "Volume drill", "drill-host", a.fingerprint, false); err != nil {

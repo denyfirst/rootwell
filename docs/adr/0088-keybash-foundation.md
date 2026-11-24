@@ -21,6 +21,31 @@ rebuilds a lost key file, with the service stopped, once the code opens the
 vault in that data directory. The access-file commands stay until part 3; they
 concern only the sign-in password.
 
+**Note, 24 November 2026 (Phase 3a, part 3).** Accounts, phone codes,
+sessions, limits and fresh codes landed as decided below, and
+`internal/instanceaccess`, the access file and its offline commands were
+removed. HTTPS is split into the next pull request; until it lands the
+service stays plain HTTP on loopback. Where this part fills in or departs
+from the text below:
+
+- **Setup codes:** the one-time bootstrap code `init` prints works for
+  24 hours. `rootwelld setup-code <data-dir> <key-file>` makes a new one, with
+  the service stopped, and a new code replaces the last. With an account's
+  name it makes a code that replaces that account's password, phone and
+  recovery codes: the way back after losing the password, or the phone
+  together with the recovery codes.
+- **Accounts:** each account is one sealed vault record. One administrator
+  account is the limit in this release; a setup code for a second is refused.
+- **Sessions** stay in memory, so a restart signs everyone out. A password
+  change ends every session; a new phone or new recovery codes end every other
+  session and keep the browser that made the change, under a new token.
+- **Fresh code:** of the list below, only downloading a key and deleting a
+  certificate with a key exist yet. Changing the password, the phone or the
+  recovery codes needs one too. Showing a key on screen does not exist.
+- **Platform:** `rootwelld` runs only on Linux; the Windows and macOS preview
+  without a vault is gone. The `rootwell` command and the browser tools are
+  unchanged.
+
 ## Context
 
 **Today's design** comes from three choices, each careful on its own:
