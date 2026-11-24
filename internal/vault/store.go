@@ -474,6 +474,11 @@ func (s *Store) adoptSealedKeys(m storeMeta) error {
 // code keys are sealed under it, so records keep their IDs and one-time codes
 // their digests. After it commits, the old key opens nothing in this file; a
 // copy made before still opens with the old key only (audit RW-04).
+//
+// Every record gets a new data key, not only a new wrapping. bbolt keeps the
+// pages it replaced until they are reused, so call Compact once the vault is
+// closed: until then, freed pages of the file still hold records under the
+// old key.
 func (s *Store) Rotate(newKey []byte) error {
 	if len(newKey) != KeySize {
 		return ErrRefused
@@ -519,13 +524,9 @@ func (s *Store) Rotate(newKey []byte) error {
 				if strictDecode(e.value, &r, maxSealed) != nil || r.Version != sealVersion || r.Revision == 0 {
 					return ErrRefused
 				}
-				aad := append([]byte("wrap/"), fmt.Appendf(nil, "rootwell/vault/v1/%s/%s/%s/%d", s.instance, kind, e.id, r.Revision)...)
-				dataKey, err := s.wrap.Open(nil, nil, r.Key, aad)
-				if err != nil {
-					return ErrRefused
+				if err := reseal(&r, s.wrap, next, kind, e.id, s.instance); err != nil {
+					return err
 				}
-				r.Key = next.Seal(nil, nil, dataKey, aad) // #nosec G407 -- random-nonce GCM API, never a fixed IV.
-				clear(dataKey)
 				encoded, err := json.Marshal(r)
 				if err != nil {
 					return ErrRefused
@@ -553,18 +554,121 @@ func (s *Store) Rotate(newKey []byte) error {
 
 // Backup writes a consistent copy of the whole vault to w, in one read
 // transaction, while the service keeps running. The copy holds no instance
-// key: it opens only with the key the vault had when it was made.
+// key: it opens only with the key the vault had when it was made. It is
+// built as a compacted file beside the vault, then streamed and removed.
 func (s *Store) Backup(w io.Writer) (int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
 		return 0, ErrRefused
 	}
-	var n int64
-	err := s.db.View(func(tx *bolt.Tx) error {
-		var err error
-		n, err = tx.WriteTo(w)
+	// A compacted copy holds the live records only: no freed page, so neither
+	// a deleted key nor a record under an earlier key goes out with it.
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return 0, ErrRefused
+	}
+	name := dbName + ".backup-" + hex.EncodeToString(suffix[:])
+	defer func() { _ = s.root.Remove(name) }()
+	if err := s.compactInto(name); err != nil {
+		return 0, err
+	}
+	f, err := s.root.Open(name)
+	if err != nil {
+		return 0, ErrRefused
+	}
+	defer f.Close()
+	return io.Copy(w, f)
+}
+
+// reseal opens a sealed record with the old wrap key and seals its data again
+// under a new data key, wrapped by next.
+func reseal(r *sealedRecord, old, next cipher.AEAD, kind string, id []byte, instance string) error {
+	aad := fmt.Appendf(nil, "rootwell/vault/v1/%s/%s/%s/%d", instance, kind, id, r.Revision)
+	wrapAAD, dataAAD := append([]byte("wrap/"), aad...), append([]byte("data/"), aad...)
+	oldKey, err := old.Open(nil, nil, r.Key, wrapAAD)
+	if err != nil {
+		return ErrRefused
+	}
+	defer clear(oldKey)
+	oldData, err := randomGCM(oldKey)
+	if err != nil {
+		return ErrRefused
+	}
+	plaintext, err := oldData.Open(nil, nil, r.Data, dataAAD)
+	if err != nil {
+		return ErrRefused
+	}
+	defer clear(plaintext)
+	var newKey [32]byte
+	if _, err := rand.Read(newKey[:]); err != nil {
+		return ErrRefused
+	}
+	defer clear(newKey[:])
+	newData, err := randomGCM(newKey[:])
+	if err != nil {
+		return ErrRefused
+	}
+	r.Data = newData.Seal(nil, nil, plaintext, dataAAD) // #nosec G407 -- random-nonce GCM API, never a fixed IV.
+	r.Key = next.Seal(nil, nil, newKey[:], wrapAAD)     // #nosec G407 -- random-nonce GCM API, never a fixed IV.
+	return nil
+}
+
+// compactInto writes the live records of s into a new bbolt file name in the
+// vault's directory, leaving out every freed page.
+func (s *Store) compactInto(name string) error {
+	_ = s.root.Remove(name)
+	dst, err := bolt.Open(name, 0o600, &bolt.Options{Timeout: time.Second,
+		OpenFile: func(_ string, flags int, mode os.FileMode) (*os.File, error) {
+			return s.root.OpenFile(name, flags|os.O_EXCL, mode)
+		}})
+	if err != nil {
+		return ErrRefused
+	}
+	if err := bolt.Compact(dst, s.db, 0); err != nil {
+		_ = dst.Close()
+		_ = s.root.Remove(name)
+		return ErrRefused
+	}
+	if err := dst.Close(); err != nil {
+		_ = s.root.Remove(name)
+		return ErrRefused
+	}
+	return nil
+}
+
+// compact rewrites the vault file with its live records only, and closes the
+// store: freed pages, such as those a rotation or a delete left, are gone.
+func (s *Store) compact() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrRefused
+	}
+	const name = dbName + ".compact"
+	err := s.compactInto(name)
+	s.closed = true
+	closeErr := s.db.Close()
+	if err == nil && closeErr == nil {
+		if err = s.root.Rename(name, dbName); err == nil {
+			_ = syncDirectory(s.root.Name())
+		}
+	}
+	_ = s.root.Remove(name)
+	_ = s.root.Close()
+	if err != nil || closeErr != nil {
+		return ErrRefused
+	}
+	return nil
+}
+
+// Compact rewrites the vault in dir with its live records only, with the
+// service stopped. After a rotation it takes away the pages that still held
+// records under the old key.
+func Compact(dir string, key []byte) error {
+	s, err := Open(dir, key)
+	if err != nil {
 		return err
-	})
-	return n, err
+	}
+	return s.compact()
 }

@@ -2,8 +2,11 @@ package vault
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	bolt "go.etcd.io/bbolt"
@@ -160,5 +163,77 @@ func TestABackupIsAWholeVaultThatOpensWithItsKey(t *testing.T) {
 	}
 	if _, err := s.Backup(&copy); err == nil {
 		t.Fatal("a closed vault made a backup")
+	}
+}
+
+// sealedValues lists every wrapped data key and ciphertext in the vault, as
+// they are encoded on disk.
+func sealedValues(t *testing.T, s *Store) []string {
+	t.Helper()
+	var out []string
+	if err := s.db.View(func(tx *bolt.Tx) error {
+		return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+			if !bytes.HasPrefix(name, []byte("records/")) {
+				return nil
+			}
+			return b.ForEach(func(_, v []byte) error {
+				var r sealedRecord
+				if err := json.Unmarshal(v, &r); err != nil {
+					return err
+				}
+				out = append(out, base64.StdEncoding.EncodeToString(r.Key), base64.StdEncoding.EncodeToString(r.Data))
+				return nil
+			})
+		})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func TestNothingSealedBeforeARotationStaysInTheFileOrItsBackups(t *testing.T) {
+	oldKey := testKey(t)
+	s, dir := newTestVault(t, oldKey)
+	for i := range 40 {
+		put(t, s, "certificate-key", s.Index("certificate-key", strconv.Itoa(i)), "private key "+strconv.Itoa(i))
+	}
+	put(t, s, "certificate-key", s.Index("certificate-key", "gone"), "a key deleted later")
+	before := sealedValues(t, s)
+	if err := s.Update(func(tx *Tx) error { return tx.Delete("certificate-key", s.Index("certificate-key", "gone")) }); err != nil {
+		t.Fatal(err)
+	}
+	newKey := testKey(t)
+	if err := s.Rotate(newKey); err != nil {
+		t.Fatal(err)
+	}
+	var copy bytes.Buffer
+	if _, err := s.Backup(&copy); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.compact(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, dbName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range before {
+		if bytes.Contains(copy.Bytes(), []byte(value)) {
+			t.Fatal("a backup after the rotation holds a value sealed before it")
+		}
+		if bytes.Contains(raw, []byte(value)) {
+			t.Fatal("the compacted file holds a value sealed before the rotation")
+		}
+	}
+	r, err := open(dir, newKey, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if got, _, err := get(r, "certificate-key", r.Index("certificate-key", "39")); err != nil || got != "private key 39" {
+		t.Fatalf("after compaction: %q %v", got, err)
+	}
+	if _, _, err := get(r, "certificate-key", r.Index("certificate-key", "gone")); err != ErrMissing {
+		t.Fatalf("the deleted key came back: %v", err)
 	}
 }

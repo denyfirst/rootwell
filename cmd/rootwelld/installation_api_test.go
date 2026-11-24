@@ -98,3 +98,15 @@ func TestTheBackupBufferStopsAtItsLimit(t *testing.T) {
 		t.Fatalf("past the limit: over %v, %d bytes, %v", b.over, b.Len(), err)
 	}
 }
+
+func TestOneBackupAtATimeAndOnlyToTheSessionThatAsked(t *testing.T) {
+	g, c, _ := readyGate(t)
+	g.backups <- struct{}{}
+	if w := call(g, "POST", "/api/backup", `{}`, c); w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("a second backup at once: %d", w.Code)
+	}
+	<-g.backups
+	if w := call(g, "POST", "/api/backup", `{}`, c); w.Code != http.StatusOK {
+		t.Fatalf("a backup once the first is done: %d", w.Code)
+	}
+}

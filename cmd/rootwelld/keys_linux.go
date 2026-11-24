@@ -69,12 +69,21 @@ func rotateKey(args []string, read secretReader, out io.Writer) error {
 	if _, err := os.Lstat(pending); !os.IsNotExist(err) {
 		return fmt.Errorf("an earlier rotation left %s. If rootwelld does not start with %s, the vault moved to that key already: rename it to %s. Otherwise remove it, then rotate again", pending, keyFile, keyFile)
 	}
-	v, key, err := openVault(args[1], keyFile)
+	if vault.KeyDirectoryReady(keyFile) != nil {
+		return errors.New("the key file's directory must be a private (0700) directory of this user; nothing was changed")
+	}
+	dir := args[1]
+	v, key, err := openVault(dir, keyFile)
 	if err != nil {
 		return err
 	}
 	clear(key)
-	defer v.Close()
+	open := true
+	defer func() {
+		if open {
+			_ = v.Close()
+		}
+	}()
 	next, err := vault.NewInstanceKey()
 	if err != nil {
 		return errors.New("a new instance key could not be made")
@@ -94,17 +103,33 @@ func rotateKey(args []string, read secretReader, out io.Writer) error {
 	if err := vault.WriteKeyFile(pending, next); err != nil {
 		return errors.New("the new key file could not be written beside the old one; nothing was changed")
 	}
-	if err := v.Rotate(next); err != nil {
-		// #nosec G703 -- pending is derived from a local operator CLI path.
-		_ = os.Remove(pending)
-		return errors.New("the vault could not move to the new key; nothing was changed")
+	rotateErr := v.Rotate(next)
+	_ = v.Close()
+	open = false
+	if rotateErr != nil {
+		// A failed commit may still have reached the disk: keep the new key
+		// if it opens the vault, and remove it only when it does not.
+		check, err := vault.Open(dir, next)
+		if err != nil {
+			// #nosec G703 -- pending is derived from a local operator CLI path.
+			_ = os.Remove(pending)
+			return errors.New("the vault could not move to the new key; nothing was changed")
+		}
+		_ = check.Close()
 	}
+	// Freed pages of the file still hold records under the old key until the
+	// file is rewritten without them.
+	compactErr := vault.Compact(dir, next)
 	// #nosec G703 -- both paths are local operator CLI paths.
 	if err := os.Rename(pending, keyFile); err != nil {
 		return fmt.Errorf("the vault now opens only with %s: rename it to %s before starting rootwelld", pending, keyFile)
 	}
 	syncDir(filepath.Dir(keyFile))
-	_, err = io.WriteString(out, "The vault now opens with the new key in "+keyFile+". Start rootwelld again.\n")
+	if compactErr != nil {
+		_, err = io.WriteString(out, "The vault now opens with the new key in "+keyFile+", but rewriting its file failed: until that succeeds, old pages in it may still open with the old key. Run rootwelld key-rotate once more.\n")
+		return err
+	}
+	_, err = io.WriteString(out, "The vault now opens with the new key in "+keyFile+", and nothing left in its file opens with the old one. Start rootwelld again.\n")
 	return err
 }
 

@@ -37,6 +37,7 @@ type gate struct {
 	accounts     *accountstore.Store
 	certificates *certstore.Store
 	vault        *vault.Store
+	backups      chan struct{}
 	closed       bool
 	websiteCheck websiteCheck
 	websiteBusy  bool
@@ -69,6 +70,7 @@ func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, e
 	g.accounts = accountstore.New(v, clock)
 	g.certificates = certstore.New(v)
 	g.vault = v
+	g.backups = make(chan struct{}, 1)
 	return g, nil
 }
 

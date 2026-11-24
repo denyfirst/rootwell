@@ -47,12 +47,20 @@ func (g *gate) installationEndpoint(w http.ResponseWriter, r *http.Request) {
 // Rootwell keeps running. It needs a fresh code: the copy holds every key,
 // sealed under the instance key it does not hold.
 func (g *gate) backupEndpoint(w http.ResponseWriter, r *http.Request) {
-	_, _, ok := g.freshChange(w, r)
+	_, s, ok := g.freshChange(w, r)
 	if !ok {
 		return
 	}
 	var in struct{}
 	if !readJSON(w, r, &in) {
+		return
+	}
+	// One backup at a time: each holds up to maxPageBackup in memory.
+	select {
+	case g.backups <- struct{}{}:
+		defer func() { <-g.backups }()
+	default:
+		http.Error(w, "Another backup is being made. Try again in a moment.", http.StatusServiceUnavailable)
 		return
 	}
 	copy := &cappedBuffer{limit: maxPageBackup}
@@ -62,6 +70,12 @@ func (g *gate) backupEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 	if copy.over {
 		http.Error(w, "This vault is too large to download here; copy it on the server with Rootwell stopped.", http.StatusInsufficientStorage)
+		return
+	}
+	// The person may have signed out, or the account changed, while the copy
+	// was made: it goes only to the session that asked for it.
+	if !g.stillReady(r, s) || r.Context().Err() != nil {
+		http.Error(w, "session no longer available", http.StatusUnauthorized)
 		return
 	}
 	name := "rootwell-backup-" + g.now().UTC().Format("20060102T150405Z") + ".db"

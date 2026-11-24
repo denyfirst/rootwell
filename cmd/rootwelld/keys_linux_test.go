@@ -96,6 +96,9 @@ func TestLinuxKeyRotationNeedsSAVEDAndLeavesOnlyTheNewKey(t *testing.T) {
 	if err := runOfflineCommand([]string{"key-rotate", data, keyFile}, ceremonySecrets(t, "SAVED"), &out); err != nil {
 		t.Fatal(err)
 	}
+	if !strings.Contains(out.String(), "nothing left in its file opens with the old one") {
+		t.Fatalf("the rotation did not rewrite the file: %q", out.String())
+	}
 	newKey, err := vault.ReadKeyFile(keyFile)
 	if err != nil || bytes.Equal(newKey, oldKey) {
 		t.Fatalf("the key file was not replaced: %v", err)
@@ -192,5 +195,20 @@ func TestLinuxRestoreWritesABackupOnlyIntoAnEmptyDirectoryAndOnlyIfItOpens(t *te
 	}
 	if got, err := readRecord(t, again, key, id); err != nil || got != "still here" {
 		t.Fatalf("restored with the code: %q %v", got, err)
+	}
+}
+
+func TestLinuxInitShowsNoCodeForAKeyDirectoryOthersCanRead(t *testing.T) {
+	data := filepath.Join(ceremonyPrivateDir(t), "data")
+	loose := t.TempDir()
+	if err := os.Chmod(loose, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := initialize(data, filepath.Join(loose, "instance.key"), strings.NewReader("SAVED\n"), &out); err == nil || out.Len() != 0 {
+		t.Fatalf("init with a loose key directory: %v %q", err, out.String())
+	}
+	if _, err := os.Lstat(filepath.Join(loose, "instance.key")); !os.IsNotExist(err) {
+		t.Fatal("a key file was written into a loose directory")
 	}
 }
