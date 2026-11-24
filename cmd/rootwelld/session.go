@@ -28,6 +28,8 @@ const (
 	freshLife = 10 * time.Minute
 	// maxSessions bounds the sessions kept in memory.
 	maxSessions = 64
+	// passkeyLife is how long a passkey challenge may be answered.
+	passkeyLife = 2 * time.Minute
 	// wrongCodesEnd is how many wrong codes end a session.
 	wrongCodesEnd = 5
 )
@@ -57,6 +59,11 @@ type session struct {
 	setupCode string
 	password  account.PasswordHash
 	seed      string
+	// A passkey ceremony under way: the challenge sent, what it is for, and
+	// until when it may be answered. One answer uses it up.
+	challenge      []byte
+	challengeFor   string
+	challengeUntil time.Time
 }
 
 func (s *session) live(now time.Time) bool {
@@ -329,4 +336,17 @@ func (g *gate) succeed(k limitKey) {
 	g.mu.Lock()
 	delete(g.failures, k.key)
 	g.mu.Unlock()
+}
+
+// passkeyName is the WebAuthn relying party for the request's host: its DNS
+// name. Browsers allow no passkeys on an IP address.
+func passkeyName(host string) (string, bool) {
+	name, _, err := net.SplitHostPort(host)
+	if err != nil || name == "" {
+		return "", false
+	}
+	if _, err := netip.ParseAddr(name); err == nil {
+		return "", false
+	}
+	return name, true
 }

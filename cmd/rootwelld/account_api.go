@@ -113,13 +113,18 @@ func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out := map[string]any{"stage": map[stage]string{stageSetup: "setup", stageCode: "code", stageReady: "ready"}[s.stage]}
-		if s.stage == stageReady {
+		if s.stage == stageReady || s.stage == stageCode {
 			a, err := g.accounts.Get(s.name)
 			if err != nil {
 				http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 				return
 			}
-			out["name"], out["recovery_left"], out["fresh"] = a.Name, a.RecoveryLeft, s.isFresh(g.now())
+			// Whether a passkey may stand in for the phone code.
+			_, named := passkeyName(r.Host)
+			out["passkeys"] = named && len(a.Passkeys) > 0
+			if s.stage == stageReady {
+				out["name"], out["recovery_left"], out["fresh"] = a.Name, a.RecoveryLeft, s.isFresh(g.now())
+			}
 		}
 		writeJSON(w, http.StatusOK, out)
 	case http.MethodDelete:

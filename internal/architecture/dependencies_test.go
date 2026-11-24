@@ -64,6 +64,7 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				// Sign-in: its endpoints, and the request's address, parsed for the
 				// per-source failure count; no sockets.
 				allowedLoopbackServer = allowedLoopbackServer || (filepath.ToSlash(relative) == "cmd/rootwelld/account_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/passkey_api.go" && importPath == "net/http") ||
 					(filepath.ToSlash(relative) == "cmd/rootwelld/session.go" && (importPath == "net" || importPath == "net/http" || importPath == "net/netip"))
 				// netip only parses immutable address values; it has no DNS/socket API.
 				allowedAddressParser := filepath.ToSlash(relative) == "internal/csrworkbench/request.go" && importPath == "net/netip"

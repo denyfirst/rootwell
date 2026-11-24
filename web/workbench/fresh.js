@@ -58,13 +58,18 @@
     go.className = "btn";
     go.type = "submit";
     go.textContent = "Continue";
-    foot.append(cancel, go);
+    const passkey = document.createElement("button");
+    passkey.className = "btn btn-secondary";
+    passkey.type = "button";
+    passkey.textContent = "Use a passkey";
+    passkey.hidden = !(globalThis.rootwellPasskey && globalThis.rootwellPasskey.supported());
+    foot.append(cancel, passkey, go);
     form.append(head, body, foot);
     dialog.appendChild(form);
     scrim.hidden = true;
     dialog.hidden = true;
     document.body.append(scrim, dialog);
-    return { scrim, dialog, form, input, error, cancel, go };
+    return { scrim, dialog, form, input, error, cancel, go, passkey };
   }
 
   function close(result) {
@@ -108,12 +113,55 @@
     }
   }
 
+  function post(path, body) {
+    return fetch(path, {
+      method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error",
+      headers: { "Content-Type": "application/json", "X-Rootwell-Request": "1" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  // usePasskey answers with a passkey in place of the typed code.
+  async function usePasskey() {
+    parts.passkey.disabled = true;
+    parts.error.textContent = "";
+    try {
+      const options = await post("/api/passkey/options", {});
+      if (options.status !== 200) {
+        parts.error.textContent = options.status === 404 ? "This account has no passkey yet. Enter a code." :
+          options.status === 409 ? "Passkeys work on a name, such as localhost, not on an IP address." : "Rootwell could not ask the passkey. Try again.";
+        return;
+      }
+      let signed;
+      try {
+        signed = await globalThis.rootwellPasskey.sign(await options.json());
+      } catch {
+        parts.error.textContent = "The passkey was not used. Try again, or enter a code.";
+        return;
+      }
+      const response = await post("/api/passkey", signed);
+      const text = response.ok ? "" : await response.text().catch(() => "");
+      if (response.status === 204) return close(true);
+      if (response.status === 409 && /sign in/i.test(text) || (response.status === 401 && /sign in again/i.test(text))) {
+        window.location.assign("/login");
+        return;
+      }
+      parts.error.textContent = response.status === 429 ? "Too many wrong tries. Wait a little, then try again." :
+        response.status === 401 ? "That passkey was not accepted." : "Ask the passkey once more.";
+    } catch {
+      parts.error.textContent = "Rootwell could not ask the passkey. Try again.";
+    } finally {
+      parts.passkey.disabled = false;
+    }
+  }
+
   globalThis.rootwellFresh = function () {
     if (pending) return Promise.resolve(false);
     if (!parts) {
       parts = build();
       parts.form.addEventListener("submit", send);
       parts.cancel.addEventListener("click", () => close(false));
+      parts.passkey.addEventListener("click", () => { void usePasskey(); });
       parts.dialog.addEventListener("keydown", (event) => { if (event.key === "Escape") close(false); });
       window.addEventListener("pagehide", () => { if (pending) close(false); });
     }

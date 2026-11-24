@@ -10,6 +10,7 @@ const scripts = {
   auth: read("../cmd/rootwelld/auth/auth.js"),
   qr: read("../cmd/rootwelld/auth/qr.js"),
   fresh: read("../web/workbench/fresh.js"),
+  passkey: read("../cmd/rootwelld/auth/passkey.js"),
 };
 for (const [name, source] of Object.entries(scripts)) {
   assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|console\.|sendBeacon|eval\(|new Function/, name);
@@ -41,7 +42,7 @@ class Node {
   querySelectorAll() { return this.buttons || []; }
 }
 
-function load(mode, server, { fresh = async () => true } = {}) {
+function load(mode, server, { fresh = async () => true, credentials = null } = {}) {
   const nodes = {};
   const $ = (id) => (nodes[id] ??= new Node("div", id));
   const requests = [];
@@ -62,7 +63,9 @@ function load(mode, server, { fresh = async () => true } = {}) {
   };
   const context = {
     document, URL: { createObjectURL: () => "blob:x", revokeObjectURL() {} }, Blob,
-    navigator: { clipboard: { writeText: async (value) => { context.copied = value; } } },
+    navigator: { clipboard: { writeText: async (value) => { context.copied = value; } }, ...(credentials ? { credentials } : {}) },
+    ...(credentials ? { PublicKeyCredential: function PublicKeyCredential() {} } : {}),
+    atob, btoa, Uint8Array,
     window: { location: { assign: (url) => redirects.push(url) }, addEventListener: (name, fn) => { pageHandlers[name] = fn; } },
     AbortController, setTimeout: (fn, delay) => { assert.ok(delay <= 15000); return 0; }, clearTimeout() {},
     fetch: async (url, options) => {
@@ -77,6 +80,7 @@ function load(mode, server, { fresh = async () => true } = {}) {
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(scripts.qr, context, { filename: "qr.js" });
+  vm.runInContext(scripts.passkey, context, { filename: "passkey.js" });
   context.rootwellFresh = fresh;
   vm.runInContext(scripts.auth, context, { filename: "auth.js" });
   return { $, requests, redirects, context, pageHandlers, submit: (id) => $(id).fire("submit"), settle: () => new Promise((r) => setTimeout(r, 0)) };
@@ -286,6 +290,86 @@ function noSecrets(page) {
   const cancelled = context.rootwellFresh();
   await dialog.fire("keydown", { key: "Escape" });
   assert.equal(await cancelled, false);
+}
+
+// ── Passkeys: in place of the code at sign-in, and added on Account ────────
+const buffer = (...b) => new Uint8Array(b).buffer;
+{
+  const asked = [];
+  const credentials = {
+    get: async ({ publicKey }) => {
+      asked.push(publicKey);
+      return { rawId: buffer(1, 2, 3), response: { clientDataJSON: buffer(4), authenticatorData: buffer(5, 6), signature: buffer(255, 254) } };
+    },
+  };
+  let passkeyAnswer = text(401, "That passkey was not accepted.");
+  const page = load("login", (url, method) => {
+    if (url === "/api/session" && method === "GET") return json(200, { stage: "code", passkeys: true });
+    if (url === "/api/passkey/options") return json(200, { challenge: "AQID", rp_id: "localhost", allow: ["AQID"], timeout: 120000 });
+    if (url === "/api/passkey") return passkeyAnswer;
+    throw new Error("unexpected " + url);
+  }, { credentials });
+  for (let i = 0; i < 4; i++) await page.settle();
+  assert.equal(page.$("passkey-sign-in").hidden, false, "the passkey is offered at the code step");
+  await page.$("passkey-sign-in").fire("click");
+  assert.deepEqual(page.requests.find((r) => r.url === "/api/passkey").body,
+    { id: "AQID", client_data: "BA", authenticator_data: "BQY", signature: "__4" });
+  const request = asked[0];
+  assert.equal(request.rpId, "localhost");
+  assert.equal(request.userVerification, "required");
+  assert.deepEqual([...new Uint8Array(request.challenge)], [1, 2, 3]);
+  assert.deepEqual([...new Uint8Array(request.allowCredentials[0].id)], [1, 2, 3]);
+  assert.equal(page.$("status").textContent, "That passkey was not accepted.");
+  passkeyAnswer = empty(204);
+  await page.$("passkey-sign-in").fire("click");
+  assert.deepEqual(page.redirects, ["/certificates"]);
+}
+{
+  // An account without a passkey is offered none.
+  const page = load("login", (url) => url === "/api/session" ? json(200, { stage: "code", passkeys: false }) : empty(500),
+    { credentials: { get: async () => null } });
+  for (let i = 0; i < 4; i++) await page.settle();
+  assert.equal(page.$("passkey-sign-in").hidden, true);
+}
+{
+  const made = [];
+  const credentials = {
+    create: async ({ publicKey }) => {
+      made.push(publicKey);
+      return { response: { clientDataJSON: buffer(7), attestationObject: buffer(8, 9) } };
+    },
+  };
+  let asked = 0;
+  const page = load("account", (url, method, body) => {
+    if (url === "/api/session") return json(200, { stage: "ready", name: "ada", recovery_left: 10 });
+    if (url === "/api/passkeys" && method === "GET") return json(200, { passkeys: [] });
+    if (url === "/api/passkeys/options") {
+      return asked++ === 0 ? text(428, "Enter a code from your phone first.") :
+        json(200, { challenge: "AQID", rp_id: "localhost", user_id: "BAU", user_name: "ada", exclude: ["Bgc"], timeout: 120000 });
+    }
+    if (url === "/api/passkeys" && method === "POST") return json(201, { passkeys: [{ id: "AQID", name: body.name, added: "2026-11-24T12:00:00Z", last_used: "" }] });
+    if (url === "/api/passkeys/remove") return json(200, { passkeys: [] });
+    throw new Error("unexpected " + url);
+  }, { credentials });
+  for (let i = 0; i < 3; i++) await page.settle();
+  assert.equal(page.$("passkeys").children[0].textContent, "No passkey yet.");
+  assert.equal(page.$("passkey-add").hidden, false);
+  page.$("passkey-name").value = " Work laptop ";
+  await page.$("passkey-add").fire("click");
+  assert.equal(asked, 2, "the page asked for a fresh code, then asked again");
+  const options = made[0];
+  assert.equal(options.rp.id, "localhost");
+  assert.equal(options.attestation, "none");
+  assert.equal(options.authenticatorSelection.userVerification, "required");
+  assert.deepEqual([...options.pubKeyCredParams].map((p) => p.alg), [-7, -8, -257]);
+  assert.deepEqual([...new Uint8Array(options.user.id)], [4, 5]);
+  assert.deepEqual([...new Uint8Array(options.excludeCredentials[0].id)], [6, 7]);
+  assert.deepEqual(page.requests.find((r) => r.url === "/api/passkeys" && r.method === "POST").body,
+    { client_data: "Bw", attestation: "CAk", name: "Work laptop" });
+  assert.match(page.$("passkeys").children[0].children[0].textContent, /^Work laptop · added 2026-11-24/);
+  await page.$("passkeys").children[0].children[1].fire("click");
+  assert.deepEqual(page.requests.at(-1).body, { id: "AQID" });
+  assert.equal(page.$("passkeys").children[0].textContent, "No passkey yet.");
 }
 
 console.log("sign-in, setup, account and fresh-code pages behave as expected");

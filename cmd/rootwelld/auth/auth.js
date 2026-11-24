@@ -105,11 +105,21 @@
   if (mode === "login") {
     const passwordForm = $("password-form");
     const codeForm = $("code-form");
+    const passkeyButton = $("passkey-sign-in");
+    // A passkey may stand in for the phone code when the account has one and
+    // this browser can use it.
+    const offerPasskey = async () => {
+      passkeyButton.hidden = true;
+      if (!globalThis.rootwellPasskey || !globalThis.rootwellPasskey.supported()) return;
+      const answer = await send("/api/session", undefined, "GET").catch(() => null);
+      passkeyButton.hidden = !(answer && answer.ok && answer.value && answer.value.passkeys === true);
+    };
     const showCode = () => {
       passwordForm.hidden = true;
       codeForm.hidden = false;
       $("code").value = "";
       $("code").focus();
+      void offerPasskey();
     };
     const showPassword = () => {
       codeForm.hidden = true;
@@ -143,6 +153,34 @@
       }
       say(answer.status === 429 ? tooMany : answer.status === 401 ? "That code does not match." : failed);
       $("code").focus();
+    });
+    passkeyButton.addEventListener("click", async () => {
+      if (passkeyButton.disabled) return;
+      say("");
+      passkeyButton.disabled = true;
+      try {
+        const options = await send("/api/passkey/options", {});
+        if (options.status !== 200 || !options.value) {
+          return say(options.status === 409 ? "Passkeys work on a name, such as localhost, not on an IP address." : failed);
+        }
+        let signed;
+        try {
+          signed = await globalThis.rootwellPasskey.sign(options.value);
+        } catch {
+          return say("The passkey was not used. Try again, or enter a code.");
+        }
+        const answer = await send("/api/passkey", signed);
+        if (answer.status === 204) return window.location.assign("/certificates");
+        if (answer.status === 401 && /sign in again/i.test(answer.text)) {
+          showPassword();
+          return say("Too many wrong answers. Sign in again.");
+        }
+        say(answer.status === 429 ? tooMany : answer.status === 401 ? "That passkey was not accepted." : "Ask the passkey once more.");
+      } catch {
+        say(failed);
+      } finally {
+        passkeyButton.disabled = false;
+      }
     });
     $("start-over").addEventListener("click", async () => {
       await send("/api/session", undefined, "DELETE").catch(() => {});
@@ -238,6 +276,61 @@
       }
       if (answer.status === 401 && /signed out/i.test(answer.text)) return window.location.assign("/login");
       say(answer.status === 409 ? "Start again with Move to a new phone." : "That code does not match. Check the phone's clock, then enter the code it shows now.");
+    });
+    const passkeyList = $("passkeys");
+    const drawPasskeys = (value) => {
+      const list = value && Array.isArray(value.passkeys) ? value.passkeys : [];
+      if (!list.length) {
+        const empty = document.createElement("li");
+        empty.className = "meta";
+        empty.textContent = "No passkey yet.";
+        return passkeyList.replaceChildren(empty);
+      }
+      passkeyList.replaceChildren(...list.map((p) => {
+        const item = document.createElement("li");
+        item.className = "between";
+        const label = document.createElement("span");
+        label.textContent = String(p.name) + " · added " + String(p.added).slice(0, 10) + (p.last_used ? " · last used " + String(p.last_used).slice(0, 10) : "");
+        const remove = document.createElement("button");
+        remove.className = "btn btn-ghost btn-sm";
+        remove.type = "button";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", async () => {
+          say("");
+          const answer = await sendFresh("/api/passkeys/remove", { id: p.id }).catch(() => null);
+          if (answer && answer.status === 200) {
+            drawPasskeys(answer.value);
+            return say("The passkey is removed. Other browsers are signed out.");
+          }
+          say(answer && answer.status === 428 ? "Nothing changed. That needs a code from your phone." : failed);
+        });
+        item.append(label, remove);
+        return item;
+      }));
+    };
+    void send("/api/passkeys", undefined, "GET").then((answer) => { if (answer.ok) drawPasskeys(answer.value); }).catch(() => {});
+    $("passkey-add").hidden = !(globalThis.rootwellPasskey && globalThis.rootwellPasskey.supported());
+    $("passkey-add").addEventListener("click", async () => {
+      say("");
+      const options = await sendFresh("/api/passkeys/options", {}).catch(() => null);
+      if (!options || options.status !== 200 || !options.value) {
+        return say(options && options.status === 409 ? "Passkeys work on a name, such as localhost, not on an IP address." :
+          options && options.status === 428 ? "Nothing changed. That needs a code from your phone." : failed);
+      }
+      let made;
+      try {
+        made = await globalThis.rootwellPasskey.create(options.value, $("passkey-name").value.trim());
+      } catch {
+        return say("No passkey was added.");
+      }
+      const answer = await send("/api/passkeys", made);
+      if (answer.status === 201) {
+        $("passkey-name").value = "";
+        drawPasskeys(answer.value);
+        return say("The passkey is added. Other browsers are signed out.");
+      }
+      say(answer.status === 409 ? "This passkey is added already, or the account has ten." :
+        answer.status === 400 ? "That passkey could not be added. It must ask for your PIN, fingerprint or face." : failed);
     });
     $("codes-new").addEventListener("click", async () => {
       say("");

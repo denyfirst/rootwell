@@ -657,7 +657,7 @@ func TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork(t *testing.T) {
 			t.Fatalf("%s signed in: %d", path, w.Code)
 		}
 	}
-	for _, public := range []string{"/login", "/setup", "/auth.js", "/qr.js", "/rootwell.css", "/theme.js", "/favicon.svg", "/schibsted-grotesk.woff2"} {
+	for _, public := range []string{"/login", "/setup", "/auth.js", "/qr.js", "/passkey.js", "/rootwell.css", "/theme.js", "/favicon.svg", "/schibsted-grotesk.woff2"} {
 		if got := page(g, public, nil); got != http.StatusOK {
 			t.Fatalf("%s is not public: %d", public, got)
 		}

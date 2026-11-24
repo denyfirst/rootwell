@@ -134,6 +134,21 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/recovery-codes":
 		g.recoveryCodesEndpoint(w, r)
 		return
+	case "/api/passkey/options":
+		g.passkeyOptionsEndpoint(w, r)
+		return
+	case "/api/passkey":
+		g.passkeyAnswerEndpoint(w, r)
+		return
+	case "/api/passkeys":
+		g.passkeysEndpoint(w, r)
+		return
+	case "/api/passkeys/options":
+		g.passkeyCreateOptionsEndpoint(w, r)
+		return
+	case "/api/passkeys/remove":
+		g.passkeyRemoveEndpoint(w, r)
+		return
 	// Public: the look every page shares, so sign-in and setup wear it too.
 	case "/schibsted-grotesk.woff2":
 		w.Header().Set("Cache-Control", "no-cache")
@@ -151,6 +166,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/qr.js":
 		g.authAsset(w, r, "auth/qr.js", "text/javascript; charset=utf-8")
+		return
+	case "/passkey.js":
+		g.authAsset(w, r, "auth/passkey.js", "text/javascript; charset=utf-8")
 		return
 	case "/rootwell-ca.pem":
 		// The local authority's certificate, public: a browser trusts it once,

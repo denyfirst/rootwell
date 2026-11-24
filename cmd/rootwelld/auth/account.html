@@ -13,6 +13,7 @@
   <script src="/session.js" defer></script>
   <script src="/fresh.js" defer></script>
   <script src="/qr.js" defer></script>
+  <script src="/passkey.js" defer></script>
   <script src="/auth.js" defer></script>
 </head>
 <body data-mode="account">
@@ -57,6 +58,14 @@
           <div class="inline"><button class="btn" type="submit">Use this phone</button><span class="meta">Other browsers sign out.</span></div>
         </form>
       </div>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="passkeys-heading">
+    <div class="card-head"><h3 id="passkeys-heading">Passkeys</h3></div>
+    <div class="card-body stack">
+      <p class="soft">A passkey signs you in with this device's fingerprint, face or PIN, in place of the phone code. It works on the name you use now, such as localhost, not on an IP address.</p>
+      <ul class="stack" id="passkeys"></ul>
+      <div class="input-row"><input class="input" id="passkey-name" type="text" maxlength="64" autocomplete="off" placeholder="Name, such as Work laptop" aria-label="Passkey name"><button class="btn btn-secondary" id="passkey-add" type="button">Add a passkey</button></div>
     </div>
   </section>
   <section class="card" aria-labelledby="codes-heading">

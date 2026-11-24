@@ -10,6 +10,7 @@
   <link rel="preload" href="/schibsted-grotesk.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/rootwell.css">
   <script src="/theme.js"></script>
+  <script src="/passkey.js" defer></script>
   <script src="/auth.js" defer></script>
 </head>
 <body data-mode="login">
@@ -26,6 +27,7 @@
       <p class="soft">Open the authenticator app on your phone and enter the six-digit code for Rootwell. No phone at hand? Enter one of your recovery codes.</p>
       <div class="field"><label for="code">Code</label><input class="input mono" id="code" name="code" type="text" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" maxlength="64" required></div>
       <button class="btn btn-block" type="submit">Sign in</button>
+      <button class="btn btn-secondary btn-block" id="passkey-sign-in" type="button" hidden>Use a passkey instead</button>
       <button class="btn btn-ghost btn-block" id="start-over" type="button">Use another name</button>
     </form>
     <p class="error-text" id="status" role="alert" aria-live="polite"></p>
