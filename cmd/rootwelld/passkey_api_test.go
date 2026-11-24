@@ -176,10 +176,19 @@ func TestPasskeysSignInAndStandInForAFreshCode(t *testing.T) {
 		t.Fatalf("without a fresh code: %d", w.Code)
 	}
 	o = options(t, g, "/api/passkey/options", ready)
-	forged := p.assert("localhost", origin, o["challenge"].(string))
+	genuine := p.assert("localhost", origin, o["challenge"].(string))
+	forged := map[string]string{}
+	for k, v := range genuine {
+		forged[k] = v
+	}
 	forged["signature"] = b64([]byte("not a signature"))
 	if w := call(g, "POST", "/api/passkey", asJSON(forged), ready); w.Code != http.StatusUnauthorized {
 		t.Fatalf("a forged signature: %d", w.Code)
+	}
+	// Each challenge takes one answer in its own session: the genuine answer
+	// after the forged one finds it spent.
+	if w := call(g, "POST", "/api/passkey", asJSON(genuine), ready); w.Code != http.StatusConflict {
+		t.Fatalf("a second answer to one challenge in the same session: %d", w.Code)
 	}
 	o = options(t, g, "/api/passkey/options", ready)
 	if w := call(g, "POST", "/api/passkey", asJSON(p.assert("localhost", origin, o["challenge"].(string))), ready); w.Code != http.StatusNoContent {
