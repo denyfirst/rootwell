@@ -5,6 +5,10 @@ only test material. The plan is
 [`PRODUCT-PLAN.md`](PRODUCT-PLAN.md); the review behind it is
 [`AUDIT-2026-11-22.md`](AUDIT-2026-11-22.md).
 
+The plan is in Phase 3a. Its first two parts are done: the vault and the
+instance key, with the Certificates page moved onto them. Accounts with TOTP,
+sessions and HTTPS are next.
+
 ## What exists
 
 **Pages**
@@ -31,8 +35,15 @@ only test material. The plan is
   IP and port serve, against a pinned root.
 
 **Certificates (Linux only)**
-- `rootwelld` stores certificates, bundles and private keys, encrypted with a
-  key that opens from the sign-in password.
+- `rootwelld` keeps certificates, bundles and private keys in a vault,
+  `rootwell.db` in the data directory. Each record is sealed under its own
+  key, and record names do not show the domains.
+- An **instance key**, in its own file outside the data directory, opens the
+  vault. `rootwelld init` shows its recovery code once. The sign-in password
+  only signs in; it unlocks no data.
+- A private key is opened only for a download; listing never opens one.
+- The list holds up to 500 certificates, with no limit on how often it
+  changes.
 - What a user can do:
   - add certificates, a bundle, a key or a PFX, several files at once;
   - add a key later to a certificate saved without one;
@@ -40,26 +51,29 @@ only test material. The plan is
   - see how long each one has left;
   - download the certificate, the full chain, or the certificate and key;
   - download the key locked with a password, after the sign-in password.
-- Durable storage is turned off on Windows.
+- On Windows the pages open as a preview: no key file or vault is made, and
+  saving is turned off.
 
 **Website check (Linux only)**
 - Connects once to a public HTTPS site and explains its chain: missing or
   wrong intermediates, dates, and names.
 
-**ACME automation (Let's Encrypt staging only)**
-- What works:
-  - a test account;
-  - a manual DNS or Cloudflare DNS-01 order;
-  - issuance;
-  - manual renewal;
-  - a renewal job that runs while its session lives (12 hours at most).
-- A local production account key can be prepared, but nothing talks to the
-  production CA.
+**Renewal: removed for now**
+- The staging-only ACME automation and its hidden Renewals page were removed
+  on 23 November 2026: test accounts, DNS orders, issuance, manual renewal,
+  the session renewal job and the production account key.
+- Real renewal comes back in Phase 3c, built on the ACME protocol packages
+  that stay.
 
-**Access**
+**Access and recovery**
 - One account: password sign-in on `http://localhost:4180`, loopback only.
-- An offline recovery code, and terminal ceremonies for full snapshots and
-  restore ([`RECOVERY.md`](RECOVERY.md)).
+- `rootwelld key-restore` rebuilds a lost instance key file from its recovery
+  code.
+- Backups are, for now, a copy of the data directory made with the service
+  stopped; the key file never goes with it
+  ([`RECOVERY.md`](RECOVERY.md)).
+- Terminal commands for the sign-in password alone: a password recovery code
+  and access-only snapshots.
 - A Docker Compose development profile
   ([`CONTAINER-RECOVERY.md`](CONTAINER-RECOVERY.md)).
 
@@ -73,15 +87,16 @@ only test material. The plan is
   - pinned staticcheck, gosec and govulncheck;
   - fuzzing;
   - a reproducible-build check;
-  - container restore and upgrade drills.
+  - a container volume drill: seed, reopen, serve, refusals and restart.
 
 ## What does not exist yet
 
 - A certificate a browser trusts.
-- Renewal with nobody signed in.
+- Renewal of any kind.
 - Delivery to servers.
 - HTTPS, MFA, more than one account, or remote access without an SSH tunnel.
-- Backups from the web.
+- Online backup and restore, from the web or with the service running, and
+  instance key rotation.
 - An install script and releases.
 
 Each one has a phase in the plan.

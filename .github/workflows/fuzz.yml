@@ -29,8 +29,6 @@ jobs:
             package: ./cmd/rootwelld
           - target: FuzzRun
             package: ./internal/cli
-          - target: FuzzACMEPlanRequestJSON
-            package: ./cmd/rootwelld
           - target: FuzzHumanCertificateOutput
             package: ./internal/cli
           - target: FuzzJSONCertificateOutput
@@ -62,18 +60,12 @@ jobs:
           - target: FuzzParsePublicBundle
             package: ./internal/publicbundle
           - target: FuzzOpenSealedRecord
-            package: ./internal/inventoryseal
-          - target: FuzzOpenImage
-            package: ./internal/inventorystore
-          - target: FuzzAutomationStatusWholeImage
-            package: ./internal/inventorystore
+            package: ./internal/vault
           - target: FuzzOpenRecoveryWrap
             package: ./internal/instanceaccess
           - target: FuzzRecoveryEnvelopeParsing
             package: ./internal/instanceaccess
           - target: FuzzOpenAccessSnapshot
-            package: ./internal/instanceaccess
-          - target: FuzzOpenFullSnapshot
             package: ./internal/instanceaccess
           - target: FuzzReadLimited
             package: ./internal/fileinput
@@ -107,64 +99,22 @@ jobs:
             package: ./internal/acmestaging
           - target: FuzzFixedACMEProfileURLs
             package: ./internal/acmeprofile
-          - target: FuzzRenewalTimingPayload
-            package: ./internal/inventorystore
-          - target: FuzzTimingWatchInput
-            package: ./cmd/rootwelld
-          - target: FuzzRenewalJobInput
-            package: ./cmd/rootwelld
-          - target: FuzzHistoryArchiveInput
-            package: ./cmd/rootwelld
-          - target: FuzzRenewalTimingRequest
-            package: ./cmd/rootwelld
           - target: FuzzCloudflareRecordResponse
             package: ./internal/acmestaging
           - target: FuzzVersionValue
             package: ./internal/version
           - target: FuzzStagingDirectory
             package: ./internal/acmestaging
-          - target: FuzzDirectoryConsent
-            package: ./cmd/rootwelld
-          - target: FuzzStagingAccountRequest
-            package: ./cmd/rootwelld
-          - target: FuzzStagingAccountPayload
-            package: ./internal/inventorystore
-          - target: FuzzProductionAccountPayload
-            package: ./internal/inventorystore
-          - target: FuzzCloudflareConfigurationPayload
-            package: ./internal/inventorystore
-          - target: FuzzDNSPlanPayload
-            package: ./internal/inventorystore
-          - target: FuzzDNSOperationRequest
-            package: ./cmd/rootwelld
-          - target: FuzzCloudflareConfigurationRequest
-            package: ./cmd/rootwelld
           - target: FuzzStagingRegistrationResponse
             package: ./internal/acmestaging
-          - target: FuzzStagingRegistrationRequest
-            package: ./cmd/rootwelld
           - target: FuzzManualDNSCAResponse
             package: ./internal/acmestaging
-          - target: FuzzManualDNSOrderPayload
-            package: ./internal/inventorystore
-          - target: FuzzManualDNSRequest
-            package: ./cmd/rootwelld
           - target: FuzzCertificateRequestBinding
             package: ./internal/acmecertrequest
           - target: FuzzStagingCertificateReceipt
             package: ./internal/acmecertificate
           - target: FuzzCertificateCAResponse
             package: ./internal/acmestaging
-          - target: FuzzStagingCertificateRequestPayload
-            package: ./internal/inventorystore
-          - target: FuzzStagingIssuancePayload
-            package: ./internal/inventorystore
-          - target: FuzzClosedStagingRequest
-            package: ./internal/inventorystore
-          - target: FuzzRenewalOrderBinding
-            package: ./internal/inventorystore
-          - target: FuzzStagingCompletionPayload
-            package: ./internal/inventorystore
     steps:
       - name: Check out the default branch
         run: |

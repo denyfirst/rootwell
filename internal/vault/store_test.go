@@ -71,7 +71,7 @@ func TestRecordsRoundTripWithRevisionsAndGenerations(t *testing.T) {
 		}
 		generation, err = tx.Generation()
 		return err
-	}); err != nil || strings.Join(ids, ",") != "a,b" || generation != 3 {
+	}); err != nil || strings.Join(ids, ",") != "a,b" || generation != 4 {
 		t.Fatalf("ids %v generation %d: %v", ids, generation, err)
 	}
 	if err := s.Update(func(tx *Tx) error { return tx.Delete("private-key", "a") }); err != nil {
@@ -116,7 +116,7 @@ func TestAFailedUpdateKeepsNothing(t *testing.T) {
 		t.Fatalf("rolled back new record: %v", err)
 	}
 	_ = s.View(func(tx *Tx) error {
-		if generation, _ := tx.Generation(); generation != 1 {
+		if generation, _ := tx.Generation(); generation != 2 {
 			t.Errorf("a failed update counted a generation: %d", generation)
 		}
 		return nil
@@ -277,6 +277,20 @@ func TestMalformedInputsAreRefused(t *testing.T) {
 	}
 	if err := s.Update(func(tx *Tx) error { return tx.Put("note", "big", make([]byte, maxPlaintext+1)) }); err == nil {
 		t.Error("an oversized record was accepted")
+	}
+	// The largest record it accepts must also open again.
+	largest := bytes.Repeat([]byte{0xa5}, maxPlaintext)
+	if err := s.Update(func(tx *Tx) error { return tx.Put("note", "largest", largest) }); err != nil {
+		t.Fatalf("the largest record was refused: %v", err)
+	}
+	if err := s.View(func(tx *Tx) error {
+		value, _, err := tx.Get("note", "largest")
+		if err == nil && !bytes.Equal(value, largest) {
+			err = errors.New("changed")
+		}
+		return err
+	}); err != nil {
+		t.Errorf("the largest record does not open: %v", err)
 	}
 	if err := s.View(func(tx *Tx) error { return tx.Put("note", "ro", []byte("v")) }); err == nil {
 		t.Error("a read transaction wrote")

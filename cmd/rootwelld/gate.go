@@ -11,73 +11,50 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
-	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
-// The explicit JSON pattern makes a missing container asset a compile error;
-// the wildcard alone would silently omit a filtered-out example file.
-//
 //go:embed auth/*
 var authAssets embed.FS
 
 const cookieName = "__Host-rootwell_session"
 
 type session struct {
-	setup          bool
-	expires        time.Time
-	revision       [32]byte
-	inventoryReady bool
-	dataKey        [32]byte
-	installationID [16]byte
+	setup    bool
+	expires  time.Time
+	revision [32]byte
 }
 
 type gate struct {
-	accessPath          string
-	assets              *os.Root
-	host                string
-	now                 func() time.Time
-	derive              chan struct{}
-	mu                  sync.Mutex
-	sessions            map[[32]byte]session
-	attempts            []time.Time
-	monitorMu           sync.Mutex
-	monitor             monitorObservation
-	monitorStop         chan struct{}
-	monitorDone         chan struct{}
-	monitorRead         func(session) ([]publicinventory.Record, uint64, error)
-	directoryCheck      directoryCheck
-	directoryBusy       bool
-	directoryLast       time.Time
-	registrationPreview *registrationPreview
-	registrationTerms   termsCheck
-	registrationCreate  accountRegister
-	registrationFind    accountFind
-	orderConnect        orderConnect
-	validationConnect   validationConnect
-	certificateConnect  certificateConnect
-	dnsConnect          dnsConnect
-	timingConnect       timingConnect
-	watch               *timingWatch
-	renewal             *renewalJob
-	closed              bool
-	websiteCheck        websiteCheck
-	websiteBusy         bool
-	websiteLast         time.Time
+	accessPath   string
+	assets       *os.Root
+	host         string
+	now          func() time.Time
+	derive       chan struct{}
+	mu           sync.Mutex
+	sessions     map[[32]byte]session
+	attempts     []time.Time
+	certificates *certstore.Store
+	closed       bool
+	websiteCheck websiteCheck
+	websiteBusy  bool
+	websiteLast  time.Time
 }
 
-func newGate(accessPath, assetsDir, host string) (*gate, error) {
+// newGate serves the pages. certificates is the vault-backed list; nil means
+// this host keeps no certificates (a preview off Linux).
+func newGate(accessPath, assetsDir, host string, certificates *certstore.Store) (*gate, error) {
 	root, err := os.OpenRoot(assetsDir)
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "ui.js", "rootwell.css", "style.css", "theme.js", "session.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "ui.js", "rootwell.css", "theme.js", "session.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -85,34 +62,12 @@ func newGate(accessPath, assetsDir, host string) (*gate, error) {
 		}
 	}
 	return &gate{accessPath: accessPath, assets: root, host: host, now: time.Now,
-		derive: make(chan struct{}, 1), sessions: make(map[[32]byte]session)}, nil
+		derive: make(chan struct{}, 1), sessions: make(map[[32]byte]session), certificates: certificates}, nil
 }
 
 func (g *gate) Close() error {
 	g.mu.Lock()
 	g.closed = true
-	var watchDone chan struct{}
-	var renewalDone chan struct{}
-	if g.renewal != nil {
-		g.pauseRenewalLocked(g.renewal, "server-stopped")
-		renewalDone = g.renewal.done
-	}
-	if g.watch != nil {
-		g.pauseWatchLocked(g.watch, "server-stopped", "none")
-		watchDone = g.watch.done
-	}
-	g.mu.Unlock()
-	if watchDone != nil {
-		<-watchDone
-	}
-	if renewalDone != nil {
-		<-renewalDone
-	}
-	if g.monitorStop != nil {
-		close(g.monitorStop)
-		<-g.monitorDone
-	}
-	g.mu.Lock()
 	for id := range g.sessions {
 		g.forgetSessionLocked(id)
 	}
@@ -205,50 +160,8 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory":
 		g.inventoryEndpoint(w, r, s, signedIn)
 		return
-	case "/api/acme/plan":
-		g.acmePlanEndpoint(w, r, s, signedIn)
-		return
-	case "/api/automation/status":
-		g.automationStatusEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/renewal-timing/status", "/api/acme/renewal-timing/check", "/api/acme/renewal-timing/interrupt":
-		g.renewalTimingEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/timing-watch/preview", "/api/acme/timing-watch/start", "/api/acme/timing-watch/status", "/api/acme/timing-watch/stop":
-		g.timingWatchEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/renewal-job/preview", "/api/acme/renewal-job/start", "/api/acme/renewal-job/status", "/api/acme/renewal-job/stop":
-		g.renewalJobEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/directory":
-		g.acmeDirectoryEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/account/status", "/api/acme/account/prepare", "/api/acme/production-account/status", "/api/acme/production-account/prepare":
-		g.acmeAccountEndpoint(w, r, s, signedIn)
-		return
-	case "/api/dns/cloudflare/status", "/api/dns/cloudflare/save", "/api/dns/cloudflare/remove":
-		g.cloudflareConfigEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/dns/status", "/api/acme/dns/add", "/api/acme/dns/check", "/api/acme/dns/cleanup", "/api/acme/dns/recover", "/api/acme/dns/maintenance":
-		g.dnsOperationEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/registration/preview", "/api/acme/registration/register", "/api/acme/registration/reconcile":
-		g.acmeRegistrationEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/order/status", "/api/acme/order/start", "/api/acme/order/renew", "/api/acme/order/resume", "/api/acme/order/ack", "/api/acme/order/validate", "/api/acme/order/refresh", "/api/acme/order/prepare-key", "/api/acme/order/issue", "/api/acme/order/certificate-refresh", "/api/acme/order/close-request":
-		g.acmeOrderEndpoint(w, r, s, signedIn)
-		return
 	case "/api/certificates/check", "/api/certificates/save", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save":
 		g.certificateEndpoint(w, r, s, signedIn)
-		return
-	case "/api/inventory/activity", "/api/inventory/comparison-source":
-		g.lifecycleEndpoint(w, r, s, signedIn)
-		return
-	case "/api/inventory/history/status", "/api/inventory/history/archive":
-		g.historyArchiveEndpoint(w, r, s, signedIn)
-		return
-	case "/api/acme/request-storage/status", "/api/acme/request-storage/archive":
-		g.requestArchiveEndpoint(w, r, s, signedIn)
 		return
 	case "/api/inventory/locations":
 		g.inventoryLocationEndpoint(w, r, s, signedIn)
@@ -262,7 +175,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/delete":
 		g.inventoryDeleteEndpoint(w, r, s, signedIn)
 		return
-	case "/automation", "/timing-watch.js", "/renewal-job.js", "/renewal-timing.js", "/automation-status.js", "/dns-operation.js", "/cloudflare-config.js", "/acme-setup.js", "/acme-directory.js", "/acme-account.js", "/production-account.js", "/acme-registration.js", "/acme-order.js", "/certificate-pfx.js", "/certificate-pfx-worker.js", "/inventory.css":
+	case "/certificate-pfx.js", "/certificate-pfx-worker.js":
+		// The Certificates page opens a PFX with these, in a worker that has no
+		// network access.
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			methodNotAllowed(w)
 			return
@@ -275,40 +190,11 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/setup", http.StatusSeeOther)
 			return
 		}
-		switch r.URL.Path {
-		case "/automation":
-			g.authAsset(w, r, "auth/acme.html", "text/html; charset=utf-8")
-		case "/automation-status.js":
-			g.authAsset(w, r, "auth/automation-status.js", "text/javascript; charset=utf-8")
-		case "/renewal-timing.js":
-			g.authAsset(w, r, "auth/renewal-timing.js", "text/javascript; charset=utf-8")
-		case "/timing-watch.js":
-			g.authAsset(w, r, "auth/timing-watch.js", "text/javascript; charset=utf-8")
-		case "/renewal-job.js":
-			g.authAsset(w, r, "auth/renewal-job.js", "text/javascript; charset=utf-8")
-		case "/acme-setup.js":
-			g.authAsset(w, r, "auth/acme-setup.js", "text/javascript; charset=utf-8")
-		case "/acme-directory.js":
-			g.authAsset(w, r, "auth/acme-directory.js", "text/javascript; charset=utf-8")
-		case "/production-account.js":
-			g.authAsset(w, r, "auth/production-account.js", "text/javascript; charset=utf-8")
-		case "/acme-account.js":
-			g.authAsset(w, r, "auth/acme-account.js", "text/javascript; charset=utf-8")
-		case "/cloudflare-config.js":
-			g.authAsset(w, r, "auth/cloudflare-config.js", "text/javascript; charset=utf-8")
-		case "/dns-operation.js":
-			g.authAsset(w, r, "auth/dns-operation.js", "text/javascript; charset=utf-8")
-		case "/acme-registration.js":
-			g.authAsset(w, r, "auth/acme-registration.js", "text/javascript; charset=utf-8")
-		case "/acme-order.js":
-			g.authAsset(w, r, "auth/acme-order.js", "text/javascript; charset=utf-8")
-		case "/certificate-pfx.js":
-			g.authAsset(w, r, "auth/certificate-pfx.js", "text/javascript; charset=utf-8")
-		case "/certificate-pfx-worker.js":
-			g.authAsset(w, r, "auth/certificate-pfx-worker.js", "text/javascript; charset=utf-8")
-		case "/inventory.css":
-			g.authAsset(w, r, "auth/inventory.css", "text/css; charset=utf-8")
+		name := "auth/certificate-pfx.js"
+		if r.URL.Path == "/certificate-pfx-worker.js" {
+			name = "auth/certificate-pfx-worker.js"
 		}
+		g.authAsset(w, r, name, "text/javascript; charset=utf-8")
 		return
 	case "/setup":
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -410,7 +296,7 @@ func (g *gate) startDerivation() bool {
 	}
 }
 
-func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte, key, installID []byte) error {
+func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte) error {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return errors.New("session could not be created")
@@ -432,13 +318,7 @@ func (g *gate) issueSession(w http.ResponseWriter, setup bool, revision [32]byte
 		}
 		g.forgetSessionLocked(oldest)
 	}
-	s := session{setup: setup, expires: g.now().Add(lifetime), revision: revision}
-	if !setup && len(key) == 32 && len(installID) == 16 {
-		s.inventoryReady = true
-		copy(s.dataKey[:], key)
-		copy(s.installationID[:], installID)
-	}
-	g.sessions[id] = s
+	g.sessions[id] = session{setup: setup, expires: g.now().Add(lifetime), revision: revision}
 	g.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", MaxAge: int(lifetime / time.Second),
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
@@ -467,25 +347,8 @@ func (g *gate) revokeSession(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode})
 }
 
-// Best-effort erasure of the map-held key. Go may retain copies until GC;
-// this is not a guarantee against a compromised process memory image.
 func (g *gate) forgetSessionLocked(id [32]byte) {
-	if g.renewal != nil && g.renewal.owner == id {
-		g.pauseRenewalLocked(g.renewal, "access-ended")
-	}
-	if g.watch != nil && g.watch.owner == id {
-		g.pauseWatchLocked(g.watch, "access-ended", "none")
-	}
-	if g.registrationPreview != nil && g.registrationPreview.session == id {
-		g.registrationPreview = nil
-	}
-	if s, ok := g.sessions[id]; ok {
-		s.dataKey = [32]byte{}
-		s.installationID = [16]byte{}
-		g.sessions[id] = s
-		delete(g.sessions, id)
-		g.setMonitor(monitorObservation{Status: "locked"})
-	}
+	delete(g.sessions, id)
 }
 
 type passwordInput struct {
@@ -564,25 +427,7 @@ func (g *gate) sessionEndpoint(w http.ResponseWriter, r *http.Request, signedIn 
 		http.Error(w, "installation changed during sign-in", http.StatusServiceUnavailable)
 		return
 	}
-	var key, installationID []byte
-	if !setup && runtime.GOOS == "linux" {
-		key, installationID, err = instanceaccess.OpenWithIdentity(g.accessPath, body.Password)
-		if err != nil && !errors.Is(err, instanceaccess.ErrIdentityMissing) {
-			http.Error(w, "installation unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		defer func() {
-			for i := range key {
-				key[i] = 0
-			}
-		}()
-	}
-	revisionAfter, err = instanceaccess.Revision(g.accessPath)
-	if err != nil || revisionBefore != revisionAfter {
-		http.Error(w, "installation changed during sign-in", http.StatusServiceUnavailable)
-		return
-	}
-	if err := g.issueSession(w, setup, revisionAfter, key, installationID); err != nil {
+	if err := g.issueSession(w, setup, revisionAfter); err != nil {
 		http.Error(w, "session unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -676,7 +521,7 @@ var workbenchFiles = map[string]string{
 	"/inspect": "inspect.html", "/inspect.js": "inspect.js",
 	"/convert": "convert.html", "/convert.js": "convert.js",
 	"/request": "request.html", "/request.js": "request.js",
-	"/ui.js": "ui.js", "/rootwell.css": "rootwell.css", "/style.css": "style.css", "/theme.js": "theme.js",
+	"/ui.js": "ui.js", "/rootwell.css": "rootwell.css", "/theme.js": "theme.js",
 	"/session.js": "session.js", "/favicon.svg": "favicon.svg",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",
 	"/pfx-worker-client.js": "pfx-worker-client.js", "/pfx-worker.js": "pfx-worker.js",

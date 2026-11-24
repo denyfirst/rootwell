@@ -68,20 +68,29 @@ The contracts for these commands:
 
 ## Run the web service for development
 
-The certificate store needs Linux. On Windows the pages open, but saving is
-turned off.
+`init` and `serve` take a data directory and an instance key file, which must
+sit outside the data directory. The certificate store needs Linux. On Windows
+the same commands open the pages as a preview: no key file or vault is made,
+and saving is turned off.
 
 ```powershell
-$dataDir = Join-Path $env:LOCALAPPDATA "Rootwell"
+$dataDir = Join-Path $env:LOCALAPPDATA "Rootwell\data"
+$keyFile = Join-Path $env:LOCALAPPDATA "Rootwell-key\instance.key"
 $env:GOOS = "js"; $env:GOARCH = "wasm"
 go build -trimpath -o web/workbench/rootwell.wasm ./cmd/rootwell-browser
 Remove-Item Env:GOOS, Env:GOARCH
 Copy-Item -Force (Join-Path (go env GOROOT) "lib/wasm/wasm_exec.js") web/workbench/wasm_exec.js
-go run ./cmd/rootwelld init $dataDir
-go run ./cmd/rootwelld serve $dataDir web/workbench
+go run ./cmd/rootwelld init $dataDir $keyFile
+go run ./cmd/rootwelld serve $dataDir $keyFile web/workbench
 ```
 
-1. `init` shows a one-time setup password. Type `SAVED` once you have kept it.
+On Linux, make the key file's directory first with
+`install -d -m 0700 <key-dir>`.
+
+1. `init` shows a one-time setup password and, on Linux, the recovery code of
+   the instance key. Type `SAVED` once you have kept both. Keep the code away
+   from the host and from backups: losing both the key file and the code loses
+   every saved certificate and key.
 2. Open `http://localhost:4180` on the same machine.
 3. Sign in with the setup password, then change it.
 
@@ -90,9 +99,10 @@ The menu has six pages: **Certificates** (the home page), **Website check**,
 Request work on files only inside the browser
 ([the pages](web/workbench/README.md)).
 
-The service listens on `127.0.0.1` only. On Linux, backups and restores are
-terminal commands with the service stopped ([recovery](docs/RECOVERY.md)). A
-Docker profile is in [container recovery](docs/CONTAINER-RECOVERY.md).
+The service listens on `127.0.0.1` only. Until online backups arrive, a backup
+is a copy of the data directory made with the service stopped; the key file
+never goes with it ([recovery](docs/RECOVERY.md)). A Docker profile is in
+[container recovery](docs/CONTAINER-RECOVERY.md).
 Phase 3 of the plan replaces all of this with HTTPS, accounts with MFA, an
 install script, and backups from the web.
 

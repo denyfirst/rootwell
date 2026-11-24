@@ -19,7 +19,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/denyfirst/rootwell/internal/acmeplan"
-	"github.com/denyfirst/rootwell/internal/inventorystore"
 	"golang.org/x/crypto/acme"
 )
 
@@ -67,7 +66,7 @@ func FindAccount(ctx context.Context, permit func() bool, signer crypto.Signer) 
 }
 
 func registerAccount(ctx context.Context, permit func() bool, deps dependencies, signer crypto.Signer, terms string, lookup bool) (string, bool, error) {
-	if !validAccountSigner(signer) || (!lookup && !inventorystore.ValidStagingTermsURL(terms)) || (lookup && terms != "") {
+	if !validAccountSigner(signer) || (!lookup && !ValidStagingTermsURL(terms)) || (lookup && terms != "") {
 		return "", false, errRefused
 	}
 	client, guard, closeTransport := registrationClient(ctx, permit, deps, signer, lookup)
@@ -113,7 +112,7 @@ func validAccountSigner(signer crypto.Signer) bool {
 }
 
 func validRegistrationDirectory(d acme.Directory) bool {
-	return d.NonceURL == nonceURL && d.RegURL == registerURL && !d.ExternalAccountRequired && inventorystore.ValidStagingTermsURL(d.Terms)
+	return d.NonceURL == nonceURL && d.RegURL == registerURL && !d.ExternalAccountRequired && ValidStagingTermsURL(d.Terms)
 }
 
 func validRegistrationAccountURL(value string) bool {
@@ -265,7 +264,7 @@ func validRegistrationMeta(body []byte) bool {
 		return false
 	}
 	var terms string
-	if json.Unmarshal(meta["termsOfService"], &terms) != nil || !inventorystore.ValidStagingTermsURL(terms) {
+	if json.Unmarshal(meta["termsOfService"], &terms) != nil || !ValidStagingTermsURL(terms) {
 		return false
 	}
 	for name, raw := range meta {
@@ -382,4 +381,23 @@ func (t *registrationTransport) validJWS(body []byte) bool {
 	}
 	signature, ok := decode(envelope["signature"])
 	return ok && len(signature) == 64
+}
+
+// ValidStagingTermsURL is a conservative link policy, not terms-document trust.
+// It has no URL fetching capability and rejects queries/escapes/credentials.
+func ValidStagingTermsURL(value string) bool {
+	const prefix = "https://letsencrypt.org/documents/"
+	if len(value) > 1024 || !strings.HasPrefix(value, prefix) {
+		return false
+	}
+	name := strings.TrimPrefix(value, prefix)
+	if len(name) == 0 || strings.HasPrefix(name, ".") || strings.Contains(name, "..") {
+		return false
+	}
+	for _, c := range name {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.') {
+			return false
+		}
+	}
+	return true
 }

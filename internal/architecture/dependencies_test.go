@@ -406,45 +406,6 @@ func TestIssuanceExecutionReviewedBoundaries(t *testing.T) {
 	}
 }
 
-func TestCertificateTransactionProductionCompletionIsFixed(t *testing.T) {
-	_, current, _, _ := runtime.Caller(0)
-	path := filepath.Join(filepath.Dir(current), "..", "instanceaccess", "acme_certificate_linux.go")
-	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != "RunStagingCertificate" {
-			continue
-		}
-		if len(fn.Body.List) != 1 {
-			t.Fatal("production transaction must only forward to fixed acceptance")
-		}
-		ret, ok := fn.Body.List[0].(*ast.ReturnStmt)
-		if !ok || len(ret.Results) != 1 {
-			t.Fatal("completion authority changed")
-		}
-		call, ok := ret.Results[0].(*ast.CallExpr)
-		if !ok || len(call.Args) != 9 {
-			t.Fatal("completion authority changed")
-		}
-		selector, ok := call.Args[8].(*ast.SelectorExpr)
-		if !ok || selector.Sel.Name != "FinishStagingIssuance" {
-			t.Fatal("production checker not fixed")
-		}
-		pkg, ok := selector.X.(*ast.Ident)
-		if !ok || pkg.Name != "inventorystore" {
-			t.Fatal("production checker not fixed")
-		}
-		found = true
-	}
-	if !found {
-		t.Fatal("fixed production transaction missing")
-	}
-}
-
 func TestClosedRequestHistoryCannotBecomeNetworkOrRuntimeAuthority(t *testing.T) {
 	_, current, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
@@ -534,47 +495,6 @@ func TestManualRenewalConsumersStayInsideReviewedCustodyAndGate(t *testing.T) {
 	}
 }
 
-// This regression guard is not a sandbox: new ACME capabilities need an
-// explicit boundary review, not an accidental client/storage import.
-func TestACMESetupHasNoOutboundOrPersistenceImports(t *testing.T) {
-	_, currentFile, _, _ := runtime.Caller(0)
-	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	for path, allowed := range map[string]map[string]bool{
-		"internal/acmeplan/plan.go": {"errors": true, "strings": true, "github.com/denyfirst/rootwell/internal/csrworkbench": true},
-		"cmd/rootwelld/acme_api.go": {"bytes": true, "encoding/json": true, "io": true, "mime": true, "net/http": true, "unicode/utf8": true, "github.com/denyfirst/rootwell/internal/acmeplan": true},
-	} {
-		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, imported := range file.Imports {
-			value, err := strconv.Unquote(imported.Path.Value)
-			if err != nil || !allowed[value] || imported.Name != nil {
-				t.Errorf("unreviewed ACME setup import in %s: %s", path, imported.Path.Value)
-			}
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			selector, ok := n.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			id, ok := selector.X.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			if id.Name == "http" && !strings.HasPrefix(selector.Sel.Name, "Status") &&
-				selector.Sel.Name != "Error" && selector.Sel.Name != "MaxBytesReader" &&
-				selector.Sel.Name != "Request" && selector.Sel.Name != "ResponseWriter" && selector.Sel.Name != "MethodPost" {
-				t.Errorf("outbound-capable http selector in %s: %s", path, selector.Sel.Name)
-			}
-			if id.Name == "csrworkbench" && selector.Sel.Name != "NormalizeDNSNames" {
-				t.Errorf("key/CSR capability in setup: %s", selector.Sel.Name)
-			}
-			return true
-		})
-	}
-}
-
 func TestPFXImportPreparationHasNoNetworkOrCustodyAuthority(t *testing.T) {
 	_, current, _, _ := runtime.Caller(0)
 	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(filepath.Dir(current), "..", "browserpfximport", "prepare.go"), nil, 0)
@@ -602,41 +522,6 @@ func TestPFXImportPreparationHasNoNetworkOrCustodyAuthority(t *testing.T) {
 		}
 		if id.Name == "pfxkeyexport" && s.Sel.Name != "Export" {
 			t.Error("PFX preparation gained plaintext export", s.Sel.Name)
-		}
-		return true
-	})
-}
-
-func TestACMEAccountPreparationHasNoOutboundHTTPAuthority(t *testing.T) {
-	_, currentFile, _, _ := runtime.Caller(0)
-	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
-	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "cmd/rootwelld/acme_account_api.go"), nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	allowed := map[string]bool{"bytes": true, "encoding/json": true, "errors": true, "io": true, "mime": true, "net/http": true, "runtime": true, "unicode/utf8": true,
-		"github.com/denyfirst/rootwell/internal/acmeplan": true, "github.com/denyfirst/rootwell/internal/instanceaccess": true, "github.com/denyfirst/rootwell/internal/inventorystore": true}
-	for _, imported := range file.Imports {
-		path, err := strconv.Unquote(imported.Path.Value)
-		if err != nil || !allowed[path] || imported.Name != nil {
-			t.Errorf("unreviewed account-preparation import: %s", imported.Path.Value)
-		}
-	}
-	ast.Inspect(file, func(n ast.Node) bool {
-		s, ok := n.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-		id, ok := s.X.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		if id.Name == "http" && !strings.HasPrefix(s.Sel.Name, "Status") && s.Sel.Name != "Request" && s.Sel.Name != "ResponseWriter" &&
-			s.Sel.Name != "Error" && s.Sel.Name != "MaxBytesReader" && s.Sel.Name != "MethodPost" {
-			t.Errorf("outbound HTTP authority in local preparation: %s", s.Sel.Name)
-		}
-		if id.Name == "acmeplan" && s.Sel.Name != "Provider" {
-			t.Errorf("unreviewed account provider capability: %s", s.Sel.Name)
 		}
 		return true
 	})

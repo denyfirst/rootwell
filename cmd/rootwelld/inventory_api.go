@@ -7,22 +7,12 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"runtime"
 	"time"
 	"unicode/utf8"
 
-	"github.com/denyfirst/rootwell/internal/instanceaccess"
-	"github.com/denyfirst/rootwell/internal/inventorystore"
+	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
-
-const maxInventoryRequest = 22 << 20 // base64-wrapped maximum 16 MiB public input
-
-type inventoryInput struct {
-	Certificate []byte
-	Owner       string
-	Location    string
-}
 
 type inventoryLocationInput struct {
 	Fingerprint        string
@@ -40,7 +30,7 @@ type inventoryLocationChangeInput struct {
 	Fingerprint        string
 	OldLocation        string
 	NewLocation        string
-	Action             inventorystore.LocationChange
+	Action             certstore.LocationChange
 	ExpectedGeneration uint64
 }
 
@@ -52,30 +42,27 @@ type inventoryDeleteInput struct {
 }
 
 type inventoryDeleteOutput struct {
-	Fingerprint  string `json:"fingerprint"`
-	Generation   uint64 `json:"generation"`
-	Deleted      bool   `json:"deleted"`
-	Verification string `json:"verification"`
-	Backup       string `json:"backup"`
+	Fingerprint string `json:"fingerprint"`
+	Generation  uint64 `json:"generation"`
+	Deleted     bool   `json:"deleted"`
 }
 
 type inventoryItem struct {
-	HasPrivateKey    bool                           `json:"has_private_key"`
-	KeyStatus        string                         `json:"key_status"`
-	BundleCount      int                            `json:"bundle_count"`
-	Fingerprint      string                         `json:"fingerprint"`
-	Subject          string                         `json:"subject"`
-	Issuer           string                         `json:"issuer"`
-	DNSNames         []string                       `json:"dns_names"`
-	NotBefore        string                         `json:"not_before"`
-	NotAfter         string                         `json:"not_after"`
-	Owner            string                         `json:"owner"`
-	Location         string                         `json:"location"`
-	Locations        []string                       `json:"locations"`
-	ImportGeneration uint64                         `json:"import_generation"`
-	ImportedAt       string                         `json:"imported_at,omitempty"`
-	Expiry           publicinventory.Expiry         `json:"expiry"`
-	StagingOrigin    *publicinventory.StagingOrigin `json:"staging_origin,omitempty"`
+	HasPrivateKey    bool                   `json:"has_private_key"`
+	KeyStatus        string                 `json:"key_status"`
+	BundleCount      int                    `json:"bundle_count"`
+	Fingerprint      string                 `json:"fingerprint"`
+	Subject          string                 `json:"subject"`
+	Issuer           string                 `json:"issuer"`
+	DNSNames         []string               `json:"dns_names"`
+	NotBefore        string                 `json:"not_before"`
+	NotAfter         string                 `json:"not_after"`
+	Owner            string                 `json:"owner"`
+	Location         string                 `json:"location"`
+	Locations        []string               `json:"locations"`
+	ImportGeneration uint64                 `json:"import_generation"`
+	ImportedAt       string                 `json:"imported_at,omitempty"`
+	Expiry           publicinventory.Expiry `json:"expiry"`
 }
 
 func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -91,12 +78,8 @@ func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request,
 		http.Error(w, "change the setup password first", http.StatusForbidden)
 		return
 	}
-	if runtime.GOOS != "linux" {
-		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
-		return
-	}
-	if !s.inventoryReady {
-		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+	if g.certificates == nil {
+		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	if !g.sameOrigin(r) {
@@ -107,8 +90,7 @@ func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request,
 	if !ok {
 		return
 	}
-	updated, generation, err := instanceaccess.AssociateInventoryLocation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
-		input.ExpectedGeneration, input.Fingerprint, input.Location)
+	updated, generation, err := g.certificates.AddLocation(input.ExpectedGeneration, input.Fingerprint, input.Location)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -193,12 +175,8 @@ func (g *gate) inventoryLocationChangeEndpoint(w http.ResponseWriter, r *http.Re
 		http.Error(w, "change the setup password first", http.StatusForbidden)
 		return
 	}
-	if runtime.GOOS != "linux" {
-		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
-		return
-	}
-	if !s.inventoryReady {
-		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+	if g.certificates == nil {
+		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	if !g.sameOrigin(r) {
@@ -209,8 +187,7 @@ func (g *gate) inventoryLocationChangeEndpoint(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	updated, generation, err := instanceaccess.ChangeInventoryLocation(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
-		input.ExpectedGeneration, input.Fingerprint, input.OldLocation, input.NewLocation, input.Action)
+	updated, generation, err := g.certificates.ChangeLocation(input.ExpectedGeneration, input.Fingerprint, input.OldLocation, input.NewLocation, input.Action)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -287,13 +264,13 @@ func readInventoryLocationChangeInput(w http.ResponseWriter, r *http.Request) (i
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return inventoryLocationChangeInput{}, false
 		}
-		input.Action = inventorystore.LocationRename
+		input.Action = certstore.Rename
 	case "remove":
 		if seen["new_location"] {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return inventoryLocationChangeInput{}, false
 		}
-		input.Action = inventorystore.LocationRemove
+		input.Action = certstore.Remove
 	default:
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return inventoryLocationChangeInput{}, false
@@ -314,12 +291,8 @@ func (g *gate) inventoryOwnerEndpoint(w http.ResponseWriter, r *http.Request, s 
 		http.Error(w, "change the setup password first", http.StatusForbidden)
 		return
 	}
-	if runtime.GOOS != "linux" {
-		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
-		return
-	}
-	if !s.inventoryReady {
-		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+	if g.certificates == nil {
+		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	if !g.sameOrigin(r) {
@@ -330,8 +303,7 @@ func (g *gate) inventoryOwnerEndpoint(w http.ResponseWriter, r *http.Request, s 
 	if !ok {
 		return
 	}
-	updated, generation, err := instanceaccess.UpdateInventoryOwner(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
-		input.ExpectedGeneration, input.Fingerprint, input.Owner)
+	updated, generation, err := g.certificates.SetOwner(input.ExpectedGeneration, input.Fingerprint, input.Owner)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -420,12 +392,8 @@ func (g *gate) inventoryDeleteEndpoint(w http.ResponseWriter, r *http.Request, s
 		http.Error(w, "change the setup password first", http.StatusForbidden)
 		return
 	}
-	if runtime.GOOS != "linux" {
-		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
-		return
-	}
-	if !s.inventoryReady {
-		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
+	if g.certificates == nil {
+		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
 	if !g.sameOrigin(r) {
@@ -436,16 +404,14 @@ func (g *gate) inventoryDeleteEndpoint(w http.ResponseWriter, r *http.Request, s
 	if !ok {
 		return
 	}
-	generation, err := instanceaccess.DeleteInventoryRecord(g.accessPath, s.dataKey[:], s.installationID[:], s.revision,
-		input.ExpectedGeneration, input.Fingerprint)
+	generation, err := g.certificates.Delete(input.ExpectedGeneration, input.Fingerprint)
 	if err != nil {
 		inventoryError(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(inventoryDeleteOutput{Fingerprint: input.Fingerprint, Generation: generation, Deleted: true,
-		Verification: "not-performed", Backup: "Create a new full snapshot after deletion. Older snapshots may restore the deleted record."})
+	_ = json.NewEncoder(w).Encode(inventoryDeleteOutput{Fingerprint: input.Fingerprint, Generation: generation, Deleted: true})
 }
 
 func readInventoryDeleteInput(w http.ResponseWriter, r *http.Request) (inventoryDeleteInput, bool) {
@@ -512,21 +478,14 @@ func readInventoryDeleteInput(w http.ResponseWriter, r *http.Request) (inventory
 }
 
 type inventoryOutput struct {
-	Generation   uint64              `json:"generation"`
-	Records      []inventoryItem     `json:"records"`
-	Verification string              `json:"verification"`
-	Backup       string              `json:"backup"`
-	Monitoring   inventoryMonitoring `json:"monitoring"`
+	Generation uint64          `json:"generation"`
+	Records    []inventoryItem `json:"records"`
 }
 
-type inventoryMonitoring struct {
-	CheckedAt           string `json:"checked_at"`
-	ClockSource         string `json:"clock_source"`
-	RefreshAfterSeconds int    `json:"refresh_after_seconds"`
-}
-
+// inventoryEndpoint lists the saved certificates. Certificates are added on
+// /api/certificates/save, never here.
 func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
-	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
@@ -538,104 +497,24 @@ func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		http.Error(w, "change the setup password first", http.StatusForbidden)
 		return
 	}
-	if runtime.GOOS != "linux" {
-		http.Error(w, "durable inventory is not supported on this platform", http.StatusNotImplemented)
+	if g.certificates == nil {
+		http.Error(w, "certificates are kept only by the Linux service; this host is a preview", http.StatusNotImplemented)
 		return
 	}
-	if !s.inventoryReady {
-		http.Error(w, "installation identity is not enrolled", http.StatusConflict)
-		return
-	}
-	if r.Method == http.MethodGet {
-		if r.Header.Get("X-Rootwell-Request") != "1" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-			http.Error(w, "request origin refused", http.StatusForbidden)
-			return
-		}
-		records, generation, err := instanceaccess.ReadInventory(g.accessPath, s.dataKey[:], s.installationID[:], s.revision)
-		if err != nil {
-			inventoryError(w, err)
-			return
-		}
-		g.writeInventoryJSON(w, http.StatusOK, records, generation)
-		return
-	}
-	if !g.sameOrigin(r) {
+	if r.Header.Get("X-Rootwell-Request") != "1" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
 	}
-	input, ok := readInventoryInput(w, r)
-	if !ok {
-		return
-	}
-	added, generation, err := instanceaccess.AppendInventory(g.accessPath, s.dataKey[:], s.installationID[:], s.revision, input.Certificate, input.Owner, input.Location)
+	records, generation, err := g.certificates.List()
 	if err != nil {
 		inventoryError(w, err)
 		return
 	}
-	g.writeInventoryJSON(w, http.StatusCreated, added, generation)
-}
-
-func readInventoryInput(w http.ResponseWriter, r *http.Request) (inventoryInput, bool) {
-	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || media != "application/json" {
-		http.Error(w, "JSON body required", http.StatusUnsupportedMediaType)
-		return inventoryInput{}, false
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxInventoryRequest)
-	d := json.NewDecoder(r.Body)
-	start, err := d.Token()
-	if err != nil || start != json.Delim('{') {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return inventoryInput{}, false
-	}
-	var input inventoryInput
-	seen := make(map[string]bool, 3)
-	for d.More() {
-		token, err := d.Token()
-		if err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return inventoryInput{}, false
-		}
-		name, ok := token.(string)
-		if !ok || seen[name] {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return inventoryInput{}, false
-		}
-		seen[name] = true
-		switch name {
-		case "certificate":
-			err = d.Decode(&input.Certificate)
-		case "owner":
-			err = d.Decode(&input.Owner)
-		case "location":
-			err = d.Decode(&input.Location)
-		default:
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return inventoryInput{}, false
-		}
-		if err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return inventoryInput{}, false
-		}
-	}
-	end, err := d.Token()
-	if err != nil || end != json.Delim('}') {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return inventoryInput{}, false
-	}
-	if _, err := d.Token(); err != io.EOF || len(input.Certificate) == 0 || len(input.Certificate) > 16<<20 {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return inventoryInput{}, false
-	}
-	return input, true
+	g.writeInventoryJSON(w, http.StatusOK, records, generation)
 }
 
 func inventoryError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, inventorystore.ErrRenewalSourceInUse):
-		http.Error(w, "Close the renewal request in Automation before deleting its original certificate.", http.StatusConflict)
-	case errors.Is(err, instanceaccess.ErrInventoryMissing):
-		http.Error(w, "inventory not initialized; run the offline inventory-init ceremony", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrDuplicate):
 		http.Error(w, "certificate is already saved", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrLocationDuplicate):
@@ -648,24 +527,16 @@ func inventoryError(w http.ResponseWriter, err error) {
 		http.Error(w, "location is unchanged", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrOwnerUnchanged):
 		http.Error(w, "owner is unchanged", http.StatusConflict)
-	case errors.Is(err, inventorystore.ErrNotFound):
+	case errors.Is(err, certstore.ErrNotFound):
 		http.Error(w, "certificate is no longer in the inventory; refresh first", http.StatusNotFound)
-	case errors.Is(err, inventorystore.ErrStaleGeneration):
+	case errors.Is(err, certstore.ErrStale):
 		http.Error(w, "inventory changed; refresh before changing metadata", http.StatusConflict)
-	case errors.Is(err, publicinventory.ErrCapacity):
+	case errors.Is(err, certstore.ErrFull):
 		http.Error(w, "inventory capacity reached", http.StatusConflict)
-	case errors.Is(err, inventorystore.ErrLimit):
-		http.Error(w, "inventory write limit reached; no further save is safe", http.StatusConflict)
 	case errors.Is(err, publicinventory.ErrLabel), errors.Is(err, publicinventory.ErrCertSize):
 		http.Error(w, "invalid owner/location or certificate size", http.StatusBadRequest)
-	case errors.Is(err, instanceaccess.ErrStaleUpgrade):
-		http.Error(w, "installation changed; sign in again", http.StatusConflict)
-	case errors.Is(err, instanceaccess.ErrAccessBusy):
-		http.Error(w, "another inventory change is running; retry later", http.StatusServiceUnavailable)
-	case errors.Is(err, instanceaccess.ErrInventoryUncertain):
-		http.Error(w, "save outcome uncertain; reload inventory before another import", http.StatusServiceUnavailable)
-	case errors.Is(err, inventorystore.ErrInvalid), errors.Is(err, instanceaccess.ErrInvalidFullSnapshot), errors.Is(err, instanceaccess.ErrUnsafeAccessStore):
-		http.Error(w, "encrypted inventory unavailable; inspect storage before retrying", http.StatusServiceUnavailable)
+	case errors.Is(err, certstore.ErrUnavailable):
+		http.Error(w, "the certificate vault could not be read; inspect storage before retrying", http.StatusServiceUnavailable)
 	default:
 		http.Error(w, "public certificate inventory operation refused", http.StatusBadRequest)
 	}
@@ -681,11 +552,9 @@ func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []p
 	for _, r := range records {
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
 			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
-			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now), StagingOrigin: r.StagingOrigin})
+			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now)})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(inventoryOutput{Generation: generation, Records: items, Verification: "not-performed",
-		Monitoring: inventoryMonitoring{CheckedAt: now.Format("2006-01-02T15:04:05Z"), ClockSource: "server-clock", RefreshAfterSeconds: 60},
-		Backup:     "Export a new full inventory snapshot after changes; backup is not automatic."})
+	_ = json.NewEncoder(w).Encode(inventoryOutput{Generation: generation, Records: items})
 }

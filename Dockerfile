@@ -10,7 +10,7 @@ RUN mkdir -p /out && \
     CGO_ENABLED=0 go build -trimpath -o /out/rootwelld ./cmd/rootwelld && \
     CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -trimpath -o /out/rootwell.wasm ./cmd/rootwell-browser && \
     cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js && \
-    CGO_ENABLED=0 go test -c -o /out/volume-drill.test ./internal/instanceaccess && \
+    CGO_ENABLED=0 go test -c -o /out/volume-drill.test ./internal/certstore && \
     CGO_ENABLED=0 go test -c -o /out/ca-trust-drill.test ./internal/acmestaging
 
 # Exactly what .dockerignore lets in; scripts/test-build-context.sh lists it.
@@ -39,4 +39,4 @@ COPY --from=build /out/rootwell.wasm /assets/rootwell.wasm
 COPY --from=build /out/wasm_exec.js /assets/wasm_exec.js
 USER 65532:65532
 ENTRYPOINT ["/rootwelld"]
-CMD ["serve", "/data", "/assets"]
+CMD ["serve", "/data", "/key/instance.key", "/assets"]

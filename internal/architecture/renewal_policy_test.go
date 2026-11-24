@@ -151,35 +151,3 @@ func TestRenewalTimingHasOnlyLockedInternalConsumers(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-// Complement executable Linux refusal tests: deleting a barrier must fail even
-// on a native development host that cannot execute Linux custody.
-func TestStagingProviderBarrierPresentInEveryNetworkWriter(t *testing.T) {
-	_, current, _, _ := runtime.Caller(0)
-	root := filepath.Clean(filepath.Join(filepath.Dir(current), "..", ".."))
-	for _, path := range []string{"internal/instanceaccess/acme_registration_linux.go", "internal/instanceaccess/acme_order_linux.go", "internal/instanceaccess/acme_validation_linux.go", "internal/instanceaccess/acme_certificate_linux.go", "cmd/rootwelld/acme_directory_api.go", "cmd/rootwelld/acme_registration_api.go"} {
-		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, path), nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := "stagingProviderPermit"
-		if strings.HasPrefix(path, "cmd/") {
-			want = "RunStagingProviderRead"
-		}
-		found := false
-		ast.Inspect(file, func(node ast.Node) bool {
-			if call, ok := node.(*ast.CallExpr); ok {
-				switch fn := call.Fun.(type) {
-				case *ast.Ident:
-					found = found || fn.Name == want
-				case *ast.SelectorExpr:
-					found = found || fn.Sel.Name == want
-				}
-			}
-			return true
-		})
-		if !found {
-			t.Error("missing all-CA provider barrier", path)
-		}
-	}
-}

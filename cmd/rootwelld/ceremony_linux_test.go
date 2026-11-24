@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/denyfirst/rootwell/internal/instanceaccess"
+	"github.com/denyfirst/rootwell/internal/vault"
 )
 
 func ceremonyPrivateDir(t *testing.T) string {
@@ -137,52 +138,53 @@ func TestLinuxOfflineCeremonyRefusesRunningDaemonAndBadArguments(t *testing.T) {
 	}
 }
 
-func TestLinuxInventoryCeremoniesRequireRecoveryAndRestoreFresh(t *testing.T) {
-	dir := ceremonyPrivateDir(t)
-	path := filepath.Join(dir, "access.json")
-	const initial = "a sufficiently long setup password"
-	const password = "a sufficiently long login password"
-	if err := instanceaccess.Create(path, initial); err != nil {
-		t.Fatal(err)
-	}
-	if err := instanceaccess.ChangeInitialPassword(path, initial, password); err != nil {
-		t.Fatal(err)
-	}
-	backup := filepath.Join(ceremonyPrivateDir(t), "initial.rwfull")
+func TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne(t *testing.T) {
+	data, keys := ceremonyPrivateDir(t), ceremonyPrivateDir(t)
+	keyFile := filepath.Join(keys, "instance.key")
 	var output bytes.Buffer
-	if err := runOfflineCommand([]string{"inventory-init", dir, backup}, ceremonySecrets(t, password, "invalid-code"), &output); err == nil {
-		t.Fatal("unenrolled inventory initialized")
-	}
-	if _, err := os.Lstat(backup); !os.IsNotExist(err) {
-		t.Fatal("rejected inventory initialization wrote backup")
-	}
-	if err := runOfflineCommand([]string{"recovery-enroll", dir}, ceremonySecrets(t, password), &output); err != nil {
+	if err := initialize(data, keyFile, strings.NewReader("SAVED\n"), &output); err != nil {
 		t.Fatal(err)
 	}
-	code := displayedCode(t, output.String())
-	output.Reset()
-	if err := runOfflineCommand([]string{"inventory-init", dir, backup}, ceremonySecrets(t, password, code), &output); err != nil {
+	original, err := vault.ReadKeyFile(keyFile)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(output.String(), password) || strings.Contains(output.String(), code) {
-		t.Fatal("inventory CLI leaked a credential")
-	}
-	output.Reset()
-	if err := runOfflineCommand([]string{"inventory-verify", backup, "code"}, ceremonySecrets(t, code), &output); err != nil || !strings.Contains(output.String(), "generation: 1") {
-		t.Fatalf("inventory verification: %v", err)
-	}
-	fresh := ceremonyPrivateDir(t)
-	output.Reset()
-	if err := runOfflineCommand([]string{"inventory-restore", backup, fresh, "code"}, ceremonySecrets(t, code), &output); err != nil {
+	code, err := vault.RecoveryCode(original)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := instanceaccess.OpenWithIdentity(filepath.Join(fresh, "access.json"), password); err != nil {
-		t.Fatalf("restored login: %v", err)
+	// An existing key file is never replaced, even by the right code.
+	if err := runOfflineCommand([]string{"key-restore", data, keyFile}, ceremonySecrets(t, code), &output); err == nil {
+		t.Fatal("key-restore replaced an existing key file")
 	}
-	if err := runOfflineCommand([]string{"inventory-restore", backup, fresh, "code"}, ceremonySecrets(t, code), &output); err == nil {
-		t.Fatal("restore overwrote existing installation")
+	if err := os.Remove(keyFile); err != nil {
+		t.Fatal(err)
 	}
-	if err := runOfflineCommand([]string{"inventory-snapshot", dir, filepath.Join(ceremonyPrivateDir(t), "next.rwfull"), "secret-as-arg"}, ceremonySecrets(t), &output); !errors.Is(err, errOfflineUsage) {
-		t.Fatal("secret-looking extra argument accepted")
+	// A code that does not open this vault writes nothing.
+	other, _ := vault.NewInstanceKey()
+	otherCode, _ := vault.RecoveryCode(other)
+	if err := runOfflineCommand([]string{"key-restore", data, keyFile}, ceremonySecrets(t, otherCode), &output); err == nil {
+		t.Fatal("a code from another installation was accepted")
+	}
+	if _, err := os.Stat(keyFile); !os.IsNotExist(err) {
+		t.Fatal("a refused restore wrote a key file")
+	}
+	for _, args := range [][]string{{"key-restore", data}, {"key-restore", data, filepath.Join(data, "instance.key")}} {
+		if err := runOfflineCommand(args, ceremonySecrets(t, code), &output); err == nil {
+			t.Fatalf("bad arguments accepted: %v", args)
+		}
+	}
+	output.Reset()
+	if err := runOfflineCommand([]string{"key-restore", data, keyFile}, ceremonySecrets(t, code), &output); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := vault.ReadKeyFile(keyFile)
+	if err != nil || !bytes.Equal(restored, original) || strings.Contains(output.String(), code) {
+		t.Fatalf("restore: %v", err)
+	}
+	if v, err := vault.Open(data, restored); err != nil {
+		t.Fatalf("the restored key does not open the vault: %v", err)
+	} else {
+		_ = v.Close()
 	}
 }

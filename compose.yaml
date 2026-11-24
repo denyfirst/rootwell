@@ -14,6 +14,12 @@ services:
       - type: bind
         source: ${ROOTWELL_DATA_DIR:?set an absolute private data path}
         target: /data
+      # The instance key opens the vault in /data. It lives apart, so a copy of
+      # the data never carries its key; the server only reads it.
+      - type: bind
+        source: ${ROOTWELL_KEY_DIR:?set a separate absolute private key path}
+        target: /key
+        read_only: true
     restart: "no"
 
   maintenance:
@@ -35,6 +41,9 @@ services:
       - type: bind
         source: ${ROOTWELL_DATA_DIR:?set an absolute private data path}
         target: /data
+      - type: bind
+        source: ${ROOTWELL_KEY_DIR:?set a separate absolute private key path}
+        target: /key
       - type: bind
         source: ${ROOTWELL_BACKUP_DIR:?set a separate absolute private backup path}
         target: /backup

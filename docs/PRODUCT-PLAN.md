@@ -101,6 +101,9 @@ Users, Activity and Installation come later.
 - every demo file, demo link and sample website on product pages. Sample
   files live in tests only.
 
+On 23 November 2026 the hidden Renewals page and the staging automation behind
+it were deleted from the code too, ahead of Phase 3c (section 7).
+
 **Added**, in order of value:
 
 1. **Alerts:** e-mail and a webhook (Telegram, Teams, Slack) when a
@@ -228,12 +231,34 @@ These follow Keybash:
 | 2 — Design | The Denyfirst design system and the shared rail | Screenshots in both schemes and at phone width |
 | 2b — Pages | Every page rebuilt in the graphite design: Inspect, Convert, Request, Website check, Certificates, Account; demos and removed features gone | A person who knows nothing of certificates can use each page; screenshots in both schemes and at phone width |
 | 3a — Accounts | HTTPS, accounts, TOTP, instance key | They replace the password-derived unlock, loopback HTTP and the offline-only ceremonies |
-| 3b — Store | bbolt with sealing per secret, rolling history, encrypted backup and restore from the Installation page | Restore to a clean instance is verified |
+| 3b — Store | Rolling history, online backup and restore from the Installation page, instance key rotation; the bbolt vault with sealing per record itself landed in 3a | Restore to a clean instance is verified |
 | 3b+ — Alerts and watching | E-mail and webhook alerts; watched websites | A test alert arrives; a watched site that changes certificate raises one |
 | 3c — Renewals | Production and staging, an unattended scheduler, Cloudflare DNS-01, a plain Renewals page | A renewal completes with nobody signed in |
 | 3d — Delivery | Delivery targets and the check after delivery | Files are replaced atomically and the unit is reloaded |
 | 3e — Package | Install, upgrade and uninstall scripts; an Installation page; signed reproducible releases | Install on a clean host is verified |
 | 4 — Release readiness | An independent review; a live CA and DNS test on a real domain; documented limits | No open material finding |
+
+**Phase 3a, where it stands** (ADR 0088):
+
+1. **Part 1** (PR 122) added the vault, account, QR-code and server-certificate
+   packages, not yet wired to the service.
+2. **Part 2** moved the Certificates page into the vault, opened by an
+   instance key kept in its own file outside the data directory.
+   `rootwelld init` shows the key's recovery code once, and
+   `rootwelld key-restore` rebuilds a lost key file from it. The sign-in
+   password now only signs in. This closes audit findings RW-01, RW-11 and
+   RW-12.
+3. **Part 3** is next: accounts with TOTP, sessions and HTTPS, and the end of
+   `access.json`.
+
+Part 2 also removed the old automation early: the hidden Renewals page, the
+session-bound ACME automation, the old encrypted store and its offline
+commands. ADR 0088 planned to remove them as their replacements land. They
+went now because nothing has been released, there are no users, the page was
+hidden, and keeping them would have meant moving them to the vault only to
+delete them in Phase 3c. Renewal comes back in Phase 3c, built on the ACME
+protocol packages that stay (section 8). Until Phase 3b, a backup is a copy of
+the data directory made with the service stopped (`RECOVERY.md`).
 
 **Later:**
 - roles and invites;
@@ -254,16 +279,24 @@ These follow Keybash:
 - the browser packages;
 - website checks: `websiteprobe` and `websitechain`;
 - ACME and DNS: the protocol pieces of `acmestaging` (directory,
-  registration, order, certificate, Cloudflare and renewal information),
-  made general over fixed profiles, and `providerretry`.
+  registration, order, certificate, Cloudflare and renewal information), with
+  `acmeplan`, `acmeorder`, `acmeprofile`, `acmecertificate`,
+  `acmecertrequest`, `renewalpolicy`, `renewalrecord`, `cloudflareconfig`,
+  `dnsrecord` and `providerretry`. They have no caller in the service until
+  Phase 3c makes them general over fixed profiles.
 
 **Replaced in Phase 3:**
-- the password-derived unlock and its ceremonies (`instanceaccess`);
+- the password-derived unlock and its ceremonies (`instanceaccess`). Since
+  Phase 3a part 2 the password unlocks no data; the access file and its
+  password-only commands go in part 3;
+- the loopback HTTP session layer (`cmd/rootwelld/gate.go`).
+
+**Removed on 23 November 2026**, in Phase 3a part 2:
 - the single-image store and its capacity reservations (`inventorystore`,
-  `inventoryseal`);
-- the loopback HTTP session layer (`cmd/rootwelld/gate.go`);
+  `inventoryseal`), with its offline snapshot commands;
 - the staging-only automation state machine: timing watch, session renewal
-  job, closed-request pages, history archives and DNS maintenance.
+  job, closed-request pages, history archives, DNS maintenance, the stored
+  Cloudflare token and ACME account keys, and the hidden Renewals page.
 
 ## 9. Open decisions
 

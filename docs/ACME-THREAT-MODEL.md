@@ -1,5 +1,12 @@
 # ACME staged implementation boundary
 
+> **Partly superseded on 23 November 2026 (ADR 0088, Phase 3a part 2).** The
+> session-bound automation described below (the Renewals page, timing watch,
+> session renewal, DNS operations, account and token custody) is removed.
+> Renewal returns in Phase 3c, built on the protocol packages that stay
+> (`acmestaging`, `acmeorder`, `acmeplan` and their neighbours); their
+> network limits below still hold. This file is kept as history.
+
 Date: 2026-10-11. Single operator, existing loopback access gate. Porch is
 excluded. Offline Workbench acquires no CA network capability.
 

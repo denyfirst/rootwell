@@ -67,7 +67,6 @@ func readWebsiteConsent(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func (g *gate) websiteCheckEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
-	defer clear(s.dataKey[:])
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
 		return
@@ -87,7 +86,6 @@ func (g *gate) websiteCheckEndpoint(w http.ResponseWriter, r *http.Request, s se
 	}
 	permit := func() bool {
 		current, ok := g.currentSession(r)
-		defer clear(current.dataKey[:])
 		g.mu.Lock()
 		closed := g.closed
 		g.mu.Unlock()

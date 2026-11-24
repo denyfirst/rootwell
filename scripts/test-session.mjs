@@ -12,9 +12,9 @@ for (const forbidden of ["FileReader", "arrayBuffer", ".files", "localStorage", 
 assert.deepEqual([...source.matchAll(/fetch\("([^"]+)"/g)].map((m) => m[1]), ["/api/session"],
   "session.js talks only to the session endpoint");
 
-// The six pages in the menu, and the hidden Renewals page until it is rebuilt.
+// The six pages in the menu.
 for (const page of ["../web/workbench/certificates.html", "../cmd/rootwelld/auth/website-check.html", "../web/workbench/inspect.html",
-  "../web/workbench/convert.html", "../web/workbench/request.html", "../cmd/rootwelld/auth/account.html", "../cmd/rootwelld/auth/acme.html"]) {
+  "../web/workbench/convert.html", "../web/workbench/request.html", "../cmd/rootwelld/auth/account.html"]) {
   const html = fs.readFileSync(new URL(page, import.meta.url), "utf8");
   assert.match(html, /<script src="\/?session\.js" defer><\/script>/, `${page} loads session.js`);
   assert.match(html, /<button class="(?:nav-item|shell-button)" id="rail-sign-out" type="button" hidden>/, `${page} has Sign out in its rail`);

@@ -9,52 +9,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/denyfirst/rootwell/internal/inventorystore"
+	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
-
-func TestInventoryInputRejectsDuplicateUnknownAndOversizedJSON(t *testing.T) {
-	for _, tc := range []struct {
-		body, contentType string
-		want              int
-	}{
-		{`{"certificate":"AA==","owner":"A","location":"B"}`, "application/json", 0},
-		{`{"certificate":"AA==","certificate":"AA=="}`, "application/json", http.StatusBadRequest},
-		{`{"certificate":"AA==","secret":"bad"}`, "application/json", http.StatusBadRequest},
-		{`{"certificate":"AA=="} {}`, "application/json", http.StatusBadRequest},
-		{`{"certificate":""}`, "application/json", http.StatusBadRequest},
-		{`{"certificate":"AA=="}`, "text/plain", http.StatusUnsupportedMediaType},
-	} {
-		r := httptest.NewRequest("POST", "http://localhost/api/inventory", strings.NewReader(tc.body))
-		r.Header.Set("Content-Type", tc.contentType)
-		w := httptest.NewRecorder()
-		input, ok := readInventoryInput(w, r)
-		if tc.want == 0 {
-			if !ok || !bytes.Equal(input.Certificate, []byte{0}) {
-				t.Fatalf("valid input refused: %d", w.Code)
-			}
-		} else if ok || w.Code != tc.want {
-			t.Fatalf("invalid body accepted: %d, want %d", w.Code, tc.want)
-		}
-	}
-	r := httptest.NewRequest("POST", "http://localhost/api/inventory", strings.NewReader(`{"certificate":"`+strings.Repeat("A", maxInventoryRequest)+`"}`))
-	r.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	if _, ok := readInventoryInput(w, r); ok || w.Code != http.StatusBadRequest {
-		t.Fatal("oversized body accepted")
-	}
-}
 
 func TestInventoryOutputNeverSerializesCertificateBytes(t *testing.T) {
 	w := httptest.NewRecorder()
 	(&gate{now: time.Now}).writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{{Fingerprint: "fingerprint", DER: []byte("secret-certificate-source-bytes"), Subject: "subject", Locations: []string{"one", "two"}, ImportGeneration: 2}}, 3)
 	if w.Code != http.StatusOK || bytes.Contains(w.Body.Bytes(), []byte("secret-certificate-source-bytes")) ||
-		!strings.Contains(w.Body.String(), `"verification":"not-performed"`) || !strings.Contains(w.Body.String(), `"locations":["one","two"]`) {
-		t.Fatal("inventory response leaked DER or misreported verification")
+		!strings.Contains(w.Body.String(), `"locations":["one","two"]`) {
+		t.Fatal("inventory response leaked DER or lost the places")
 	}
 }
 
-func TestInventoryMonitoringBindsOneServerClockAndNeverMutates(t *testing.T) {
+func TestInventoryOutputUsesOneServerClockAndNeverMutates(t *testing.T) {
 	now := time.Date(2026, 10, 6, 12, 0, 0, 999, time.FixedZone("test", 3600))
 	r := publicinventory.Record{Fingerprint: "one", NotBefore: "2026-01-01T00:00:00Z", NotAfter: "2026-10-18T11:00:00Z", DER: []byte("not-for-output")}
 	calls := 0
@@ -65,9 +33,8 @@ func TestInventoryMonitoringBindsOneServerClockAndNeverMutates(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 || data.Monitoring.CheckedAt != "2026-10-06T11:00:00Z" || data.Monitoring.ClockSource != "server-clock" ||
-		data.Monitoring.RefreshAfterSeconds != 60 || data.Generation != 5 || data.Verification != "not-performed" || len(data.Records) != 2 {
-		t.Fatal("monitoring did not bind one public, non-verifying snapshot")
+	if calls != 1 || data.Generation != 5 || len(data.Records) != 2 {
+		t.Fatal("the list did not use one server clock reading")
 	}
 	for _, item := range data.Records {
 		if item.Expiry.Status != "soon" || item.Expiry.DaysLeft == nil || *item.Expiry.DaysLeft != 12 {
@@ -150,10 +117,10 @@ func TestLocationChangeInputRequiresExactActionAndFields(t *testing.T) {
 	for _, tc := range []struct {
 		body, media string
 		want        int
-		action      inventorystore.LocationChange
+		action      certstore.LocationChange
 	}{
-		{`{"fingerprint":"abc","old_location":"first","new_location":"primary","action":"rename","expected_generation":3}`, "application/json", 0, inventorystore.LocationRename},
-		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":3}`, "application/json", 0, inventorystore.LocationRemove},
+		{`{"fingerprint":"abc","old_location":"first","new_location":"primary","action":"rename","expected_generation":3}`, "application/json", 0, certstore.Rename},
+		{`{"fingerprint":"abc","old_location":"first","action":"remove","expected_generation":3}`, "application/json", 0, certstore.Remove},
 		{`{"fingerprint":"abc","old_location":"first","action":"remove","new_location":"","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
 		{`{"fingerprint":"abc","old_location":"first","action":"rename","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},
 		{`{"fingerprint":"abc","old_location":"first","new_location":"bad\nlabel","action":"rename","expected_generation":3}`, "application/json", http.StatusBadRequest, 0},

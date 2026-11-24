@@ -30,7 +30,7 @@ func TestEngineLoaderSendsTheSessionTheGateRequires(t *testing.T) {
 		t.Fatal(`the engine fetch must keep redirect: "error", so a sign-in redirect fails instead of feeding HTML to WebAssembly`)
 	}
 
-	g, cookie, _ := readyDirectoryGate(t)
+	g, cookie, _ := readyGate(t)
 	var sent *http.Cookie
 	switch mode {
 	case "same-origin", "include":
