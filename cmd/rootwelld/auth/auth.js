@@ -76,7 +76,7 @@
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      setTimeout(() => URL.revokeObjectURL(link.href), 30000); // as ui.js: a slow download still finds its file (RW-17)
     };
     $("codes-step").hidden = false;
     return true;
@@ -372,7 +372,7 @@
         document.body.appendChild(link);
         link.click();
         link.remove();
-        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+        setTimeout(() => URL.revokeObjectURL(link.href), 30000); // as ui.js: a slow download still finds its file (RW-17)
         say("Downloaded " + name + ". Keep it apart from the instance key's recovery code.");
       } catch {
         say(failed);

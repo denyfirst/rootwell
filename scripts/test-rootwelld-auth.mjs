@@ -67,7 +67,7 @@ function load(mode, server, { fresh = async () => true, credentials = null } = {
     ...(credentials ? { PublicKeyCredential: function PublicKeyCredential() {} } : {}),
     atob, btoa, Uint8Array,
     window: { location: { assign: (url) => redirects.push(url) }, addEventListener: (name, fn) => { pageHandlers[name] = fn; } },
-    AbortController, setTimeout: (fn, delay) => { assert.ok(delay <= 15000); return 0; }, clearTimeout() {},
+    AbortController, setTimeout: (fn, delay) => { assert.ok(delay <= 30000); return 0; }, clearTimeout() {},
     fetch: async (url, options) => {
       const sent = options.body ? JSON.parse(options.body) : undefined;
       requests.push({ url, method: options.method, body: sent, headers: { ...options.headers } });

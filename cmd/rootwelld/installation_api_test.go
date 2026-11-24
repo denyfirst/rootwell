@@ -88,3 +88,13 @@ func TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey(t *testing.T) {
 		t.Fatalf("the account in the backup: %+v %v", a, err)
 	}
 }
+
+func TestTheBackupBufferStopsAtItsLimit(t *testing.T) {
+	b := &cappedBuffer{limit: 4}
+	if n, err := b.Write([]byte("abc")); err != nil || n != 3 {
+		t.Fatalf("under the limit: %d %v", n, err)
+	}
+	if _, err := b.Write([]byte("de")); err == nil || !b.over || b.Len() != 3 {
+		t.Fatalf("past the limit: over %v, %d bytes, %v", b.over, b.Len(), err)
+	}
+}
