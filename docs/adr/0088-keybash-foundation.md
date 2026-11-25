@@ -219,6 +219,12 @@ These follow Keybash:
   - Every session ends on a password or factor change.
 - **Limits:** only failures count, per account name and per source address,
   with backoff. A success costs nothing (RW-07).
+  - Each try is counted before it is checked and given back on success, so
+    tries sent together cannot slip past the count.
+  - A browser that signed in completely keeps a 30-day device cookie. Its
+    failures count against that device alone, so guesses at the name, or a
+    shared address such as `127.0.0.1`, cannot lock the owner out of it.
+  - Wrong setup codes count against their source only.
 - **Fresh code:** a phone code from the last ten minutes is asked only to:
   - show or download a private key;
   - delete a certificate that has a key;

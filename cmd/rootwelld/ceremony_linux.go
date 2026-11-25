@@ -136,7 +136,7 @@ func setServingNames(args []string, out io.Writer) error {
 	s, err := servingstore.SetNames(v, args[3:], time.Now())
 	switch {
 	case errors.Is(err, servingstore.ErrRefused):
-		return errors.New("one of those is not a name Rootwell can serve: give DNS names or IP addresses, no wildcards, at most 16 in all")
+		return errors.New("one of those is not a name Rootwell can serve: give IP addresses, or DNS names with a dot such as rootwell.lan; no wildcards, at most 16 in all")
 	case err != nil:
 		return errors.New("the new certificate authority could not be saved")
 	}

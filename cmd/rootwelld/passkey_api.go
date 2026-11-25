@@ -126,8 +126,13 @@ func (g *gate) passkeyAnswerEndpoint(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	keys := []limitKey{sourceLimit(r), nameLimit(s.name)}
-	if wait := g.wait(keys...); wait > 0 {
+	keys := g.limitsFor(r, s.name, true)
+	wait, live := g.tryCode(id, keys...)
+	if !live {
+		http.Error(w, "Too many wrong answers. Sign in again.", http.StatusUnauthorized)
+		return
+	}
+	if wait > 0 {
 		tooMany(w, wait)
 		return
 	}
@@ -142,6 +147,7 @@ func (g *gate) passkeyAnswerEndpoint(w http.ResponseWriter, r *http.Request) {
 	authenticatorData, okAD := unb64(in.AuthenticatorData, 1024)
 	signature, okSig := unb64(in.Signature, 1024)
 	if challenge == nil || !rpOK {
+		g.refundCode(id, keys...)
 		http.Error(w, "Start again: ask the passkey once more.", http.StatusConflict)
 		return
 	}
@@ -154,8 +160,7 @@ func (g *gate) passkeyAnswerEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case errors.Is(err, accountstore.ErrRefused), errors.Is(err, passkey.ErrRefused):
-		g.fail(keys...)
-		if g.wrongCode(w, id) {
+		if g.spent(w, id) {
 			http.Error(w, "Too many wrong answers. Sign in again.", http.StatusUnauthorized)
 			return
 		}
@@ -166,18 +171,22 @@ func (g *gate) passkeyAnswerEndpoint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "The account changed. Sign in again.", http.StatusConflict)
 		return
 	case err != nil:
+		g.refundCode(id, keys...)
 		http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	g.succeed(nameLimit(s.name))
-	fresh := g.now().Add(freshLife)
+	next := g.withFreshCode(s)
 	if s.stage == stageCode {
-		if err := g.issue(w, id, session{stage: stageReady, name: s.name, revision: a.Revision, fresh: fresh}); err != nil {
-			http.Error(w, "Too many sign-ins are open. Try again in a few minutes.", http.StatusServiceUnavailable)
-			return
-		}
-	} else {
-		g.update(id, func(live *session) { live.fresh, live.wrong = fresh, 0 })
+		next = session{stage: stageReady, name: s.name, revision: a.Revision, fresh: next.fresh}
+	}
+	if err := g.promote(w, id, next); err != nil {
+		http.Error(w, "Sign in again.", http.StatusUnauthorized)
+		return
+	}
+	g.refund(keys...)
+	g.succeed(nameLimit(s.name))
+	if s.stage == stageCode {
+		g.signedIn(w, r, s.name, a.Revision)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

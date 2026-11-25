@@ -11,7 +11,7 @@ const valid = {
   services: {
     rootwell: { ...restricted, network_mode: 'host', volumes: [{ target: '/data' }, { target: '/key', read_only: true }] },
     maintenance: { ...restricted, network_mode: 'none',
-      volumes: [{ target: '/data' }, { target: '/key' }, { target: '/backup' }],
+      volumes: [{ target: '/data' }, { target: '/key' }, { target: '/backup', read_only: true }],
       stdin_open: true, tty: true, logging: { driver: 'none' } },
   },
 };
@@ -41,6 +41,11 @@ assert.throws(() => checkContainerConfig(overprivileged));
 const writableKey = structuredClone(valid);
 writableKey.services.rootwell.volumes[1].read_only = false;
 assert.throws(() => checkContainerConfig(writableKey), /server\.key/);
+
+// Maintenance must not be able to change or remove a backup.
+const writableBackup = structuredClone(valid);
+writableBackup.services.maintenance.volumes[2].read_only = false;
+assert.throws(() => checkContainerConfig(writableBackup), /maintenance\.backup/);
 
 // Without the key the vault cannot open: the server needs both mounts.
 const keyless = structuredClone(valid);

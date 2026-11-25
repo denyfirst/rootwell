@@ -45,6 +45,8 @@ services:
       - type: bind
         source: ${ROOTWELL_KEY_DIR:?set a separate absolute private key path}
         target: /key
+      # restore only reads a backup: nothing run here can change or remove one.
       - type: bind
         source: ${ROOTWELL_BACKUP_DIR:?set a separate absolute private backup path}
         target: /backup
+        read_only: true

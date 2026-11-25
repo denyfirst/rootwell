@@ -157,30 +157,27 @@ func (g *gate) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, valid := accountstore.Name(in.Name)
-	keys := []limitKey{sourceLimit(r)}
-	if valid {
-		keys = append(keys, nameLimit(name))
-	}
-	if wait := g.wait(keys...); wait > 0 {
+	keys := g.limitsFor(r, name, valid)
+	if wait := g.try(keys...); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	if !valid || in.Password == "" || len(in.Password) > account.MaxPasswordBytes {
-		g.fail(keys...)
 		http.Error(w, "That name and password do not match.", http.StatusUnauthorized)
 		return
 	}
 	if !g.slot(r) {
+		g.refund(keys...)
 		http.Error(w, "Another sign-in is being checked. Try again.", http.StatusServiceUnavailable)
 		return
 	}
 	defer g.release()
 	a, err := g.accounts.CheckPassword(name, in.Password)
 	if errors.Is(err, accountstore.ErrRefused) {
-		g.fail(keys...)
 		http.Error(w, "That name and password do not match.", http.StatusUnauthorized)
 		return
 	}
+	g.refund(keys...)
 	if err != nil {
 		http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 		return
@@ -207,16 +204,20 @@ func (g *gate) codeEndpoint(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	keys := []limitKey{sourceLimit(r), nameLimit(s.name)}
-	if wait := g.wait(keys...); wait > 0 {
+	keys := g.limitsFor(r, s.name, true)
+	wait, live := g.tryCode(id, keys...)
+	if !live {
+		http.Error(w, "Too many wrong codes. Sign in again.", http.StatusUnauthorized)
+		return
+	}
+	if wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	a, err := g.accounts.UseCode(s.name, s.revision, in.value())
 	switch {
 	case errors.Is(err, accountstore.ErrRefused):
-		g.fail(keys...)
-		if g.wrongCode(w, id) {
+		if g.spent(w, id) {
 			http.Error(w, "Too many wrong codes. Sign in again.", http.StatusUnauthorized)
 			return
 		}
@@ -227,14 +228,19 @@ func (g *gate) codeEndpoint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "The account changed. Sign in again.", http.StatusConflict)
 		return
 	case err != nil:
+		g.refundCode(id, keys...)
 		http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	g.succeed(nameLimit(s.name))
-	if err := g.issue(w, id, session{stage: stageReady, name: s.name, revision: a.Revision, fresh: g.now().Add(freshLife)}); err != nil {
-		http.Error(w, "Too many sign-ins are open. Try again in a few minutes.", http.StatusServiceUnavailable)
+	// A session that wrong codes sent together ended meanwhile stays ended,
+	// even though this code was right.
+	if err := g.promote(w, id, session{stage: stageReady, name: s.name, revision: a.Revision, fresh: g.now().Add(freshLife)}); err != nil {
+		http.Error(w, "Sign in again.", http.StatusUnauthorized)
 		return
 	}
+	g.refund(keys...)
+	g.succeed(nameLimit(s.name))
+	g.signedIn(w, r, s.name, a.Revision)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -252,11 +258,9 @@ func (g *gate) setupEndpoint(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	keys := []limitKey{sourceLimit(r), {"setup", sourceFailures}}
-	if wait := g.wait(keys...); wait > 0 {
-		tooMany(w, wait)
-		return
-	}
+	// The setup code is 120 random bits: wrong guesses count against their
+	// source alone, never against the whole installation, so nobody can keep
+	// the owner from setting up or recovering.
 	name, valid := accountstore.Name(in.Name)
 	if !valid {
 		http.Error(w, "Choose a name of letters and digits; dots, dashes and underscores may follow. Up to 64.", http.StatusBadRequest)
@@ -266,16 +270,22 @@ func (g *gate) setupEndpoint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Choose a password of at least 15 characters that is not a common one.", http.StatusBadRequest)
 		return
 	}
+	keys := []limitKey{sourceLimit(r)}
+	if wait := g.try(keys...); wait > 0 {
+		tooMany(w, wait)
+		return
+	}
 	code := strings.TrimSpace(in.Code)
 	switch err := g.accounts.CheckSetup(code, name); {
 	case errors.Is(err, accountstore.ErrRefused):
-		g.fail(keys...)
 		http.Error(w, "That setup code does not work for this name. Make a new one on the server with rootwelld setup-code.", http.StatusUnauthorized)
 		return
 	case err != nil:
+		g.refund(keys...)
 		http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	g.refund(keys...)
 	if !g.slot(r) {
 		http.Error(w, "Another sign-in is being checked. Try again.", http.StatusServiceUnavailable)
 		return
@@ -333,20 +343,25 @@ func (g *gate) setupConfirmEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	keys := []limitKey{sourceLimit(r)}
-	if wait := g.wait(keys...); wait > 0 {
+	wait, live := g.tryCode(id, keys...)
+	if !live {
+		http.Error(w, "Too many wrong codes. Start the setup again.", http.StatusUnauthorized)
+		return
+	}
+	if wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	step, matched := account.CheckCode(s.seed, in.value(), g.now(), -1)
 	if !matched {
-		g.fail(keys...)
-		if g.wrongCode(w, id) {
+		if g.spent(w, id) {
 			http.Error(w, "Too many wrong codes. Start the setup again.", http.StatusUnauthorized)
 			return
 		}
 		http.Error(w, "That code does not match. Check the phone's clock, then enter the code it shows now.", http.StatusUnauthorized)
 		return
 	}
+	g.refund(keys...)
 	codes, a, err := g.accounts.FinishSetup(s.setupCode, s.name, s.password, s.seed, step)
 	switch {
 	case errors.Is(err, accountstore.ErrRefused):
@@ -360,6 +375,7 @@ func (g *gate) setupConfirmEndpoint(w http.ResponseWriter, r *http.Request) {
 	// A setup for an existing account replaces how it signs in: its other
 	// sessions end.
 	g.endAccount(s.name)
+	g.signedIn(w, r, s.name, a.Revision)
 	if err := g.issue(w, id, session{stage: stageReady, name: s.name, revision: a.Revision, fresh: g.now().Add(freshLife)}); err != nil {
 		http.Error(w, "The account is ready. Sign in.", http.StatusServiceUnavailable)
 		return
@@ -381,15 +397,19 @@ func (g *gate) freshEndpoint(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	keys := []limitKey{sourceLimit(r), nameLimit(s.name)}
-	if wait := g.wait(keys...); wait > 0 {
+	keys := g.limitsFor(r, s.name, true)
+	wait, live := g.tryCode(id, keys...)
+	if !live {
+		http.Error(w, "Signed out after five wrong codes.", http.StatusUnauthorized)
+		return
+	}
+	if wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	switch _, err := g.accounts.UseCode(s.name, s.revision, in.value()); {
 	case errors.Is(err, accountstore.ErrRefused):
-		g.fail(keys...)
-		if g.wrongCode(w, id) {
+		if g.spent(w, id) {
 			http.Error(w, "Signed out after five wrong codes.", http.StatusUnauthorized)
 			return
 		}
@@ -400,13 +420,26 @@ func (g *gate) freshEndpoint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "The account changed. Sign in again.", http.StatusConflict)
 		return
 	case err != nil:
+		g.refundCode(id, keys...)
 		http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	if err := g.promote(w, id, g.withFreshCode(s)); err != nil {
+		http.Error(w, "Sign in again.", http.StatusUnauthorized)
+		return
+	}
+	g.refund(keys...)
 	g.succeed(nameLimit(s.name))
-	now := g.now()
-	g.update(id, func(live *session) { live.fresh, live.wrong = now.Add(freshLife), 0 })
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// withFreshCode is s once it showed a fresh code: ten minutes without being
+// asked again. The caller moves it to a new token with promote, so a copy of
+// the old token, taken earlier, gains nothing from the code.
+func (g *gate) withFreshCode(s session) session {
+	s.fresh, s.wrong = g.now().Add(freshLife), 0
+	s.challenge, s.challengeFor = nil, ""
+	return s
 }
 
 // passwordEndpoint changes the password. Every session ends, this one too.
@@ -429,37 +462,40 @@ func (g *gate) passwordEndpoint(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	keys := []limitKey{sourceLimit(r), nameLimit(s.name)}
-	if wait := g.wait(keys...); wait > 0 {
+	keys := g.limitsFor(r, s.name, true)
+	if wait := g.try(keys...); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	if in.Password == "" || len(in.Password) > account.MaxPasswordBytes {
-		g.fail(keys...)
 		http.Error(w, "The current password does not match.", http.StatusUnauthorized)
 		return
 	}
 	if !g.slot(r) {
+		g.refund(keys...)
 		http.Error(w, "Another sign-in is being checked. Try again.", http.StatusServiceUnavailable)
 		return
 	}
 	defer g.release()
 	switch _, err := g.accounts.ChangePassword(s.name, s.revision, in.Password, in.Next); {
 	case errors.Is(err, accountstore.ErrRefused):
-		g.fail(keys...)
 		http.Error(w, "The current password does not match.", http.StatusUnauthorized)
 		return
 	case errors.Is(err, accountstore.ErrWeak):
+		g.refund(keys...)
 		http.Error(w, "Choose a different password: at least 15 characters, not a common one, and not the one you have now.", http.StatusBadRequest)
 		return
 	case errors.Is(err, accountstore.ErrChanged):
+		g.refund(keys...)
 		g.end(w, id)
 		http.Error(w, "The account changed. Sign in again.", http.StatusConflict)
 		return
 	case err != nil:
+		g.refund(keys...)
 		http.Error(w, "accounts unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	g.refund(keys...)
 	g.endAccount(s.name)
 	clearCookie(w)
 	w.WriteHeader(http.StatusNoContent)
@@ -506,9 +542,13 @@ func (g *gate) phoneConfirmEndpoint(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
+	if _, live := g.tryCode(id); !live {
+		http.Error(w, "Signed out after five wrong codes.", http.StatusUnauthorized)
+		return
+	}
 	step, matched := account.CheckCode(s.seed, in.value(), g.now(), -1)
 	if !matched {
-		if g.wrongCode(w, id) {
+		if g.spent(w, id) {
 			http.Error(w, "Signed out after five wrong codes.", http.StatusUnauthorized)
 			return
 		}

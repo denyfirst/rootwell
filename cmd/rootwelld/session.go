@@ -90,11 +90,15 @@ func (s *session) lifetime() time.Duration {
 
 // sessionID reads the one session cookie. A request with two is treated as
 // having none, so a cookie planted beside the real one cannot pick a session.
-func sessionID(r *http.Request) ([32]byte, bool) {
+func sessionID(r *http.Request) ([32]byte, bool) { return cookieDigest(r, cookieName) }
+
+// cookieDigest is the digest of the one cookie called name: 32 random bytes,
+// as unpadded base64url. Two of them count as none.
+func cookieDigest(r *http.Request, name string) ([32]byte, bool) {
 	var value string
 	count := 0
 	for _, c := range r.Cookies() {
-		if c.Name == cookieName {
+		if c.Name == name {
 			value = c.Value
 			count++
 		}
@@ -103,6 +107,17 @@ func sessionID(r *http.Request) ([32]byte, bool) {
 		return [32]byte{}, false
 	}
 	return sha256.Sum256([]byte(value)), true
+}
+
+// newToken is 32 random bytes as unpadded base64url, and its digest: only the
+// digest is kept.
+func newToken() (string, [32]byte, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", [32]byte{}, errors.New("no random bytes")
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	return token, sha256.Sum256([]byte(token)), nil
 }
 
 // currentSession finds the request's live session and returns a copy. touch
@@ -129,16 +144,33 @@ func (g *gate) currentSession(r *http.Request, touch bool) ([32]byte, session, b
 var errTooManySessions = errors.New("too many sessions")
 
 // issue keeps s under a new token, ending the session old (if any): a session
-// gets a new token whenever it moves a stage on.
+// gets a new token whenever it moves a stage on, and when it shows a fresh
+// code. A session that carries its creation time keeps it, so a new token
+// never stretches the eight hours.
 func (g *gate) issue(w http.ResponseWriter, old [32]byte, s session) error {
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
+	return g.issueFrom(w, old, s, false)
+}
+
+var errSessionGone = errors.New("the session ended")
+
+// promote moves session old on to s under a new token, but only while old is
+// still live: a session that wrong codes or a sign-out ended meanwhile is
+// never brought back.
+func (g *gate) promote(w http.ResponseWriter, old [32]byte, s session) error {
+	return g.issueFrom(w, old, s, true)
+}
+
+func (g *gate) issueFrom(w http.ResponseWriter, old [32]byte, s session, mustHaveOld bool) error {
+	token, id, err := newToken()
+	if err != nil {
 		return errors.New("session could not be created")
 	}
-	token := base64.RawURLEncoding.EncodeToString(raw)
-	id := sha256.Sum256([]byte(token))
 	now := g.now()
 	g.mu.Lock()
+	if previous, ok := g.sessions[old]; mustHaveOld && (!ok || !previous.live(now)) {
+		g.mu.Unlock()
+		return errSessionGone
+	}
 	delete(g.sessions, old)
 	for key, value := range g.sessions {
 		if !value.live(now) {
@@ -161,7 +193,10 @@ func (g *gate) issue(w http.ResponseWriter, old [32]byte, s session) error {
 		}
 		delete(g.sessions, oldest)
 	}
-	s.created, s.seen = now, now
+	if s.created.IsZero() {
+		s.created = now
+	}
+	s.seen = now
 	g.sessions[id] = &s
 	g.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", MaxAge: int(s.lifetime() / time.Second),
@@ -178,24 +213,6 @@ func (g *gate) update(id [32]byte, change func(*session)) bool {
 		return false
 	}
 	change(s)
-	return true
-}
-
-// wrongCode counts a wrong code in a session and ends it at wrongCodesEnd.
-// It reports whether the session ended.
-func (g *gate) wrongCode(w http.ResponseWriter, id [32]byte) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	s, ok := g.sessions[id]
-	if !ok {
-		return true
-	}
-	s.wrong++
-	if s.wrong < wrongCodesEnd {
-		return false
-	}
-	delete(g.sessions, id)
-	clearCookie(w)
 	return true
 }
 
@@ -266,11 +283,9 @@ func sourceLimit(r *http.Request) limitKey {
 	return limitKey{"source:" + addr.String(), sourceFailures}
 }
 
-// wait is how long the longest of keys must still wait; zero lets it through.
-func (g *gate) wait(keys ...limitKey) time.Duration {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	now := g.now()
+// waitLocked is how long the longest of keys must still wait; zero lets it
+// through.
+func (g *gate) waitLocked(now time.Time, keys []limitKey) time.Duration {
 	var longest time.Duration
 	for _, k := range keys {
 		f, ok := g.failures[k.key]
@@ -284,11 +299,8 @@ func (g *gate) wait(keys ...limitKey) time.Duration {
 	return longest
 }
 
-// fail counts one failure against each key.
-func (g *gate) fail(keys ...limitKey) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	now := g.now()
+// failLocked counts one failure against each key.
+func (g *gate) failLocked(now time.Time, keys []limitKey) {
 	for _, k := range keys {
 		f, ok := g.failures[k.key]
 		if ok && now.Sub(f.last) >= forgetFailures && !now.Before(f.until) {
@@ -310,6 +322,86 @@ func (g *gate) fail(keys ...limitKey) {
 			f.until = now.Add(min(maxWait, time.Minute<<min(f.count-k.allowed, 4)))
 		}
 	}
+}
+
+// try takes one attempt against keys. It refuses while any key waits, and
+// otherwise counts the attempt as a failure at once, under the same lock, so
+// requests sent together cannot all pass before one is counted. A success
+// gives the attempt back with refund.
+func (g *gate) try(keys ...limitKey) time.Duration {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	now := g.now()
+	if wait := g.waitLocked(now, keys); wait > 0 {
+		return wait
+	}
+	g.failLocked(now, keys)
+	return 0
+}
+
+// tryCode is try for a code in session id. It also refuses a session that
+// ended or has had wrongCodesEnd wrong codes, and counts this one among them
+// before it is checked. ok is false when the session cannot try.
+func (g *gate) tryCode(id [32]byte, keys ...limitKey) (wait time.Duration, ok bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	now := g.now()
+	s, live := g.sessions[id]
+	if !live || !s.live(now) || s.wrong >= wrongCodesEnd {
+		return 0, false
+	}
+	if wait := g.waitLocked(now, keys); wait > 0 {
+		return wait, true
+	}
+	s.wrong++
+	g.failLocked(now, keys)
+	return 0, true
+}
+
+// refund gives back an attempt try counted, once it succeeded or failed for a
+// reason that was not the person's guess, and ends the wait, if one runs. try
+// let the attempt through, so any earlier wait had ended. A wait running now
+// was started by this attempt, and then nothing was counted after it; or by
+// a later failure, and without this attempt that failure stays below the
+// allowed ones.
+func (g *gate) refund(keys ...limitKey) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, k := range keys {
+		f, ok := g.failures[k.key]
+		if !ok {
+			continue
+		}
+		f.count--
+		f.until = time.Time{}
+		if f.count <= 0 {
+			delete(g.failures, k.key)
+		}
+	}
+}
+
+// refundCode is refund for tryCode: the session gets its wrong code back.
+func (g *gate) refundCode(id [32]byte, keys ...limitKey) {
+	g.refund(keys...)
+	g.update(id, func(live *session) {
+		if live.wrong > 0 {
+			live.wrong--
+		}
+	})
+}
+
+// spent ends session id once it has had wrongCodesEnd wrong codes, and says
+// whether it did.
+func (g *gate) spent(w http.ResponseWriter, id [32]byte) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	s, ok := g.sessions[id]
+	if ok && s.wrong < wrongCodesEnd {
+		return false
+	}
+	delete(g.sessions, id)
+	clearCookie(w)
+	return true
 }
 
 // makeRoomLocked forgets the entry whose last failure is oldest among those

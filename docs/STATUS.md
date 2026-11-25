@@ -9,8 +9,9 @@ Phase 3a of the plan is done: the vault and the instance key, the
 Certificates page on them, accounts with phone codes and short sessions, and
 HTTPS with Rootwell's own certificate authority. Passkeys followed, then
 Phase 3b: backups from the new Installation page, and restore, instance key
-rotation and key export on the server. Next comes an independent review, then
-Phase 3c, renewal.
+rotation and key export on the server. A first internal review of Phase 3
+followed, and its findings are fixed. Next comes Phase 3c, renewal; the
+independent review that a release needs (Phase 4) comes before any release.
 
 ## What exists
 

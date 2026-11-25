@@ -250,9 +250,12 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 			t.Fatalf("a public download asked for a fresh code: %d", w.code)
 		}
 	}
-	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "https://"+localHost, true); w.Code != http.StatusNoContent {
-		t.Fatalf("fresh code: %d %s", w.Code, w.Body)
+	fresh := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "https://"+localHost, true)
+	if fresh.Code != http.StatusNoContent {
+		t.Fatalf("fresh code: %d %s", fresh.Code, fresh.Body)
 	}
+	// A fresh code moves the session to a new token.
+	cookie = sessionCookie(t, fresh)
 	if keyOnly := invoke("/api/certificates/download", map[string]any{"fingerprint": record.Fingerprint, "expected_generation": 5, "pair": false, "key_only": true, "output_password": []byte("new-download-password")}); keyOnly.code != 200 ||
 		!bytes.Contains(keyOnly.body, []byte("ENCRYPTED PRIVATE KEY")) {
 		t.Fatalf("a key download after a fresh code: %d %s", keyOnly.code, keyOnly.body)
@@ -282,9 +285,11 @@ func TestLinuxCertificatesLiveInTheVaultAndSurviveARestart(t *testing.T) {
 	if out := listCertificates(t, e.g, cookie); out.Generation != 5 || len(out.Records) != 1 || !out.Records[0].HasPrivateKey {
 		t.Fatalf("a refused delete wrote: %+v", out)
 	}
-	if w := apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "https://"+localHost, true); w.Code != http.StatusNoContent {
-		t.Fatalf("fresh code: %d", w.Code)
+	fresh = apiCall(e.g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, cookie, "https://"+localHost, true)
+	if fresh.Code != http.StatusNoContent {
+		t.Fatalf("fresh code: %d", fresh.Code)
 	}
+	cookie = sessionCookie(t, fresh)
 	if w := invoke("/api/inventory/delete", remove); w.code != 200 {
 		t.Fatalf("delete: %d %s", w.code, w.body)
 	}

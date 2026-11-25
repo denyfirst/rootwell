@@ -404,3 +404,69 @@ func TestPasskeysAreAddedUsedAndRemovedWithTheirRevisions(t *testing.T) {
 		t.Fatal("the user handle is not a stable digest of the name")
 	}
 }
+
+func device(n byte) [32]byte { return [32]byte{0: n, 31: 0xd0} }
+
+// A device that signed in is known for thirty days, ten at most, and a new
+// password or a setup forgets every one. Remembering one counts no revision.
+func TestDevicesAreKnownForAWhileAndForgottenWithThePassword(t *testing.T) {
+	s, _, c, _ := newStore(t)
+	setUp(t, s, c, "ada")
+	if s.KnownDevice("ada", device(1)) || s.KnownDevice("bob", device(1)) {
+		t.Fatal("a device is known before it signed in")
+	}
+	if err := s.RememberDevice("ada", 1, device(1), [32]byte{}); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := s.Get("ada"); a.Revision != 1 || !s.KnownDevice("ada", device(1)) || s.KnownDevice("bob", device(1)) {
+		t.Fatalf("remembered: revision %d", a.Revision)
+	}
+	if err := s.RememberDevice("ada", 2, device(2), [32]byte{}); !errors.Is(err, ErrChanged) {
+		t.Fatalf("a device for an old revision: %v", err)
+	}
+	// The next sign-in on the same device replaces its digest.
+	if err := s.RememberDevice("ada", 1, device(2), device(1)); err != nil {
+		t.Fatal(err)
+	}
+	if s.KnownDevice("ada", device(1)) || !s.KnownDevice("ada", device(2)) {
+		t.Fatal("the replaced digest is still known, or the new one is not")
+	}
+	// Thirty days later it is unknown.
+	c.at = c.at.Add(DeviceLife)
+	if s.KnownDevice("ada", device(2)) {
+		t.Fatal("a device is known after thirty days")
+	}
+	// Ten at most: the oldest goes first.
+	for n := range byte(MaxDevices + 1) {
+		c.at = c.at.Add(time.Minute)
+		if err := s.RememberDevice("ada", 1, device(10+n), [32]byte{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.KnownDevice("ada", device(10)) || !s.KnownDevice("ada", device(11)) || !s.KnownDevice("ada", device(10+MaxDevices)) {
+		t.Fatal("the eleventh device did not replace the oldest")
+	}
+	// A new password forgets them all.
+	if _, err := s.ChangePassword("ada", 1, firstPassword, nextPassword); err != nil {
+		t.Fatal(err)
+	}
+	if s.KnownDevice("ada", device(11)) {
+		t.Fatal("a device is known after a password change")
+	}
+	// So does a setup that replaces the sign-in.
+	if err := s.RememberDevice("ada", 2, device(3), [32]byte{}); err != nil {
+		t.Fatal(err)
+	}
+	setup, _, err := s.NewSetupCode("ada")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := account.HashPassword(firstPassword)
+	seed, _ := account.NewSeed()
+	if _, _, err := s.FinishSetup(setup, "ada", hash, seed, step(c.at)); err != nil {
+		t.Fatal(err)
+	}
+	if s.KnownDevice("ada", device(3)) {
+		t.Fatal("a device is known after a setup replaced the sign-in")
+	}
+}

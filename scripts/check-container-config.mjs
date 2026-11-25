@@ -27,6 +27,8 @@ export function checkContainerConfig(config) {
   // The server reads the instance key and never writes it.
   requireBoundary(server.volumes.find((mount) => mount?.target === '/key')?.read_only === true, 'server.key');
   requireBoundary(sameTargets(maintenance, ['/data', '/key', '/backup']), 'maintenance.volumes');
+  // Maintenance only reads backups: restore never writes or removes one.
+  requireBoundary(maintenance.volumes.find((mount) => mount?.target === '/backup')?.read_only === true, 'maintenance.backup');
   requireBoundary(maintenance.stdin_open === true && maintenance.tty === true, 'maintenance.terminal');
   const logging = maintenance.logging;
   const options = logging?.options;

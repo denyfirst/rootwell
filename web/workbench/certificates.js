@@ -20,6 +20,8 @@
   let filter = "all";
   let loading = null;
   let open = null;
+  // The certificate the delete dialog asks about, fixed when it opens.
+  let deleteTarget = null;
 
   const messages = {
     401: "Your session has ended. Sign in again.",
@@ -232,6 +234,8 @@
 
   function showSheet(record) {
     const same = open && open.fingerprint === record.fingerprint;
+    // Another certificate's sheet never inherits a delete dialog.
+    if (!same && deleteTarget) closeDelete();
     open = record;
     const now = Date.now();
     sheetPill.replaceChildren(ui.pill(record.not_after, now));
@@ -280,6 +284,7 @@
   }
 
   function closeSheet() {
+    if (deleteTarget) closeDelete();
     if (!open && sheet.hidden) return;
     open = null;
     sheet.hidden = true;
@@ -526,18 +531,21 @@
 
   function askDelete() {
     if (!open) return;
-    deleteText.textContent = nameOf(open) + (open.has_private_key ? " and its saved key leave" : " leaves") + " Rootwell. Servers that use it are not changed.";
+    deleteTarget = open;
+    deleteText.textContent = nameOf(deleteTarget) + (deleteTarget.has_private_key ? " and its saved key leave" : " leaves") + " Rootwell. Servers that use it are not changed.";
     deleteDialog.hidden = false;
     deleteScrim.hidden = false;
     deleteGo.focus();
   }
   function closeDelete() {
+    deleteTarget = null;
     deleteDialog.hidden = true;
     deleteScrim.hidden = true;
   }
   async function confirmDelete() {
-    if (!open) return closeDelete();
-    const target = open;
+    // Only the certificate the dialog named, and only while its sheet is open.
+    const target = deleteTarget;
+    if (!target || !open || open.fingerprint !== target.fingerprint) return closeDelete();
     deleteGo.disabled = true;
     try {
       await call("/api/inventory/delete", { fingerprint: target.fingerprint, typed_fingerprint: target.fingerprint,
