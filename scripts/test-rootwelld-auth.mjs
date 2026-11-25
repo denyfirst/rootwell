@@ -194,6 +194,14 @@ function noSecrets(page) {
   assert.deepEqual(page.$("codes").children.map((li) => li.textContent), codes);
   await page.$("codes-copy").onclick();
   assert.match(page.context.copied, /^Rootwell recovery codes for ada\n/);
+  // Leaving forgets the phone key, its QR code and the recovery codes.
+  page.pageHandlers.pagehide();
+  assert.equal(page.$("phone-key").textContent, "", "the phone key is forgotten on leaving");
+  assert.equal(page.$("phone-qr").children.length, 0, "the QR code is forgotten on leaving");
+  assert.equal(page.$("codes").children.length, 0, "the recovery codes are forgotten on leaving");
+  assert.equal(page.$("codes-copy").onclick, null, "Copy forgets the codes on leaving");
+  assert.equal(page.$("codes-download").onclick, null, "Download forgets the codes on leaving");
+  assert.equal(page.$("codes-step").hidden, true);
 }
 {
   // A QR that is not modules is refused, and nothing is drawn.
@@ -240,6 +248,8 @@ function noSecrets(page) {
   assert.equal(asked, 4);
   page.pageHandlers.pagehide();
   for (const id of ["password", "next", "confirm", "phone-code"]) assert.equal(page.$(id).value, "", id + " is emptied on leaving");
+  assert.equal(page.$("codes").children.length, 0, "the new recovery codes are forgotten on leaving");
+  assert.equal(page.$("phone-key").textContent, "", "the new phone key is forgotten on leaving");
 }
 {
   // A cancelled code changes nothing and says so.

@@ -194,8 +194,15 @@ func TestPasskeysSignInAndStandInForAFreshCode(t *testing.T) {
 		t.Fatalf("a second answer to one challenge in the same session: %d", w.Code)
 	}
 	o = options(t, g, "/api/passkey/options", ready)
-	if w := call(g, "POST", "/api/passkey", asJSON(p.assert("localhost", origin, o["challenge"].(string))), ready); w.Code != http.StatusNoContent {
+	w = call(g, "POST", "/api/passkey", asJSON(p.assert("localhost", origin, o["challenge"].(string))), ready)
+	if w.Code != http.StatusNoContent {
 		t.Fatalf("passkey as a fresh code: %d %s", w.Code, w.Body)
+	}
+	// Like a phone code, it moves the session to a new token.
+	if next := sessionCookie(t, w); next.Value == ready.Value || status(t, g, ready) != nil {
+		t.Fatal("the old token still works after a passkey fresh code")
+	} else {
+		ready = next
 	}
 	w = call(g, "POST", "/api/recovery-codes", `{}`, ready)
 	if w.Code != http.StatusOK {

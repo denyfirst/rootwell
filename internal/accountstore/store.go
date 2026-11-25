@@ -77,7 +77,23 @@ type accountRecord struct {
 	Revision  uint64               `json:"revision"`
 	CreatedAt string               `json:"created_at"`
 	Passkeys  []storedPasskey      `json:"passkeys,omitempty"`
+	Devices   []storedDevice       `json:"devices,omitempty"`
 }
+
+// storedDevice is a device that signed in completely: the digest of its
+// device cookie, and until when it counts.
+type storedDevice struct {
+	Digest []byte `json:"digest"`
+	Until  string `json:"until"`
+}
+
+// DeviceLife is how long a device that signed in is known, and MaxDevices how
+// many an account keeps. A known device's sign-in failures count against that
+// device alone, not against the account name or its address.
+const (
+	DeviceLife = 30 * 24 * time.Hour
+	MaxDevices = 10
+)
 
 type storedPasskey struct {
 	Credential passkey.Credential `json:"credential"`
@@ -302,7 +318,7 @@ func (s *Store) FinishSetup(code, name string, password account.PasswordHash, se
 		}
 		// A setup replaces every way the account signs in: passkeys go too,
 		// since the person may have lost the device that holds them.
-		r.Password, r.Seed, r.LastStep, r.Recovery, r.Passkeys = password, seed, step, digests, nil
+		r.Password, r.Seed, r.LastStep, r.Recovery, r.Passkeys, r.Devices = password, seed, step, digests, nil, nil
 		r.Revision++
 		if err := put(t, kindAccount, s.accountID(name), r); err != nil {
 			return err
@@ -442,8 +458,62 @@ func (s *Store) ChangePassword(name string, revision uint64, current, next strin
 		return Account{}, ErrWeak
 	}
 	return s.change(name, revision, func(r *accountRecord) error {
-		r.Password = hash
+		// Devices known before are forgotten: one may be why the password
+		// changed.
+		r.Password, r.Devices = hash, nil
 		return nil
+	})
+}
+
+// KnownDevice says whether digest is a device the account signed in from
+// completely within DeviceLife. Any error is a no.
+func (s *Store) KnownDevice(name string, digest [32]byte) bool {
+	known := false
+	_ = s.v.View(func(t *vault.Tx) error {
+		r, err := s.readAccount(t, name)
+		if err != nil {
+			return err
+		}
+		now := s.now()
+		for _, d := range r.Devices {
+			until, err := time.Parse(timeLayout, d.Until)
+			if err == nil && now.Before(until) && subtle.ConstantTimeCompare(d.Digest, digest[:]) == 1 {
+				known = true
+			}
+		}
+		return nil
+	})
+	return known
+}
+
+// RememberDevice keeps digest as a device the account, still at revision,
+// signed in from, in place of replaces: the same device's earlier digest, if
+// it had one. Devices past DeviceLife go, and beyond MaxDevices the oldest.
+// It counts no revision, so no session ends.
+func (s *Store) RememberDevice(name string, revision uint64, digest, replaces [32]byte) error {
+	return s.v.Update(func(t *vault.Tx) error {
+		r, err := s.readAccount(t, name)
+		if err != nil {
+			return err
+		}
+		if r.Revision != revision {
+			return ErrChanged
+		}
+		now := s.now()
+		kept := make([]storedDevice, 0, len(r.Devices)+1)
+		for _, d := range r.Devices {
+			until, err := time.Parse(timeLayout, d.Until)
+			if err != nil || !now.Before(until) || bytes.Equal(d.Digest, replaces[:]) || bytes.Equal(d.Digest, digest[:]) {
+				continue
+			}
+			kept = append(kept, d)
+		}
+		kept = append(kept, storedDevice{Digest: bytes.Clone(digest[:]), Until: now.UTC().Add(DeviceLife).Format(timeLayout)})
+		if len(kept) > MaxDevices {
+			kept = kept[len(kept)-MaxDevices:]
+		}
+		r.Devices = kept
+		return put(t, kindAccount, s.accountID(name), r)
 	})
 }
 

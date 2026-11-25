@@ -49,9 +49,11 @@ func TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey(t *testing.T) {
 	if w := call(g, "POST", "/api/backup", `{}`, c); w.Code != http.StatusPreconditionRequired {
 		t.Fatalf("a backup without a fresh code: %d", w.Code)
 	}
-	if w := call(g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, c); w.Code != http.StatusNoContent {
-		t.Fatalf("fresh code: %d", w.Code)
+	fresh := call(g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, c)
+	if fresh.Code != http.StatusNoContent {
+		t.Fatalf("fresh code: %d", fresh.Code)
 	}
+	c = sessionCookie(t, fresh)
 	if w := apiCall(g, "POST", "/api/backup", `{}`, c, "https://evil.example:4180", true); w.Code != http.StatusForbidden {
 		t.Fatalf("a backup asked by another site: %d", w.Code)
 	}

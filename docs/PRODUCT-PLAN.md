@@ -303,7 +303,25 @@ places, owner and saved key, which meets the exit condition. The rolling
 history in the table was not built: the vault keeps no history, so it never
 refuses a write (RW-01), and an activity log stays under Later.
 
-**Next:** an independent review, then Phase 3c (renewal).
+A first internal review of Phase 3 followed the same day, and its findings
+are fixed:
+- Key rotation gives every record a new data key and rewrites the file, and
+  a backup copies live records only, so an old key opens nothing current
+  (C114).
+- Sign-in tries sent together are counted one by one (C110).
+- A browser that signed in before is not locked out by others' failures, and
+  wrong setup codes count against their source only (C110).
+- A fresh code moves the session to a new token (C111).
+- The local authority cannot sign for names below its own, and one-word
+  names are refused (C112).
+- Pages forget phone keys and recovery codes on leaving, and the delete
+  dialog acts only on the certificate it named.
+
+One limit stays and is written down (C114): someone who can write the vault
+file without the key can put an older sealed record back.
+
+**Next:** Phase 3c (renewal). The independent review of Phase 4 comes before
+any release.
 
 **Later:**
 - roles and invites;

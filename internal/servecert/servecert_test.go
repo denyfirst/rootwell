@@ -32,7 +32,8 @@ func TestNamesAlwaysIncludeLoopbackAndRefuseBadInput(t *testing.T) {
 	}
 	for _, bad := range [][]string{{"*.example.com"}, {"exa mple.com"}, {"-bad.example"}, {"bad-.example"}, {"a..b"},
 		{"fe80::1%eth0"}, {"0.0.0.0"}, {"::"}, {"224.0.0.1"}, {strings.Repeat("a", 64) + ".example"}, {"ünicode.example"},
-		{"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12", "a13", "a14", "a15"}} {
+		{"lan"}, {"com."}, {"rootwell"},
+		{"a1.x", "a2.x", "a3.x", "a4.x", "a5.x", "a6.x", "a7.x", "a8.x", "a9.x", "a10.x", "a11.x", "a12.x", "a13.x", "a14.x", "a15.x"}} {
 		if _, err := ParseNames(bad); err == nil {
 			t.Errorf("%v was accepted", bad)
 		}
@@ -89,7 +90,8 @@ func TestTheAuthorityCannotSignForOtherNames(t *testing.T) {
 		dns []string
 		ips []net.IP
 		ask string
-	}{{dns: []string{"bank.example"}, ask: "bank.example"}, {ips: []net.IP{net.ParseIP("203.0.113.5")}, ask: "203.0.113.5"}} {
+	}{{dns: []string{"bank.example"}, ask: "bank.example"}, {ips: []net.IP{net.ParseIP("203.0.113.5")}, ask: "203.0.113.5"},
+		{dns: []string{"mail.rootwell.example.com"}, ask: "mail.rootwell.example.com"}, {dns: []string{"a.localhost"}, ask: "a.localhost"}} {
 		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		template := &x509.Certificate{SerialNumber: big.NewInt(7), Subject: pkix.Name{CommonName: "forged"},
 			NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour), DNSNames: forged.dns, IPAddresses: forged.ips,
@@ -143,6 +145,26 @@ func TestThePackageOpensNoSocket(t *testing.T) {
 	for _, call := range []string{"Dial", "Listen", "Lookup", "Resolver", "http."} {
 		if strings.Contains(string(source), call) {
 			t.Errorf("servecert.go uses %s", call)
+		}
+	}
+}
+
+// A name with another of the installation's names below it keeps its
+// subdomains open, or the CA could not sign for the name below.
+func TestANameBelowAnotherStillVerifies(t *testing.T) {
+	a, names := authority(t, "example.lan", "rootwell.example.lan")
+	if !slices.Equal(a.Certificate.ExcludedDNSDomains, []string{".localhost", ".rootwell.example.lan"}) {
+		t.Fatalf("excluded %v", a.Certificate.ExcludedDNSDomains)
+	}
+	certificate, _, err := a.Issue(names, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := x509.NewCertPool()
+	roots.AddCert(a.Certificate)
+	for _, name := range []string{"example.lan", "rootwell.example.lan"} {
+		if _, err := certificate.Verify(x509.VerifyOptions{DNSName: name, Roots: roots, CurrentTime: now}); err != nil {
+			t.Errorf("%s did not verify: %v", name, err)
 		}
 	}
 }

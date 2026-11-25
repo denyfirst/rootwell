@@ -114,9 +114,12 @@ rootwelld serving-names /private/rootwell-data /private/rootwell-key/instance.ke
 rootwelld serve /private/rootwell-data /private/rootwell-key/instance.key web/workbench --listen 192.168.1.5
 ```
 
-- `serving-names` takes DNS names and IP addresses, no wildcards, at most 16
+- `serving-names` takes IP addresses and DNS names of at least two labels,
+  such as `rootwell.lan`; no wildcards, no one-word names, and at most 16
   names with the three loopback ones included. It replaces the names given
   before; with none, Rootwell goes back to this host only.
+- The new authority signs for exactly those names, never for names below
+  them: `rootwell.lan` does not let it sign for `mail.rootwell.lan`.
 - **Every change of names makes a new authority**, since an authority's names
   are fixed. `serving-names` prints its fingerprint. Trust the new one on
   every computer, as above, and remove the old one.

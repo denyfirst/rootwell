@@ -58,7 +58,9 @@ func ParseNames(values []string) (Names, error) {
 			continue
 		}
 		name := strings.ToLower(strings.TrimSuffix(value, "."))
-		if !validDNSName(name) {
+		// A one-word name other than localhost is refused: the CA's limit
+		// for "lan" or "com" would cover every name under it.
+		if !validDNSName(name) || (!strings.Contains(name, ".") && name != "localhost") {
 			return Names{}, ErrRefused
 		}
 		if !slices.Contains(n.DNS, name) {
@@ -126,6 +128,7 @@ func NewAuthority(names Names, now time.Time) (Authority, error) {
 		MaxPathLenZero:              true,
 		PermittedDNSDomainsCritical: true,
 		PermittedDNSDomains:         slices.Clone(names.DNS),
+		ExcludedDNSDomains:          excludedBelow(names.DNS),
 	}
 	for _, ip := range names.IPs {
 		bits := ip.BitLen()
@@ -140,6 +143,21 @@ func NewAuthority(names Names, now time.Time) (Authority, error) {
 		return Authority{}, ErrRefused
 	}
 	return Authority{Certificate: certificate, Key: key}, nil
+}
+
+// excludedBelow keeps the CA from signing for names under each name: a DNS
+// limit allows the name and everything below it. A name with another name of
+// the installation below it keeps its subdomains, or that other name would be
+// refused too.
+func excludedBelow(dns []string) []string {
+	var excluded []string
+	for _, name := range dns {
+		below := "." + name
+		if !slices.ContainsFunc(dns, func(other string) bool { return strings.HasSuffix(other, below) }) {
+			excluded = append(excluded, below)
+		}
+	}
+	return excluded
 }
 
 // Issue signs a new server certificate for exactly names.

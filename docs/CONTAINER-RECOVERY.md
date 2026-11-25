@@ -165,6 +165,8 @@ docker compose run --rm maintenance restore /backup/rootwell-backup-20261124T120
 docker compose up -d rootwell
 ```
 
+- The maintenance container sees `/backup` read-only: `restore` only reads
+  the backup, and nothing run there can change or remove one.
 - `restore` keeps the backup only if it opens with `/key/instance.key`;
   otherwise it leaves `/data` empty. A backup opens only with the key the
   vault had when it was made: after a key rotation, an older backup needs the

@@ -332,6 +332,19 @@ assert.equal($("delete-dialog").hidden, false);
 assert.equal($("delete-text").textContent, "old.test and its saved key leave Rootwell. Servers that use it are not changed.");
 $("delete-cancel").listeners.click();
 assert.equal($("delete-dialog").hidden, true);
+// The dialog belongs to the certificate it named: another sheet closes it,
+// and its button then deletes nothing.
+{
+  const deletes = () => api.requests.filter((r) => r.url === "/api/inventory/delete").length;
+  const before = deletes();
+  $("sheet-delete").listeners.click();
+  await go(mail);
+  assert.equal($("delete-dialog").hidden, true, "another sheet closes the delete dialog");
+  await $("delete-go").listeners.click();
+  await settle();
+  assert.equal(deletes(), before, "a closed delete dialog deletes nothing");
+  await go(api.records.find((r) => r.subject === "CN=old.test"));
+}
 // It has a saved key, so deleting it needs a phone code too.
 api.fresh = false;
 api.freshAnswer = false;

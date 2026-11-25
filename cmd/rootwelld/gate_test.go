@@ -475,9 +475,11 @@ func TestAFullFailureTableHoldsNewNamesRatherThanForgetALock(t *testing.T) {
 	for i := range maxLimitKeys {
 		e.g.failures[fmt.Sprintf("name:n%d", i)] = &failures{count: nameFailures, last: now, until: now.Add(time.Hour)}
 	}
-	e.g.fail(nameLimit("fresh"))
-	if len(e.g.failures) != maxLimitKeys || e.g.wait(nameLimit("fresh")) != time.Minute || e.g.wait(nameLimit("n1")) <= time.Minute {
-		t.Fatalf("full table: %d entries, wait %v", len(e.g.failures), e.g.wait(nameLimit("fresh")))
+	if wait := e.g.try(nameLimit("fresh")); wait != 0 {
+		t.Fatalf("the first failure waits %v", wait)
+	}
+	if len(e.g.failures) != maxLimitKeys || waitFor(e.g, nameLimit("fresh")) != time.Minute || waitFor(e.g, nameLimit("n1")) <= time.Minute {
+		t.Fatalf("full table: %d entries, wait %v", len(e.g.failures), waitFor(e.g, nameLimit("fresh")))
 	}
 }
 
@@ -500,9 +502,11 @@ func TestAFreshCodeGuardsChangesToHowTheAccountSignsIn(t *testing.T) {
 	if w := call(g, "POST", "/api/fresh", `{"code":"000000"}`, c); w.Code != http.StatusUnauthorized {
 		t.Fatalf("a wrong fresh code: %d", w.Code)
 	}
-	if w := call(g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, c); w.Code != http.StatusNoContent {
+	w = call(g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, c)
+	if w.Code != http.StatusNoContent {
 		t.Fatalf("a fresh code: %d", w.Code)
 	}
+	c = sessionCookie(t, w)
 	if w := call(g, "POST", "/api/phone", `{}`, c); w.Code != http.StatusOK {
 		t.Fatalf("after a fresh code: %d", w.Code)
 	}
@@ -752,4 +756,11 @@ func TestGatewayRefusesIncompleteBrowserAssets(t *testing.T) {
 		_ = g.Close()
 		t.Fatal("gateway started with missing browser engine")
 	}
+}
+
+// waitFor is how long keys must still wait, without counting an attempt.
+func waitFor(g *gate, keys ...limitKey) time.Duration {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.waitLocked(g.now(), keys)
 }

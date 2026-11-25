@@ -157,8 +157,10 @@ address, a name, or an address it does not cover refuses the start. Rootwell
 never listens on every address.
 
 The covered names are `localhost`, `127.0.0.1` and `::1`, always, and the
-names added with `rootwelld serving-names`: DNS names or IP addresses, no
-wildcards, at most 16 names in all. Every request must come over TLS and carry
+names added with `rootwelld serving-names`: IP addresses, or DNS names of at
+least two labels, such as `rootwell.lan`; no wildcards, and no one-word name
+but `localhost`, since a limit for `lan` or `com` would cover every name below
+it. At most 16 names in all. Every request must come over TLS and carry
 one of them with `:4180` as its Host; any other name, port or spelling gets
 400, so a rebound DNS name or another port reaches nothing (audit RW-02).
 Every change must carry an Origin of exactly `https://` and that same Host, so
@@ -169,7 +171,10 @@ HSTS for a year, without subdomains; loopback names get none, because on
 The first start makes Rootwell's own certificate authority in the vault, one
 sealed record with its key (C107): P-256, ten years, name-constrained to the
 covered names, path length zero, and for server certificates only, so its key
-cannot sign for any other name. It signs a 90-day P-256 server certificate for
+cannot sign for any other name. A DNS limit also covers the names below it,
+so the authority excludes those too: its key cannot sign for
+`mail.rootwell.lan` either. Only a covered name with another covered name
+below it keeps its subdomains, or that other name would be refused. It signs a 90-day P-256 server certificate for
 exactly those names. The running server checks every six hours and replaces
 that certificate 30 days before it ends, or when it no longer matches the
 names, without a restart; it writes to the vault only then.
@@ -200,6 +205,7 @@ Guarded by `TestOnlyHTTPSToTheConfiguredNamesIsServed`,
 `TestNamesAlwaysIncludeLoopbackAndRefuseBadInput`,
 `TestTheServerCertificateVerifiesForEveryNameAndNothingElse`,
 `TestTheAuthorityCannotSignForOtherNames`,
+`TestANameBelowAnotherStillVerifies`,
 `TestRenewalIsDueBeforeTheEndOrWhenNamesChange`,
 `TestTheFingerprintReadsLikeABrowserShowsIt`,
 `TestThePackageOpensNoSocket` and `scripts/test-container-volume.sh`.
@@ -226,9 +232,12 @@ certificate and deleting a certificate without a key need only a signed-in
 session. No request asks for the account password again, except a password
 change, which also needs the current one; the certificate API refuses a
 password field. A wrong code in the dialog counts as a failure (C110), five
-end the session, and a recovery code used there is spent.
+end the session, and a recovery code used there is spent. A fresh code moves
+the session to a new token, so a copy of the old token, taken earlier, gains
+nothing from it.
 
 Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
+`TestAFreshCodeMovesTheSessionToANewToken`,
 `TestPasskeysSignInAndStandInForAFreshCode`,
 `TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
@@ -236,15 +245,37 @@ Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 `TestCertificateRequestsRefuseAPasswordField`,
 `scripts/test-certificates.mjs` and `scripts/test-rootwelld-auth.mjs`.
 
-## C110 — Only failures count, per name and per source (ADR 0088)
+## C110 — Only failures count, per known device or per name and source (ADR 0088)
 
-A wrong password, phone code, recovery code, passkey answer or setup code
-counts against the account name, which allows 5, and against the source
-address, which allows 20; an IPv6 address counts by its /64. Each failure
-past that makes the next try wait: one minute, then twice as long each time,
-up to fifteen. A waiting name or address gets 429 with `Retry-After`, and
-nothing is checked. Wrong
-setup codes also count against one limit of 20 for the whole installation.
+A wrong password, phone code, recovery code or passkey answer counts against
+the account name, which allows 5, and against the source address, which
+allows 20; an IPv6 address counts by its /64. A wrong setup code counts
+against its source address only: the code is 120 random bits, and nobody
+guessing from elsewhere can keep the owner from setting up or recovering.
+Each failure past the allowed ones makes the next try wait: one minute, then
+twice as long each time, up to fifteen. A waiting name, address or device
+gets 429 with `Retry-After`, and nothing is checked.
+
+Each try counts as a failure before it is checked, under one lock, and is
+given back when it succeeds, or fails for a reason that is not the guess,
+such as a busy server. Tries sent together therefore cannot all pass before
+one is counted: a session takes at most five wrong codes however they
+arrive, and a right code cannot bring back a session that wrong codes ended
+meanwhile.
+
+**Known devices.** A browser that signs in completely, with a code or a
+passkey after the password, also gets the cookie `__Host-rootwell_device`:
+256 random bits, Secure, HttpOnly, SameSite=Strict, path `/`, for 30 days.
+The account keeps only its SHA-256, for at most ten devices, in its sealed
+record. Every complete sign-in replaces the browser's device cookie, and a
+password change or a setup forgets every device. While a request carries a
+device cookie the account knows, its failures count against that device
+alone, which allows 5, and not against the name or the address. So guesses at
+the name from anywhere, or failures from the owner's own address (everyone on
+the server itself shares `127.0.0.1`), cannot lock the owner out of a browser
+that signed in before. Two device cookies count as none. The device cookie
+opens nothing; it only chooses which limit counts.
+
 A success costs nothing (audit RW-07): a complete sign-in or a fresh code
 forgets the name's failures, and failures are forgotten an hour after the
 last. The table holds 4,096 names and addresses; when every entry is waiting
@@ -254,7 +285,14 @@ a time; a request waits up to five seconds for it, and a busy answer is not a
 failure.
 
 Guarded by `TestOnlyFailuresCountPerNameAndPerSource`,
-`TestAFullFailureTableHoldsNewNamesRatherThanForgetALock` and
+`TestAFullFailureTableHoldsNewNamesRatherThanForgetALock`,
+`TestCodeGuessesSentTogetherAreCountedOneByOne`,
+`TestARightCodeDoesNotReviveAnEndedSession`,
+`TestTheOwnerSignsInAsSoonAsAWaitEnds`,
+`TestAKnownDeviceIsNotLockedOutByOthers`,
+`TestSetupGuessesCountOnlyAgainstTheirSource`,
+`TestFiveWrongNewPhoneCodesEndTheSession`,
+`TestDevicesAreKnownForAWhileAndForgottenWithThePassword` and
 `scripts/test-rootwelld-auth.mjs`.
 
 ## C109 — Sign-in takes a password and a one-time code, and sessions stay short and in memory (ADR 0088)
@@ -271,8 +309,10 @@ confirm its phone, and reaches nothing else either.
 A session token is 256 random bits. The server keeps only its SHA-256, in
 memory, so a restart signs everyone out. The cookie is
 `__Host-rootwell_session`: Secure, HttpOnly, SameSite=Strict, path `/` and no
-domain. Every step issues a new token and ends the old one, and a request
-carrying two session cookies counts as having none. A signed-in session ends
+domain. Every step, and every fresh code (C111), issues a new token and ends
+the old one, and a request carrying two session cookies counts as having
+none. A new token keeps the session's start, so the eight hours still count
+from the sign-in. A signed-in session ends
 after 15 minutes without use and 8 hours at most; a page asking for its
 status (`GET /api/session`) is not use. Five wrong codes end a session. At
 most 64 sessions are kept: when the table is full, an account's oldest

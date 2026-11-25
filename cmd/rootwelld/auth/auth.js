@@ -82,6 +82,23 @@
     return true;
   }
 
+  // Leaving the page forgets what it held: typed passwords and codes, the
+  // phone key and its QR code, and the recovery codes. A page the browser
+  // brings back from its cache asks the server again instead.
+  function forgetOnLeave(fields) {
+    window.addEventListener("pagehide", () => {
+      for (const id of fields) $(id).value = "";
+      $("phone-key").textContent = "";
+      $("phone-qr").replaceChildren();
+      $("codes").replaceChildren();
+      $("codes-copy").onclick = null;
+      $("codes-download").onclick = null;
+      $("phone-step").hidden = true;
+      $("codes-step").hidden = true;
+    });
+    window.addEventListener("pageshow", (event) => { if (event.persisted) window.location.reload(); });
+  }
+
   function guard(form, run) {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -192,6 +209,7 @@
   // ── Setup ───────────────────────────────────────────────────────────────
   if (mode === "setup") {
     let name = "";
+    forgetOnLeave(["setup-code", "password", "confirm", "phone-code"]);
     guard($("setup-form"), async () => {
       const code = $("setup-code").value.trim();
       name = $("name").value.trim();
@@ -258,7 +276,7 @@
       say(answer.status === 429 ? tooMany : answer.status === 401 ? "The current password does not match." :
         answer.status === 400 ? "Choose a different password: at least 15 characters, not a common one, and not the one you have now." : failed);
     });
-    window.addEventListener("pagehide", () => { for (const id of ["password", "next", "confirm", "phone-code"]) $(id).value = ""; });
+    forgetOnLeave(["password", "next", "confirm", "phone-code"]);
     $("phone-start").addEventListener("click", async () => {
       say("");
       const answer = await sendFresh("/api/phone", {}).catch(() => null);
