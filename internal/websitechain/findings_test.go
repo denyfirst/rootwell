@@ -146,6 +146,18 @@ func TestSavedRootTrustsAPrivateChainAndNothingElse(t *testing.T) {
 	if err != nil || r.Trusted || f.Level != "failed" || !strings.Contains(f.Title, "Synthetic Root") || !slices.Equal(f.Certificates, []string{fingerprintOf(chain[2])}) {
 		t.Fatalf("a private root was not named: %+v %v", r.Findings, err)
 	}
+	// The sent private root is the end of the chain, shown once; devices do
+	// not have it, so it is not "a root devices already have".
+	if has(r, "sent-root") || r.Presented[2].Use != "path" {
+		t.Fatalf("a private root was called a root devices have: %+v %+v", r.Findings, r.Presented)
+	}
+	// A public root the server sends is on the chain and noted once.
+	_, publicRoots, _ := fixture(t)
+	publicRoots.AddCert(chain[2])
+	r, err = Analyze(chain, publicRoots, "website.example.org", now)
+	if err != nil || !r.Trusted || r.Presented[2].Use != "path" || finding(r, "sent-root").Level != "note" || r.State != "verified" {
+		t.Fatalf("a sent public root was not noted once: %+v %v", r, err)
+	}
 	// The person saved that root in Certificates: trusted, and said so.
 	for _, sent := range [][]*x509.Certificate{chain, chain[:2]} {
 		r, err = AnalyzeWithSaved(sent, empty, []*x509.Certificate{chain[2]}, "website.example.org", now)

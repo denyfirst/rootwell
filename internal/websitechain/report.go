@@ -292,6 +292,12 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 	var older, sentRoots, unrelated, oldExpired []*x509.Certificate
 	for _, c := range chain[1:] {
 		switch {
+		case use[string(c.Raw)] == "path":
+			// A root on the chain that the server also sends: worth a note only
+			// when devices already have it, that is, when it is trusted.
+			if selfSigned(c) && r.Trusted && r.TrustSource == "public" {
+				sentRoots = append(sentRoots, c)
+			}
 		case use[string(c.Raw)] == "":
 			use[string(c.Raw)] = "unrelated"
 			if !named[fp(c)] {
@@ -299,7 +305,9 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 			}
 		case selfSigned(c):
 			use[string(c.Raw)] = "root"
-			sentRoots = append(sentRoots, c)
+			if r.TrustSource == "public" {
+				sentRoots = append(sentRoots, c)
+			}
 		case use[string(c.Raw)] == "older-path":
 			older = append(older, c)
 		}
