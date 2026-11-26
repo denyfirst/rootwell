@@ -491,13 +491,19 @@ checks still locate a broken signature at its exact depth
 
 Website observation is a separate explicit ready-session capability, not a
 network path from the file pages (Inspect, Convert, Request) or the offline
-`rootwell` Workbench. Only an HTTPS DNS origin on port 443 is
-accepted; all bounded DNS answers must be public, a numeric address is dialed
-once and the original hostname remains SNI. One global in-flight observation,
-30-second interval, deadline and socket byte bounds apply. No application
+`rootwell` Workbench. A target is a DNS name or IP address with an optional
+port; paths, credentials and queries are refused. All bounded DNS answers must
+be allowed: public or private, never loopback, link-local, metadata, reserved
+or IPv4-embedding transition addresses (ADR 0090). At most three connections
+go to validated numeric addresses, and the name remains SNI. One global
+in-flight observation, a 5-second interval, deadlines and socket byte bounds
+apply. No application
 data, credentials, proxy, redirects or certificate-URL retrieval is sent.
 Native non-Linux production calls refuse before network work. Peer roots do
-not become trusted; issuer names alone cannot create a signature link. Path,
+not become trusted; only self-signed authorities the owner saved in
+Certificates may end a path, and a check saves nothing. Issuer names alone
+cannot create a signature link. Every finding names the certificates it is
+about; failures name only the canonical target and the dialed address. Path,
 hostname and current dates remain separate facts. No result is published
 after the original session is lost; nothing is persisted. The page has no
 sample websites; each press of Check sends one request with the fixed
@@ -510,7 +516,14 @@ Guarded by `TestTrustedPathDoesNotNeedServerSentRoot`,
 `TestPresentationOrderDoesNotDeterminePath`,
 `TestCrossSignedIssuerAmbiguityIsNotMissingOrWrongSignature`,
 `TestMalformedAndBoundedInput`, `TestTargetIsAnOriginNotAFetchURL`,
-`TestSpecialUseAndMappedAddressesAreRefused`,
+`TestOwnMachineLinkLocalAndReservedAddressesAreRefused`,
+`TestFailuresSayWhatHappened`, `TestClassicRetryWhenTheGreetingIsDropped`,
+`TestIncompleteHandshakeStillShowsCertificatesAndRepeatsAreNamed`,
+`TestSavedRootTrustsAPrivateChainAndNothingElse`,
+`TestOlderChainAndSentRootAreNotProblems`,
+`TestMissingIntermediateNamesTheIssuer`,
+`TestWebsiteCheckTrustsOnlyRootsSavedInCertificates`,
+`TestWebsiteFailuresAreExplainedWithoutPeerText`,
 `TestRealSyntheticTLSIsPinnedSNIOnlyAndSeparatelyVerified`,
 `TestRefusalsHaveNoDialOrPartialReport`, `TestWebsiteConsentExactAndNoSecrets`,
 `TestCancellationAndRevocationAfterDialCloseWithoutHandshake`,

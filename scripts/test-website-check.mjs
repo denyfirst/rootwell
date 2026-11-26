@@ -31,16 +31,18 @@ function fixture({ reply, hash = "" } = {}) {
   const document = { getElementById: byId, createElement: (t) => new Node(t), createElementNS: (_, t) => new Node(t), hidden: false,
     addEventListener: (name, fn) => { docListeners[name] = fn; } };
   vm.runInNewContext(source, {
-    document, location: { hash }, setTimeout: () => 1, clearTimeout() {}, AbortController, Date, JSON, Number, decodeURIComponent,
+    document, location: { hash }, setTimeout: () => 1, clearTimeout() {}, AbortController, Date, JSON, Number, URL, decodeURIComponent,
     fetch: async (url, options) => { requests.push({ url, options }); return reply(); },
   });
   return { ids, requests, submit: async (site) => { ids.site.value = site; await ids["site-form"].listeners.submit({ preventDefault() {} }); } };
 }
 const answer = (status, body) => ({ ok: status === 200, status, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) });
-const leaf = { fingerprint: "AA", subject: "CN=shop.example.com", role: "leaf", sent: true, in_date: true, not_after: new Date(Date.now() + 74 * 86400000).toISOString() };
-const inter = { fingerprint: "BB", subject: "CN=R11", role: "intermediate", sent: true, in_date: true, not_after: new Date(Date.now() + 500 * 86400000).toISOString() };
-const root = { fingerprint: "CC", subject: "CN=ISRG Root X1", role: "root", sent: false, in_date: true, not_after: new Date(Date.now() + 3000 * 86400000).toISOString() };
-const healthy = { hostname: "shop.example.com", state: "verified", trusted: true, path: [leaf, inter, root], presented: [leaf, inter], findings: [], observed_at: new Date().toISOString(), tls_version: "TLS 1.3", address: "203.0.113.5" };
+const days = (n) => new Date(Date.now() + n * 86400000).toISOString();
+const leaf = { fingerprint: "AA", subject: "shop.example.com", issuer: "R11", role: "leaf", sent: true, in_date: true, use: "path", not_after: days(74) };
+const inter = { fingerprint: "BB", subject: "R11", issuer: "ISRG Root X1", role: "intermediate", sent: true, in_date: true, use: "path", not_after: days(500) };
+const root = { fingerprint: "CC", subject: "ISRG Root X1", role: "trust-anchor", sent: false, in_date: true, use: "path", not_after: days(3000) };
+const healthy = { hostname: "shop.example.com", port: 443, state: "verified", trusted: true, trust_source: "public", path: [leaf, inter, root], presented: [leaf, inter], findings: [], observed_at: new Date().toISOString(), tls_version: "TLS 1.3", address: "203.0.113.5" };
+const note = (code, title, certificates = []) => ({ code, level: "note", title, detail: title + " detail.", action: "", certificates });
 
 // A healthy site: a good verdict, the whole chain with the root, nothing to fix.
 {
@@ -59,14 +61,89 @@ const healthy = { hostname: "shop.example.com", state: "verified", trusted: true
   assert.match(page.text(), /16 months left/);
   assert.match(page.text(), /8 years left/);
   assert.doesNotMatch(page.text(), /500 days|3000 days/);
-  assert.match(page.text(), /Trusted root/);
+  assert.match(page.text(), /Built into devices/);
   assert.match(page.text(), /Nothing to fix/);
+  assert.match(page.text(), /203\.0\.113\.5:443/);
+  assert.match(page.text(), /does not check whether the certificate authority has revoked/);
+  assert.doesNotMatch(page.text(), /Also sent by the server|Needs a fix|Good to know/);
+}
+
+// What emanat.az sends: the chain, an older chain for old devices and a root.
+// All green, both explained once, nothing to fix.
+{
+  const cross = { fingerprint: "DD", subject: "Root R46", role: "intermediate", sent: true, in_date: true, use: "older-path", not_after: days(4000) };
+  const oldest = { fingerprint: "EE", subject: "AAA Certificate Services", role: "intermediate", sent: true, in_date: true, use: "root", not_after: days(760) };
+  const report = { ...healthy, presented: [leaf, inter, cross, oldest], findings: [note("older-chain", "The server also sends a chain for older devices", ["DD"]), note("sent-root", "The server sends a root certificate", ["EE"])] };
+  const f = fixture({ reply: () => answer(200, report) });
+  await f.submit("emanat.az");
+  const page = f.ids["site-result"];
+  assert.match(page.text(), /Everything is in order/);
+  assert.match(page.text(), /Nothing to fix/);
+  assert.match(page.text(), /Also sent by the server/);
+  assert.match(page.text(), /For older devices/);
+  assert.match(page.text(), /Devices already have it/);
+  assert.match(page.text(), /Good to know .*older devices/);
+  assert.doesNotMatch(page.text(), /Needs a fix/);
+  assert.equal(page.all((n) => /^link extra$/.test(n.className)).length, 2);
+}
+
+// A certificate that belongs to no chain is amber, named and listed to fix.
+{
+  const stray = { fingerprint: "FF", subject: "Old Issuer", role: "intermediate", sent: true, in_date: true, use: "unrelated", not_after: days(300) };
+  const report = { ...healthy, state: "attention", presented: [leaf, inter, stray],
+    findings: [{ code: "unrelated", level: "attention", title: "The server sends a certificate that does not belong here", detail: "\u201cOld Issuer\u201d is not part of any chain.", action: "Remove \u201cOld Issuer\u201d.", certificates: ["FF"] }] };
+  const f = fixture({ reply: () => answer(200, report) });
+  await f.submit("shop.example.com");
+  const page = f.ids["site-result"];
+  assert.match(page.children[0].className, /verdict soon/);
+  assert.equal(page.all((n) => /^link warn$/.test(n.className)).length, 1);
+  assert.match(page.text(), /Old Issuer Not part of this chain · Needs a fix/);
+  assert.match(page.text(), /How to fix it .*Remove/);
+}
+
+// A missing intermediate is drawn where it should be, dashed.
+{
+  const report = { ...healthy, state: "failed", trusted: false, trust_source: "", path: [leaf], presented: [leaf],
+    findings: [{ code: "missing-issuer", level: "failed", title: "\u201cR11\u201d is missing from the chain", detail: "The server does not send \u201cR11\u201d.", action: "Add \u201cR11\u201d after the website certificate.", certificates: [] }] };
+  const f = fixture({ reply: () => answer(200, report) });
+  await f.submit("shop.example.com");
+  const page = f.ids["site-result"];
+  const missing = page.all((n) => n.className === "link missing");
+  assert.equal(missing.length, 1);
+  assert.match(missing[0].text(), /R11 Missing · The server does not send it/);
+  assert.equal(page.all((n) => n.className === "link broken").length, 0, "the website certificate itself is fine");
+  assert.equal(page.text().split("The server does not send \u201cR11\u201d.").length - 1, 1, "the verdict's words are not repeated in the fix");
+  assert.match(page.text(), /How to fix it .*Add \u201cR11\u201d after the website certificate\./);
+}
+
+// An internal server trusted through the person's own saved root.
+{
+  const saved = { ...root, subject: "Company Root" };
+  const report = { ...healthy, hostname: "10.0.0.5", port: 8443, address: "10.0.0.5", trust_source: "saved", saved_root: "Company Root", path: [leaf, inter, saved],
+    findings: [note("saved-root", "Trusted through your own root \u201cCompany Root\u201d", ["CC"])] };
+  const f = fixture({ reply: () => answer(200, report) });
+  await f.submit("10.0.0.5:8443");
+  assert.deepEqual(JSON.parse(f.requests[0].options.body), { target: "10.0.0.5:8443", confirm: true });
+  const text = f.ids["site-result"].text();
+  assert.match(text, /10\.0\.0\.5:8443 sends a complete, valid certificate, trusted through your root \u201cCompany Root\u201d\./);
+  assert.match(text, /Company Root Your saved root/);
+  assert.match(text, /10\.0\.0\.5:8443/);
+}
+
+// A name in another script goes as its xn-- form, with its port.
+{
+  const f = fixture({ reply: () => answer(200, healthy) });
+  await f.submit("bak\u0131.lab.az:8443");
+  assert.deepEqual(JSON.parse(f.requests[0].options.body), { target: "xn--bak-lua.lab.az:8443", confirm: true });
+  const g = fixture({ reply: () => answer(200, healthy) });
+  await g.submit("bak\u0131.lab.az/path");
+  assert.equal(g.requests.length, 0);
 }
 
 // A broken site: the failed finding leads, its fix is listed.
 {
   const broken = { ...healthy, state: "failed", trusted: false, path: [], presented: [leaf],
-    findings: [{ code: "missing", level: "failed", title: "A certificate is missing", detail: "The server does not send the intermediate.", action: "Serve the full chain." }] };
+    findings: [{ code: "missing", level: "failed", title: "A certificate is missing", detail: "The server does not send the intermediate.", action: "Serve the full chain.", certificates: [] }] };
   const f = fixture({ reply: () => answer(200, broken) });
   await f.submit("shop.example.com");
   const text = f.ids["site-result"].text();
@@ -78,7 +155,8 @@ const healthy = { hostname: "shop.example.com", state: "verified", trusted: true
 
 // Refusals and failures say so, in words, and keep the button usable.
 for (const [reply, expected] of [
-  [() => answer(400, "Enter a public DNS name or HTTPS origin."), /public DNS name/],
+  [() => answer(400, "Enter a website name or address, with its port if it is not 443."), /name or address/],
+  [() => answer(502, "Nothing answers on port 8443 at 10.0.0.5."), /Nothing answers on port 8443/],
   [() => answer(401, "sign in first"), /Sign in again/],
   [() => answer(200, "{not json"), /did not finish/],
   [() => answer(200, { hostname: "x" }), /did not finish/],
@@ -89,6 +167,19 @@ for (const [reply, expected] of [
   assert.match(f.ids["site-status"].textContent, expected);
   assert.equal(f.ids["site-check"].disabled, false);
   assert.equal(f.ids["site-result"].children.length, 0, "a failed check draws no result");
+}
+
+// A new check clears the last result first: a failure never stands above an
+// older site's verdict.
+{
+  let n = 0;
+  const f = fixture({ reply: () => (n++ === 0 ? answer(200, healthy) : answer(502, "10.0.0.5 did not answer on port 443 in time.")) });
+  await f.submit("shop.example.com");
+  assert.equal(f.ids["site-result"].hidden, false);
+  await f.submit("10.0.0.5");
+  assert.equal(f.ids["site-result"].children.length, 0);
+  assert.equal(f.ids["site-result"].hidden, true);
+  assert.match(f.ids["site-status"].textContent, /did not answer/);
 }
 
 // An empty or spaced entry sends nothing.

@@ -1,7 +1,7 @@
 "use strict";
 
-// Website check: one connection from this Rootwell to a public HTTPS site,
-// drawn as a verdict, the chain the server sends, and what to fix. Nothing is
+// Website check: one connection from this Rootwell to an HTTPS website or
+// internal server, drawn as a verdict, the chain, and what to fix. Nothing is
 // saved. The page builds every element with textContent; no server or
 // certificate text is ever parsed as HTML.
 (function () {
@@ -63,74 +63,146 @@
     return el("span", left <= 30 ? "pill pill-soon" : "pill pill-good", text);
   }
 
-  // The host name a person typed, as the server expects it: a DNS name or an
-  // https:// origin, nothing else. The server checks it again.
+  // What a person typed, as the server expects it: a name or address, an
+  // optional port and an optional https:// in front. A name in another
+  // script (bakı.az) goes in the xn-- form DNS uses. The server checks again.
   function target(value) {
     const text = value.trim();
-    if (!text || text.length > 260 || /\s/.test(text)) return null;
-    return text;
+    if (!text || text.length > 280 || /\s/.test(text)) return null;
+    if (!/[^\x00-\x7f]/.test(text)) return text;
+    try {
+      const url = new URL(text.includes("://") ? text : "https://" + text);
+      if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") return null;
+      return url.host;
+    } catch {
+      return null;
+    }
   }
 
-  function roleLabel(certificate) {
+  function siteName(report) {
+    const host = report.hostname.includes(":") ? `[${report.hostname}]` : report.hostname;
+    return report.port && report.port !== 443 ? `${host}:${report.port}` : report.hostname;
+  }
+
+  // Each finding names the certificates it is about; the worst one marks them.
+  function marks(report) {
+    const worst = new Map();
+    for (const finding of report.findings) {
+      if (finding.level !== "failed" && finding.level !== "attention") continue;
+      for (const fp of finding.certificates || []) {
+        if (worst.get(fp) !== "broken") worst.set(fp, finding.level === "failed" ? "broken" : "warn");
+      }
+    }
+    return worst;
+  }
+
+  function roleLabel(certificate, report, last) {
     if (certificate.role === "leaf") return "Website certificate";
-    if (certificate.role === "root" || certificate.role === "trust-anchor") return "Trusted root";
+    if (certificate.role === "trust-anchor" || certificate.role === "root") {
+      if (certificate.role === "trust-anchor" && last && report.trust_source === "saved") return "Your saved root";
+      return "Root";
+    }
     return "Intermediate";
+  }
+
+  function node(certificate, state, facts, now) {
+    const link = el("div", "link " + state);
+    const mark = el("span", "link-mark");
+    mark.appendChild(svg(certificate.role === "root" || certificate.role === "trust-anchor" || certificate.use === "root" ? glyph.root : glyph.certificate));
+    link.appendChild(mark);
+    const words = el("span");
+    words.appendChild(el("strong", "", certificate.subject || certificate.fingerprint));
+    words.appendChild(el("small", "", facts.join(" · ")));
+    link.appendChild(words);
+    const pill = certificate.not_after ? lifetimePill(certificate.not_after, now) : null;
+    if (pill) link.appendChild(pill);
+    return link;
   }
 
   function chainCard(report, now) {
     const card = el("section", "card");
     const head = el("div", "card-head");
-    head.appendChild(el("h3", "", "What the server sends"));
+    head.appendChild(el("h3", "", "The chain visitors get"));
     card.appendChild(head);
-    const body = el("div", "card-body");
+    const body = el("div", "card-body stack");
+    const marked = marks(report);
     const chain = el("div", "chain");
-    const nodes = report.trusted && report.path.length ? report.path : report.presented;
-    for (const certificate of nodes) {
-      const broken = !certificate.in_date;
-      const link = el("div", "link " + (broken ? "broken" : "ok"));
-      const mark = el("span", "link-mark");
-      mark.appendChild(svg(certificate.role === "root" || certificate.role === "trust-anchor" ? glyph.root : glyph.certificate));
-      link.appendChild(mark);
-      const words = el("span");
-      words.appendChild(el("strong", "", certificate.subject || certificate.fingerprint));
-      const facts = [roleLabel(certificate)];
-      if (!certificate.sent && certificate.role !== "leaf") facts.push(certificate.role === "intermediate" ? "Not sent by the server" : "Built into every device");
-      words.appendChild(el("small", "", facts.join(" · ")));
-      link.appendChild(words);
-      const pill = lifetimePill(certificate.not_after, now);
-      if (pill) link.appendChild(pill);
-      chain.appendChild(link);
+    const path = report.path.length ? report.path : report.presented.slice(0, 1);
+    path.forEach((certificate, i) => {
+      const last = i === path.length - 1;
+      const facts = [roleLabel(certificate, report, last)];
+      if (!certificate.sent && certificate.role === "intermediate") facts.push("Not sent by the server");
+      if (!certificate.sent && certificate.role === "trust-anchor" && report.trust_source === "public") facts.push("Built into devices");
+      const state = !certificate.in_date ? "broken" : marked.get(certificate.fingerprint) || "ok";
+      if (state !== "ok") facts.push("Needs a fix");
+      chain.appendChild(node(certificate, state, facts, now));
+    });
+    // The issuer the server should send but does not.
+    const missing = report.findings.find((f) => f.code === "missing-issuer");
+    if (missing && path.length) {
+      const absent = { subject: path[path.length - 1].issuer, role: "intermediate" };
+      chain.appendChild(node(absent, "missing", ["Missing", "The server does not send it"], now));
     }
     body.appendChild(chain);
+    // Everything else the server sends, and why.
+    const extras = report.presented.filter((c) => c.use && c.use !== "path");
+    if (extras.length) {
+      body.appendChild(el("p", "label", "Also sent by the server"));
+      const more = el("div", "chain extras");
+      for (const certificate of extras) {
+        const facts = certificate.use === "older-path" ? ["Intermediate", "For older devices"] :
+          certificate.use === "root" ? ["Root", "Devices already have it"] : ["Not part of this chain"];
+        let state = certificate.use === "unrelated" ? "warn" : "extra";
+        if (!certificate.in_date || marked.get(certificate.fingerprint) === "broken") state = "broken";
+        else if (marked.get(certificate.fingerprint) === "warn") state = "warn";
+        if (state === "warn" || state === "broken") facts.push("Needs a fix");
+        more.appendChild(node(certificate, state, facts, now));
+      }
+      body.appendChild(more);
+    }
     card.appendChild(body);
     return card;
+  }
+
+  // The finding the verdict already explains shows only its fix here.
+  function findingItem(finding, explained) {
+    const item = el("div", "stack");
+    item.appendChild(el("strong", "", finding.title));
+    if (finding.detail && !explained) item.appendChild(el("p", "soft", finding.detail));
+    if (finding.action) item.appendChild(el("p", "", finding.action));
+    return item;
   }
 
   function fixCard(report) {
     const card = el("section", "card");
     const head = el("div", "card-head");
-    head.appendChild(el("h3", "", report.findings.length ? "How to fix it" : "Nothing to fix"));
+    const problems = report.findings.filter((f) => f.level === "failed" || f.level === "attention");
+    const notes = report.findings.filter((f) => f.level === "note");
+    head.appendChild(el("h3", "", problems.length ? "How to fix it" : "Nothing to fix"));
     card.appendChild(head);
     const body = el("div", "card-body stack");
-    if (!report.findings.length) {
+    if (!problems.length) {
       body.appendChild(el("p", "soft", "The certificate covers this name, the chain is complete and every date is valid."));
     }
-    for (const finding of report.findings) {
-      const item = el("div", "stack");
-      item.appendChild(el("strong", "", finding.title));
-      if (finding.action) item.appendChild(el("p", "soft", finding.action));
-      body.appendChild(item);
+    const lead = problems.find((f) => f.level === "failed") || problems[0];
+    for (const finding of problems) body.appendChild(findingItem(finding, finding === lead));
+    if (notes.length) {
+      body.appendChild(el("p", "label", "Good to know"));
+      for (const finding of notes) body.appendChild(findingItem(finding, false));
     }
     const when = new Date(report.observed_at);
-    const meta = [Number.isFinite(when.getTime()) ? "Checked " + when.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "", report.tls_version, report.address].filter(Boolean);
+    const where = report.address ? (report.address.includes(":") ? `[${report.address}]` : report.address) + ":" + (report.port || 443) : "";
+    const meta = [Number.isFinite(when.getTime()) ? "Checked " + when.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "", report.tls_version, where].filter(Boolean);
     body.appendChild(el("p", "meta", meta.join(" · ")));
+    body.appendChild(el("p", "meta", "Rootwell does not check whether the certificate authority has revoked a certificate."));
     card.appendChild(body);
     return card;
   }
 
   function verdict(report) {
     const failed = report.findings.find((f) => f.level === "failed");
-    const first = failed || report.findings[0] || { title: "Worth a look", detail: "" };
+    const attention = report.findings.find((f) => f.level === "attention");
+    const first = failed || attention || { title: "Worth a look", detail: "" };
     const kind = report.state === "verified" ? "good" : report.state === "failed" ? "bad" : "soon";
     const box = el("div", "verdict " + kind);
     const mark = svg(kind === "good" ? glyph.ok : kind === "bad" ? glyph.bad : glyph.alert);
@@ -138,7 +210,10 @@
     box.appendChild(mark);
     const words = el("div");
     words.appendChild(el("h2", "", kind === "good" ? "Everything is in order" : first.title));
-    words.appendChild(el("p", "", kind === "good" ? `${report.hostname} sends a complete, valid certificate.` : first.detail));
+    const good = report.trust_source === "saved" && report.saved_root ?
+      `${siteName(report)} sends a complete, valid certificate, trusted through your root “${report.saved_root}”.` :
+      `${siteName(report)} sends a complete, valid certificate.`;
+    words.appendChild(el("p", "", kind === "good" ? good : first.detail));
     box.appendChild(words);
     return box;
   }
@@ -156,8 +231,12 @@
   async function check(event) {
     event.preventDefault();
     const site = target(input.value);
+    // A new check clears the last result, so an old answer never stands
+    // under a new name or a new failure.
+    result.replaceChildren();
+    result.hidden = true;
     if (!site) {
-      status.textContent = "Enter a website, for example example.com.";
+      status.textContent = "Enter a website, for example example.com or 10.0.0.5:8443.";
       status.className = "error-text";
       return;
     }
