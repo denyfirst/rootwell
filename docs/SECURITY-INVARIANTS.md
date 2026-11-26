@@ -8,6 +8,41 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C115 — A chosen file is read by what it holds, and nothing in it is skipped (ADR 0089)
+
+Add, Inspect and Convert read each chosen file with the engine's
+`readFile`, never by its name: a PFX named `.bin` is a PFX. A file is a PFX,
+certificates, one private key, or certificates with their key; each part
+goes on in the strict form the existing readers and the server already
+accepted, and the server's accepted input is unchanged. Beyond those forms a
+file may carry a UTF-8 byte order mark, CRLF lines and printable text between
+PEM blocks (OpenSSL's "Bag Attributes", "subject=" and "issuer=" lines), a
+DER or PEM PKCS#7 certs-only bundle, an `EC PARAMETERS` block for its EC
+key's own named curve, and an old OpenSSL `Proc-Type: 4,ENCRYPTED` RSA or EC
+key with DES-EDE3-CBC or AES-CBC. Base64 inside a block stays strict. An
+unknown block, a second key, a broken or unterminated block, a stray boundary
+line, control characters, explicit or other-curve EC parameters, a P7B with
+signers, content, revocation lists, attribute certificates, BER, more than 64
+or duplicate certificates, and more than 16 MiB refuse the whole file, and
+the page names the file that was wrong. An old-style key is opened only with
+its password (EVP_BytesToKey with MD5, one round, the format's own scheme,
+bounded to 64 KiB and a 256-byte password); a wrong password is named as
+wrong. Rootwell never writes that format. Inspect gives the key of a combined
+file only to its one-shot key check and never shows it; Add sends it to the
+server's existing key check as it would a chosen key file.
+
+Guarded by `TestSplitReadsWhatToolsWrite`,
+`TestSplitRefusesAndNamesTheProblem`, `TestUnlockOpensOldStyleKeys`,
+`TestKeyPreparesKeyFilesForTheStrictReaders`, `FuzzSplit`,
+`TestParseReadsCertsOnlyBundles`, `TestParseRefusesWhatItDoesNotUnderstand`,
+`FuzzParseCertsOnly`, `TestParseReadsOpenSSLBundles`,
+`TestDecryptOpensEveryCipherWithItsPassword`,
+`TestDecryptRefusesWhatItDoesNotRead`,
+`TestDecryptAgreesWithTheStandardLibrary`, `FuzzDecryptLegacyKey`,
+`TestDecryptOpensOpenSSLTraditionalKeys`, `TestIsPFXRecognisesContentNotName`,
+plus `scripts/test-browser-wasm.mjs`, `scripts/test-certificates.mjs`,
+`scripts/test-inspect.mjs` and `scripts/test-convert.mjs`.
+
 ## C114 — A backup holds no key and opens only with the key it was made under; restore keeps only what opens; rotation leaves the old key nothing in the current vault (ADR 0088, RW-04)
 
 The Installation page downloads a backup with `POST /api/backup`, which
@@ -450,8 +485,12 @@ and `TestKeyRestoreRebuildsTheKeyFileAndNeverReplacesOne`.
 
 ## C106 — PFX import cannot bypass public/key custody boundaries (ADR 0087)
 
-The bounded modern PFX decoder runs in a dedicated one-shot browser worker;
-the server accepts only the existing certificate/encrypted-key contract.
+The bounded PFX decoder (the profile of C57, widened by ADR 0089) runs in a
+dedicated one-shot browser worker; the server accepts only the existing
+certificate/encrypted-key contract. A PFX without a password opens with an
+empty one. A refusal the engine names (wrong password, unsupported
+protection, no integrity check) leaves the worker as a short code only, so
+the page never blames the password for a format it does not read.
 Raw PFX byte copies, passwords, plaintext keys and private metadata never enter
 pending preview or public output; file references/digests bind the source.
 All related certificates are retained, included roots
@@ -464,7 +503,8 @@ cannot publish or start a Save. What is saved goes into the vault like any
 other Save (C68, C107).
 
 Guarded by `TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey`,
-`TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial`,
+`TestPrepareRefusesWrongPasswordTamperAndUnrelatedWithoutPartialMaterial`,
+`TestPrepareOpensLegacyWindowsAndPasswordlessPFX`,
 `FuzzPFXImportNoPartialSecret`, `TestPFXImportPreparationHasNoNetworkOrCustodyAuthority`,
 `TestCertificatesPageAndItsScriptsRemainBehindReadyAccess`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
@@ -1251,27 +1291,48 @@ Guarded by `TestCreatePFXMatchesKeyAndOrderedIssuer`,
 
 ## C57 — PFX inspection is bounded, authenticated, public-only, and non-trusting
 
-The offline CLI accepts at most 1 MiB of a narrow modern PFX profile, checks
-the three visible envelope KDF work factors before password-based decoding,
-uses a 10-second one-shot CLI deadline, and requires a
-local interactive password. It enumerates supported bags rather than silently
-assuming the first certificate is the leaf, requires exactly one key and one
-matching non-CA certificate, rejects duplicate or ambiguous material, and
-returns only public metadata. Additional certificates remain untrusted and
-unordered. Wrong password, tampering, malformed/trailing input, unsupported
-profile, excessive KDF cost, and non-TTY input produce no partial public
-result or secret echo. It never exports or persists a key, and does not prove
-hostname, trust, revocation, or a live deployment. Runtime memory erasure is
-best effort, not guaranteed. An unbounded KDF hidden in an encrypted safe is
-not detected before decode; the CLI deadline limits the operator-facing wait,
-but this decoder must not be reused in a long-lived process.
+The offline CLI and every browser PFX path accept at most 1 MiB of the PFX
+profile of ADR 0089: a MAC with SHA-1, SHA-256 or SHA-512; legacy PKCS#12
+3DES or RC2, or PBES2/PBKDF2 with AES-128/192/256-CBC and an HMAC-SHA-1,
+SHA-256 or SHA-512 PRF; exactly two safes in either order, the one shrouded
+key in an unencrypted safe, and only certificate and shrouded-key bags
+there. Every visible KDF work factor (at most 250,000 iterations), salt, IV,
+key length, ciphertext length and bag and attribute count is checked before
+password-based decoding. A PFX without a MAC, a SHA-384 or SHA-224 MAC or
+PRF, PBMAC1, one or three safes, two encrypted safes, plain key, CRL, secret
+or nested bags, and anything malformed are refused before a password is
+tried. The CLI uses a 10-second one-shot deadline and a local interactive
+password, which may be empty for a PFX saved without one. After the MAC
+verifies, the pinned decoder's strict lister enumerates every bag, so an
+unknown bag inside an encrypted safe is refused; only when that lister stops
+at a bag attribute it cannot name (Windows machine-key and extended-property
+labels) does the attribute-free decoder read the same authenticated contents,
+still refusing a second key. It never assumes the first certificate is the
+leaf, requires exactly one RSA or EC key and one matching non-CA
+certificate, rejects duplicate or ambiguous material, and returns only public
+metadata. Additional certificates remain untrusted and unordered. A wrong
+password is named as wrong and never confused with an unsupported format;
+tampering, malformed/trailing input, unsupported profile, excessive KDF cost,
+and non-TTY input produce no partial public result or secret echo. It never
+exports or persists a key, and does not prove hostname, trust, revocation, or
+a live deployment. Runtime memory erasure is best effort, not guaranteed. An
+unbounded KDF hidden in an encrypted safe is not detected before decode; the
+CLI deadline limits the operator-facing wait, but this decoder must not be
+reused in a long-lived process. With Windows attributes, a CRL, secret or
+nested bag inside an encrypted safe would be skipped, not stored.
 
 Guarded by `TestInspectModernPFXPublicOnly`,
 `TestInspectRejectsWrongPasswordTamperAndUnsupported`,
 `TestPreflightRejectsExcessiveKDFBeforeDecode`,
 `TestInspectRejectsMismatchedKeyAndDuplicateCertificate`,
 `TestInspectShowsAdditionalCertificateWithoutTrustClaim`,
-`TestInspectRejectsLegacyProfileWithoutFallback`,
+`TestInspectOpensProducerProfiles`, `TestInspectOpensEmptyPasswordBothWays`,
+`TestInspectWindowsAttributesStillOpen`,
+`TestInspectRefusesUnknownBagInEncryptedSafe`,
+`TestPreflightRefusesUnsupportedLayoutsBeforePassword`,
+`TestOpenLendsOnlyTheMatchingKeyAndRefusesNoCallback`,
+`TestCodeNamesEachRefusal`, `TestBuilderAgreesWithPinnedDecoder`,
+`TestPFXFixtureBuilderIsTestOnly`,
 `TestInspectModernOpenSSLGeneratedPFX`,
 `FuzzPFXPreflight`, `TestPFXInspectShowsOnlyPublicSummary`, and
 `TestPFXInspectRefusesNonTTYAndWrongPasswordWithoutPartialOutput`, and
@@ -1282,7 +1343,7 @@ Guarded by `TestInspectModernPFXPublicOnly`,
 ## C58 — PFX public extraction is exact-selection and never key export
 
 The offline CLI accepts only a complete canonical SHA-256 fingerprint printed
-by inspection, authenticates and validates the same bounded modern PFX profile,
+by inspection, authenticates and validates the same bounded PFX profile (C57),
 and writes exactly the selected public certificate as PEM or DER to a new file.
 It does not choose by order, infer a chain or trust, overwrite an existing
 path, publish a key/PFX/password, or follow a substituted input path after the
@@ -1302,11 +1363,13 @@ Guarded by `TestCertificateDERSelectsExactPublicObject`,
 ## C59 — PFX private-key export is encrypted, isolated, and no-overwrite
 
 The offline Linux CLI may export only the one key bound to an exact inspected
-non-CA certificate fingerprint from an authenticated, bounded modern PFX.
+non-CA certificate fingerprint from an authenticated PFX of the bounded
+profile of C57. The key comes from the same decode that matched it to that
+certificate, whatever the bag order in the file.
 The output is one password-encrypted PKCS#8 PEM block, never plaintext,
 stdout, JSON, inventory, or browser content. A new terminal-entered output
 password is confirmed, meets policy, and differs from the PFX password.
-Unsupported OS, non-TTY, malformed/oversized/legacy/tampered input, wrong
+Unsupported OS, non-TTY, malformed/oversized/unsupported/tampered input, wrong
 password or fingerprint, unsafe directory, existing/symlink destination, and
 failed output verification do not publish a key. The PFX input is read once
 before prompting; the decoder and encryption run within the one-shot CLI
@@ -1327,9 +1390,13 @@ Guarded by `TestExportProducesOnlyEncryptedMatchingPKCS8`,
 
 Convert takes one private key alone, at most 64 KiB: a strict unencrypted
 PKCS#8, RSA PKCS#1, or EC SEC1 PEM/DER key, or a bounded modern encrypted
-PKCS#8 PEM/DER key. Inspection returns public metadata only. An encrypted key
+PKCS#8 PEM/DER key. Since ADR 0089 the engine's key entry points first read
+the key as C115 does: a byte order mark, text around the block or an
+`EC PARAMETERS` block for the key's own curve may come with it, and an old
+OpenSSL `Proc-Type` encrypted key is opened with its password (never
+written in that form). Inspection returns public metadata only. An encrypted key
 needs its current password before any format is offered, and again on export;
-a wrong password publishes nothing. Export binds the full displayed public
+a wrong password publishes nothing and is named as wrong. Export binds the full displayed public
 fingerprint. The PEM choice is encrypted PKCS#8 when the person types or
 generates a new 20–128 character password, which must differ from the key's
 current password; left empty, it is unprotected PKCS#8. The DER and older PEM
@@ -1345,6 +1412,7 @@ permissions; no vault or per-user key authorization is claimed.
 Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
 `TestPrivateConversionRefusesMalformedChangedAndWeakPassword`,
 `FuzzInspectPrivateKeyNoSecretEcho`,
+`TestKeyPreparesKeyFilesForTheStrictReaders`,
 `TestEncryptedInputAndPlaintextTargets`,
 `TestEncryptedInputRefusesUnsafeProfilesAndNoPartialExport`,
 `TestPagesSeparateFileAndNetworkCapabilities`,
@@ -1355,14 +1423,20 @@ Guarded by `TestInspectAndExportEncryptedPrivateKeyFormats`,
 
 ## C61 — Browser PFX stays isolated, bounded, and honest
 
-Convert opens one password-protected PFX on its own, at most 1 MiB, with the
-authenticated modern profile and pre-decryption KDF caps. Inspection returns
+Convert opens one PFX on its own, recognised by its content, at most 1 MiB,
+with the authenticated profile and pre-decryption KDF caps of C57, and its
+password, which may be empty for a PFX saved without one. A refusal says
+whether the password was wrong or the protection is not one Rootwell reads.
+Inspection returns
 public certificate metadata only; additional certificates are included, not
 trusted. Every output reauthenticates the held PFX bytes with its password in
 the worker. Certificate outputs bind their full fingerprints. The private key
 comes out as unprotected PKCS#8 PEM, or as newly encrypted PKCS#8 PEM under a
 new password that must differ from the PFX password. A new PFX always needs a
-new 20–128 character password, different from the current one. Creation
+new 20–128 character password, different from the current one. It is
+AES-256 with 100,000 iterations by default; the labelled choice for older
+Windows writes 3DES under a SHA-1 MAC with 2048 iterations, and every new PFX
+must open in the same reader before it is offered. Creation
 accepts one strict matching RSA/ECDSA key (unencrypted or bounded encrypted
 PKCS#8), a non-CA certificate, and optional ordered issuers; a key that belongs
 to another certificate is refused. Wrong passwords, tampering, changed
@@ -1381,6 +1455,9 @@ release still requires independent security audit.
 Guarded by `TestCreateInspectExtractAndRefuse`,
 `TestCreatePFXFromEncryptedKey`, `TestEncryptedPFXCreationRefusesUnsafeInputs`,
 `TestPFXRevealReauthenticatesAndMatches`,
+`TestPFXOutputsOpenWindowsAndPasswordlessPFX`,
+`TestCreateOlderWindowsProfileReadsBack`,
+`TestCreateOlderWindowsProfileIs3DESAndReadable`,
 `TestPagesSeparateFileAndNetworkCapabilities`,
 `TestEveryPageIsServedUnderTheStrictContentSecurityPolicy`, and
 `TestPagesAndScriptsNeedASignInAndWorkersReachNoNetwork`, plus
@@ -1629,14 +1706,20 @@ its notes stay as they were; the key becomes a record of its own (C68).
 The Certificates page checks a key first
 and stops on a mismatch, and its Save never asks to keep one, so a key that
 belongs to another certificate is not saved; Save revalidates on the server.
-Errors are fixed messages, never server or file text. Key/bundle/notes/trust
+Errors are fixed messages, never server or file text. A key password that
+does not open the key gets 422 with `X-Rootwell-Refusal: key-password-wrong`,
+apart from a key that still needs one, so the page says the password is
+wrong; the password field goes once the key opened or needs none.
+Key/bundle/notes/trust
 are never auto-transferred to another page; key/PFX conversion needs explicit
 file selection in Convert. No CA/network/production claim follows.
 
 Guarded by `TestAKeyAddedLaterIsCheckedFirstAndNeverReplaced`,
 `TestAMismatchedKeyNeedsTheAcknowledgementAndOnlyThen`,
 `TestKeyAttachmentRequestModesAreStrict`,
-`TestLinuxAKeyAddedLaterIsCheckedAndNeverReplaced`, and
+`TestLinuxAKeyAddedLaterIsCheckedAndNeverReplaced`,
+`TestLinuxAWrongKeyPasswordIsNamed`,
+`TestEncryptedKeyPairRequiresCorrectPassword`, and
 `scripts/test-certificates.mjs`.
 
 ## C66 — Bulk preview is local and Save is exact and atomic
@@ -1908,8 +1991,10 @@ encrypted key-only download has the same fresh-code and output-password
 gates. Included public bundle export does not establish
 trust. Inspect's Check a private key uses a one-shot offline worker with no
 save, export or network capability; a locked or unreadable key is never
-reported as a mismatch. Inspect's certificate picker still refuses
-secret-bearing input.
+reported as a mismatch. Inspect's certificate readers still refuse
+secret-bearing input; since ADR 0089 the page first splits a file holding
+certificates and a key (C115) and gives the key only to that one-shot check,
+never showing it, and forgets it with the certificate.
 
 Guarded by `TestPrepareCertificatePairsAndRefusals`,
 `TestEncryptedKeyPairRequiresCorrectPassword`,

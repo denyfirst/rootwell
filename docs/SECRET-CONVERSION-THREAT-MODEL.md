@@ -22,7 +22,7 @@ operator supplies local files and a destination to an offline CLI process;
 file contents, filenames, directories, terminal state, and the chosen output
 path are untrusted. Those CLI operations cross no network, browser, server,
 inventory, telemetry, or Porch boundary. A separate browser Convert picker
-accepts strict unencrypted keys and bounded encrypted PKCS#8; a distinct PFX picker uses the modern profile of ADR 0037. Public Inspect/Verify
+accepts strict unencrypted keys and bounded encrypted PKCS#8; a distinct PFX picker uses the bounded profile of ADR 0037, widened by ADR 0089. Public Inspect/Verify
 and the public Inventory importer must keep rejecting secret-bearing imports.
 The explicitly chosen certificate-library picker is a separate own-daemon
 upload/custody capability; see [custody threat model](CERTIFICATE-CUSTODY-THREAT-MODEL.md).
@@ -77,8 +77,11 @@ Browser PFX work follows ADR 0037 and has an additional development gate: specif
 origin/CSP, extension and download threat analysis, memory-retention tests,
 and no hidden upload evidence. The release candidate still requires an
 independent audit before real-user deployment. The public Convert picker,
-Inspect, Verify, and Inventory continue to refuse PFX and private keys;
-the separate private Convert picker refuses PFX and legacy encrypted PEM; its
+Inspect, Verify, and Inventory continue to refuse PFX and private keys as
+public input (Inspect gives the key of a combined file only to its one-shot
+key check, ADR 0089);
+the separate private Convert picker refuses PFX; since ADR 0089 it opens an old
+OpenSSL encrypted PEM key with its password and never writes one; its
 bounded encrypted-PKCS#8 import and plaintext targets follow ADR 0035.
 
 ADR 0038 additionally permits a bounded encrypted PKCS#8 key directly in
