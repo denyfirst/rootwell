@@ -64,7 +64,7 @@
     return btoa(text);
   }
 
-  const nameOf = (record) => ui.commonName(record.subject) || (record.dns_names && record.dns_names[0]) || "Certificate";
+  const nameOf = (record) => ui.unicodeName(ui.commonName(record.subject) || (record.dns_names && record.dns_names[0]) || (record.ip_addresses && record.ip_addresses[0]) || "Certificate");
   const hashOf = (record) => record.fingerprint.replace(/:/g, "").toLowerCase();
   function kindOf(record, now) {
     const end = Date.parse(record.not_after);
@@ -136,7 +136,7 @@
     name.appendChild(mark);
     const words = ui.el("span");
     words.appendChild(ui.el("strong", "", nameOf(record)));
-    words.appendChild(ui.el("small", "", ui.commonName(record.issuer)));
+    words.appendChild(ui.el("small", "", ui.issuerName(record.issuer)));
     name.appendChild(words);
     link.appendChild(name);
     const places = record.locations && record.locations.length ? record.locations : [];
@@ -179,7 +179,7 @@
     const query = searchRow.hidden ? "" : search.value.trim().toLowerCase();
     const shown = records
       .filter((r) => filter === "all" || kindOf(r, now) === filter)
-      .filter((r) => !query || [nameOf(r), ...(r.dns_names || []), ...(r.locations || []), r.owner || ""].some((v) => v.toLowerCase().includes(query)))
+      .filter((r) => !query || [nameOf(r), r.issuer || "", ...(r.dns_names || []), ...(r.dns_names || []).map(ui.unicodeName), ...(r.ip_addresses || []), ...(r.locations || []), r.owner || ""].some((v) => v.toLowerCase().includes(query)))
       .sort((a, b) => Date.parse(a.not_after) - Date.parse(b.not_after));
     const head = ui.el("div", "list-head");
     for (const label of ["Certificate", "Used on", "Expires", "Private key", ""]) head.appendChild(ui.el("span", "", label));
@@ -198,6 +198,7 @@
   // ── One certificate ────────────────────────────────────────────────────
 
   const sheet = $("sheet");
+  const sheetChain = $("sheet-chain");
   const sheetScrim = $("sheet-scrim");
   const sheetPill = $("sheet-pill");
   const sheetHero = $("sheet-hero");
@@ -232,6 +233,37 @@
     return { block, strong };
   }
 
+  // Who vouches for the certificate, nearest first, from the issuers saved
+  // with it. A chain that stops before a root says so.
+  function drawChain(record, now) {
+    const links = [{ subject: record.subject, not_after: record.not_after, root: false, own: true }, ...(record.chain || [])];
+    const nodes = links.map((link) => {
+      const node = ui.el("div", "link " + (Date.parse(link.not_after) > now ? "ok" : "broken"));
+      const mark = ui.el("span", "link-mark");
+      mark.appendChild(ui.icon(link.root ? "root" : "certificate"));
+      node.appendChild(mark);
+      const words = ui.el("span");
+      words.appendChild(ui.el("strong", "", ui.unicodeName(ui.commonName(link.subject)) || "Certificate"));
+      words.appendChild(ui.el("small", "", link.own ? "This certificate" : link.root ? "Root" : "Intermediate"));
+      node.appendChild(words);
+      node.appendChild(ui.pill(link.not_after, now));
+      return node;
+    });
+    const last = links[links.length - 1];
+    if (!last.root) {
+      const missing = ui.el("div", "link gap");
+      const mark = ui.el("span", "link-mark");
+      mark.appendChild(ui.icon("certificate"));
+      missing.appendChild(mark);
+      const words = ui.el("span");
+      words.appendChild(ui.el("strong", "", ui.commonName(last.own ? record.issuer : last.issuer) || "Issuer"));
+      words.appendChild(ui.el("small", "", "Not saved with this certificate"));
+      missing.appendChild(words);
+      nodes.push(missing);
+    }
+    sheetChain.replaceChildren(...nodes);
+  }
+
   function showSheet(record) {
     const same = open && open.fingerprint === record.fingerprint;
     // Another certificate's sheet never inherits a delete dialog.
@@ -247,10 +279,14 @@
     const title = ui.el("h2", "", nameOf(record));
     title.id = "sheet-title";
     words.appendChild(title);
-    words.appendChild(ui.el("p", "", "Issued by " + ui.commonName(record.issuer)));
+    const issuerOrganization = ui.organization(record.issuer);
+    const issuerCertificate = ui.commonName(record.issuer);
+    words.appendChild(ui.el("p", "", "Issued by " + (issuerOrganization && issuerOrganization !== issuerCertificate ? issuerOrganization + " \u00b7 " + issuerCertificate : issuerCertificate)));
     hero.appendChild(words);
     sheetHero.replaceChildren(hero, ui.lifetimeBar(record.not_before, record.not_after, now));
-    sheetNames.replaceChildren(...(record.dns_names && record.dns_names.length ? record.dns_names : ["No names in the certificate"]).map((n) => ui.el("span", "", n)));
+    const covered = [...(record.dns_names || []).map((n) => (ui.unicodeName(n) === n ? n : ui.unicodeName(n) + " (" + n + ")")), ...(record.ip_addresses || [])];
+    sheetNames.replaceChildren(...(covered.length ? covered : ["No names in the certificate"]).map((n) => ui.el("span", "", n)));
+    drawChain(record, now);
     let keyText = "Not saved";
     let addKey = null;
     if (record.has_private_key) keyText = record.key_status === "matched" ? "Saved" : "Saved, but it does not match";
@@ -264,13 +300,14 @@
     fingerprint.block.title = record.fingerprint;
     sheetFacts.replaceChildren(
       fact("Private key", keyText, addKey).block,
+      fact("Key type", record.key_type || "\u2014").block,
       fingerprint.block,
       fact("Added", record.imported_at ? ui.formatDate(record.imported_at) : "—").block,
     );
     drawPlaces(record);
     if (!same || document.activeElement !== owner) owner.value = record.owner || "";
     ownerSave.hidden = owner.value.trim() === (record.owner || "");
-    const host = (record.dns_names || []).find((n) => !n.startsWith("*.")) || ((record.dns_names || [])[0] || "").replace(/^\*\./, "");
+    const host = (record.dns_names || []).find((n) => !n.startsWith("*.")) || ((record.dns_names || [])[0] || "").replace(/^\*\./, "") || (record.ip_addresses || [])[0] || "";
     website.href = "/website-check" + (host ? "#" + encodeURIComponent(host) : "");
     website.hidden = !host;
     if (!same) {
