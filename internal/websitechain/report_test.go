@@ -103,7 +103,7 @@ func TestMissingIssuerAndPeerRootCannotCreateTrust(t *testing.T) {
 			pool = x509.NewCertPool()
 		}
 		r, err := Analyze(input, pool, "website.example.org", now)
-		if err != nil || r.State != "failed" || r.Trusted || !has(r, "trust") {
+		if err != nil || r.State != "failed" || r.Trusted || !(has(r, "missing-issuer") || has(r, "untrusted-root")) {
 			t.Fatalf("missing issuer/unknown root trusted: %+v %v", r, err)
 		}
 		for _, c := range r.Path {
@@ -175,7 +175,7 @@ func TestCrossSignedIssuerAmbiguityIsNotMissingOrWrongSignature(t *testing.T) {
 	}
 	// The cross-signed copy is the path's issuer under another root: sent on
 	// purpose for older devices, so the site is fine and nothing needs fixing.
-	if r.State != "verified" || has(r, "unused") {
+	if r.State != "verified" || has(r, "unrelated") {
 		t.Fatalf("a cross-signed copy of the issuer was reported: %s %+v", r.State, r.Findings)
 	}
 }
@@ -207,12 +207,12 @@ func TestOnlyAnUnrelatedExtraCertificateIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	r, err := Analyze([]*x509.Certificate{chain[0], chain[1], cross}, roots, "website.example.org", now)
-	if err != nil || !r.Trusted || r.State != "verified" || has(r, "unused") || len(r.Presented) != 3 {
+	if err != nil || !r.Trusted || r.State != "verified" || has(r, "unrelated") || len(r.Presented) != 3 {
 		t.Fatalf("the root's cross-signed copy was reported: %s %+v %v", r.State, r.Findings, err)
 	}
 	unrelated, _, _ := fixture(t)
 	r, err = Analyze([]*x509.Certificate{chain[0], chain[1], unrelated[1]}, roots, "website.example.org", now)
-	if err != nil || !r.Trusted || r.State != "attention" || !has(r, "unused") {
+	if err != nil || !r.Trusted || r.State != "attention" || !has(r, "unrelated") {
 		t.Fatalf("an unrelated extra certificate was not reported: %s %+v %v", r.State, r.Findings, err)
 	}
 }

@@ -166,7 +166,7 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
 | Live host compromise | None beyond the operating system: Rootwell must use keys to renew them | This is not a zero-knowledge design |
 | Session theft, CSRF, XSS | HTTPS, a `__Host-` cookie, exact Origin and Fetch Metadata checks, a strict CSP, safe DOM writes | Malicious browser extensions |
 | Password guessing | Argon2id, rate limits per name and per source, mandatory TOTP, optional passkeys | TOTP can be phished, even when a passkey is added |
-| Server-side request forgery | Fixed hosts for CAs and DNS APIs; website checks dial only checked public addresses; no redirects | Public addresses used internally |
+| Server-side request forgery | Fixed hosts for CAs and DNS APIs; website checks are for the signed-in owner only, dial only checked addresses (never loopback, link-local or metadata), one every 5 seconds; no redirects | A check can reach the owner's internal network, by design (ADR 0090) |
 | Wrong certificate delivered | Delivery only after the chain, names and key match are verified; atomic replace; the previous files are kept | The served result depends on the server's own reload |
 | Hostile files | Bounded parsers, fuzzing, single-use workers | Unknown parser defects |
 

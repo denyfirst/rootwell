@@ -67,8 +67,12 @@ independent review that a release needs (Phase 4) comes before any release.
 - `rootwelld` runs only on Linux, in practice in its container.
 
 **Website check (Linux only)**
-- Connects once to a public HTTPS site and explains its chain: missing or
-  wrong intermediates, dates, and names.
+- Connects to a website or internal server (any name or private address, any
+  port; never this machine, link-local or metadata addresses) and explains its
+  chain: missing or wrong intermediates, older chains for old devices, roots,
+  dates and names, each naming its certificate.
+- Trusts public roots and the roots saved in Certificates.
+- Does not check revocation.
 
 **Renewal: removed for now**
 - The staging-only ACME automation and its hidden Renewals page were removed
