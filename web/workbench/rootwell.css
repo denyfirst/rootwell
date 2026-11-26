@@ -374,6 +374,7 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .link.ok .link-mark { color: var(--strong); background: var(--strong-wash); }
 .link.broken .link-mark { color: var(--insecure); background: var(--insecure-wash); }
 .link.missing .link-mark { color: var(--insecure); background: var(--card); border: 2px dashed var(--insecure); }
+.link.gap .link-mark { background: var(--card); border: 2px dashed var(--rule-strong); }
 .link.warn .link-mark { color: var(--weak); background: var(--weak-wash); }
 .chain.extras .link + .link::before { display: none; }
 .link strong { display: block; font-weight: 600; overflow-wrap: anywhere; }

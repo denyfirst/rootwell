@@ -215,6 +215,7 @@ assert.equal($("sheet-names").text(), "shop.test");
 assert.match($("sheet-facts").text(), /^Private key Saved Key type ECDSA P-256 Fingerprint .+ Added /);
 // No issuer was saved with it: the chain says where it stops.
 assert.equal($("sheet-chain").text(), "shop.test This certificate 80 days left Synthetic CA 1 Not saved with this certificate");
+assert.deepEqual($("sheet-chain").children.map((n) => n.className), ["link ok", "link gap"], "an issuer not saved is a quiet gap, not an error");
 assert.equal($("sheet-website").href, "/website-check#shop.test");
 assert.equal($("sheet-owner").value, "Web team");
 $("sheet-owner").value = "Platform team";
@@ -480,7 +481,7 @@ assert.equal($("download-key-password").value, "", "the key file password is for
   assert.match($("sheet-hero").text(), /^bak\u0131\.lab\.az Issued by Let's Encrypt \u00b7 YE2/);
   assert.equal($("sheet-names").text(), "bak\u0131.lab.az (xn--bak-lua.lab.az)");
   assert.match($("sheet-chain").text(), /^bak\u0131\.lab\.az This certificate .* YE2 Intermediate .* ISRG Root X2 Root /);
-  assert.equal($("sheet-chain").children.filter((n) => /missing/.test(n.className)).length, 0, "a chain that reaches its root has no gap");
+  assert.equal($("sheet-chain").children.filter((n) => /gap/.test(n.className)).length, 0, "a chain that reaches its root has no gap");
   await go(api.records[1]);
   assert.equal($("sheet-names").text(), "10.0.0.5 fd00::5");
   assert.equal($("sheet-website").href, "/website-check#10.0.0.5");

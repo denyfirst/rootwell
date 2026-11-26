@@ -251,7 +251,7 @@
     });
     const last = links[links.length - 1];
     if (!last.root) {
-      const missing = ui.el("div", "link missing");
+      const missing = ui.el("div", "link gap");
       const mark = ui.el("span", "link-mark");
       mark.appendChild(ui.icon("certificate"));
       missing.appendChild(mark);
