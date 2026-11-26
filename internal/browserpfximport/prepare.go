@@ -32,11 +32,13 @@ func (p *Prepared) Clear() {
 	clear(p.KeyPassword)
 }
 
-// Prepare accepts the existing bounded modern profile, never a new PKCS#12
-// dialect. Supplied roots remain public material, not trust. The raw PFX and
-// its password must not be uploaded or persisted as library data.
+// Prepare accepts the bounded PFX profile of pfxinspect, never another PKCS#12
+// reader. Supplied roots remain public material, not trust. The raw PFX and
+// its password, which is empty for a PFX saved without one, must not be
+// uploaded or persisted as library data. A refusal wraps the pfxinspect error
+// that caused it, so the page can say why.
 func Prepare(input, password []byte) (prepared Prepared, err error) {
-	if len(input) == 0 || len(input) > 1<<20 || len(password) == 0 || len(password) > 128 {
+	if len(input) == 0 || len(input) > 1<<20 || len(password) > 128 {
 		return Prepared{}, ErrInvalid
 	}
 	bound := bytes.Clone(input)
@@ -50,7 +52,7 @@ func Prepare(input, password []byte) (prepared Prepared, err error) {
 	}()
 	summary, err := pfxinspect.Inspect(bound, string(password))
 	if err != nil {
-		return prepared, ErrInvalid
+		return prepared, errors.Join(ErrInvalid, err)
 	}
 	prepared.Fingerprint = summary.MatchingCertificate.SHA256Fingerprint
 	var certificates [][]byte

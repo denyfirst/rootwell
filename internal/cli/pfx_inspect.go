@@ -58,6 +58,9 @@ func openPFX(path string, readSecret func(string) (string, error), stderr io.Wri
 		if errors.Is(err, pfxinspect.ErrUnsupported) {
 			return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX profile is unsupported or outside safety limits\n", ExitFailure)
 		}
+		if errors.Is(err, pfxinspect.ErrWrongPassword) {
+			return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX password is wrong\n", ExitFailure)
+		}
 		return pfxinspect.Result{}, writeDiagnostic(stderr, "PFX password or contents could not be authenticated\n", ExitFailure)
 	}
 	return result, ExitOK

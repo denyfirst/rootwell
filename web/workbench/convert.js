@@ -191,6 +191,8 @@
       return showError("Rootwell could not start in this browser. Reload the page.");
     }
     const loaded = [];
+    // The strict parts read from the files; the page keeps these, not the files.
+    const normalized = [];
     const next = { certs: null, key: null, pfx: null, pending: null, files: files.map((f) => f.name) };
     const signal = (controller = new AbortController()).signal;
     try {
@@ -201,23 +203,34 @@
         loaded.push({ name: file.name, bytes: await read(file, engine.maxBytes) });
       }
       if (ticket !== generation) throw new Error("stale");
+      // Each file is read by what it holds: a PFX with any name, a P7B, or
+      // one PEM with the certificate, its key and its chain.
       const certParts = [];
       for (const part of loaded) {
-        const answer = JSON.parse(engine.explore(part.bytes));
-        if (answer.ok) { certParts.push({ bytes: part.bytes, list: answer.result.certificates }); part.used = true; continue; }
-        const named = /\.(pfx|p12)$/i.test(part.name);
-        const key = named ? null : await keyInfo(part.bytes, null, signal);
-        if (ticket !== generation) throw new Error("stale");
-        if (key) {
-          if (next.key) throw new Plain("Choose one private key at a time.");
-          next.key = { bytes: part.bytes, name: part.name, encrypted: key.locked, info: key.info || null, password: null };
-        } else if ((named || part.bytes[0] === 0x30) && part.bytes.byteLength <= pfxLimit) {
+        const read = engine.readFile(part.bytes);
+        const parts = read && read.ok === true && read.result;
+        if (!parts) throw new Plain(ui.fileProblem(part.name, read && read.error));
+        if (parts.kind === "pfx") {
           if (next.pfx) throw new Plain("Choose one PFX at a time.");
+          if (part.bytes.byteLength > pfxLimit) throw new Plain(part.name + " is too large.");
           next.pfx = { bytes: part.bytes, name: part.name, password: null };
-        } else {
-          throw new Plain(part.name + " is not a certificate, key or PFX file Rootwell can read.");
+          part.used = true;
+          continue;
         }
-        part.used = true;
+        if (parts.certificates) {
+          normalized.push(parts.certificates);
+          const answer = JSON.parse(engine.explore(parts.certificates));
+          if (!answer.ok) throw new Plain(answer.error && answer.error.code === "duplicate-certificate" ? part.name + " holds the same certificate twice." : ui.fileProblem(part.name));
+          certParts.push({ bytes: parts.certificates, list: answer.result.certificates });
+        }
+        if (parts.key) {
+          normalized.push(parts.key);
+          if (next.key) throw new Plain("Choose one private key at a time.");
+          const key = await keyInfo(parts.key, null, signal);
+          if (ticket !== generation) throw new Error("stale");
+          if (!key) throw new Plain(part.name + " is not a private key Rootwell can read.");
+          next.key = { bytes: parts.key, name: part.name, encrypted: key.locked, info: key.info || null, password: null };
+        }
       }
       if (next.pfx && (certParts.length || next.key)) throw new Plain("Open a PFX on its own. It already holds the certificate and key.");
       if (certParts.length) next.certs = certificateSet(certParts);
@@ -230,11 +243,14 @@
       if (ticket !== generation) throw new Error("stale");
       draw();
     } catch (failure) {
-      if (ticket !== generation) { loaded.forEach((part) => wipe(part.bytes)); return; }
       loaded.forEach((part) => wipe(part.bytes));
+      normalized.forEach(wipe);
+      if (ticket !== generation) return;
       source = null;
       showError(failure instanceof Plain ? failure.message : "The files could not be read. Choose them again.");
     } finally {
+      // Only a PFX is kept as chosen.
+      loaded.forEach((part) => { if (!part.used) wipe(part.bytes); });
       if (ticket === generation) controller = null;
     }
   }
@@ -291,9 +307,10 @@
     const signal = (controller = new AbortController()).signal;
     try {
       if (source.pending === "pfx") {
+        // An empty password opens a PFX saved without one.
         const answer = JSON.parse(await globalThis.rootwellPFXWorker.run(engine.module, "inspect", [source.pfx.bytes, none(), none()], password, none(), "", signal));
         const list = answer && answer.ok === true && answer.result && answer.result.certificates;
-        if (!Array.isArray(list) || list.filter((c) => c.matching_key).length !== 1) throw new Plain("That password does not open this PFX.");
+        if (!Array.isArray(list) || list.filter((c) => c.matching_key).length !== 1) throw new Plain(ui.pfxProblem(answer && answer.error, password.byteLength === 0));
         if (ticket !== generation) return wipe(password);
         source.pfx.password = password;
         source.pfx.chain = pfxChain(list);
@@ -366,6 +383,8 @@
         { id: "crt", title: "Certificate only", hint: ".crt · Windows, browsers" },
         { id: "der", title: "DER", hint: ".cer · Java, older systems" },
         { id: "pfx", title: source.pfx ? "New PFX" : "PFX", hint: source.pfx ? "Same contents, new password" : key ? "With the key · IIS, Windows" : "With the key · add it next", secret: "required", key: true, needsKey: !key },
+        // AES-256 above stays the default; this one is TripleDES.
+        { id: "pfx-older", title: "PFX for older Windows", hint: "Windows Server 2016 and older", secret: "required", key: true, needsKey: !key },
       ];
     }
     const list = [
@@ -385,7 +404,7 @@
       case "pem-files": return { name: base + ".zip", files: ["fullchain.pem", "cert.pem", ...(c.intermediates.length ? ["chain.pem"] : []), "privkey.pem"] };
       case "crt": return { name: base + ".crt" };
       case "der": return { name: base + ".cer" };
-      case "pfx": return { name: base + ".pfx" };
+      case "pfx": case "pfx-older": return { name: base + ".pfx" };
       case "key-der": return { name: base + "-key.der" };
       default: return { name: base + ".key" };
     }
@@ -424,6 +443,7 @@
     unlockError.textContent = "";
     if (source.pending) {
       unlockLabel.textContent = source.pending === "pfx" ? "PFX password" : "Key password";
+      unlockPassword.placeholder = source.pending === "pfx" ? "Leave empty if it has none" : "";
       formats.hidden = keyRow.hidden = secretRow.hidden = go.hidden = true;
       unlockPassword.focus();
       return;
@@ -507,7 +527,7 @@
     return answer.result.bytes;
   }
 
-  async function pfx(password, signal) {
+  async function pfx(password, signal, profile) {
     const c = chain();
     const parts = [];
     try {
@@ -522,7 +542,7 @@
         keyPassword = (source.key.password || none()).slice();
       }
       parts.push(keyPassword);
-      return await pfxRun("create", [parts[0], parts[2], parts[1]], password, keyPassword, "", signal);
+      return await pfxRun("create", [parts[0], parts[2], parts[1]], password, keyPassword, profile || "", signal);
     } finally {
       parts.forEach(wipe);
     }
@@ -550,6 +570,7 @@
       case "crt": return { bytes: await cert(c.leaf, "pem", signal), type: "application/x-x509-ca-cert" };
       case "der": return { bytes: await cert(c.leaf, "der", signal), type: "application/pkix-cert" };
       case "pfx": return { bytes: await pfx(password, signal), type: "application/x-pkcs12" };
+      case "pfx-older": return { bytes: await pfx(password, signal, "older-windows"), type: "application/x-pkcs12" };
       case "key-pem": return { bytes: await key(password.byteLength ? "encrypted-pkcs8-pem" : "pkcs8-pem", password, signal), type: "application/x-pem-file" };
       case "key-der": return { bytes: await key("pkcs8-der", null, signal), type: "application/octet-stream" };
       default: return { bytes: await key(source.key.info.algorithm === "RSA" ? "pkcs1-pem" : "sec1-pem", null, signal), type: "application/x-pem-file" };
@@ -581,7 +602,7 @@
       ui.download(made.bytes, target.name, made.type);
       say("good", "Downloaded " + target.name);
     } catch {
-      if (ticket === generation) say("bad", choice.id === "pfx" && !source.pfx ? "The PFX could not be made. Check that the key belongs to this certificate." : target.name + " could not be made. Try again.");
+      if (ticket === generation) say("bad", (choice.id === "pfx" || choice.id === "pfx-older") && !source.pfx ? "The PFX could not be made. Check that the key belongs to this certificate." : target.name + " could not be made. Try again.");
     } finally {
       wipe(password);
       if (made) wipe(made.bytes);

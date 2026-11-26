@@ -30,6 +30,7 @@
     429: "Too many wrong tries. Wait a little, then try again.",
     503: "Rootwell is busy. Try again in a moment.",
   };
+  const wrongKeyPassword = "That password does not open the key.";
 
   // A key download, or deleting a certificate with a key, needs a code from the
   // phone in the last ten minutes. The server answers 428 without one: the page
@@ -46,6 +47,7 @@
     }
     if (!response.ok) {
       if (response.status === 409 && response.headers.get("X-Rootwell-Refusal") === "duplicate-certificate") throw new Plain("This certificate is already saved.");
+      if (response.status === 422 && response.headers.get("X-Rootwell-Refusal") === "key-password-wrong") throw new Plain(wrongKeyPassword);
       if (response.status === 409) void load();
       throw new Plain(messages[response.status] || expect || "Rootwell could not do that. Try again.");
     }
@@ -528,12 +530,39 @@
     if (!file) return say(sheetStatus, "bad", "Choose the key file.");
     if (!file.size || file.size > 64 * 1024) return say(sheetStatus, "bad", "This is not a key file Rootwell can read.");
     const target = open;
-    let key = null, password = null;
+    let key = null, password = null, parts = null;
     keySave.disabled = true;
     say(sheetStatus, "plain", "Checking the key…");
     try {
       key = new Uint8Array(await file.arrayBuffer());
       password = encoder.encode(keyFilePassword.value);
+      // The same reader as Add: a key inside a combined file, after an EC
+      // PARAMETERS block, or in the old encrypted PEM form, goes to the
+      // server in the strict form it reads. Anything else goes as chosen,
+      // and the server refuses it in its own words.
+      const engine = await globalThis.rootwellWorkbenchReady;
+      const answer = engine.readFile(key);
+      parts = answer && answer.ok === true && answer.result;
+      if (parts && parts.key instanceof Uint8Array) {
+        if (parts.key_old_style === true) {
+          if (!password.length) {
+            keyFilePasswordField.hidden = false;
+            throw new Plain("This key is locked. Enter its password.");
+          }
+          const opened = engine.unlockKey(parts.key, password);
+          if (!opened || opened.ok !== true || !(opened.result.key instanceof Uint8Array)) {
+            keyFilePasswordField.hidden = false;
+            throw new Plain(opened && opened.error === "wrong-password" ? wrongKeyPassword : "Rootwell could not open this key.");
+          }
+          key.fill(0);
+          key = opened.result.key;
+          password.fill(0);
+          password = new Uint8Array(0);
+        } else {
+          key.fill(0);
+          key = parts.key.slice();
+        }
+      }
       const body = { fingerprint: target.fingerprint, expected_generation: generation, private_key: base64(key), key_password: base64(password) };
       const checked = await json(await call("/api/certificates/key/check", body, "This is not a key Rootwell can read."));
       const record = checked.records && checked.records[0];
@@ -547,11 +576,12 @@
       await load();
       say(sheetStatus, "good", "The key is saved with the certificate.");
     } catch (failure) {
-      if (failure instanceof Plain && failure.message === messages[422]) keyFilePasswordField.hidden = false;
+      if (failure instanceof Plain && (failure.message === messages[422] || failure.message === wrongKeyPassword)) keyFilePasswordField.hidden = false;
       say(sheetStatus, "bad", failure instanceof Plain ? failure.message : "The key was not saved. Try again.");
     } finally {
       if (key) key.fill(0);
       if (password) password.fill(0);
+      if (parts) for (const name of ["certificates", "key"]) if (parts[name] instanceof Uint8Array) parts[name].fill(0);
       keySave.disabled = false;
     }
   }
@@ -637,6 +667,7 @@
     addChip.hidden = true;
     addPasswordField.hidden = true;
     addPassword.value = "";
+    addPassword.placeholder = "";
     addPick.hidden = true;
     addChoices.replaceChildren();
     addPreview.replaceChildren();
@@ -665,10 +696,21 @@
     return bytes;
   }
 
+  // The password field, for a PFX, which may have none, or a locked key.
+  function askPassword(label, optional) {
+    addPasswordLabel.textContent = label;
+    addPassword.placeholder = optional ? "Leave empty if it has none" : "";
+    addPasswordField.hidden = false;
+    addPassword.focus();
+  }
+
+  // Each file is read by what it holds, not by its name: a PFX named .bin,
+  // a P7B, or one PEM with the certificate, its key and its chain.
   async function chooseFiles(files) {
     resetAdd();
     const ticket = addTicket;
     const loaded = [];
+    const found = [];
     try {
       if (files.length > 9) throw new Plain("Choose up to 8 certificate files and one key.");
       const engine = await globalThis.rootwellWorkbenchReady;
@@ -677,33 +719,48 @@
       const certParts = [];
       let key = null, pfx = null;
       for (const part of loaded) {
-        const answer = JSON.parse(engine.explore(part.bytes));
-        if (answer.ok) certParts.push({ bytes: part.bytes, list: answer.result.certificates });
-        else if (/\.(pfx|p12)$/i.test(part.name)) { if (pfx) throw new Plain("Choose one PFX at a time."); pfx = part; }
-        else if (part.bytes.byteLength <= 64 * 1024 && !key) key = part;
-        else throw new Plain(part.name + " is not a certificate, key or PFX file Rootwell can read.");
+        const answer = engine.readFile(part.bytes);
+        const parts = answer && answer.ok === true && answer.result;
+        if (!parts) throw new Plain(ui.fileProblem(part.name, answer && answer.error));
+        for (const name of ["certificates", "key"]) if (parts[name] instanceof Uint8Array) found.push(parts[name]);
+        if (parts.kind === "pfx") {
+          if (pfx) throw new Plain("Choose one PFX at a time.");
+          pfx = part;
+          continue;
+        }
+        if (parts.certificates) {
+          const explored = JSON.parse(engine.explore(parts.certificates));
+          if (!explored.ok) throw new Plain(explored.error && explored.error.code === "duplicate-certificate" ? part.name + " holds the same certificate twice." : ui.fileProblem(part.name));
+          certParts.push({ bytes: parts.certificates, list: explored.result.certificates });
+        }
+        if (parts.key) {
+          if (key) throw new Plain("Choose one private key at a time.");
+          key = { bytes: parts.key, oldStyle: parts.key_old_style === true };
+        }
       }
       if (pfx && (certParts.length || key)) throw new Plain("Add a PFX on its own. It already holds the certificate and key.");
       if (!pfx && !certParts.length) throw new Plain("Choose the certificate too, not only the key.");
-      add = { engine, files: files.map((f) => f.name), pfx: pfx && pfx.bytes, key: key && key.bytes, certificate: null, keyPassword: "", keySecret: null, primary: "", record: null };
+      add = { engine, files: files.map((f) => f.name), pfx: pfx && pfx.bytes, key: key && key.bytes.slice(), keyOldStyle: !!(key && key.oldStyle),
+        certificate: null, keyPassword: "", keySecret: null, primary: "", record: null };
       if (certParts.length) add.certificate = bundle(engine, certParts);
-      for (const part of certParts) part.bytes.fill(0);
       addZone.hidden = true;
       addChip.hidden = false;
       addChipName.textContent = files.length === 1 ? files[0].name : files.length + " files";
       addChipInfo.textContent = pfx ? "PFX" : key ? "Certificate and private key" : "Certificate";
-      if (pfx) {
-        addPasswordLabel.textContent = "PFX password";
-        addPasswordField.hidden = false;
-        addPassword.focus();
-        return;
+      if (pfx) return askPassword("PFX password", true);
+      if (add.keyOldStyle) {
+        askPassword("Key password", false);
+        return say(addStatus, "plain", "This key is locked. Enter its password.");
       }
       await check();
     } catch (failure) {
-      if (ticket !== addTicket) return loaded.forEach((p) => p.bytes.fill(0));
-      loaded.forEach((p) => p.bytes.fill(0));
+      if (ticket !== addTicket) return;
       wipeAdd();
       say(addStatus, "bad", failure instanceof Plain ? failure.message : "The files could not be read. Choose them again.");
+    } finally {
+      // Only the PFX is kept as chosen; everything else lives on in add.
+      for (const part of loaded) if (!add || part.bytes !== add.pfx) part.bytes.fill(0);
+      for (const bytes of found) bytes.fill(0);
     }
   }
 
@@ -731,7 +788,9 @@
       const ticket = addTicket;
       const password = encoder.encode(addPassword.value);
       addPassword.value = "";
-      if (!password.byteLength || password.byteLength > 128) { password.fill(0); return say(addStatus, "bad", "Enter the PFX password."); }
+      // An empty password opens a PFX saved without one.
+      if (password.byteLength > 128) { password.fill(0); return say(addStatus, "bad", "That password is too long."); }
+      const empty = password.byteLength === 0;
       say(addStatus, "plain", "Opening the PFX. This takes a few seconds…");
       let prepared = null;
       try {
@@ -743,13 +802,33 @@
         add.expected = prepared.fingerprint;
         addPasswordField.hidden = true;
         await check();
-      } catch {
-        if (ticket === addTicket) say(addStatus, "bad", "That password does not open this PFX.");
+      } catch (failure) {
+        if (ticket === addTicket) say(addStatus, "bad", ui.pfxProblem(failure && failure.code, empty));
       } finally {
         password.fill(0);
         if (prepared) for (const name of ["certificate", "private_key", "key_password"]) if (prepared[name] instanceof Uint8Array) prepared[name].fill(0);
       }
       return;
+    }
+    if (add.keyOldStyle) {
+      // An old-style locked key is opened here; the server takes it opened.
+      const password = encoder.encode(addPassword.value);
+      addPassword.value = "";
+      let answer = null;
+      try {
+        answer = add.engine.unlockKey(add.key, password);
+      } finally {
+        password.fill(0);
+      }
+      if (!answer || answer.ok !== true || !(answer.result.key instanceof Uint8Array)) {
+        return say(addStatus, "bad", answer && answer.error === "wrong-password" ? wrongKeyPassword :
+          answer && answer.error === "input-password-required" ? "This key is locked. Enter its password." : "Rootwell could not open this key.");
+      }
+      add.key.fill(0);
+      add.key = answer.result.key;
+      add.keyOldStyle = false;
+      addPasswordField.hidden = true;
+      return check();
     }
     add.keyPassword = addPassword.value;
     addPassword.value = "";
@@ -780,6 +859,8 @@
       const record = answer.records && answer.records[0];
       if (!record || !fingerprintPattern.test(record.fingerprint) || (add.expected && record.fingerprint !== add.expected)) throw new Error("answer");
       add.record = record;
+      // The key opened, or never needed a password.
+      addPasswordField.hidden = true;
       preview(record);
       if (record.key_status === "mismatch") return say(addStatus, "bad", "This key does not belong to the certificate. Choose the right key, or add the certificate alone.");
       addPlaceField.hidden = false;
@@ -787,11 +868,7 @@
       say(addStatus);
     } catch (failure) {
       if (ticket !== addTicket) return;
-      if (failure instanceof Plain && failure.message === messages[422]) {
-        addPasswordLabel.textContent = "Key password";
-        addPasswordField.hidden = false;
-        addPassword.focus();
-      }
+      if (failure instanceof Plain && (failure.message === messages[422] || failure.message === wrongKeyPassword)) askPassword("Key password", false);
       say(addStatus, "bad", failure instanceof Plain ? failure.message : "Rootwell could not read these files.");
     }
   }

@@ -106,6 +106,10 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 			http.Error(w, "Enter the selected private key's current password, then check again.", http.StatusUnprocessableEntity)
 			return
 		}
+		if errors.Is(err, browserprivateconvert.ErrInputPasswordWrong) {
+			keyPasswordWrong(w)
+			return
+		}
 		http.Error(w, "Select one certificate or a related public bundle and a supported optional key. Check the key password; CA private keys cannot be saved.", http.StatusBadRequest)
 		return
 	}
@@ -135,6 +139,13 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		return
 	}
 	g.publishCertificateSave(w, r, s, record, generation)
+}
+
+// keyPasswordWrong answers a key password that does not open the key. The
+// header lets the page tell it from a key that still needs its password.
+func keyPasswordWrong(w http.ResponseWriter) {
+	w.Header().Set("X-Rootwell-Refusal", "key-password-wrong")
+	http.Error(w, "That password does not open the key.", http.StatusUnprocessableEntity)
 }
 
 func (g *gate) publishCertificateSave(w http.ResponseWriter, r *http.Request, s session, record publicinventory.Record, generation uint64) {
@@ -327,6 +338,8 @@ func (g *gate) attachCertificateKey(w http.ResponseWriter, r *http.Request, s se
 			http.Error(w, "a key is already attached; no key was replaced", http.StatusConflict)
 		case errors.Is(err, browserprivateconvert.ErrInputPasswordRequired):
 			http.Error(w, "enter the selected key's current password", http.StatusUnprocessableEntity)
+		case errors.Is(err, browserprivateconvert.ErrInputPasswordWrong):
+			keyPasswordWrong(w)
 		case errors.Is(err, certificatepair.ErrInvalid):
 			http.Error(w, "key or acknowledgement not accepted; no key was attached", http.StatusBadRequest)
 		default:

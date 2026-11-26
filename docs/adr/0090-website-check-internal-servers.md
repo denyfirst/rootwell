@@ -86,3 +86,8 @@ lists everything else the server sends under "Also sent by the server".
 - Revocation is still not checked; the page says so once.
 - `docs/WEBSITE-CHECK-THREAT-MODEL.md` and C103 in
   `docs/SECURITY-INVARIANTS.md` describe the new boundary.
+- The handshake observes with `InsecureSkipVerify` on purpose, as before:
+  an invalid chain must still be seen. Nothing is sent, and
+  `websitechain` checks trust, names, use and dates separately against
+  explicit roots. Its CodeQL alert is dismissed as "won't fix", as
+  `docs/ENGINEERING.md` describes.

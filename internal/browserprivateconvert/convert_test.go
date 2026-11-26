@@ -10,6 +10,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"strings"
 	"testing"
 
@@ -158,7 +159,7 @@ func TestEncryptedInputAndPlaintextTargets(t *testing.T) {
 			if _, err := InspectWithPassword(input, nil); err != ErrInputPasswordRequired {
 				t.Fatalf("missing password not recognized: %v", err)
 			}
-			if _, err := InspectWithPassword(input, []byte("wrong")); err == nil {
+			if _, err := InspectWithPassword(input, []byte("wrong")); !errors.Is(err, ErrInputPasswordWrong) {
 				t.Fatal("wrong password accepted")
 			}
 			info, err := InspectWithPassword(input, inputPassword)

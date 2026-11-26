@@ -23,6 +23,8 @@
   let generation = 0;
   let certificateBytes = null;
   let keyController = null;
+  // A key that came in the same file as the certificates.
+  let fileKey = null;
 
   const messages = {
     "empty-input": "The file is empty.",
@@ -34,6 +36,8 @@
   function forget() {
     if (certificateBytes) certificateBytes.fill(0);
     certificateBytes = null;
+    if (fileKey) fileKey.fill(0);
+    fileKey = null;
     keyController?.abort();
     keyController = null;
     keyStatus.replaceChildren();
@@ -58,16 +62,6 @@
       parts.push(bytes);
     }
     return { parts, total };
-  }
-
-  // What a file is, when it is not a public certificate, so the message can
-  // say where it belongs instead of only that it failed.
-  function kindOf(name, bytes) {
-    const head = new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, 4096));
-    if (/\.(pfx|p12)$/i.test(name)) return "pfx";
-    if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(head)) return "key";
-    if (/-----BEGIN CERTIFICATE REQUEST-----/.test(head)) return "csr";
-    return "";
   }
 
   function role(certificate, index, parents, certificates) {
@@ -114,6 +108,30 @@
     return card;
   }
 
+  // A certificate request: what it asks for and its key. It is checked in
+  // the one-shot request worker; nothing is kept.
+  function requestCard(summary) {
+    const card = ui.el("section", "card result-enter");
+    const body = ui.el("div", "card-body stack");
+    const hero = ui.el("div", "cert-hero");
+    const mark = ui.el("span", "cert-mark");
+    mark.appendChild(ui.icon("file"));
+    hero.appendChild(mark);
+    const words = ui.el("div");
+    const asked = [...(summary.dns_names || []), ...(summary.ip_addresses || [])];
+    words.appendChild(ui.el("h2", "", ui.unicodeName(ui.commonName(summary.subject) || asked[0] || "Certificate request")));
+    words.appendChild(ui.el("p", "", "A certificate request. Send it to your certificate provider; the certificate they return goes in Certificates."));
+    hero.appendChild(words);
+    body.appendChild(hero);
+    const facts = ui.el("div", "facts gap-top");
+    facts.appendChild(factBlock("Asks for", asked.length ? asked.map(ui.unicodeName).join(", ") : "No names in the request"));
+    facts.appendChild(factBlock("Key", summary.curve ? summary.algorithm + " " + summary.curve : summary.bits ? summary.algorithm + " " + summary.bits : summary.algorithm));
+    facts.appendChild(factBlock("Signature", summary.signature_checked ? "Made with its own key" : "Not checked"));
+    body.appendChild(facts);
+    card.appendChild(body);
+    return card;
+  }
+
   function chainCard(certificates, analysis, order) {
     const card = ui.el("section", "card result-enter");
     const head = ui.el("div", "card-head");
@@ -147,6 +165,28 @@
     return card;
   }
 
+  async function showRequest(ticket, name, bytes, engine) {
+    let summary = null;
+    const controller = new AbortController();
+    try {
+      const answer = JSON.parse(await globalThis.rootwellCSRWorker.run(engine.module, "inspect", bytes, new Uint8Array(0), new Uint8Array(0), "", controller.signal));
+      summary = answer && answer.ok === true && answer.result;
+    } catch {
+      summary = null;
+    } finally {
+      bytes.fill(0);
+    }
+    if (ticket !== generation) return;
+    if (!summary || typeof summary.subject !== "string") return fail(name + " is a certificate request Rootwell could not read.");
+    chipName.textContent = name;
+    chipInfo.textContent = "Certificate request";
+    zone.hidden = true;
+    chip.hidden = false;
+    result.replaceChildren(requestCard(summary));
+    result.hidden = false;
+    keyCard.hidden = true;
+  }
+
   async function open(files) {
     const ticket = ++generation;
     forget();
@@ -160,19 +200,34 @@
       return ticket === generation && fail("The files could not be read. Choose them again.");
     }
     if (ticket !== generation) return data.parts.forEach((p) => p.fill(0));
+    // The certificates of each file in their strict form: a P7B, a byte order
+    // mark or text around the blocks are read here, by content.
+    const sources = [];
+    let key = null;
     try {
       if (data.total > engine.maxBytes) return fail(messages["input-too-large"]);
       const certificates = [];
       for (let i = 0; i < data.parts.length; i++) {
-        const answer = JSON.parse(engine.explore(data.parts[i]));
-        if (!answer.ok) {
-          const kind = kindOf(files[i].name, data.parts[i]);
-          return fail(kind === "pfx" ? "This is a PFX file. Open it in Convert to see what is inside." :
-            kind === "key" ? "This is a private key, not a certificate. Use Check a private key after opening its certificate." :
-            kind === "csr" ? "This is a certificate request. Send it to your certificate provider." :
-            messages[answer.error && answer.error.code] || "This is not a certificate file Rootwell can read.");
+        const read = engine.readFile(data.parts[i]);
+        const parts = read && read.ok === true && read.result;
+        if (!parts) {
+          const code = read && read.error;
+          if (code === "certificate-request" && data.parts.length === 1) return showRequest(ticket, files[0].name, data.parts[0], engine);
+          return fail(code === "certificate-request" ? "Open a certificate request on its own." :
+            messages[code] || ui.fileProblem(files[i].name, code));
         }
+        for (const name of ["certificates", "key"]) if (parts[name] instanceof Uint8Array) sources.push(parts[name]);
+        if (parts.kind === "pfx") return fail("This is a PFX file. Open it in Convert to see what is inside.");
+        if (parts.kind === "key") return fail("This is a private key, not a certificate. Use Check a private key after opening its certificate.");
+        if (parts.key) {
+          if (key) return fail("These files hold more than one private key. Open them one at a time.");
+          key = { bytes: parts.key.slice(), locked: parts.key_locked === true };
+        }
+        const answer = JSON.parse(engine.explore(parts.certificates));
+        if (!answer.ok) return fail(messages[answer.error && answer.error.code] || ui.fileProblem(files[i].name));
         certificates.push(...answer.result.certificates);
+        data.parts[i].fill(0);
+        data.parts[i] = parts.certificates;
       }
       const analysis = JSON.parse(engine.analyze(data.parts));
       if (analysis.error || !analysis.result || analysis.result.certificates.length !== certificates.length) return fail("These files do not belong together. Open them one at a time.");
@@ -200,16 +255,26 @@
       result.replaceChildren(...cards);
       result.hidden = false;
       keyCard.hidden = false;
+      // A key in the same file is checked at once, or after its password.
+      if (key) {
+        fileKey = key.bytes;
+        const locked = key.locked;
+        key = null;
+        if (locked) keyStatus.replaceChildren(ui.el("span", "meta", "This file also holds a locked private key. Enter its password, then press Check key."));
+        else void checkKey();
+      }
     } catch {
       fail("The files could not be read. Choose them again.");
     } finally {
       data.parts.forEach((p) => p.fill(0));
+      sources.forEach((p) => p.fill(0));
+      if (key) key.bytes.fill(0);
     }
   }
 
   async function checkKey() {
     const file = keyFile.files && keyFile.files[0];
-    if (!file || !certificateBytes) {
+    if ((!file && !fileKey) || !certificateBytes) {
       keyStatus.replaceChildren(ui.el("span", "error-text", "Choose the private key file first."));
       return;
     }
@@ -221,7 +286,7 @@
     let key = null, password = null, certificate = null;
     try {
       const engine = await globalThis.rootwellWorkbenchReady;
-      key = new Uint8Array(await file.slice(0, 64 * 1024 + 1).arrayBuffer());
+      key = file ? new Uint8Array(await file.slice(0, 64 * 1024 + 1).arrayBuffer()) : fileKey.slice();
       if (key.byteLength > 64 * 1024) throw new Error("too large");
       password = new TextEncoder().encode(keyPassword.value);
       keyPassword.value = "";
@@ -229,7 +294,8 @@
       const answer = JSON.parse(await globalThis.rootwellCSRWorker.run(engine.module, "certificate-key-match", key, certificate, password, "", controller.signal));
       if (controller !== keyController) return;
       if (!answer.ok) {
-        keyStatus.replaceChildren(ui.el("span", "error-text", answer.error === "input-password-required" ? "This key is protected. Enter its password and check again." : "This is not a private key Rootwell can read."));
+        keyStatus.replaceChildren(ui.el("span", "error-text", answer.error === "input-password-required" ? "This key is protected. Enter its password and check again." :
+          answer.error === "wrong-password" ? "That password does not open the key." : "This is not a private key Rootwell can read."));
         return;
       }
       const matched = answer.records.some((r) => r.key_status === "matched");

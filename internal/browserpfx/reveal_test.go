@@ -2,6 +2,7 @@ package browserpfx
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -74,7 +75,7 @@ func TestPFXRevealRefusesUnsafeInputs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			output, err := RevealKey(tc.input, tc.password, tc.fingerprint)
 			defer clear(output)
-			if err != ErrInvalid || len(output) != 0 {
+			if !errors.Is(err, ErrInvalid) || len(output) != 0 {
 				t.Fatal("unsafe reveal released private output")
 			}
 		})

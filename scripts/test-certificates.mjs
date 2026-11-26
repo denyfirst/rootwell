@@ -38,7 +38,7 @@ const runtime = new Go();
 const instance = await WebAssembly.instantiate(fs.readFileSync(wasmPath), runtime.importObject);
 runtime.run(instance.instance);
 await Promise.race([ready, new Promise((_, reject) => setTimeout(() => reject(new Error("WASM timeout")), 10000))]);
-const engine = Object.freeze({ explore: rootwellExplore, analyze: rootwellAnalyze, exportPublic: rootwellExport, module: {} });
+const engine = Object.freeze({ explore: rootwellExplore, analyze: rootwellAnalyze, exportPublic: rootwellExport, readFile: rootwellReadFile, unlockKey: rootwellUnlockKey, module: {} });
 const fixture = JSON.parse(execFileSync("go", ["run", "./scripts/generate-convert-fixture.go"], { encoding: "utf8" }));
 const bytesOf = (name) => Uint8Array.from(Buffer.from(fixture[name], "base64"));
 
@@ -69,11 +69,12 @@ function parse(body) {
 function keyStatus(certificate, body) {
   const key = Buffer.from(body.private_key || "", "base64");
   if (!key.length) return "not-added";
+  const passphrase = Buffer.from(body.key_password || "", "base64");
   try {
-    const privateKey = createPrivateKey({ key, passphrase: Buffer.from(body.key_password || "", "base64") });
+    const privateKey = createPrivateKey({ key, passphrase });
     return certificate.checkPrivateKey(privateKey) ? "matched" : "mismatch";
   } catch {
-    return "locked";
+    return passphrase.length ? "wrong" : "locked";
   }
 }
 const reply = (status, body, headers = {}) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
@@ -115,6 +116,7 @@ async function fetch(url, options) {
       if (api.selection && !body.primary_fingerprint) return reply(200, listing(certificates.map(toRecord)), { "X-Rootwell-Selection": "required" });
       const status = keyStatus(chosen, body);
       if (status === "locked") return reply(422, "enter the key password");
+      if (status === "wrong") return reply(422, "That password does not open the key.", { "X-Rootwell-Refusal": "key-password-wrong" });
       const result = { ...toRecord(chosen), has_private_key: status !== "not-added", key_status: status };
       if (api.records.some((r) => r.fingerprint === result.fingerprint)) return reply(409, "duplicate", { "X-Rootwell-Refusal": "duplicate-certificate" });
       if (url === "/api/certificates/check") return reply(200, listing([result]));
@@ -162,7 +164,7 @@ const win = {
   rootwellWorkbenchReady: Promise.resolve(engine),
   rootwellCertificatePFX: { run: async (module, input, password) => {
     const answer = rootwellPFXImport(input.slice(), password.slice());
-    if (!answer || answer.ok !== true) throw new Error("PFX preparation failed");
+    if (!answer || answer.ok !== true) throw Object.assign(new Error("PFX preparation failed"), { code: answer && answer.error });
     return answer.result;
   } },
   rootwellFresh: async () => { api.freshAsked++; api.fresh = api.freshAnswer; return api.freshAnswer; },
@@ -326,6 +328,36 @@ await $("key-save").listeners.click();
 await settle();
 assert.equal(lastRequest("/api/certificates/key/save").body.allow_mismatch, false);
 assert.match(status(), /The key is saved/);
+// A key added later is read like one in Add: an old-style locked key asks
+// for its password and goes opened; a key after EC PARAMETERS goes alone.
+{
+  const later = api.records.find((r) => r.subject === "CN=api.test");
+  const keySent = () => Buffer.from(lastRequest("/api/certificates/key/check").body.private_key, "base64").toString();
+  await go(later);
+  $("sheet-facts").children[0].children[2].listeners.click();
+  const checksBefore = api.requests.filter((r) => r.url === "/api/certificates/key/check").length;
+  $("key-file").files = [new File([bytesOf("old_key")], "old.key")];
+  await $("key-save").listeners.click();
+  await settle();
+  assert.equal(status(), "This key is locked. Enter its password.");
+  assert.equal($("key-password-field").hidden, false);
+  $("key-password").value = "not-the-key-password";
+  await $("key-save").listeners.click();
+  await settle();
+  assert.equal(status(), "That password does not open the key.");
+  assert.equal(api.requests.filter((r) => r.url === "/api/certificates/key/check").length, checksBefore, "a locked old-style key never reaches the server");
+  $("key-password").value = fixture.key_password;
+  await $("key-save").listeners.click();
+  await settle();
+  assert.ok(keySent().startsWith("-----BEGIN EC PRIVATE KEY-----\n") && !keySent().includes("Proc-Type"));
+  assert.equal(lastRequest("/api/certificates/key/check").body.key_password, "");
+  $("key-password").value = "";
+  $("key-file").files = [new File([bytesOf("ec_params_key")], "params.key")];
+  await $("key-save").listeners.click();
+  await settle();
+  assert.ok(!keySent().includes("EC PARAMETERS") && keySent().includes("PRIVATE KEY"));
+  $("sheet-close").listeners.click();
+}
 assert.match($("sheet-facts").text(), /Private key Saved/);
 
 // Delete asks first, then the list and the sheet let it go.
@@ -405,11 +437,18 @@ await dropAdd(new File([bytesOf("leaf")], "cert.pem"), new File([bytesOf("locked
 assert.equal($("add-password-field").hidden, false);
 assert.equal($("add-password-label").textContent, "Key password");
 assert.match($("add-status").text(), /protected/);
+// A wrong password is named as wrong, and the field stays.
+$("add-password").value = "not-the-key-password";
+await $("add-unlock").listeners.click();
+await settle();
+assert.equal($("add-status").text(), "That password does not open the key.");
+assert.equal($("add-password-field").hidden, false);
 $("add-password").value = fixture.key_password;
 await $("add-unlock").listeners.click();
 await settle();
 assert.equal(lastRequest("/api/certificates/check").body.key_password, Buffer.from(fixture.key_password).toString("base64"));
 assert.match($("add-preview").text(), /Key matches/);
+assert.equal($("add-password-field").hidden, true, "the password field goes once the key opened");
 $("add-close").listeners.click();
 
 // A key that belongs elsewhere cannot be saved with the certificate.
@@ -450,6 +489,83 @@ await settle();
 }
 assert.match($("add-preview").text(), /shop\.test .* Key matches/);
 assert.equal($("add-save").disabled, false);
+$("add-close").listeners.click();
+
+// Files are read by what they hold, not by their names.
+const checked = () => lastRequest("/api/certificates/check").body;
+const sentBlocks = () => pemBlocks(Buffer.from(checked().certificate, "base64").toString());
+const sentKey = () => Buffer.from(checked().private_key, "base64").toString();
+// A Windows-style 3DES PFX with another name.
+await dropAdd(new File([bytesOf("pfx_legacy")], "shop-export.bin"));
+assert.equal($("add-chip-info").textContent, "PFX");
+assert.equal($("add-password-label").textContent, "PFX password");
+$("add-password").value = fixture.pfx_password;
+await $("add-unlock").listeners.click();
+await settle();
+assert.match($("add-preview").text(), /shop\.test .* Key matches/);
+assert.equal($("add-password-field").hidden, true);
+$("add-close").listeners.click();
+// A PFX saved without a password opens with the field left empty.
+await dropAdd(new File([bytesOf("pfx_empty")], "nas.pfx"));
+assert.equal($("add-password").placeholder, "Leave empty if it has none");
+await $("add-unlock").listeners.click();
+await settle();
+assert.match($("add-preview").text(), /Key matches/);
+$("add-close").listeners.click();
+// An empty password on a locked PFX asks for it; a protection Rootwell does
+// not read says so, never that the password is wrong.
+await dropAdd(new File([bytesOf("pfx_rc2")], "mail.p12"));
+await $("add-unlock").listeners.click();
+await settle();
+assert.equal($("add-status").text(), "This PFX has a password. Enter it.");
+$("add-close").listeners.click();
+await dropAdd(new File([bytesOf("pfx_unsupported")], "newest.pfx"));
+$("add-password").value = fixture.pfx_password;
+await $("add-unlock").listeners.click();
+await settle();
+assert.equal($("add-status").text(), "This PFX uses a protection Rootwell cannot read. Export it again with AES-256 or TripleDES.");
+$("add-close").listeners.click();
+// One PEM with the certificate, its key and its chain is split.
+for (const name of ["combined", "nodes"]) {
+  await dropAdd(new File([bytesOf(name)], name + ".pem"));
+  assert.equal($("add-chip-info").textContent, "Certificate and private key");
+  assert.deepEqual(sentBlocks().map((b) => new X509Certificate(b).subject), ["CN=shop.test", "CN=Synthetic Convert Issuing CA"]);
+  assert.ok(sentKey().startsWith("-----BEGIN PRIVATE KEY-----") && !sentKey().includes("Attributes"), name + " key is sent alone");
+  assert.match($("add-preview").text(), /Key matches/);
+  $("add-close").listeners.click();
+}
+// A P7B with an EC key after its parameters; a certificate after a byte order mark.
+await dropAdd(new File([bytesOf("p7b")], "chain.p7b"), new File([bytesOf("ec_params_key")], "shop.key"));
+assert.equal(sentBlocks().length, 2);
+assert.ok(sentKey().startsWith("-----BEGIN EC PRIVATE KEY-----") && !sentKey().includes("EC PARAMETERS"));
+assert.match($("add-preview").text(), /Key matches/);
+$("add-close").listeners.click();
+await dropAdd(new File([bytesOf("bom_leaf")], "notepad.crt"));
+assert.equal(sentBlocks().length, 1);
+assert.equal($("add-save").disabled, false);
+$("add-close").listeners.click();
+// An old-style locked key asks for its password at once and is opened here.
+await dropAdd(new File([bytesOf("leaf")], "cert.pem"), new File([bytesOf("old_key")], "old.key"));
+assert.equal($("add-password-field").hidden, false);
+assert.equal($("add-password-label").textContent, "Key password");
+assert.equal($("add-status").text(), "This key is locked. Enter its password.");
+$("add-password").value = "not-the-key-password";
+await $("add-unlock").listeners.click();
+await settle();
+assert.equal($("add-status").text(), "That password does not open the key.");
+$("add-password").value = fixture.key_password;
+await $("add-unlock").listeners.click();
+await settle();
+assert.ok(sentKey().startsWith("-----BEGIN EC PRIVATE KEY-----\n") && !sentKey().includes("Proc-Type"));
+assert.equal(checked().key_password, "");
+assert.equal($("add-password-field").hidden, true);
+assert.match($("add-preview").text(), /Key matches/);
+$("add-close").listeners.click();
+// The file that is wrong is the one named.
+await dropAdd(new File([bytesOf("leaf")], "cert.pem"), new File(["just some notes\n"], "notes.txt"));
+assert.equal($("add-status").text(), "notes.txt is not a certificate, key or PFX file Rootwell can read.");
+await dropAdd(new File([bytesOf("csr")], "request.pem"));
+assert.equal($("add-status").text(), "request.pem is a certificate request, not a certificate. Send it to your certificate provider.");
 
 // Escape closes the dialog; leaving the page forgets what was chosen.
 document.listeners.keydown({ key: "Escape" });

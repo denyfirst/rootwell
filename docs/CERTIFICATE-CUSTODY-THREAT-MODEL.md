@@ -38,7 +38,8 @@ remain excluded.
 
 ## Assets and trust
 
-ADR 0087 adds browser-only preparation of one bounded modern PFX/P12 in the
+ADR 0087 adds browser-only preparation of one bounded PFX/P12 (the profile of
+ADR 0089, Windows and older OpenSSL files included) in the
 same Add form. Original container/password never enter the normal API. A
 separate one-shot worker authenticates the exact input, preserves every related
 public certificate and returns a newly encrypted PKCS#8 key with a random

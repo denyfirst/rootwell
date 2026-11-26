@@ -73,8 +73,8 @@ func analyze(input, key, password []byte, owner, location string) ([]publicinven
 	})
 	if err != nil {
 		clear(canonical)
-		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
-			return nil, nil, browserprivateconvert.ErrInputPasswordRequired
+		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) || errors.Is(err, browserprivateconvert.ErrInputPasswordWrong) {
+			return nil, nil, err
 		}
 		return nil, nil, ErrInvalid
 	}

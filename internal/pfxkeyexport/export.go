@@ -14,7 +14,6 @@ import (
 	"github.com/denyfirst/rootwell/internal/keymatch"
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/youmark/pkcs8"
-	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 var (
@@ -24,11 +23,12 @@ var (
 
 const outputIterations = 600_000
 
-// Export accepts one immutable PFX snapshot, its current password,
-// the exact inspected leaf fingerprint, and a fresh output password. It uses
-// explicit PBES2/PBKDF2-HMAC-SHA-256/AES-256-CBC parameters, never the
-// dependency's weaker defaults. The caller must clear the encrypted output
-// after saving it; Go cannot guarantee erasure of internal key copies.
+// Export accepts one immutable PFX snapshot, its current password (empty for
+// a PFX saved without one), the exact inspected leaf fingerprint, and a fresh
+// output password. It uses explicit PBES2/PBKDF2-HMAC-SHA-256/AES-256-CBC
+// parameters, never the dependency's weaker defaults. The caller must clear
+// the encrypted output after saving it; Go cannot guarantee erasure of
+// internal key copies. A refusal wraps the pfxinspect error that caused it.
 func Export(input []byte, pfxPassword, fingerprint string, outputPassword []byte) ([]byte, error) {
 	if !validOutputPassword(outputPassword) || !pfxinspect.ValidFingerprint(fingerprint) {
 		return nil, ErrExportPassword
@@ -40,67 +40,69 @@ func Export(input []byte, pfxPassword, fingerprint string, outputPassword []byte
 	// caller were to reuse or change its source buffer while we work.
 	bound := bytes.Clone(input)
 	defer clear(bound)
-	result, err := pfxinspect.Inspect(bound, pfxPassword)
-	if err != nil || result.MatchingCertificate.SHA256Fingerprint != fingerprint {
-		return nil, ErrInvalid
-	}
-	selected, ok := result.CertificateDER(fingerprint)
-	if !ok {
-		return nil, ErrInvalid
-	}
-	defer clear(selected)
-	// DecodeChain is permitted only after Inspect has rejected unknown bags,
-	// duplicate keys/certificates, and unsupported work factors. Its assumed
-	// first leaf must equal the previously inspected matching certificate.
-	key, leaf, _, err := pkcs12.DecodeChain(bound, pfxPassword)
-	if key != nil {
-		defer keymatch.ClearParsedKey(key)
-	}
-	if err != nil || leaf == nil || !bytes.Equal(leaf.Raw, selected) {
-		return nil, ErrInvalid
-	}
-	signer, ok := key.(crypto.Signer)
-	if !ok {
-		return nil, ErrInvalid
-	}
-	actual, err := x509.MarshalPKIXPublicKey(signer.Public())
+	var output []byte
+	// The key comes from the same authenticated decode that matched it to the
+	// selected certificate, whatever the bag order in the file.
+	err := pfxinspect.Open(bound, pfxPassword, func(result pfxinspect.Result, key crypto.Signer) error {
+		if result.MatchingCertificate.SHA256Fingerprint != fingerprint {
+			return ErrInvalid
+		}
+		selected, ok := result.CertificateDER(fingerprint)
+		if !ok {
+			return ErrInvalid
+		}
+		defer clear(selected)
+		leaf, err := x509.ParseCertificate(selected)
+		if err != nil {
+			return ErrInvalid
+		}
+		expected, err := x509.MarshalPKIXPublicKey(leaf.PublicKey)
+		if err != nil {
+			return ErrInvalid
+		}
+		actual, err := x509.MarshalPKIXPublicKey(key.Public())
+		if err != nil || len(actual) != len(expected) || subtle.ConstantTimeCompare(actual, expected) != 1 {
+			return ErrInvalid
+		}
+		options := &pkcs8.Opts{
+			Cipher: pkcs8.AES256CBC,
+			KDFOpts: pkcs8.PBKDF2Opts{
+				SaltSize: 16, IterationCount: outputIterations, HMACHash: crypto.SHA256,
+			},
+		}
+		der, err := pkcs8.MarshalPrivateKey(key, outputPassword, options)
+		if err != nil || len(der) == 0 || len(der) > 64<<10 {
+			clear(der)
+			return ErrInvalid
+		}
+		defer clear(der)
+		// The decoder sees only Rootwell-generated encrypted output, not a
+		// caller-supplied key file with unbounded KDF parameters.
+		verified, err := pkcs8.ParsePKCS8PrivateKey(der, outputPassword)
+		if err != nil {
+			return ErrInvalid
+		}
+		defer keymatch.ClearParsedKey(verified)
+		verifiedSigner, ok := verified.(crypto.Signer)
+		if !ok {
+			return ErrInvalid
+		}
+		verifiedSPKI, err := x509.MarshalPKIXPublicKey(verifiedSigner.Public())
+		if err != nil || len(verifiedSPKI) != len(expected) || subtle.ConstantTimeCompare(verifiedSPKI, expected) != 1 {
+			return ErrInvalid
+		}
+		output = pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: der})
+		if len(output) == 0 {
+			return ErrInvalid
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, ErrInvalid
-	}
-	expected, err := x509.MarshalPKIXPublicKey(leaf.PublicKey)
-	if err != nil || len(actual) != len(expected) || subtle.ConstantTimeCompare(actual, expected) != 1 {
-		return nil, ErrInvalid
-	}
-	options := &pkcs8.Opts{
-		Cipher: pkcs8.AES256CBC,
-		KDFOpts: pkcs8.PBKDF2Opts{
-			SaltSize: 16, IterationCount: outputIterations, HMACHash: crypto.SHA256,
-		},
-	}
-	der, err := pkcs8.MarshalPrivateKey(key, outputPassword, options)
-	if err != nil || len(der) == 0 || len(der) > 64<<10 {
-		clear(der)
-		return nil, ErrInvalid
-	}
-	defer clear(der)
-	// The decoder sees only Rootwell-generated encrypted output, not a
-	// caller-supplied key file with unbounded KDF parameters.
-	verified, err := pkcs8.ParsePKCS8PrivateKey(der, outputPassword)
-	if err != nil {
-		return nil, ErrInvalid
-	}
-	defer keymatch.ClearParsedKey(verified)
-	verifiedSigner, ok := verified.(crypto.Signer)
-	if !ok {
-		return nil, ErrInvalid
-	}
-	verifiedSPKI, err := x509.MarshalPKIXPublicKey(verifiedSigner.Public())
-	if err != nil || len(verifiedSPKI) != len(expected) || subtle.ConstantTimeCompare(verifiedSPKI, expected) != 1 {
-		return nil, ErrInvalid
-	}
-	output := pem.EncodeToMemory(&pem.Block{Type: "ENCRYPTED PRIVATE KEY", Bytes: der})
-	if len(output) == 0 {
-		return nil, ErrInvalid
+		clear(output)
+		if errors.Is(err, ErrInvalid) {
+			return nil, ErrInvalid
+		}
+		return nil, errors.Join(ErrInvalid, err)
 	}
 	return output, nil
 }

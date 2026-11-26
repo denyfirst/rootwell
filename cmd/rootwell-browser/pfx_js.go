@@ -7,11 +7,18 @@ import (
 	"syscall/js"
 
 	"github.com/denyfirst/rootwell/internal/browserpfx"
+	"github.com/denyfirst/rootwell/internal/pfxcreate"
 )
 
-func pfxFailure() js.Value {
+func pfxFailureCode(code string) js.Value {
 	return js.ValueOf(map[string]any{"schema_version": browserpfx.SchemaVersion, "ok": false,
-		"result": nil, "error": "pfx-operation-failed"})
+		"result": nil, "error": code})
+}
+
+func pfxFailure() js.Value { return pfxFailureCode("pfx-operation-failed") }
+
+func pfxInspectFailure(code string) string {
+	return `{"schema_version":"rootwell.browser.pfx.v1","ok":false,"result":null,"error":"` + code + `"}`
 }
 
 func pfxBytes(value js.Value, maximum int, allowEmpty bool) ([]byte, bool) {
@@ -30,11 +37,13 @@ func pfxBytes(value js.Value, maximum int, allowEmpty bool) ([]byte, bool) {
 	return output, true
 }
 
+// pfxInspect opens a PFX with its password, which is empty for a PFX saved
+// without one. A refusal says whether the password was wrong.
 func pfxInspect(_ js.Value, arguments []js.Value) (response any) {
-	response = `{"schema_version":"rootwell.browser.pfx.v1","ok":false,"result":null,"error":"pfx-operation-failed"}`
+	response = pfxInspectFailure("pfx-operation-failed")
 	defer func() {
 		if recover() != nil {
-			response = `{"schema_version":"rootwell.browser.pfx.v1","ok":false,"result":null,"error":"pfx-operation-failed"}`
+			response = pfxInspectFailure("pfx-operation-failed")
 		}
 	}()
 	if len(arguments) != 2 {
@@ -45,14 +54,14 @@ func pfxInspect(_ js.Value, arguments []js.Value) (response any) {
 		return response
 	}
 	defer clear(input)
-	password, ok := pfxBytes(arguments[1], 128, false)
+	password, ok := pfxBytes(arguments[1], 128, true)
 	if !ok {
 		return response
 	}
 	defer clear(password)
 	summary, err := browserpfx.Inspect(input, password)
 	if err != nil {
-		return response
+		return pfxInspectFailure(pfxCode(err, "pfx-operation-failed"))
 	}
 	encoded, err := json.Marshal(struct {
 		SchemaVersion string             `json:"schema_version"`
@@ -92,7 +101,8 @@ func pfxOutput(_ js.Value, arguments []js.Value) (response any) {
 			return response
 		}
 	}
-	password, ok := pfxBytes(arguments[4], 128, false)
+	// A new PFX needs a new password; an existing one may have none.
+	password, ok := pfxBytes(arguments[4], 128, operation != "create")
 	if !ok {
 		return response
 	}
@@ -111,10 +121,23 @@ func pfxOutput(_ js.Value, arguments []js.Value) (response any) {
 	var err error
 	switch operation {
 	case "create":
-		if len(inputs[1]) == 0 || option != "" {
+		profile := pfxcreate.Modern
+		switch option {
+		case "":
+		case "older-windows":
+			profile = pfxcreate.OlderWindows
+		default:
 			return response
 		}
-		output, filename, err = browserpfx.CreateWithInputPassword(inputs[0], inputs[1], inputs[2], password, second)
+		if len(inputs[1]) == 0 {
+			return response
+		}
+		key, keyPassword, cleanup, keyErr := normalizedKey(inputs[1], second)
+		defer cleanup()
+		if keyErr != nil {
+			return response
+		}
+		output, filename, err = browserpfx.CreateProfile(inputs[0], key, inputs[2], password, keyPassword, profile)
 		format = "pfx"
 	case "certificate":
 		if len(inputs[1]) != 0 || len(inputs[2]) != 0 || len(second) != 0 || len(option) < 99 {
@@ -142,7 +165,11 @@ func pfxOutput(_ js.Value, arguments []js.Value) (response any) {
 	default:
 		return response
 	}
-	if err != nil || len(output) == 0 || len(output) > 1<<20 || (filename == "" && operation != "reveal") {
+	if err != nil {
+		clear(output)
+		return pfxFailureCode(pfxCode(err, "pfx-operation-failed"))
+	}
+	if len(output) == 0 || len(output) > 1<<20 || (filename == "" && operation != "reveal") {
 		clear(output)
 		return response
 	}

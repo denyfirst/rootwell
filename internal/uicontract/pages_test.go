@@ -134,8 +134,8 @@ func TestPagesSeparateFileAndNetworkCapabilities(t *testing.T) {
 // Inspect says how many files it takes, and takes exactly that many.
 func TestInspectFileHintMatchesItsLimit(t *testing.T) {
 	assets := pageAssets(t)
-	if !strings.Contains(assets["inspect.html"], "PEM, CRT, CER or DER, up to 8 files") ||
-		!strings.Contains(assets["inspect.html"], `id="inspect-file" type="file" multiple accept=".pem,.crt,.cer,.der,.txt,.ca-bundle"`) {
+	if !strings.Contains(assets["inspect.html"], "PEM, CRT, CER, DER or P7B, up to 8 files") ||
+		!strings.Contains(assets["inspect.html"], `id="inspect-file" type="file" multiple accept=".pem,.crt,.cer,.der,.p7b,.p7c,.txt,.ca-bundle"`) {
 		t.Error("Inspect does not say which files it takes")
 	}
 	if !strings.Contains(assets["inspect.js"], "const maxFiles = 8;") {

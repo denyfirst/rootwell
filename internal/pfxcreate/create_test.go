@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/keymatch"
+	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
@@ -152,5 +153,48 @@ func TestPFXParsedKeyBoundaryRefusesInvalidKeys(t *testing.T) {
 			clear(output)
 			t.Fatal("invalid parsed key was accepted")
 		}
+	}
+}
+
+// The older Windows profile is 3DES under a SHA-1 MAC with 2048 iterations,
+// and Rootwell reads it back; the default stays AES-256.
+func TestCreateOlderWindowsProfileIs3DESAndReadable(t *testing.T) {
+	leaf, keyDER, intermediate, _ := testMaterial(t)
+	chain := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: intermediate})
+	key, err := x509.ParsePKCS8PrivateKey(keyDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keymatch.ClearParsedKey(key)
+	older, err := CreateWithParsedKeyProfile(leaf, key, chain, testPassword, OlderWindows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modern, err := CreateWithParsedKeyProfile(leaf, key, chain, testPassword, Modern)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sha1MAC := []byte{0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a}
+	tripleDES := []byte{0x06, 0x0a, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x0c, 0x01, 0x03}
+	aes256 := []byte{0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x01, 0x2a}
+	iterations := []byte{0x02, 0x02, 0x08, 0x00}
+	if bytes.Count(older, tripleDES) != 2 || !bytes.Contains(older, sha1MAC) || bytes.Count(older, iterations) != 3 || bytes.Contains(older, aes256) {
+		t.Fatal("the older Windows profile is not 3DES under a SHA-1 MAC with 2048 iterations")
+	}
+	if bytes.Contains(modern, tripleDES) || bytes.Count(modern, aes256) != 2 {
+		t.Fatal("the default profile is not AES-256")
+	}
+	result, err := pfxinspect.Inspect(older, testPassword)
+	if err != nil || len(result.Additional) != 1 {
+		t.Fatalf("Rootwell cannot read its own older Windows PFX: %v", err)
+	}
+	if der, ok := result.CertificateDER(result.MatchingCertificate.SHA256Fingerprint); !ok || !bytes.Equal(der, leaf) {
+		t.Fatal("the older Windows PFX holds another certificate")
+	}
+	if _, err := CreateWithParsedKeyProfile(leaf, key, chain, testPassword, Profile(7)); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("an unknown profile was accepted: %v", err)
+	}
+	if _, err := CreateWithParsedKeyProfile(leaf, key, chain, "short", OlderWindows); !errors.Is(err, ErrInvalidPassword) {
+		t.Fatalf("the older profile accepted a weak password: %v", err)
 	}
 }

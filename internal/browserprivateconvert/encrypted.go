@@ -154,7 +154,9 @@ func withInputKey(input, password []byte, use func(any, keymatch.Encoding) error
 	}
 	key, err := pkcs8.ParsePKCS8PrivateKey(der, password)
 	if err != nil {
-		return ErrInvalid
+		// validEncryptedProfile accepted the protection above, so what is
+		// left to fail is the password.
+		return ErrInputPasswordWrong
 	}
 	defer keymatch.ClearParsedKey(key)
 	plain, err := x509.MarshalPKCS8PrivateKey(key)

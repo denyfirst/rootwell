@@ -291,9 +291,39 @@
     return concat([...locals, directory, new Uint8Array(end.buffer)]);
   }
 
+  // What is wrong with one chosen file, in words that name the file. The
+  // codes come from the engine's readFile.
+  function fileProblem(name, code) {
+    switch (code) {
+      case "empty-input": return name + " is empty.";
+      case "input-too-large": return name + " is too large.";
+      case "certificate-request": return name + " is a certificate request, not a certificate. Send it to your certificate provider.";
+      case "damaged-certificate": return name + " holds a damaged certificate.";
+      case "several-keys": return name + " holds more than one private key. Keep one key per file.";
+      case "certificate-count-limit": return name + " holds more than 64 certificates.";
+      case "p7b-unsupported": return name + " is a P7B file that holds more than certificates. Rootwell reads P7B files that hold certificates only.";
+      case "key-parameters": return name + " has EC parameters that do not belong to its key.";
+      case "unknown-block": return name + " holds something other than certificates and a private key, such as a public key or a revocation list.";
+      default: return name + " is not a certificate, key or PFX file Rootwell can read.";
+    }
+  }
+
+  // Why a PFX did not open. A wrong password is never blamed for a format
+  // Rootwell does not read. empty: no password was typed.
+  function pfxProblem(code, empty) {
+    switch (code) {
+      case "pfx-wrong-password": return empty ? "This PFX has a password. Enter it." : "That password does not open this PFX.";
+      case "pfx-unsupported": return "This PFX uses a protection Rootwell cannot read. Export it again with AES-256 or TripleDES.";
+      case "pfx-no-integrity": return "This PFX has no integrity check, so Rootwell cannot tell whether it was changed. Export it again with a password.";
+      case "pfx-contents": return "This PFX opened, but it does not hold one private key with its certificate.";
+      case "pfx-not-pfx": return "This file is not a PFX Rootwell can read.";
+      default: return "This PFX could not be opened. Try again.";
+    }
+  }
+
   Object.defineProperty(globalThis, "rootwellUI", {
     value: Object.freeze({ icon, el, lifetime, pill, lifetimeBar, formatDate, commonName, organization, issuerName, unicodeName, shortFingerprint, download, friendlyName, dropZone,
-      chainOrder, concat, strongPassword, isStrongPassword, zip }),
+      chainOrder, concat, strongPassword, isStrongPassword, zip, fileProblem, pfxProblem }),
     writable: false, configurable: false, enumerable: false,
   });
 })();

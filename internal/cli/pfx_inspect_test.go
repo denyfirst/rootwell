@@ -54,7 +54,7 @@ func TestPFXInspectRefusesNonTTYAndWrongPasswordWithoutPartialOutput(t *testing.
 	}
 	stdout.Reset()
 	stderr.Reset()
-	if code := runWithSecretReader([]string{"pfx-inspect", "--input", path}, &stdout, &stderr, func(string) (string, error) { return "wrong-password", nil }); code != ExitFailure || stdout.Len() != 0 || strings.Contains(stderr.String(), cliPFXPassword) {
+	if code := runWithSecretReader([]string{"pfx-inspect", "--input", path}, &stdout, &stderr, func(string) (string, error) { return "wrong-password", nil }); code != ExitFailure || stdout.Len() != 0 || strings.Contains(stderr.String(), cliPFXPassword) || stderr.String() != "PFX password is wrong\n" {
 		t.Fatalf("wrong password path: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 	stdout.Reset()

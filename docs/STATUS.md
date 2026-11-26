@@ -29,10 +29,22 @@ independent review that a release needs (Phase 4) comes before any release.
 - What they do:
   - **Inspect** a certificate or a chain: who it is for, who issued it, how
     long it lasts, whether the chain is complete, and whether a private key
-    belongs to it.
+    belongs to it. A certificate request shows the names it asks for and its
+    key.
   - **Convert** a certificate, key or PFX into PEM files, a single
     certificate, a new PFX, or a key in PEM, DER or the older RSA and EC forms.
   - **Request** a CSR with a new key or an existing one.
+- They read files as other tools write them, by content, not name
+  ([ADR 0089](adr/0089-real-world-file-formats.md)):
+  - PFX files from Windows, .NET, OpenSSL (old and new) and Java, with or
+    without a password;
+  - P7B bundles;
+  - one PEM with the certificate, key and chain, also `openssl pkcs12
+    -nodes` output;
+  - Notepad's byte order mark, an EC key after its `EC PARAMETERS`, and old
+    OpenSSL encrypted keys.
+- Convert also makes a PFX for Windows Server 2016 and older (TripleDES);
+  AES-256 stays the default.
   - **Verify** a server chain against a chosen root and hostname, with the
     `rootwell verify` command.
 - `rootwell-probe` is a separate command that checks the TLS certificate one

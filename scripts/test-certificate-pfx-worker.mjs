@@ -30,6 +30,18 @@ for(const corrupt of [a=>{a.result.fingerprint+='\n';},a=>{a.result.extra='not-a
  const pending=run(),worker=workers.at(-1);worker.onmessage({data:{type:'ready'}});const answer=result();corrupt(answer);worker.onmessage({data:{type:'prepared',answer}});await assert.rejects(pending);for(const key of ['certificate','private_key','key_password'])assert.ok(answer.result[key].every(b=>b===0));
 }
 await assert.rejects(client.rootwellCertificatePFX.run(null,source,password,new AbortController().signal));
+{
+ // An empty password goes to the worker, for a PFX saved without one; a
+ // refusal the engine names comes back as its short code only.
+ const pending=client.rootwellCertificatePFX.run(new Module(),source,new Uint8Array(0),new AbortController().signal),worker=workers.at(-1);
+ worker.onmessage({data:{type:'ready'}});assert.equal(worker.messages[1].password.byteLength,0);
+ worker.onmessage({data:{type:'refused',error:'pfx-wrong-password'}});
+ await assert.rejects(pending,error=>error.code==='pfx-wrong-password');assert.equal(worker.terminated,true);
+}
+for(const odd of ['pfx-<b>bold</b>','wrong-password','pfx-'+'a'.repeat(40),7]){
+ const pending=run(),worker=workers.at(-1);worker.onmessage({data:{type:'ready'}});worker.onmessage({data:{type:'refused',error:odd}});
+ await assert.rejects(pending,error=>error.code===undefined);
+}
 
 async function boot(makeAnswer=result){
  const posted=[];let receivedInput,receivedPassword;
@@ -46,4 +58,11 @@ async function boot(makeAnswer=result){
 {
  const answer=result();answer.result.fingerprint='bad';const f=await boot(()=>answer);f.worker.onmessage({data:{type:'prepare',input:Uint8Array.of(1).buffer,password:Uint8Array.of(2).buffer}});assert.equal(f.posted.at(-1).type,'failure');for(const key of ['certificate','private_key','key_password'])assert.ok(answer.result[key].every(b=>b===0));
 }
-console.log('PFX library worker: ready-only transfer, bounded one-shot output, timeout/abort, no network/storage and owned-buffer clearing passed.');
+{
+ const refused=()=>({schema_version:'rootwell.browser.pfx-import.v1',ok:false,result:null,error:'pfx-unsupported'});
+ const f=await boot(refused);f.worker.onmessage({data:{type:'prepare',input:Uint8Array.of(1).buffer,password:new ArrayBuffer(0)}});
+ assert.deepEqual(f.posted.at(-1),{type:'refused',error:'pfx-unsupported'});assert.equal(f.worker.closed,true);
+ const g=await boot(()=>({...refused(),error:'not a short code'}));g.worker.onmessage({data:{type:'prepare',input:Uint8Array.of(1).buffer,password:Uint8Array.of(2).buffer}});
+ assert.equal(g.posted.at(-1).type,'failure');
+}
+console.log('PFX library worker: ready-only transfer, bounded one-shot output, named refusals, timeout/abort, no network/storage and owned-buffer clearing passed.');

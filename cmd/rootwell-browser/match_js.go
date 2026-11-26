@@ -4,11 +4,10 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"syscall/js"
 
-	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/denyfirst/rootwell/internal/certificatepair"
+	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
 func certificateKeyMatch(_ js.Value, args []js.Value) (response any) {
@@ -36,13 +35,23 @@ func certificateKeyMatch(_ js.Value, args []js.Value) (response any) {
 		return response
 	}
 	defer clear(password)
-	records, err := certificatepair.Analyze(certificate, key, password)
-	if err != nil {
-		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
-			return `{"schema_version":"rootwell.browser.key-match.v1","ok":false,"error":"input-password-required","records":null}`
+	normalized, keyPassword, cleanup, err := normalizedKey(key, password)
+	defer cleanup()
+	if err == nil {
+		var records []publicinventory.Record
+		records, err = certificatepair.Analyze(certificate, normalized, keyPassword)
+		if err == nil {
+			return keyMatchAnswer(records, response)
 		}
-		return response
 	}
+	switch code := fileCode(err); code {
+	case "input-password-required", "wrong-password":
+		return `{"schema_version":"rootwell.browser.key-match.v1","ok":false,"error":"` + code + `","records":null}`
+	}
+	return response
+}
+
+func keyMatchAnswer(records []publicinventory.Record, failure any) any {
 	type result struct {
 		Fingerprint string `json:"fingerprint"`
 		Subject     string `json:"subject"`
@@ -59,7 +68,7 @@ func certificateKeyMatch(_ js.Value, args []js.Value) (response any) {
 		Records []result `json:"records"`
 	}{"rootwell.browser.key-match.v1", true, nil, items})
 	if err != nil {
-		return response
+		return failure
 	}
 	return string(encoded)
 }

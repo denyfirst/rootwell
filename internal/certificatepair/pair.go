@@ -48,8 +48,8 @@ func Prepare(certificate, keyInput, password []byte, owner, location string) (pu
 	})
 	if err != nil {
 		clear(canonical)
-		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
-			return publicinventory.Record{}, nil, browserprivateconvert.ErrInputPasswordRequired
+		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) || errors.Is(err, browserprivateconvert.ErrInputPasswordWrong) {
+			return publicinventory.Record{}, nil, err
 		}
 		return publicinventory.Record{}, nil, ErrInvalid
 	}

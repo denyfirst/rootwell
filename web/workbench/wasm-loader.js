@@ -22,6 +22,8 @@
           typeof globalThis.rootwellExportVerifiedSimple !== "function" ||
           typeof globalThis.rootwellExportVerifiedExplicit !== "function" ||
           typeof globalThis.rootwellExport !== "function" ||
+          typeof globalThis.rootwellReadFile !== "function" ||
+          typeof globalThis.rootwellUnlockKey !== "function" ||
           !(wasmModule instanceof WebAssembly.Module) ||
           !Number.isSafeInteger(globalThis.rootwellInspectMaxBytes)) {
         fail();
@@ -38,6 +40,8 @@
         exportVerifiedSimple: globalThis.rootwellExportVerifiedSimple,
         exportVerifiedExplicit: globalThis.rootwellExportVerifiedExplicit,
         exportPublic: globalThis.rootwellExport,
+        readFile: globalThis.rootwellReadFile,
+        unlockKey: globalThis.rootwellUnlockKey,
         module: wasmModule,
         maxBytes: globalThis.rootwellInspectMaxBytes
       }));

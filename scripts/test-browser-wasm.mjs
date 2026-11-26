@@ -334,6 +334,48 @@ const invalidBundleRequest = globalThis.rootwellExportBundle(["not a byte array"
 assert.equal(invalidBundleRequest.ok, false);
 assert.equal(invalidBundleRequest.error, "invalid-browser-request");
 
+// readFile says what a file holds and hands its parts on in strict form.
+{
+  const bytes = (name) => Uint8Array.from(Buffer.from(generated[name], "base64"));
+  const read = (input) => globalThis.rootwellReadFile(input);
+  const pemCount = (value) => (Buffer.from(value).toString().match(/-----BEGIN CERTIFICATE-----/g) || []).length;
+  for (const [name, kind, certificates, key] of [
+    ["leaf", "certificates", 1, null], ["p7b", "certificates", 2, null], ["bom_leaf", "certificates", 1, null],
+    ["combined", "certificates-and-key", 2, "-----BEGIN PRIVATE KEY-----"], ["nodes", "certificates-and-key", 2, "-----BEGIN PRIVATE KEY-----"],
+    ["ec_params_key", "key", 0, "-----BEGIN EC PRIVATE KEY-----"], ["old_key", "key", 0, "-----BEGIN EC PRIVATE KEY-----"],
+    ["pfx_legacy", "pfx", 0, null], ["pfx_empty", "pfx", 0, null],
+  ]) {
+    const answer = read(bytes(name));
+    assert.equal(answer.ok, true, name + ": " + answer.error);
+    assert.equal(answer.result.kind, kind, name);
+    assert.equal(answer.result.certificates ? pemCount(answer.result.certificates) : 0, certificates, name);
+    if (key) assert.ok(Buffer.from(answer.result.key).toString().startsWith(key), name);
+    else assert.equal(answer.result.key, null, name);
+  }
+  assert.equal(read(bytes("old_key")).result.key_old_style, true);
+  assert.equal(read(bytes("locked_key")).result.key_locked, true);
+  for (const [input, code] of [[new TextEncoder().encode("hello\n"), "unreadable"], [bytes("csr"), "certificate-request"],
+    [new Uint8Array(0), "empty-input"], ["not bytes", "unreadable"]]) {
+    const answer = read(input);
+    assert.equal(answer.ok, false);
+    assert.equal(answer.error, code);
+    assert.equal(answer.result, null);
+  }
+  const oldKey = read(bytes("old_key")).result.key;
+  const opened = globalThis.rootwellUnlockKey(oldKey, new TextEncoder().encode(generated.key_password));
+  assert.equal(opened.ok, true);
+  assert.equal(createPrivateKey(Buffer.from(opened.result.key)).asymmetricKeyType, "ec");
+  assert.equal(globalThis.rootwellUnlockKey(oldKey, new TextEncoder().encode("wrong")).error, "wrong-password");
+  assert.equal(globalThis.rootwellUnlockKey(oldKey, new Uint8Array(0)).error, "input-password-required");
+  // The private key reader opens the same old-style key, and says when a
+  // password is wrong.
+  const inspected = JSON.parse(globalThis.rootwellPrivateInspect(bytes("old_key"), new TextEncoder().encode(generated.key_password)));
+  assert.equal(inspected.ok, true);
+  assert.equal(JSON.parse(globalThis.rootwellPrivateInspect(bytes("old_key"), new TextEncoder().encode("wrong"))).error, "wrong-password");
+  assert.equal(JSON.parse(globalThis.rootwellPrivateInspect(bytes("locked_key"), new TextEncoder().encode("wrong"))).error, "wrong-password");
+  assert.equal(JSON.parse(globalThis.rootwellPrivateInspect(bytes("ec_params_key"), new Uint8Array(0))).ok, true);
+}
+
 console.log("Rootwell browser WebAssembly integration passed.");
 void execution;
 process.exit(0);

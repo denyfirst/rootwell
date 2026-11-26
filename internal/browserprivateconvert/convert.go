@@ -27,6 +27,9 @@ var (
 	ErrInvalid               = errors.New("private key cannot be converted")
 	ErrPassword              = errors.New("output password does not meet policy")
 	ErrInputPasswordRequired = errors.New("encrypted private key requires its current password")
+	// ErrInputPasswordWrong means the password does not open a key whose
+	// protection was already checked. A damaged ciphertext looks the same.
+	ErrInputPasswordWrong = errors.New("the password does not open the encrypted private key")
 )
 
 // Summary contains no private key, raw key bytes, or input filename.
@@ -53,8 +56,8 @@ func InspectWithPassword(input, password []byte) (Summary, error) {
 		return err
 	})
 	if err != nil {
-		if errors.Is(err, ErrInputPasswordRequired) {
-			return Summary{}, ErrInputPasswordRequired
+		if errors.Is(err, ErrInputPasswordRequired) || errors.Is(err, ErrInputPasswordWrong) {
+			return Summary{}, err
 		}
 		return Summary{}, ErrInvalid
 	}
@@ -162,8 +165,8 @@ func Export(input []byte, expected string, inputPassword []byte, format string, 
 	})
 	if err != nil {
 		clear(output)
-		if errors.Is(err, ErrInputPasswordRequired) {
-			return nil, "", ErrInputPasswordRequired
+		if errors.Is(err, ErrInputPasswordRequired) || errors.Is(err, ErrInputPasswordWrong) {
+			return nil, "", err
 		}
 		return nil, "", ErrInvalid
 	}

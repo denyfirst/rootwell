@@ -37,7 +37,7 @@ const instance = await WebAssembly.instantiate(fs.readFileSync(wasmPath), go.imp
 go.run(instance.instance);
 await Promise.race([ready, new Promise((_, reject) => setTimeout(() => reject(new Error("WASM timeout")), 10000))]);
 const engine = Object.freeze({
-  explore: rootwellExplore, analyze: rootwellAnalyze, inspect: rootwellInspect, exportPublic: rootwellExport,
+  explore: rootwellExplore, analyze: rootwellAnalyze, inspect: rootwellInspect, exportPublic: rootwellExport, readFile: rootwellReadFile,
   module: {}, maxBytes: rootwellInspectMaxBytes,
 });
 const fixture = JSON.parse(execFileSync("go", ["run", "./scripts/generate-convert-fixture.go"], { encoding: "utf8" }));
@@ -48,11 +48,17 @@ const bytesOf = (name) => Uint8Array.from(Buffer.from(fixture[name], "base64"));
 // the engine is seen.
 const copy = (bytes) => bytes.slice();
 const matches = [];
+const requests = [];
 const win = {
   rootwellWorkbenchReady: Promise.resolve(engine),
   rootwellCSRWorker: { run: async (module, operation, key, certificate, password, option, signal) => {
-    assert.equal(operation, "certificate-key-match");
+    assert.ok(operation === "certificate-key-match" || operation === "inspect", operation);
     assert.equal(option, "");
+    if (operation === "inspect") {
+      assert.equal(certificate.length + password.length, 0, "a request is read alone");
+      requests.push(operation);
+      return rootwellCSROperate(operation, copy(key), new Uint8Array(0), new Uint8Array(0), "");
+    }
     assert.ok(signal && typeof signal.addEventListener === "function", "the check can be cancelled");
     matches.push(operation);
     return rootwellCertificateKeyMatch(copy(certificate), copy(key), copy(password));
@@ -186,11 +192,24 @@ assert.equal(cards()[0].find("h2")[0].textContent, "shop.test");
 win.listeners.pagehide();
 assert.match((await checkKey(file("shop.test.key", "key"))).text(), /Choose the private key file first\./);
 
+// A certificate request shows what it asks for, read in the request worker.
+{
+  again();
+  await drop(file("shop.test.csr", "csr"));
+  assert.equal($("inspect-error").hidden, true);
+  assert.equal(requests.length, 1);
+  const text = $("inspect-result").text();
+  assert.match(text, /A certificate request\. Send it to your certificate provider/);
+  assert.match(text, /Asks for .*shop\.test/);
+  assert.match(text, /Signature Made with its own key/);
+  assert.equal($("inspect-chip-info").textContent, "Certificate request");
+  assert.equal($("key-card").hidden, true, "a request has no key to check");
+}
+
 // Files that belong on another page say where to take them.
 for (const [name, fixtureName, message] of [
   ["shop.test.pfx", "pfx", "This is a PFX file. Open it in Convert to see what is inside."],
   ["shop.test.key", "key", "This is a private key, not a certificate. Use Check a private key after opening its certificate."],
-  ["shop.test.csr", "csr", "This is a certificate request. Send it to your certificate provider."],
 ]) {
   again();
   await drop(file(name, fixtureName));
@@ -201,7 +220,44 @@ for (const [name, fixtureName, message] of [
 }
 again();
 await drop(new File(["hello"], "notes.txt"));
-assert.equal($("inspect-error").textContent, "This is not a certificate file Rootwell can read.");
+assert.equal($("inspect-error").textContent, "notes.txt is not a certificate, key or PFX file Rootwell can read.");
+
+// Files are read by what they hold: a PFX with another name still goes to
+// Convert; a P7B, a byte order mark and text around the blocks are read.
+again();
+await drop(file("shop.bin", "pfx_legacy"));
+assert.equal($("inspect-error").textContent, "This is a PFX file. Open it in Convert to see what is inside.");
+again();
+await drop(file("chain.p7b", "p7b"));
+assert.equal($("inspect-error").hidden, true, $("inspect-error").textContent);
+assert.equal($("inspect-chip-info").textContent, "2 certificates");
+assert.equal(cards()[0].find("h2")[0].textContent, "shop.test");
+again();
+await drop(file("notepad.crt", "bom_leaf"));
+assert.equal($("inspect-error").hidden, true, $("inspect-error").textContent);
+assert.equal(cards()[0].find("h2")[0].textContent, "shop.test");
+
+// One PEM with the certificate, its key and its chain: the key is checked
+// at once, and never shown.
+for (const name of ["combined", "nodes"]) {
+  again();
+  const before = matches.length;
+  await drop(file(name + ".pem", name));
+  assert.equal($("inspect-error").hidden, true, $("inspect-error").textContent);
+  assert.equal($("inspect-chip-info").textContent, "2 certificates");
+  assert.equal(matches.length, before + 1, "the key in the file was checked");
+  assert.match($("key-status").text(), /This key belongs to the certificate\./);
+  assert.doesNotMatch($("inspect-result").text(), /PRIVATE KEY/);
+}
+
+// Keys as older tools write them: after EC PARAMETERS, and old-style locked.
+again();
+await drop(file("shop.test.crt", "leaf"));
+assert.match((await checkKey(file("shop.key", "ec_params_key"))).text(), /This key belongs to the certificate\./);
+assert.match((await checkKey(file("old.key", "old_key"))).text(), /This key is protected\. Enter its password and check again\./);
+assert.match((await checkKey(file("old.key", "old_key"), "not-the-key-password")).text(), /That password does not open the key\./);
+assert.match((await checkKey(file("old.key", "old_key"), fixture.key_password)).text(), /This key belongs to the certificate\./);
+assert.match((await checkKey(file("locked.key", "locked_key"), "not-the-key-password")).text(), /That password does not open the key\./);
 
 // More than eight files are refused before any is read.
 again();

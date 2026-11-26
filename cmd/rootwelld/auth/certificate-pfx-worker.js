@@ -2,6 +2,9 @@
 importScripts("/wasm_exec.js");
 let initialized=false,ready=false,used=false;
 const refuse=()=>{self.postMessage({type:"failure"});self.close();};
+// A refusal the engine names (a wrong password, a protection Rootwell does
+// not read) goes back as its short code only, never with any bytes.
+const refusal=/^pfx-[a-z-]{1,32}$/;
 self.rootwellWasmReady=()=>{
   if(typeof self.rootwellPFXImport!=="function"){refuse();return;}
   ready=true;self.postMessage({type:"ready"});
@@ -17,10 +20,13 @@ self.onmessage=event=>{
   if(!ready||used||!request||request.type!=="prepare"){refuse();return;}
   used=true;let input,password,outputs=[];
   try{
-    if(!(request.input instanceof ArrayBuffer)||!(request.password instanceof ArrayBuffer)||request.input.byteLength<1||request.input.byteLength>1<<20||request.password.byteLength<1||request.password.byteLength>128)throw new Error();
+    if(!(request.input instanceof ArrayBuffer)||!(request.password instanceof ArrayBuffer)||request.input.byteLength<1||request.input.byteLength>1<<20||request.password.byteLength>128)throw new Error();
     input=new Uint8Array(request.input);password=new Uint8Array(request.password);
     const answer=self.rootwellPFXImport(input,password),r=answer?.result;
     outputs=[r?.certificate,r?.private_key,r?.key_password];
+    if(answer&&answer.schema_version==="rootwell.browser.pfx-import.v1"&&answer.ok===false&&answer.result===null&&typeof answer.error==="string"&&refusal.test(answer.error)){
+      self.postMessage({type:"refused",error:answer.error});return;
+    }
     if(!answer||answer.schema_version!=="rootwell.browser.pfx-import.v1"||answer.ok!==true||answer.error!==null||!r||
       Object.keys(r).sort().join(",")!=="certificate,fingerprint,key_password,private_key"||
       typeof r.fingerprint!=="string"||r.fingerprint.length!==95||!/^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(r.fingerprint))throw new Error();
