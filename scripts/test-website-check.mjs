@@ -104,14 +104,16 @@ const note = (code, title, certificates = []) => ({ code, level: "note", title, 
 // A missing intermediate is drawn where it should be, dashed.
 {
   const report = { ...healthy, state: "failed", trusted: false, trust_source: "", path: [leaf], presented: [leaf],
-    findings: [{ code: "missing-issuer", level: "failed", title: "\u201cR11\u201d is missing from the chain", detail: "The server does not send \u201cR11\u201d.", action: "Add \u201cR11\u201d after the website certificate.", certificates: ["AA"] }] };
+    findings: [{ code: "missing-issuer", level: "failed", title: "\u201cR11\u201d is missing from the chain", detail: "The server does not send \u201cR11\u201d.", action: "Add \u201cR11\u201d after the website certificate.", certificates: [] }] };
   const f = fixture({ reply: () => answer(200, report) });
   await f.submit("shop.example.com");
   const page = f.ids["site-result"];
   const missing = page.all((n) => n.className === "link missing");
   assert.equal(missing.length, 1);
   assert.match(missing[0].text(), /R11 Missing · The server does not send it/);
-  assert.equal(page.all((n) => n.className === "link broken").length, 1, "the website certificate is marked");
+  assert.equal(page.all((n) => n.className === "link broken").length, 0, "the website certificate itself is fine");
+  assert.equal(page.text().split("The server does not send \u201cR11\u201d.").length - 1, 1, "the verdict's words are not repeated in the fix");
+  assert.match(page.text(), /How to fix it .*Add \u201cR11\u201d after the website certificate\./);
 }
 
 // An internal server trusted through the person's own saved root.
@@ -165,6 +167,19 @@ for (const [reply, expected] of [
   assert.match(f.ids["site-status"].textContent, expected);
   assert.equal(f.ids["site-check"].disabled, false);
   assert.equal(f.ids["site-result"].children.length, 0, "a failed check draws no result");
+}
+
+// A new check clears the last result first: a failure never stands above an
+// older site's verdict.
+{
+  let n = 0;
+  const f = fixture({ reply: () => (n++ === 0 ? answer(200, healthy) : answer(502, "10.0.0.5 did not answer on port 443 in time.")) });
+  await f.submit("shop.example.com");
+  assert.equal(f.ids["site-result"].hidden, false);
+  await f.submit("10.0.0.5");
+  assert.equal(f.ids["site-result"].children.length, 0);
+  assert.equal(f.ids["site-result"].hidden, true);
+  assert.match(f.ids["site-status"].textContent, /did not answer/);
 }
 
 // An empty or spaced entry sends nothing.

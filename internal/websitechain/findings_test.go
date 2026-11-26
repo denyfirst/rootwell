@@ -123,7 +123,7 @@ func TestMissingIntermediateNamesTheIssuer(t *testing.T) {
 	r, err := Analyze(chain[:1], roots, "website.example.org", now)
 	f := finding(r, "missing-issuer")
 	if err != nil || r.State != "failed" || f.Level != "failed" || !strings.Contains(f.Title, "Synthetic Issuer") ||
-		!strings.Contains(f.Action, "fullchain") || !slices.Equal(f.Certificates, []string{fingerprintOf(chain[0])}) {
+		!strings.Contains(f.Action, "fullchain") || len(f.Certificates) != 0 {
 		t.Fatalf("missing intermediate not named: %+v %v", r.Findings, err)
 	}
 }

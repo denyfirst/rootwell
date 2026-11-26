@@ -511,7 +511,7 @@ func explainFailure(verifyErr error, chain, path []*x509.Certificate, ambiguous 
 	default:
 		add("missing-issuer", "failed", issuer+" is missing from the chain",
 			name(last)+" was issued by "+issuer+". The server does not send "+issuer+", and it is not a root that Rootwell knows, so many browsers and apps cannot reach a trusted root.",
-			"If "+issuer+" comes from your certificate provider, add it after "+name(last)+" in the server's certificate file; the provider's bundle (often called fullchain or ca-bundle) contains it. If "+issuer+" is your company's own certificate authority, add its root certificate in Certificates.", last)
+			"If "+issuer+" comes from your certificate provider, add it after "+name(last)+" in the server's certificate file; the provider's bundle (often called fullchain or ca-bundle) contains it. If "+issuer+" is your company's own certificate authority, add its root certificate in Certificates.")
 	}
 }
 

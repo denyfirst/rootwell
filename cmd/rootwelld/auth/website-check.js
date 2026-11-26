@@ -164,10 +164,11 @@
     return card;
   }
 
-  function findingItem(finding) {
+  // The finding the verdict already explains shows only its fix here.
+  function findingItem(finding, explained) {
     const item = el("div", "stack");
     item.appendChild(el("strong", "", finding.title));
-    if (finding.detail) item.appendChild(el("p", "soft", finding.detail));
+    if (finding.detail && !explained) item.appendChild(el("p", "soft", finding.detail));
     if (finding.action) item.appendChild(el("p", "", finding.action));
     return item;
   }
@@ -183,10 +184,11 @@
     if (!problems.length) {
       body.appendChild(el("p", "soft", "The certificate covers this name, the chain is complete and every date is valid."));
     }
-    for (const finding of problems) body.appendChild(findingItem(finding));
+    const lead = problems.find((f) => f.level === "failed") || problems[0];
+    for (const finding of problems) body.appendChild(findingItem(finding, finding === lead));
     if (notes.length) {
       body.appendChild(el("p", "label", "Good to know"));
-      for (const finding of notes) body.appendChild(findingItem(finding));
+      for (const finding of notes) body.appendChild(findingItem(finding, false));
     }
     const when = new Date(report.observed_at);
     const where = report.address ? (report.address.includes(":") ? `[${report.address}]` : report.address) + ":" + (report.port || 443) : "";
@@ -229,8 +231,12 @@
   async function check(event) {
     event.preventDefault();
     const site = target(input.value);
+    // A new check clears the last result, so an old answer never stands
+    // under a new name or a new failure.
+    result.replaceChildren();
+    result.hidden = true;
     if (!site) {
-      status.textContent = "Enter a website, for example example.com.";
+      status.textContent = "Enter a website, for example example.com or 10.0.0.5:8443.";
       status.className = "error-text";
       return;
     }
