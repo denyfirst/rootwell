@@ -241,6 +241,7 @@ func TestSplitRefusesAndNamesTheProblem(t *testing.T) {
 		"a control character":        {join([]byte("Bag Attributes\x07\n"), leafPEM), ErrUnreadable},
 		"a stray END line":           {join(leafPEM, []byte("-----END CERTIFICATE-----\n")), ErrUnreadable},
 		"a BEGIN without an END":     {[]byte("-----BEGIN CERTIFICATE-----\nMIIB\n"), ErrUnreadable},
+		"an unended block, then one": {join([]byte("-----BEGIN CERTIFICATE-----\nMIIB\n"), leafPEM), ErrUnreadable},
 		"broken base64, then good":   {join(brokenBase64, leafPEM), ErrUnreadable},
 		"an END of another kind":     {[]byte(strings.Replace(string(leafPEM), "END CERTIFICATE", "END PRIVATE KEY", 1)), ErrUnreadable},
 		"two keys":                   {join(keyPEM, block("EC PRIVATE KEY", m.sec1)), ErrSeveralKeys},
