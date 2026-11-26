@@ -530,12 +530,39 @@
     if (!file) return say(sheetStatus, "bad", "Choose the key file.");
     if (!file.size || file.size > 64 * 1024) return say(sheetStatus, "bad", "This is not a key file Rootwell can read.");
     const target = open;
-    let key = null, password = null;
+    let key = null, password = null, parts = null;
     keySave.disabled = true;
     say(sheetStatus, "plain", "Checking the key…");
     try {
       key = new Uint8Array(await file.arrayBuffer());
       password = encoder.encode(keyFilePassword.value);
+      // The same reader as Add: a key inside a combined file, after an EC
+      // PARAMETERS block, or in the old encrypted PEM form, goes to the
+      // server in the strict form it reads. Anything else goes as chosen,
+      // and the server refuses it in its own words.
+      const engine = await globalThis.rootwellWorkbenchReady;
+      const answer = engine.readFile(key);
+      parts = answer && answer.ok === true && answer.result;
+      if (parts && parts.key instanceof Uint8Array) {
+        if (parts.key_old_style === true) {
+          if (!password.length) {
+            keyFilePasswordField.hidden = false;
+            throw new Plain("This key is locked. Enter its password.");
+          }
+          const opened = engine.unlockKey(parts.key, password);
+          if (!opened || opened.ok !== true || !(opened.result.key instanceof Uint8Array)) {
+            keyFilePasswordField.hidden = false;
+            throw new Plain(opened && opened.error === "wrong-password" ? wrongKeyPassword : "Rootwell could not open this key.");
+          }
+          key.fill(0);
+          key = opened.result.key;
+          password.fill(0);
+          password = new Uint8Array(0);
+        } else {
+          key.fill(0);
+          key = parts.key.slice();
+        }
+      }
       const body = { fingerprint: target.fingerprint, expected_generation: generation, private_key: base64(key), key_password: base64(password) };
       const checked = await json(await call("/api/certificates/key/check", body, "This is not a key Rootwell can read."));
       const record = checked.records && checked.records[0];
@@ -554,6 +581,7 @@
     } finally {
       if (key) key.fill(0);
       if (password) password.fill(0);
+      if (parts) for (const name of ["certificates", "key"]) if (parts[name] instanceof Uint8Array) parts[name].fill(0);
       keySave.disabled = false;
     }
   }

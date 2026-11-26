@@ -328,6 +328,36 @@ await $("key-save").listeners.click();
 await settle();
 assert.equal(lastRequest("/api/certificates/key/save").body.allow_mismatch, false);
 assert.match(status(), /The key is saved/);
+// A key added later is read like one in Add: an old-style locked key asks
+// for its password and goes opened; a key after EC PARAMETERS goes alone.
+{
+  const later = api.records.find((r) => r.subject === "CN=api.test");
+  const keySent = () => Buffer.from(lastRequest("/api/certificates/key/check").body.private_key, "base64").toString();
+  await go(later);
+  $("sheet-facts").children[0].children[2].listeners.click();
+  const checksBefore = api.requests.filter((r) => r.url === "/api/certificates/key/check").length;
+  $("key-file").files = [new File([bytesOf("old_key")], "old.key")];
+  await $("key-save").listeners.click();
+  await settle();
+  assert.equal(status(), "This key is locked. Enter its password.");
+  assert.equal($("key-password-field").hidden, false);
+  $("key-password").value = "not-the-key-password";
+  await $("key-save").listeners.click();
+  await settle();
+  assert.equal(status(), "That password does not open the key.");
+  assert.equal(api.requests.filter((r) => r.url === "/api/certificates/key/check").length, checksBefore, "a locked old-style key never reaches the server");
+  $("key-password").value = fixture.key_password;
+  await $("key-save").listeners.click();
+  await settle();
+  assert.ok(keySent().startsWith("-----BEGIN EC PRIVATE KEY-----\n") && !keySent().includes("Proc-Type"));
+  assert.equal(lastRequest("/api/certificates/key/check").body.key_password, "");
+  $("key-password").value = "";
+  $("key-file").files = [new File([bytesOf("ec_params_key")], "params.key")];
+  await $("key-save").listeners.click();
+  await settle();
+  assert.ok(!keySent().includes("EC PARAMETERS") && keySent().includes("PRIVATE KEY"));
+  $("sheet-close").listeners.click();
+}
 assert.match($("sheet-facts").text(), /Private key Saved/);
 
 // Delete asks first, then the list and the sheet let it go.
