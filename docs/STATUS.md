@@ -29,7 +29,8 @@ independent review that a release needs (Phase 4) comes before any release.
 - What they do:
   - **Inspect** a certificate or a chain: who it is for, who issued it, how
     long it lasts, whether the chain is complete, and whether a private key
-    belongs to it.
+    belongs to it. A certificate request shows the names it asks for and its
+    key.
   - **Convert** a certificate, key or PFX into PEM files, a single
     certificate, a new PFX, or a key in PEM, DER or the older RSA and EC forms.
   - **Request** a CSR with a new key or an existing one.

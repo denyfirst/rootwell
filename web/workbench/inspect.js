@@ -108,6 +108,30 @@
     return card;
   }
 
+  // A certificate request: what it asks for and its key. It is checked in
+  // the one-shot request worker; nothing is kept.
+  function requestCard(summary) {
+    const card = ui.el("section", "card result-enter");
+    const body = ui.el("div", "card-body stack");
+    const hero = ui.el("div", "cert-hero");
+    const mark = ui.el("span", "cert-mark");
+    mark.appendChild(ui.icon("file"));
+    hero.appendChild(mark);
+    const words = ui.el("div");
+    const asked = [...(summary.dns_names || []), ...(summary.ip_addresses || [])];
+    words.appendChild(ui.el("h2", "", ui.unicodeName(ui.commonName(summary.subject) || asked[0] || "Certificate request")));
+    words.appendChild(ui.el("p", "", "A certificate request. Send it to your certificate provider; the certificate they return goes in Certificates."));
+    hero.appendChild(words);
+    body.appendChild(hero);
+    const facts = ui.el("div", "facts gap-top");
+    facts.appendChild(factBlock("Asks for", asked.length ? asked.map(ui.unicodeName).join(", ") : "No names in the request"));
+    facts.appendChild(factBlock("Key", summary.curve ? summary.algorithm + " " + summary.curve : summary.bits ? summary.algorithm + " " + summary.bits : summary.algorithm));
+    facts.appendChild(factBlock("Signature", summary.signature_checked ? "Made with its own key" : "Not checked"));
+    body.appendChild(facts);
+    card.appendChild(body);
+    return card;
+  }
+
   function chainCard(certificates, analysis, order) {
     const card = ui.el("section", "card result-enter");
     const head = ui.el("div", "card-head");
@@ -141,6 +165,28 @@
     return card;
   }
 
+  async function showRequest(ticket, name, bytes, engine) {
+    let summary = null;
+    const controller = new AbortController();
+    try {
+      const answer = JSON.parse(await globalThis.rootwellCSRWorker.run(engine.module, "inspect", bytes, new Uint8Array(0), new Uint8Array(0), "", controller.signal));
+      summary = answer && answer.ok === true && answer.result;
+    } catch {
+      summary = null;
+    } finally {
+      bytes.fill(0);
+    }
+    if (ticket !== generation) return;
+    if (!summary || typeof summary.subject !== "string") return fail(name + " is a certificate request Rootwell could not read.");
+    chipName.textContent = name;
+    chipInfo.textContent = "Certificate request";
+    zone.hidden = true;
+    chip.hidden = false;
+    result.replaceChildren(requestCard(summary));
+    result.hidden = false;
+    keyCard.hidden = true;
+  }
+
   async function open(files) {
     const ticket = ++generation;
     forget();
@@ -166,7 +212,8 @@
         const parts = read && read.ok === true && read.result;
         if (!parts) {
           const code = read && read.error;
-          return fail(code === "certificate-request" ? "This is a certificate request. Send it to your certificate provider." :
+          if (code === "certificate-request" && data.parts.length === 1) return showRequest(ticket, files[0].name, data.parts[0], engine);
+          return fail(code === "certificate-request" ? "Open a certificate request on its own." :
             messages[code] || ui.fileProblem(files[i].name, code));
         }
         for (const name of ["certificates", "key"]) if (parts[name] instanceof Uint8Array) sources.push(parts[name]);

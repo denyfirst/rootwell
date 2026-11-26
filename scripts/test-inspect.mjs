@@ -48,11 +48,17 @@ const bytesOf = (name) => Uint8Array.from(Buffer.from(fixture[name], "base64"));
 // the engine is seen.
 const copy = (bytes) => bytes.slice();
 const matches = [];
+const requests = [];
 const win = {
   rootwellWorkbenchReady: Promise.resolve(engine),
   rootwellCSRWorker: { run: async (module, operation, key, certificate, password, option, signal) => {
-    assert.equal(operation, "certificate-key-match");
+    assert.ok(operation === "certificate-key-match" || operation === "inspect", operation);
     assert.equal(option, "");
+    if (operation === "inspect") {
+      assert.equal(certificate.length + password.length, 0, "a request is read alone");
+      requests.push(operation);
+      return rootwellCSROperate(operation, copy(key), new Uint8Array(0), new Uint8Array(0), "");
+    }
     assert.ok(signal && typeof signal.addEventListener === "function", "the check can be cancelled");
     matches.push(operation);
     return rootwellCertificateKeyMatch(copy(certificate), copy(key), copy(password));
@@ -186,11 +192,24 @@ assert.equal(cards()[0].find("h2")[0].textContent, "shop.test");
 win.listeners.pagehide();
 assert.match((await checkKey(file("shop.test.key", "key"))).text(), /Choose the private key file first\./);
 
+// A certificate request shows what it asks for, read in the request worker.
+{
+  again();
+  await drop(file("shop.test.csr", "csr"));
+  assert.equal($("inspect-error").hidden, true);
+  assert.equal(requests.length, 1);
+  const text = $("inspect-result").text();
+  assert.match(text, /A certificate request\. Send it to your certificate provider/);
+  assert.match(text, /Asks for .*shop\.test/);
+  assert.match(text, /Signature Made with its own key/);
+  assert.equal($("inspect-chip-info").textContent, "Certificate request");
+  assert.equal($("key-card").hidden, true, "a request has no key to check");
+}
+
 // Files that belong on another page say where to take them.
 for (const [name, fixtureName, message] of [
   ["shop.test.pfx", "pfx", "This is a PFX file. Open it in Convert to see what is inside."],
   ["shop.test.key", "key", "This is a private key, not a certificate. Use Check a private key after opening its certificate."],
-  ["shop.test.csr", "csr", "This is a certificate request. Send it to your certificate provider."],
 ]) {
   again();
   await drop(file(name, fixtureName));
