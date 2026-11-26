@@ -25,13 +25,13 @@ line, control characters, explicit or other-curve EC parameters, a P7B with
 signers, content, revocation lists, attribute certificates, BER, more than 64
 or duplicate certificates, and more than 16 MiB refuse the whole file, and
 the page names the file that was wrong. An old-style key is opened only with
-its password (EVP_BytesToKey with MD5, one round, the format's own scheme,
-bounded to 64 KiB and a 256-byte password); a wrong password is named as
-wrong. Rootwell never writes that format. Inspect gives the key of a combined
+its password, by the standard library's reader of the format, after its
+headers, cipher, size (64 KiB) and password (256 bytes) are checked; a wrong
+password is named as wrong. Rootwell never writes that format. Inspect gives the key of a combined
 file only to its one-shot key check and never shows it; Add sends it to the
 server's existing key check as it would a chosen key file.
 
-Guarded by `TestSplitReadsWhatToolsWrite`,
+Guarded by `TestSplitReadsWhatToolsWrite`, `TestDecryptBoundsThePassword`,
 `TestSplitRefusesAndNamesTheProblem`, `TestUnlockOpensOldStyleKeys`,
 `TestKeyPreparesKeyFilesForTheStrictReaders`, `FuzzSplit`,
 `TestParseReadsCertsOnlyBundles`, `TestParseRefusesWhatItDoesNotUnderstand`,

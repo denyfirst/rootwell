@@ -88,9 +88,12 @@ Three small readers, each refusing what it does not understand:
   algorithms, no content, no signers, no revocation list, 1 to 64 distinct
   X.509 certificates. BER is refused.
 - `legacypemkey` opens an old OpenSSL encrypted RSA or EC PEM key with
-  DES-EDE3-CBC or AES-128/192/256-CBC, using EVP_BytesToKey with MD5 and one
-  round, the format's own definition; bounded to 64 KiB and a 256-byte
-  password. Rootwell never writes this format.
+  DES-EDE3-CBC or AES-128/192/256-CBC. The decryption is the standard
+  library's own reader of the format (`x509.DecryptPEMBlock`, which uses the
+  format's MD5 key derivation); Rootwell keeps no copy of that derivation. It
+  checks the block first: two headers, one of those four ciphers (single DES
+  refused), whole blocks, 64 KiB and a 256-byte password. Rootwell never
+  writes this format.
 - `fileformat` says what one chosen file holds: a PFX (by its content, not
   its name), certificates, one key, or certificates with their key. It
   accepts a UTF-8 byte order mark, CRLF, and printable text between PEM
@@ -138,3 +141,12 @@ key-password-wrong`.
 - SHA-384 PFX files stay unreadable until the pinned decoder reads them.
 - No real Windows Server 2016 import of the older Windows PFX was tested in
   this change; the profile is the one OpenSSL -legacy writes.
+
+## Code scanning
+
+`internal/pfxfixture` builds the PFX layouts no encoder writes, among them
+3DES, with RFC 7292's key derivation. Only tests reach it;
+`TestPFXFixtureBuilderIsTestOnly` keeps it out of every binary. Its CodeQL
+alert is therefore dismissed as "used in tests", as `docs/ENGINEERING.md`
+describes. The old encrypted PEM key is opened by the standard library's
+reader, so Rootwell holds no copy of that format's MD5 key derivation.

@@ -5,15 +5,11 @@
 //	DEK-Info: AES-256-CBC,<hex IV>
 //
 // Rootwell reads this format so such a key can be used, and never writes it.
-// It derives the cipher key with OpenSSL's EVP_BytesToKey (MD5, one round),
-// the documented scheme of the format, not a scheme of Rootwell's own.
+// The decryption is the standard library's own reader of the format; this
+// package only bounds what reaches it and tells a wrong password apart.
 package legacypemkey
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/des" // #nosec G502 -- reads 3DES-protected keys that older OpenSSL wrote; never used to protect output.
-	"crypto/md5" // #nosec G501 -- EVP_BytesToKey of this read-only legacy format is defined over MD5.
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
@@ -35,16 +31,12 @@ var (
 
 const maxPasswordBytes = 256
 
-type cipherSpec struct {
-	keyBytes, blockBytes int
-	block                func([]byte) (cipher.Block, error)
-}
-
-var ciphers = map[string]cipherSpec{
-	"DES-EDE3-CBC": {24, 8, des.NewTripleDESCipher},
-	"AES-128-CBC":  {16, 16, aes.NewCipher},
-	"AES-192-CBC":  {24, 16, aes.NewCipher},
-	"AES-256-CBC":  {32, 16, aes.NewCipher},
+// The ciphers read, by their block size. Single DES is refused.
+var blockBytes = map[string]int{
+	"DES-EDE3-CBC": 8,
+	"AES-128-CBC":  16,
+	"AES-192-CBC":  16,
+	"AES-256-CBC":  16,
 }
 
 // IsEncrypted reports whether a PEM block uses the old Proc-Type encryption.
@@ -60,40 +52,24 @@ func Decrypt(block *pem.Block, password []byte) ([]byte, error) {
 		return nil, ErrUnsupported
 	}
 	name, ivHex, ok := strings.Cut(block.Headers["DEK-Info"], ",")
-	spec, known := ciphers[name]
-	if !ok || !known || len(ivHex) != 2*spec.blockBytes {
+	size, known := blockBytes[name]
+	if !ok || !known || len(ivHex) != 2*size || len(block.Bytes)%size != 0 {
 		return nil, ErrUnsupported
 	}
-	iv, err := hex.DecodeString(ivHex)
-	if err != nil || len(block.Bytes)%spec.blockBytes != 0 {
+	if _, err := hex.DecodeString(ivHex); err != nil {
 		return nil, ErrUnsupported
 	}
 	if len(password) == 0 || len(password) > maxPasswordBytes {
 		return nil, ErrWrongPassword
 	}
-	key := bytesToKey(password, iv[:8], spec.keyBytes)
-	defer clear(key)
-	engine, err := spec.block(key) // #nosec G401 -- decrypts a read-only legacy key format.
-	if err != nil {
+	//lint:ignore SA1019 Reads the old format with the standard library's own reader instead of a copy of its key derivation; Rootwell never writes this format, and a person decrypting their own file has no padding oracle to fear.
+	der, err := x509.DecryptPEMBlock(block, password)
+	switch {
+	case errors.Is(err, x509.IncorrectPasswordError):
+		return nil, ErrWrongPassword
+	case err != nil:
 		return nil, ErrUnsupported
 	}
-	plain := make([]byte, len(block.Bytes))
-	cipher.NewCBCDecrypter(engine, iv).CryptBlocks(plain, block.Bytes)
-	last := plain[len(plain)-1]
-	padding := int(last)
-	if padding == 0 || padding > spec.blockBytes {
-		clear(plain)
-		return nil, ErrWrongPassword
-	}
-	var differs byte
-	for _, value := range plain[len(plain)-padding:] {
-		differs |= value ^ last
-	}
-	if differs != 0 {
-		clear(plain)
-		return nil, ErrWrongPassword
-	}
-	der := plain[:len(plain)-padding]
 	// With a wrong password the padding is still right about once in 256
 	// tries; the key structure is the real check.
 	var parsed any
@@ -103,29 +79,10 @@ func Decrypt(block *pem.Block, password []byte) ([]byte, error) {
 	} else {
 		parsed, parseErr = x509.ParseECPrivateKey(der)
 	}
-	if parseErr == nil {
-		keymatch.ClearParsedKey(parsed)
-	} else {
-		clear(plain)
+	if parseErr != nil {
+		clear(der)
 		return nil, ErrWrongPassword
 	}
+	keymatch.ClearParsedKey(parsed)
 	return der, nil
-}
-
-// bytesToKey is OpenSSL's EVP_BytesToKey with MD5 and one round, as the
-// legacy PEM format defines: D_i = MD5(D_(i-1) || password || salt).
-func bytesToKey(password, salt []byte, size int) []byte {
-	var key, previous []byte
-	for len(key) < size {
-		h := md5.New() // #nosec G401 -- the legacy PEM format's own key derivation.
-		h.Write(previous)
-		h.Write(password)
-		h.Write(salt)
-		clear(previous)
-		previous = h.Sum(nil)
-		key = append(key, previous...)
-	}
-	clear(previous)
-	clear(key[size:])
-	return key[:size]
 }

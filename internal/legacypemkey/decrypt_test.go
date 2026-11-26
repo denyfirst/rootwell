@@ -44,6 +44,26 @@ func keys(t testing.TB) map[string][]byte {
 	return map[string][]byte{"RSA PRIVATE KEY": x509.MarshalPKCS1PrivateKey(rsaKey), "EC PRIVATE KEY": ecDER}
 }
 
+// A password longer than every page allows is refused before any work, even
+// when it is the right one; an empty one is never tried.
+func TestDecryptBoundsThePassword(t *testing.T) {
+	der := keys(t)["EC PRIVATE KEY"]
+	long := bytes.Repeat([]byte("p"), maxPasswordBytes+1)
+	//lint:ignore SA1019 Test fixture only: the old format, under an over-long password.
+	block, err := x509.EncryptPEMBlock(rand.Reader, "EC PRIVATE KEY", der, long, x509.PEMCipherAES256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, try := range [][]byte{long, nil, {}} {
+		if got, err := Decrypt(block, try); !errors.Is(err, ErrWrongPassword) || got != nil {
+			t.Fatalf("password of %d bytes: %v", len(try), err)
+		}
+	}
+	if got, err := Decrypt(block, long[:maxPasswordBytes]); !errors.Is(err, ErrWrongPassword) || got != nil {
+		t.Fatal("a cut password opened the key")
+	}
+}
+
 var allCiphers = map[string]x509.PEMCipher{"DES-EDE3-CBC": x509.PEMCipher3DES, "AES-128-CBC": x509.PEMCipherAES128, "AES-192-CBC": x509.PEMCipherAES192, "AES-256-CBC": x509.PEMCipherAES256}
 
 func TestDecryptOpensEveryCipherWithItsPassword(t *testing.T) {

@@ -110,7 +110,14 @@ actionlint
 ```
 
 CI additionally runs the race detector on Linux and vets Linux, macOS, and
-Windows builds. Tool versions are pinned in `.github/workflows/ci.yml`; local
+Windows builds. CodeQL code scanning is a required check here.
+
+A code scanning alert is fixed in code whenever the code can do without
+what was flagged, as in Keybash. Only a deliberate construct stays: it is
+dismissed as "won't fix", or as "used in tests" for code that only tests
+reach, with a comment that starts "Deliberate:", says why it is safe, and
+names the ADR that records it. A dismissal is never used to make a check
+pass for code that could be changed. Tool versions are pinned in `.github/workflows/ci.yml`; local
 runs use those same versions.
 
 ## Cryptographic code
