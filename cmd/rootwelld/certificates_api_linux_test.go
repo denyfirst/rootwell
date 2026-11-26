@@ -5,6 +5,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/certificatepair"
 	"github.com/denyfirst/rootwell/internal/keymatch"
+	"github.com/youmark/pkcs8"
 )
 
 type httpResponse struct {
@@ -365,6 +367,46 @@ func TestLinuxAKeyAddedLaterIsCheckedAndNeverReplaced(t *testing.T) {
 	if w := post(t, e, cookie, "/api/certificates/key/save", map[string]any{"fingerprint": record.Fingerprint, "private_key": other, "expected_generation": 3, "allow_mismatch": true}); w.code != 409 ||
 		w.header.Get("X-Rootwell-Refusal") != "key-already-attached" {
 		t.Fatalf("a second key: %d", w.code)
+	}
+}
+
+// A key password that does not open the key is named as wrong, apart from a
+// key that still needs one, on both the Add check and a key added later.
+func TestLinuxAWrongKeyPasswordIsNamed(t *testing.T) {
+	_, cookie, e := readyGate(t)
+	cert, private := selfSigned(t, "locked.rootwell.invalid")
+	key, err := x509.ParsePKCS8PrivateKey(private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	locked, err := pkcs8.MarshalPrivateKey(key, []byte("synthetic-key-password-2026"), &pkcs8.Opts{Cipher: pkcs8.AES256CBC,
+		KDFOpts: pkcs8.PBKDF2Opts{SaltSize: 16, IterationCount: 2048, HMACHash: crypto.SHA256}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := map[string]any{"certificate": cert, "private_key": locked, "expected_generation": 1}
+	if w := post(t, e, cookie, "/api/certificates/check", check); w.code != 422 || w.header.Get("X-Rootwell-Refusal") != "" {
+		t.Fatalf("no password: %d %q", w.code, w.header.Get("X-Rootwell-Refusal"))
+	}
+	check["key_password"] = []byte("not-the-password")
+	if w := post(t, e, cookie, "/api/certificates/check", check); w.code != 422 || w.header.Get("X-Rootwell-Refusal") != "key-password-wrong" || !bytes.Contains(w.body, []byte("does not open the key")) {
+		t.Fatalf("wrong password: %d %q %s", w.code, w.header.Get("X-Rootwell-Refusal"), w.body)
+	}
+	check["key_password"] = []byte("synthetic-key-password-2026")
+	if w := post(t, e, cookie, "/api/certificates/check", check); w.code != 200 || !bytes.Contains(w.body, []byte(`"key_status":"matched"`)) {
+		t.Fatalf("right password: %d %s", w.code, w.body)
+	}
+	record, canonical, err := certificatepair.Prepare(cert, nil, nil, "", "")
+	clear(canonical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := post(t, e, cookie, "/api/certificates/save", map[string]any{"certificate": cert, "expected_generation": 1, "fingerprint": record.Fingerprint}); w.code != 201 {
+		t.Fatalf("save: %d %s", w.code, w.body)
+	}
+	later := map[string]any{"fingerprint": record.Fingerprint, "private_key": locked, "key_password": []byte("not-the-password"), "expected_generation": 2}
+	if w := post(t, e, cookie, "/api/certificates/key/check", later); w.code != 422 || w.header.Get("X-Rootwell-Refusal") != "key-password-wrong" {
+		t.Fatalf("wrong password for a key added later: %d %q", w.code, w.header.Get("X-Rootwell-Refusal"))
 	}
 }
 

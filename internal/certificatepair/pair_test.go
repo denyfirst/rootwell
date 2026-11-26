@@ -11,10 +11,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
 
+	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/youmark/pkcs8"
 )
 
@@ -105,6 +107,16 @@ func TestEncryptedKeyPairRequiresCorrectPassword(t *testing.T) {
 		if _, output, err := Prepare(cert, protected, wrong, "", ""); err == nil || len(output) != 0 {
 			t.Fatal("wrong key password accepted")
 		}
+	}
+	// The page tells a wrong password from a missing one.
+	if _, _, err := Prepare(cert, protected, []byte("not-the-password"), "", ""); !errors.Is(err, browserprivateconvert.ErrInputPasswordWrong) {
+		t.Fatalf("a wrong key password was not named as one: %v", err)
+	}
+	if _, _, err := PrepareBundle(cert, protected, []byte("not-the-password"), "", "", ""); !errors.Is(err, browserprivateconvert.ErrInputPasswordWrong) {
+		t.Fatalf("a wrong key password was not named as one in a bundle: %v", err)
+	}
+	if _, _, err := Prepare(cert, protected, nil, "", ""); !errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
+		t.Fatalf("a missing key password was not named as one: %v", err)
 	}
 }
 
