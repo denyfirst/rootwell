@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"syscall/js"
@@ -51,10 +52,15 @@ func inspectPrivateKey(_ js.Value, arguments []js.Value) (response any) {
 		return response
 	}
 	defer clear(password)
-	summary, err := browserprivateconvert.InspectWithPassword(input, password)
+	key, keyPassword, cleanup, err := normalizedKey(input, password)
+	defer cleanup()
 	if err != nil {
-		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) {
-			return privateInspectFailure("input-password-required")
+		return privateInspectFailure(fileCode(err))
+	}
+	summary, err := browserprivateconvert.InspectWithPassword(key, keyPassword)
+	if err != nil {
+		if errors.Is(err, browserprivateconvert.ErrInputPasswordRequired) || errors.Is(err, browserprivateconvert.ErrInputPasswordWrong) {
+			return privateInspectFailure(fileCode(err))
 		}
 		return response
 	}
@@ -104,7 +110,16 @@ func exportPrivateKey(_ js.Value, arguments []js.Value) (response any) {
 		return response
 	}
 	defer clear(outputPassword)
-	output, filename, err := browserprivateconvert.Export(input, arguments[1].String(), inputPassword, arguments[3].String(), outputPassword)
+	key, keyPassword, cleanup, err := normalizedKey(input, inputPassword)
+	defer cleanup()
+	if err != nil {
+		return response
+	}
+	// The old-style key's own password still may not be reused for output.
+	if len(inputPassword) != 0 && len(inputPassword) == len(outputPassword) && subtle.ConstantTimeCompare(inputPassword, outputPassword) == 1 {
+		return response
+	}
+	output, filename, err := browserprivateconvert.Export(key, arguments[1].String(), keyPassword, arguments[3].String(), outputPassword)
 	if err != nil {
 		return response
 	}

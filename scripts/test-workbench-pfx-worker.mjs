@@ -96,4 +96,27 @@ assert.deepEqual([...posted[1].answer.result.bytes], [65, 66]);
 assert.equal(seenInput[0], 0);
 assert.equal(seenPassword[0], 0);
 assert.equal(workerGlobal.closed, true);
+
+// A PFX saved without a password is opened with an empty one.
+{
+  const sent = [];
+  const empty = { ...workerGlobal, postMessage(message) { sent.push(message); }, close() {} };
+  empty.self = empty;
+  empty.Go = class {
+    constructor() { this.importObject = {}; }
+    run() {
+      empty.rootwellPFXInspect = (_input, secret) => { assert.equal(secret.length, 0); return "public-summary"; };
+      empty.rootwellPFXOutput = () => ({});
+      empty.rootwellWasmReady();
+      return new Promise(() => {});
+    }
+  };
+  vm.runInContext(fs.readFileSync("web/workbench/pfx-worker.js", "utf8"), vm.createContext(empty));
+  empty.onmessage({ data: { type: "init", module: new Module() } });
+  await new Promise(resolve => setImmediate(resolve));
+  empty.onmessage({ data: { type: "operate", operation: "inspect", inputs: [source.slice().buffer, new ArrayBuffer(0), new ArrayBuffer(0)],
+    password: new ArrayBuffer(0), secondPassword: new ArrayBuffer(0), option: "" } });
+  assert.equal(sent.at(-1).type, "result");
+  assert.equal(sent.at(-1).answer, "public-summary");
+}
 console.log("PFX worker deadline, abort, transfer, one-shot and memory-clearing checks passed.");

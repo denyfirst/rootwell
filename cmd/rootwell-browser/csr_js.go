@@ -79,7 +79,12 @@ func csrOperation(_ js.Value, args []js.Value) (response any) {
 			if len(input) == 0 || algorithm != "" {
 				return response
 			}
-			output, err = csrworkbench.FromKey(input, password, params, format)
+			key, keyPassword, cleanup, keyErr := normalizedKey(input, password)
+			defer cleanup()
+			if keyErr != nil {
+				return response
+			}
+			output, err = csrworkbench.FromKey(key, keyPassword, params, format)
 		}
 	case "inspect":
 		if len(certificate) != 0 || len(password) != 0 || option != "" {

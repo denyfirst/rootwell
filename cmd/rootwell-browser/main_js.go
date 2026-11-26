@@ -50,6 +50,8 @@ func main() {
 	js.Global().Set("rootwellCSROperate", csrFunction)
 	js.Global().Set("rootwellCompare", js.FuncOf(compareCertificates))
 	js.Global().Set("rootwellCertificateKeyMatch", js.FuncOf(certificateKeyMatch))
+	js.Global().Set("rootwellReadFile", js.FuncOf(readFile))
+	js.Global().Set("rootwellUnlockKey", js.FuncOf(unlockKey))
 	js.Global().Set("rootwellInspectMaxBytes", float64(limits.MaxInputBytes))
 	if ready := js.Global().Get("rootwellWasmReady"); ready.Type() == js.TypeFunction {
 		ready.Invoke()

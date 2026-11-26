@@ -23,6 +23,8 @@
   let generation = 0;
   let certificateBytes = null;
   let keyController = null;
+  // A key that came in the same file as the certificates.
+  let fileKey = null;
 
   const messages = {
     "empty-input": "The file is empty.",
@@ -34,6 +36,8 @@
   function forget() {
     if (certificateBytes) certificateBytes.fill(0);
     certificateBytes = null;
+    if (fileKey) fileKey.fill(0);
+    fileKey = null;
     keyController?.abort();
     keyController = null;
     keyStatus.replaceChildren();
@@ -58,16 +62,6 @@
       parts.push(bytes);
     }
     return { parts, total };
-  }
-
-  // What a file is, when it is not a public certificate, so the message can
-  // say where it belongs instead of only that it failed.
-  function kindOf(name, bytes) {
-    const head = new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, 4096));
-    if (/\.(pfx|p12)$/i.test(name)) return "pfx";
-    if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(head)) return "key";
-    if (/-----BEGIN CERTIFICATE REQUEST-----/.test(head)) return "csr";
-    return "";
   }
 
   function role(certificate, index, parents, certificates) {
@@ -160,19 +154,33 @@
       return ticket === generation && fail("The files could not be read. Choose them again.");
     }
     if (ticket !== generation) return data.parts.forEach((p) => p.fill(0));
+    // The certificates of each file in their strict form: a P7B, a byte order
+    // mark or text around the blocks are read here, by content.
+    const sources = [];
+    let key = null;
     try {
       if (data.total > engine.maxBytes) return fail(messages["input-too-large"]);
       const certificates = [];
       for (let i = 0; i < data.parts.length; i++) {
-        const answer = JSON.parse(engine.explore(data.parts[i]));
-        if (!answer.ok) {
-          const kind = kindOf(files[i].name, data.parts[i]);
-          return fail(kind === "pfx" ? "This is a PFX file. Open it in Convert to see what is inside." :
-            kind === "key" ? "This is a private key, not a certificate. Use Check a private key after opening its certificate." :
-            kind === "csr" ? "This is a certificate request. Send it to your certificate provider." :
-            messages[answer.error && answer.error.code] || "This is not a certificate file Rootwell can read.");
+        const read = engine.readFile(data.parts[i]);
+        const parts = read && read.ok === true && read.result;
+        if (!parts) {
+          const code = read && read.error;
+          return fail(code === "certificate-request" ? "This is a certificate request. Send it to your certificate provider." :
+            messages[code] || ui.fileProblem(files[i].name, code));
         }
+        for (const name of ["certificates", "key"]) if (parts[name] instanceof Uint8Array) sources.push(parts[name]);
+        if (parts.kind === "pfx") return fail("This is a PFX file. Open it in Convert to see what is inside.");
+        if (parts.kind === "key") return fail("This is a private key, not a certificate. Use Check a private key after opening its certificate.");
+        if (parts.key) {
+          if (key) return fail("These files hold more than one private key. Open them one at a time.");
+          key = { bytes: parts.key.slice(), locked: parts.key_locked === true };
+        }
+        const answer = JSON.parse(engine.explore(parts.certificates));
+        if (!answer.ok) return fail(messages[answer.error && answer.error.code] || ui.fileProblem(files[i].name));
         certificates.push(...answer.result.certificates);
+        data.parts[i].fill(0);
+        data.parts[i] = parts.certificates;
       }
       const analysis = JSON.parse(engine.analyze(data.parts));
       if (analysis.error || !analysis.result || analysis.result.certificates.length !== certificates.length) return fail("These files do not belong together. Open them one at a time.");
@@ -200,16 +208,26 @@
       result.replaceChildren(...cards);
       result.hidden = false;
       keyCard.hidden = false;
+      // A key in the same file is checked at once, or after its password.
+      if (key) {
+        fileKey = key.bytes;
+        const locked = key.locked;
+        key = null;
+        if (locked) keyStatus.replaceChildren(ui.el("span", "meta", "This file also holds a locked private key. Enter its password, then press Check key."));
+        else void checkKey();
+      }
     } catch {
       fail("The files could not be read. Choose them again.");
     } finally {
       data.parts.forEach((p) => p.fill(0));
+      sources.forEach((p) => p.fill(0));
+      if (key) key.bytes.fill(0);
     }
   }
 
   async function checkKey() {
     const file = keyFile.files && keyFile.files[0];
-    if (!file || !certificateBytes) {
+    if ((!file && !fileKey) || !certificateBytes) {
       keyStatus.replaceChildren(ui.el("span", "error-text", "Choose the private key file first."));
       return;
     }
@@ -221,7 +239,7 @@
     let key = null, password = null, certificate = null;
     try {
       const engine = await globalThis.rootwellWorkbenchReady;
-      key = new Uint8Array(await file.slice(0, 64 * 1024 + 1).arrayBuffer());
+      key = file ? new Uint8Array(await file.slice(0, 64 * 1024 + 1).arrayBuffer()) : fileKey.slice();
       if (key.byteLength > 64 * 1024) throw new Error("too large");
       password = new TextEncoder().encode(keyPassword.value);
       keyPassword.value = "";
@@ -229,7 +247,8 @@
       const answer = JSON.parse(await globalThis.rootwellCSRWorker.run(engine.module, "certificate-key-match", key, certificate, password, "", controller.signal));
       if (controller !== keyController) return;
       if (!answer.ok) {
-        keyStatus.replaceChildren(ui.el("span", "error-text", answer.error === "input-password-required" ? "This key is protected. Enter its password and check again." : "This is not a private key Rootwell can read."));
+        keyStatus.replaceChildren(ui.el("span", "error-text", answer.error === "input-password-required" ? "This key is protected. Enter its password and check again." :
+          answer.error === "wrong-password" ? "That password does not open the key." : "This is not a private key Rootwell can read."));
         return;
       }
       const matched = answer.records.some((r) => r.key_status === "matched");

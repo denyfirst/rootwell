@@ -8,9 +8,10 @@ import (
 )
 
 func pfxImport(_ js.Value, args []js.Value) (response any) {
-	failure := func() js.Value {
-		return js.ValueOf(map[string]any{"schema_version": browserpfximport.Schema, "ok": false, "result": nil, "error": "pfx-import-failed"})
+	failureCode := func(code string) js.Value {
+		return js.ValueOf(map[string]any{"schema_version": browserpfximport.Schema, "ok": false, "result": nil, "error": code})
 	}
+	failure := func() js.Value { return failureCode("pfx-import-failed") }
 	response = failure()
 	defer func() {
 		if recover() != nil {
@@ -25,7 +26,7 @@ func pfxImport(_ js.Value, args []js.Value) (response any) {
 		return response
 	}
 	defer clear(input)
-	password, ok := pfxBytes(args[1], 128, false)
+	password, ok := pfxBytes(args[1], 128, true)
 	if !ok {
 		return response
 	}
@@ -33,7 +34,9 @@ func pfxImport(_ js.Value, args []js.Value) (response any) {
 	prepared, err := browserpfximport.Prepare(input, password)
 	defer prepared.Clear()
 	if err != nil {
-		return response
+		// Say why when the PFX reader knows: a wrong password, or a
+		// protection or layout Rootwell does not read.
+		return failureCode(pfxCode(err, "pfx-import-failed"))
 	}
 	var owned []js.Value
 	good := false

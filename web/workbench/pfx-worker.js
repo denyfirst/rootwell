@@ -40,7 +40,8 @@ self.onmessage = function (event) {
     if (arrays.some((item, index) => item.length > [1 << 20, 64 << 10, 1 << 20, 128, request.operation === "create" ? 256 : 128][index])) throw new Error("invalid request");
     let answer;
     if (request.operation === "inspect" && arrays[0].length > 0 && arrays[0].length <= 1 << 20 &&
-        arrays[1].length === 0 && arrays[2].length === 0 && arrays[3].length > 0 && arrays[4].length === 0 && request.option === "") {
+        arrays[1].length === 0 && arrays[2].length === 0 && arrays[4].length === 0 && request.option === "") {
+      // The password may be empty, for a PFX saved without one.
       answer = self.rootwellPFXInspect(arrays[0], arrays[3]);
       if (typeof answer !== "string" || answer.length > 65536) throw new Error("invalid response");
     } else if (["certificate", "key", "create", "reveal"].includes(request.operation)) {

@@ -70,6 +70,21 @@ assert.equal(rootwellPFXOutput("create", certificate, encryptedInput, empty, pas
 assert.equal(rootwellPFXOutput("create", certificate, new TextEncoder().encode("not a key"), empty, password, empty, "").ok, false);
 assert.equal(rootwellPFXOutput("create", certificate, key, empty, new TextEncoder().encode("short"), empty, "").ok, false);
 assert.equal(rootwellPFXOutput("certificate", sourcePFX, empty, empty, password, empty, fingerprint + ":garbage").ok, false);
+// Refusals say why: a wrong or missing password, or a file that is not a PFX.
+assert.equal(JSON.parse(rootwellPFXInspect(sourcePFX, new TextEncoder().encode("wrong-password"))).error, "pfx-wrong-password");
+assert.equal(JSON.parse(rootwellPFXInspect(sourcePFX, empty)).error, "pfx-wrong-password");
+assert.equal(JSON.parse(rootwellPFXInspect(certificate, password)).error, "pfx-not-pfx");
+assert.equal(rootwellPFXOutput("key", sourcePFX, empty, empty, new TextEncoder().encode("wrong-password"), newKeyPassword, fingerprint).error, "pfx-wrong-password");
+// The older Windows profile is TripleDES under a SHA-1 MAC and opens again.
+const older = rootwellPFXOutput("create", certificate, key, empty, password, empty, "older-windows");
+assert.equal(older.ok, true);
+assert.ok(Buffer.from(older.result.bytes).includes(Buffer.from("060a2a864886f70d010c0103", "hex")), "TripleDES");
+assert.ok(Buffer.from(older.result.bytes).includes(Buffer.from("06052b0e03021a", "hex")), "a SHA-1 MAC");
+assert.equal(JSON.parse(rootwellPFXInspect(older.result.bytes, password)).result.certificates[0].fingerprint, fingerprint);
+assert.equal(rootwellPFXOutput("create", certificate, key, empty, password, empty, "something-else").ok, false);
+// A new PFX always needs a password; an existing one may have none.
+assert.equal(rootwellPFXOutput("create", certificate, key, empty, empty, empty, "").ok, false);
+older.result.bytes.fill(0);
 for (const item of [certificate, key, sourcePFX, password, newKeyPassword, tampered, inputPassword, encryptedInput,
   exportedCert.result.bytes, exportedKey.result.bytes, created.result.bytes, encryptedCreated.result.bytes]) item.fill(0);
 console.log("Browser PFX WASM creation, inspection, authenticated extraction, mismatch and refusal passed.");

@@ -38,7 +38,7 @@ const instance = await WebAssembly.instantiate(fs.readFileSync(wasmPath), go.imp
 go.run(instance.instance);
 await Promise.race([ready, new Promise((_, reject) => setTimeout(() => reject(new Error("WASM timeout")), 10000))]);
 const engine = Object.freeze({
-  explore: rootwellExplore, analyze: rootwellAnalyze, inspect: rootwellInspect, exportPublic: rootwellExport,
+  explore: rootwellExplore, analyze: rootwellAnalyze, inspect: rootwellInspect, exportPublic: rootwellExport, readFile: rootwellReadFile,
   module: {}, maxBytes: rootwellInspectMaxBytes,
 });
 const fixture = JSON.parse(execFileSync("go", ["run", "./scripts/generate-convert-fixture.go"], { encoding: "utf8" }));
@@ -156,7 +156,7 @@ assert.equal($("convert-unlock").hidden, true);
 assert.equal($("convert-password").value, "", "the password field is emptied");
 assert.equal($("convert-chip-name").textContent, "shop.test");
 assert.match($("convert-chip-info").textContent, /^shop\.test\.pfx · Certificate, 1 intermediate and the private key$/);
-assert.deepEqual(choices(), ["pem-files", "crt", "der", "pfx"]);
+assert.deepEqual(choices(), ["pem-files", "crt", "der", "pfx", "pfx-older"]);
 assert.match($("convert-download-name").textContent, /^Download shop\.test\.zip$/);
 assert.equal($("convert-contents").textContent, "fullchain.pem · cert.pem · chain.pem · privkey.pem");
 // Whatever carries the key says whether a password locks it.
@@ -234,7 +234,7 @@ assert.equal($("convert-secret").value, "", "other files forget the password");
 await drop(new File([bytesOf("leaf"), bytesOf("issuer")], "fullchain.pem"), file("root.pem", "root"), file("shop.test.key", "key"));
 assert.equal($("convert-error").hidden, true, $("convert-error").textContent);
 assert.equal($("convert-chip-info").textContent, "3 files · Certificate, 1 intermediate, the root and the private key");
-assert.deepEqual(choices(), ["pem-files", "crt", "der", "pfx"]);
+assert.deepEqual(choices(), ["pem-files", "crt", "der", "pfx", "pfx-older"]);
 {
   const files = unzip((await save()).bytes);
   assert.deepEqual(certificates(files["fullchain.pem"]).map((c) => c.subject), ["CN=shop.test", "CN=Synthetic Convert Issuing CA"], "the full chain leaves the root out");
@@ -256,7 +256,7 @@ assert.equal($("convert-card").hidden, true);
 again();
 await drop(file("shop.test.crt", "leaf"), file("chain.pem", "issuer"));
 assert.equal($("convert-chip-info").textContent, "2 files · Certificate and 1 intermediate");
-assert.deepEqual(choices(), ["pem", "crt", "der", "pfx"]);
+assert.deepEqual(choices(), ["pem", "crt", "der", "pfx", "pfx-older"]);
 {
   const pem = await save();
   assert.equal(pem.name, "shop.test-fullchain.pem");
@@ -317,6 +317,77 @@ $("convert-secret").value = "Another-Strong-Password-2026";
 assert.match(text((await save()).bytes), /^-----BEGIN ENCRYPTED PRIVATE KEY-----\n/);
 pick("key-traditional");
 assert.match(text((await save()).bytes), /^-----BEGIN EC PRIVATE KEY-----\n/);
+
+// PFX files as other tools write them, whatever their names.
+const tripleDES = Buffer.from("060a2a864886f70d010c0103", "hex");
+const sha1 = Buffer.from("06052b0e03021a", "hex");
+again();
+await drop(file("shop-export.bin", "pfx_legacy"));
+assert.equal($("convert-password-label").textContent, "PFX password");
+await unlock("not-the-password");
+assert.equal($("convert-unlock-error").textContent, "That password does not open this PFX.");
+await unlock(fixture.pfx_password);
+assert.equal($("convert-unlock").hidden, true);
+assert.match($("convert-chip-info").textContent, /Certificate, 1 intermediate and the private key$/);
+again();
+await drop(file("nas.pfx", "pfx_empty"));
+assert.equal($("convert-password").placeholder, "Leave empty if it has none");
+await unlock("");
+assert.equal($("convert-unlock").hidden, true, "a PFX without a password opens with none");
+again();
+await drop(file("mail.p12", "pfx_rc2"));
+await unlock("");
+assert.equal($("convert-unlock-error").textContent, "This PFX has a password. Enter it.");
+again();
+await drop(file("newest.pfx", "pfx_unsupported"));
+await unlock(fixture.pfx_password);
+assert.equal($("convert-unlock-error").textContent, "This PFX uses a protection Rootwell cannot read. Export it again with AES-256 or TripleDES.");
+
+// A PFX for older Windows is TripleDES under a SHA-1 MAC; the default stays AES-256.
+again();
+await drop(file("shop.test.crt", "leaf"), file("chain.pem", "issuer"), file("shop.test.key", "key"));
+pick("pfx-older");
+assert.equal($("convert-secret-row").hidden, false);
+$("convert-generate").listeners.click();
+{
+  const made = await save();
+  assert.equal(made.name, "shop.test.pfx");
+  assert.ok(Buffer.from(made.bytes).includes(tripleDES) && Buffer.from(made.bytes).includes(sha1), "TripleDES and a SHA-1 MAC");
+  const opened = JSON.parse(rootwellPFXInspect(made.bytes, new TextEncoder().encode($("convert-secret").value)));
+  assert.deepEqual(opened.result.certificates.map((c) => c.subject + (c.matching_key ? " +key" : "")), ["CN=shop.test +key", "CN=Synthetic Convert Issuing CA"]);
+  pick("pfx");
+  const modern = await save();
+  assert.ok(!Buffer.from(modern.bytes).includes(tripleDES), "the default PFX is not TripleDES");
+}
+
+// One PEM with the certificate, its key and its chain; a P7B with an EC key
+// after its parameters; a certificate after a byte order mark.
+for (const name of ["combined", "nodes"]) {
+  again();
+  await drop(file(name + ".pem", name));
+  assert.equal($("convert-error").hidden, true, $("convert-error").textContent);
+  assert.equal($("convert-chip-info").textContent, name + ".pem · Certificate, 1 intermediate and the private key");
+  const files = unzip((await save()).bytes);
+  assert.match(text(files["privkey.pem"]), /^-----BEGIN PRIVATE KEY-----\n/);
+  assert.deepEqual(certificates(files["fullchain.pem"]).map((c) => c.subject), ["CN=shop.test", "CN=Synthetic Convert Issuing CA"]);
+}
+again();
+await drop(file("chain.p7b", "p7b"), file("shop.key", "ec_params_key"));
+assert.equal($("convert-error").hidden, true, $("convert-error").textContent);
+assert.equal($("convert-chip-info").textContent, "2 files · Certificate, 1 intermediate and the private key");
+again();
+await drop(file("notepad.crt", "bom_leaf"));
+assert.equal($("convert-chip-name").textContent, "shop.test");
+
+// An old-style locked key: opened with its password, never saved in its form.
+again();
+await drop(file("old.key", "old_key"));
+assert.equal($("convert-chip-info").textContent, "Private key · protected");
+await unlock("not-the-key-password");
+assert.match($("convert-unlock-error").textContent, /does not open this key/);
+await unlock(fixture.key_password);
+assert.equal($("convert-chip-info").textContent, "Private key · ECDSA P-256 · protected");
+assert.match(text((await save()).bytes), /^-----BEGIN PRIVATE KEY-----\n/);
 
 // Files that are none of these, too many files, and two PFX-like mixes.
 again();
