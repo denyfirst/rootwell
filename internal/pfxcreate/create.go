@@ -16,6 +16,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/certverify"
 	"github.com/denyfirst/rootwell/internal/keymatch"
 	"github.com/denyfirst/rootwell/internal/limits"
+	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/denyfirst/rootwell/internal/publicbundle"
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
@@ -28,6 +29,22 @@ var (
 )
 
 const iterations = 100_000
+
+// Profile chooses the protection of a new PFX.
+type Profile int
+
+const (
+	// Modern is PBES2, PBKDF2-HMAC-SHA-256 and AES-256-CBC under a SHA-256
+	// MAC, with 100000 iterations: the default.
+	Modern Profile = iota
+	// OlderWindows is 3DES for the certificates and the key under a SHA-1
+	// MAC, with 2048 iterations, as OpenSSL -legacy and Windows write it.
+	// Windows Server 2016 and older cannot import AES. The required 20 to
+	// 128 character password, not the iteration count, protects the file.
+	OlderWindows
+)
+
+const olderWindowsIterations = 2048
 
 // Create accepts only an unencrypted supported private key. Passwords must be
 // printable ASCII, 20..128 bytes; callers must supply high-entropy values.
@@ -63,6 +80,21 @@ func Create(certificateInput, keyInput, chainInput []byte, password string) ([]b
 // the duration of the call. It never retains it; the caller owns erasure.
 // The certificate/key match and output round-trip are independently checked.
 func CreateWithParsedKey(certificateInput []byte, key any, chainInput []byte, password string) ([]byte, error) {
+	return CreateWithParsedKeyProfile(certificateInput, key, chainInput, password, Modern)
+}
+
+// CreateWithParsedKeyProfile is CreateWithParsedKey with a chosen protection.
+// Rootwell must be able to read what it writes: the output passes the same
+// bounded reader as any imported PFX before it is returned.
+func CreateWithParsedKeyProfile(certificateInput []byte, key any, chainInput []byte, password string, profile Profile) ([]byte, error) {
+	encoder := pkcs12.Modern2023.WithIterations(iterations)
+	switch profile {
+	case Modern:
+	case OlderWindows:
+		encoder = pkcs12.LegacyDES.WithIterations(olderWindowsIterations)
+	default:
+		return nil, ErrInvalidInput
+	}
 	if !validPassword(password) {
 		return nil, ErrInvalidPassword
 	}
@@ -110,12 +142,12 @@ func CreateWithParsedKey(certificateInput []byte, key any, chainInput []byte, pa
 	if len(certSPKI) != len(keySPKI) || subtle.ConstantTimeCompare(certSPKI, keySPKI) != 1 {
 		return nil, keymatch.ErrKeyMismatch
 	}
-	output, err := pkcs12.Modern2023.WithIterations(iterations).Encode(key, leaf, issuers, password)
+	output, err := encoder.Encode(key, leaf, issuers, password)
 	if err != nil {
 		clear(output)
 		return nil, ErrEncodingFailed
 	}
-	if len(output) == 0 || int64(len(output)) > limits.MaxInputBytes || !checkRoundTrip(output, password, leaf, issuers) {
+	if len(output) == 0 || int64(len(output)) > limits.MaxInputBytes || pfxinspect.Preflight(output) != nil || !checkRoundTrip(output, password, leaf, issuers) {
 		clear(output)
 		return nil, ErrEncodingFailed
 	}

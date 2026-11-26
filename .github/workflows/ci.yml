@@ -210,7 +210,7 @@ jobs:
           node scripts/test-request.mjs "${wasm}" "${runtime}"
 
       - name: Smoke test PFX preparation and certificate custody in the vault
-        run: go test -race -run '^TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey$|^TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial$|^TestLinuxCertificatesLiveInTheVaultAndSurviveARestart$|^TestPFXImportPreparationHasNoNetworkOrCustodyAuthority$' -count=1 -timeout=8m ./internal/browserpfximport ./cmd/rootwelld ./internal/architecture
+        run: go test -race -run '^TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey$|^TestPrepareRefusesWrongPasswordTamperAndUnrelatedWithoutPartialMaterial$|^TestPrepareOpensLegacyWindowsAndPasswordlessPFX$|^TestLinuxCertificatesLiveInTheVaultAndSurviveARestart$|^TestPFXImportPreparationHasNoNetworkOrCustodyAuthority$' -count=1 -timeout=8m ./internal/browserpfximport ./cmd/rootwelld ./internal/architecture
 
       - name: Smoke test the ACME protocol pieces kept for renewal
         # The session-bound automation is gone; Phase 3c rebuilds renewal on

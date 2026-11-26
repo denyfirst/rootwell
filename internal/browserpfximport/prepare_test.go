@@ -15,6 +15,8 @@ import (
 
 	"github.com/denyfirst/rootwell/internal/certificatepair"
 	"github.com/denyfirst/rootwell/internal/keymatch"
+	"github.com/denyfirst/rootwell/internal/pfxfixture"
+	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
@@ -93,13 +95,9 @@ func TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey(t *testing.T
 	}
 }
 
-func TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMaterial(t *testing.T) {
+func TestPrepareRefusesWrongPasswordTamperAndUnrelatedWithoutPartialMaterial(t *testing.T) {
 	key, leaf, chain := fixture(t, false)
 	input, err := pkcs12.Modern2023.Encode(key, leaf, chain, fixturePassword)
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacy, err := pkcs12.Legacy.Encode(key, leaf, chain, fixturePassword)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,11 +146,50 @@ func TestPrepareRefusesWrongPasswordTamperLegacyAndUnrelatedWithoutPartialMateri
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ input, password []byte }{{nil, []byte(fixturePassword)}, {input, nil}, {input, []byte("wrong-password")}, {tampered, []byte(fixturePassword)}, {legacy, []byte(fixturePassword)}, {unrelated, []byte(fixturePassword)}, {unrelatedCA, []byte(fixturePassword)}, {ca, []byte(fixturePassword)}, {mismatch, []byte(fixturePassword)}, {ambiguous, []byte(fixturePassword)}, {make([]byte, (1<<20)+1), []byte(fixturePassword)}, {input, make([]byte, 129)}} {
+	for _, tc := range []struct{ input, password []byte }{{nil, []byte(fixturePassword)}, {input, nil}, {input, []byte("wrong-password")}, {tampered, []byte(fixturePassword)}, {unrelated, []byte(fixturePassword)}, {unrelatedCA, []byte(fixturePassword)}, {ca, []byte(fixturePassword)}, {mismatch, []byte(fixturePassword)}, {ambiguous, []byte(fixturePassword)}, {make([]byte, (1<<20)+1), []byte(fixturePassword)}, {input, make([]byte, 129)}} {
 		p, err := Prepare(tc.input, tc.password)
 		if err == nil || len(p.Certificate) != 0 || len(p.PrivateKey) != 0 || len(p.KeyPassword) != 0 || p.Fingerprint != "" {
 			p.Clear()
 			t.Fatal("refusal returned partial material")
+		}
+	}
+}
+
+// Windows writes 3DES with the issuer before the leaf, OpenSSL -legacy RC2,
+// and a PFX may have no password at all. Each prepares the same way.
+func TestPrepareOpensLegacyWindowsAndPasswordlessPFX(t *testing.T) {
+	key, leaf, chain := fixture(t, false)
+	rc2, err := pkcs12.LegacyRC2.Encode(key, leaf, chain, fixturePassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := pkcs12.Modern2023.Encode(key, leaf, chain, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		input    []byte
+		password string
+	}{
+		{"Windows 3DES, issuer first", pfxfixture.Windows(t, leaf, chain[0], key, fixturePassword).Build(t), fixturePassword},
+		{"Windows with a machine key", pfxfixture.Windows(t, leaf, chain[0], key, fixturePassword, pfxfixture.LocalKeyID(t), pfxfixture.Attr(pfxfixture.OIDMachineKeySet)).Build(t), fixturePassword},
+		{"OpenSSL -legacy RC2", rc2, fixturePassword},
+		{"no password", empty, ""},
+	} {
+		p, err := Prepare(tc.input, []byte(tc.password))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		record, canonical, err := certificatepair.PrepareBundle(p.Certificate, p.PrivateKey, p.KeyPassword, "", "", p.Fingerprint)
+		if err != nil || record.KeyStatus != "matched" || len(record.BundleDER) != 2 || !bytes.Equal(record.DER, leaf.Raw) {
+			t.Fatalf("%s: prepared material failed validation: %v", tc.name, err)
+		}
+		clear(canonical)
+		p.Clear()
+		wrong, err := Prepare(tc.input, []byte("not-the-"+tc.password))
+		if err == nil || pfxinspect.Code(err) != "wrong-password" || len(wrong.PrivateKey) != 0 {
+			t.Fatalf("%s: a wrong password was not named as one: %v", tc.name, err)
 		}
 	}
 }

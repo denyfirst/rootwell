@@ -5,6 +5,7 @@ package browserpfx
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"crypto/subtle"
 	"crypto/x509"
@@ -19,7 +20,6 @@ import (
 	"github.com/denyfirst/rootwell/internal/pfxcreate"
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/denyfirst/rootwell/internal/pfxkeyexport"
-	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 const SchemaVersion = "rootwell.browser.pfx.v1"
@@ -39,56 +39,68 @@ type Certificate struct {
 // returns strict PKCS#8 PEM for a transient view only. The caller must clear
 // the bytes, hide the view promptly, and never download or persist this output.
 func RevealKey(input, password []byte, fingerprint string) ([]byte, error) {
-	if len(input) == 0 || len(input) > 1<<20 || len(password) == 0 || len(password) > 128 || !pfxinspect.ValidFingerprint(fingerprint) {
+	if len(input) == 0 || len(input) > 1<<20 || len(password) > 128 || !pfxinspect.ValidFingerprint(fingerprint) {
 		return nil, ErrInvalid
 	}
 	bound := bytes.Clone(input)
 	defer clear(bound)
-	summary, err := pfxinspect.Inspect(bound, string(password))
-	if err != nil || summary.MatchingCertificate.SHA256Fingerprint != fingerprint {
-		return nil, ErrInvalid
-	}
-	expected, ok := summary.CertificateDER(fingerprint)
-	if !ok {
-		return nil, ErrInvalid
-	}
-	defer clear(expected)
-	key, leaf, _, err := pkcs12.DecodeChain(bound, string(password))
-	if key != nil {
-		defer keymatch.ClearParsedKey(key)
-	}
-	if err != nil || leaf == nil || !bytes.Equal(leaf.Raw, expected) {
-		return nil, ErrInvalid
-	}
-	plain, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil || len(plain) == 0 || len(plain) > 64<<10 {
-		clear(plain)
-		return nil, ErrInvalid
-	}
-	defer clear(plain)
-	matched, err := keymatch.Match(expected, plain)
-	if err != nil || !matched.Match {
-		return nil, ErrInvalid
-	}
-	output := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: plain})
-	if len(output) == 0 || len(output) > 96<<10 {
+	var output []byte
+	// The key is the one the same authenticated decode matched to the
+	// selected certificate, whatever the bag order in the file.
+	err := pfxinspect.Open(bound, string(password), func(summary pfxinspect.Result, key crypto.Signer) error {
+		if summary.MatchingCertificate.SHA256Fingerprint != fingerprint {
+			return ErrInvalid
+		}
+		expected, ok := summary.CertificateDER(fingerprint)
+		if !ok {
+			return ErrInvalid
+		}
+		defer clear(expected)
+		plain, err := x509.MarshalPKCS8PrivateKey(key)
+		if err != nil || len(plain) == 0 || len(plain) > 64<<10 {
+			clear(plain)
+			return ErrInvalid
+		}
+		defer clear(plain)
+		matched, err := keymatch.Match(expected, plain)
+		if err != nil || !matched.Match {
+			return ErrInvalid
+		}
+		output = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: plain})
+		if len(output) == 0 || len(output) > 96<<10 {
+			return ErrInvalid
+		}
+		return nil
+	})
+	if err != nil {
 		clear(output)
-		return nil, ErrInvalid
+		return nil, refusal(err)
 	}
 	return output, nil
+}
+
+// refusal keeps ErrInvalid as the error every caller checks and wraps the
+// pfxinspect cause, so the page can say whether the password was wrong.
+func refusal(err error) error {
+	if err == nil || errors.Is(err, ErrInvalid) {
+		return ErrInvalid
+	}
+	return errors.Join(ErrInvalid, err)
 }
 
 type Summary struct {
 	Certificates []Certificate `json:"certificates"`
 }
 
+// Inspect opens a PFX with its password, which is empty for a PFX saved
+// without one, and returns public certificate metadata only.
 func Inspect(input, password []byte) (Summary, error) {
-	if len(input) == 0 || len(input) > 1<<20 || len(password) == 0 || len(password) > 128 {
+	if len(input) == 0 || len(input) > 1<<20 || len(password) > 128 {
 		return Summary{}, ErrInvalid
 	}
 	result, err := pfxinspect.Inspect(input, string(password))
 	if err != nil {
-		return Summary{}, ErrInvalid
+		return Summary{}, refusal(err)
 	}
 	certs := make([]Certificate, 0, 1+len(result.Additional))
 	certs = append(certs, summarize(result.MatchingCertificate, true))
@@ -112,7 +124,7 @@ func ExportCertificate(input, password []byte, fingerprint, format string) ([]by
 	}
 	result, err := pfxinspect.Inspect(input, string(password))
 	if err != nil {
-		return nil, "", ErrInvalid
+		return nil, "", refusal(err)
 	}
 	der, ok := result.CertificateDER(fingerprint)
 	if !ok {
@@ -146,7 +158,7 @@ func ExportKey(input, password []byte, fingerprint string, outputPassword []byte
 	}
 	output, err := pfxkeyexport.Export(input, string(password), fingerprint, outputPassword)
 	if err != nil {
-		return nil, "", ErrInvalid
+		return nil, "", refusal(err)
 	}
 	name := filename("encrypted-key", fingerprint, ".pem")
 	if name == "" {
@@ -167,6 +179,12 @@ func Create(certificate, key, issuers, password []byte) ([]byte, string, error) 
 // The input password must be empty for plaintext keys. Decryption and match
 // happen inside the caller's one-shot worker without an intermediate download.
 func CreateWithInputPassword(certificate, key, issuers, password, inputPassword []byte) ([]byte, string, error) {
+	return CreateProfile(certificate, key, issuers, password, inputPassword, pfxcreate.Modern)
+}
+
+// CreateProfile is CreateWithInputPassword with a chosen protection: the
+// modern default, or 3DES for Windows Server 2016 and older.
+func CreateProfile(certificate, key, issuers, password, inputPassword []byte, profile pfxcreate.Profile) ([]byte, string, error) {
 	if !pfxcreate.PasswordAllowed(string(password)) || len(certificate) == 0 || len(certificate) > 1<<20 || len(issuers) > 1<<20 || len(inputPassword) > 256 ||
 		(len(inputPassword) != 0 && len(inputPassword) == len(password) && subtle.ConstantTimeCompare(inputPassword, password) == 1) {
 		return nil, "", ErrInvalid
@@ -174,7 +192,7 @@ func CreateWithInputPassword(certificate, key, issuers, password, inputPassword 
 	var output []byte
 	err := browserprivateconvert.WithInputKey(key, inputPassword, func(parsed any, _ keymatch.Encoding) error {
 		var createErr error
-		output, createErr = pfxcreate.CreateWithParsedKey(certificate, parsed, issuers, string(password))
+		output, createErr = pfxcreate.CreateWithParsedKeyProfile(certificate, parsed, issuers, string(password), profile)
 		return createErr
 	})
 	if err != nil || len(output) == 0 || len(output) > 1<<20 {

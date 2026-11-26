@@ -10,14 +10,18 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/keymatch"
+	"github.com/denyfirst/rootwell/internal/pfxcreate"
+	"github.com/denyfirst/rootwell/internal/pfxfixture"
 	"github.com/denyfirst/rootwell/internal/pfxinspect"
 	"github.com/youmark/pkcs8"
+	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 const syntheticPassword = "synthetic-PFX-password-2026-9c42"
@@ -234,5 +238,94 @@ func TestCreateInspectExtractAndRefuse(t *testing.T) {
 	}
 	if pfxinspect.Preflight(pfx) != nil {
 		t.Fatal("created PFX failed preflight")
+	}
+}
+
+func windowsChain(t *testing.T) (*x509.Certificate, *x509.Certificate, crypto.Signer) {
+	t.Helper()
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().Add(-time.Hour)
+	caTemplate := &x509.Certificate{SerialNumber: big.NewInt(50), Subject: pkix.Name{CommonName: "Synthetic Windows CA"}, NotBefore: now, NotAfter: now.Add(48 * time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, caKey.Public(), caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ca, err := x509.ParseCertificate(caDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafTemplate := &x509.Certificate{SerialNumber: big.NewInt(51), Subject: pkix.Name{CommonName: "iis.synthetic.test"}, DNSNames: []string{"iis.synthetic.test"}, NotBefore: now, NotAfter: now.Add(24 * time.Hour), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, ca, key.Public(), caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf, err := x509.ParseCertificate(leafDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return leaf, ca, key
+}
+
+// Every PFX output works on a Windows 3DES file with the issuer first and on
+// a PFX without a password; a wrong password is named as one.
+func TestPFXOutputsOpenWindowsAndPasswordlessPFX(t *testing.T) {
+	leaf, ca, key := windowsChain(t)
+	passwordless, err := pkcs12.Modern2023.Encode(key, leaf, []*x509.Certificate{ca}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		input    []byte
+		password []byte
+	}{
+		{"Windows 3DES", pfxfixture.Windows(t, leaf, ca, key, syntheticPassword).Build(t), []byte(syntheticPassword)},
+		{"no password", passwordless, nil},
+	} {
+		summary, err := Inspect(tc.input, tc.password)
+		if err != nil || len(summary.Certificates) != 2 || !summary.Certificates[0].MatchingKey {
+			t.Fatalf("%s: inspect: %v", tc.name, err)
+		}
+		fingerprint := summary.Certificates[0].Fingerprint
+		if der, _, err := ExportCertificate(tc.input, tc.password, fingerprint, "der"); err != nil || !bytes.Equal(der, leaf.Raw) {
+			t.Fatalf("%s: certificate: %v", tc.name, err)
+		}
+		if locked, _, err := ExportKey(tc.input, tc.password, fingerprint, []byte(syntheticOutputPassword)); err != nil || !bytes.HasPrefix(locked, []byte("-----BEGIN ENCRYPTED PRIVATE KEY-----")) {
+			t.Fatalf("%s: locked key: %v", tc.name, err)
+		}
+		plain, err := RevealKey(tc.input, tc.password, fingerprint)
+		if err != nil {
+			t.Fatalf("%s: key: %v", tc.name, err)
+		}
+		if matched, err := keymatch.Match(leaf.Raw, plain); err != nil || !matched.Match {
+			t.Fatalf("%s: the key does not belong to the certificate", tc.name)
+		}
+		clear(plain)
+		_, err = Inspect(tc.input, []byte("not-the-password"))
+		if !errors.Is(err, ErrInvalid) || pfxinspect.Code(err) != "wrong-password" {
+			t.Fatalf("%s: a wrong password was not named as one: %v", tc.name, err)
+		}
+	}
+}
+
+func TestCreateOlderWindowsProfileReadsBack(t *testing.T) {
+	cert, key := fixture(t)
+	defer clear(key)
+	output, _, err := CreateProfile(cert, key, nil, []byte(syntheticPassword), nil, pfxcreate.OlderWindows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(output, []byte{0x06, 0x0a, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x0c, 0x01, 0x03}) {
+		t.Fatal("the older Windows PFX is not 3DES")
+	}
+	if summary, err := Inspect(output, []byte(syntheticPassword)); err != nil || len(summary.Certificates) != 1 {
+		t.Fatalf("the older Windows PFX does not read back: %v", err)
 	}
 }

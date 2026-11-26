@@ -530,6 +530,41 @@ func TestPFXImportPreparationHasNoNetworkOrCustodyAuthority(t *testing.T) {
 	})
 }
 
+// The PFX fixture builder derives PKCS#12 keys for tests only. No binary may
+// link it.
+func TestPFXFixtureBuilderIsTestOnly(t *testing.T) {
+	_, currentFile, _, _ := runtime.Caller(0)
+	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	found := false
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			if value, _ := strconv.Unquote(imported.Path.Value); value == "github.com/denyfirst/rootwell/internal/pfxfixture" {
+				t.Errorf("%s links the test-only PFX fixture builder", path)
+			}
+		}
+		if file.Name.Name == "pfxfixture" {
+			found = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found {
+		t.Fatal("the PFX fixture builder moved; update this guard")
+	}
+}
+
 func TestStagingReceiptHasNoNetworkStorageOrSigningAuthority(t *testing.T) {
 	_, currentFile, _, _ := runtime.Caller(0)
 	root := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
