@@ -243,6 +243,30 @@ func TestTheLifetimeTrackShowsOnACard(t *testing.T) {
 	}
 }
 
+// A chain row is a .link inside a .chain. Every rule for a row names its
+// .chain, so a text link is never drawn as one: a rule on .link alone once
+// put the sign-in page's links into a 40-pixel column, a word to a line.
+func TestAChainRowNeverDressesATextLink(t *testing.T) {
+	sheet := regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(sharedSheet(t), "")
+	linkClass := regexp.MustCompile(`\.link(?:[^-\w]|$)`)
+	rows := 0
+	for _, rule := range regexp.MustCompile(`([^{}]+)\{[^{}]*\}`).FindAllStringSubmatch(sheet, -1) {
+		for _, selector := range strings.Split(rule[1], ",") {
+			selector = strings.TrimSpace(selector)
+			if !linkClass.MatchString(selector) {
+				continue
+			}
+			rows++
+			if !strings.HasPrefix(selector, ".chain") {
+				t.Errorf("rootwell.css draws .link outside a chain: %s", selector)
+			}
+		}
+	}
+	if rows == 0 {
+		t.Fatal("rootwell.css no longer draws chain rows")
+	}
+}
+
 // Rootwell's colour is not a verdict's: good, close to expiry and broken are
 // said in green, amber and red, and no control may look like one of them.
 func TestTheToolColourIsNeverAVerdictColour(t *testing.T) {
