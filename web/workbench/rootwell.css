@@ -368,11 +368,15 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .chain { display: grid; gap: 0; }
 .link { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3); padding: var(--sp-3) 0; }
 .link + .link::before { content: ""; position: absolute; left: 19px; top: -10px; height: 20px; width: 2px; background: var(--rule-strong); }
+.link.warn + .link::before, .link + .link.warn::before { background: var(--weak); }
 .link.broken + .link::before, .link + .link.broken::before { background: var(--insecure); }
 .link-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--paper-sunk); color: var(--ink-soft); }
 .link.ok .link-mark { color: var(--strong); background: var(--strong-wash); }
 .link.broken .link-mark { color: var(--insecure); background: var(--insecure-wash); }
 .link.missing .link-mark { color: var(--insecure); background: var(--card); border: 2px dashed var(--insecure); }
+.link.gap .link-mark { background: var(--card); border: 2px dashed var(--rule-strong); }
+.link.warn .link-mark { color: var(--weak); background: var(--weak-wash); }
+.chain.extras .link + .link::before { display: none; }
 .link strong { display: block; font-weight: 600; overflow-wrap: anywhere; }
 .link small { display: block; color: var(--ink-faint); font-size: var(--fs-14); }
 

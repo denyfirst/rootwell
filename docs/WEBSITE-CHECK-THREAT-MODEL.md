@@ -1,10 +1,10 @@
-# Website certificate check threat model — ADR 0084
+# Website certificate check threat model — ADRs 0084 and 0090
 
-Development only, 2026-11-05. Separate from the offline Workbench and the
-strict expected-leaf CLI probe. No independent security audit is claimed.
+Development only, 2026-11-05; internal servers since 2026-11-26 (ADR 0090).
+Separate from the offline Workbench and the strict expected-leaf CLI probe.
+No independent security audit is claimed.
 
-The operator authorizes one public website origin from a ready, revision-bound
-Rootwell session. The site's name is sent to the configured DNS resolver and
+The signed-in owner asks for one check of a website or internal server. The site's name is sent to the configured DNS resolver and
 as TLS SNI; the peer sees the Rootwell server's connection address. Neither
 private keys nor certificate files enter the API. ADR 0085 adds an optional
 public file comparison entirely within the browser; only the original target
@@ -14,38 +14,50 @@ operator's network, resolver, peer and local host may retain their own records.
 
 ## Untrusted input and SSRF
 
-Both the target and every peer certificate are untrusted. Only ASCII DNS names
-(including valid ASCII punycode labels) and HTTPS origins on port 443 are
-accepted. Paths, credentials, fragments, queries, IP literals and custom ports
-are rejected. Local/special-use suffixes are refused before DNS. All returned
-addresses (maximum 16) must pass public-address checks, including IPv4-mapped
-IPv6. Mixed public/private answers refuse the entire observation. The first
-validated numeric address is dialed once; DNS cannot change the connected
-destination after validation. No HTTP client, proxy, redirect, TLS application
-data, embedded AIA/CRL/OCSP URL or child process is involved.
+Both the target and every peer certificate are untrusted. A target is an
+ASCII DNS name (punycode for other scripts) or an IP address, with an optional
+port and an optional `https://`. Paths, credentials, fragments, queries,
+`localhost`, numbers that resolvers read as addresses, zoned IPv6 and IPv4
+written inside IPv6 are rejected. All returned addresses (maximum 16) must be
+allowed, including IPv4-mapped IPv6, or the whole check is refused.
 
-This is a conservative address policy, not a substitute for network egress
-controls: operator-controlled routing/NAT, resolver compromise and changes in
-special-use address assignments remain risks. No private-network override is
-offered. Supporting an enterprise internal endpoint requires a separate design.
+Allowed addresses are public and private networks, so internal servers can be
+checked (ADR 0090). Never allowed: loopback, unspecified, link-local (cloud
+metadata), multicast, broadcast, reserved and documentation ranges, the
+metadata addresses 100.100.100.200 and fd00:ec2::254, and IPv6 transition
+ranges that embed an IPv4 address. A check makes at most three TCP connections,
+each to a validated numeric address: the first IPv4 answer, the first IPv6
+answer only when the IPv4 one did not answer, and one classic-key-exchange
+retry when a server dropped the first greeting. DNS cannot change the
+connected destination after validation. No HTTP client, proxy, redirect, TLS
+application data, embedded AIA/CRL/OCSP URL or child process is involved.
+
+Reaching private networks makes the check a probe of the owner's network:
+it learns whether a port answers and which certificates it sends, nothing
+more. Only the signed-in owner can start one, one at a time and at most one
+every 5 seconds. Network egress rules on the Rootwell host remain the
+operator's boundary; resolver compromise and operator routing remain risks.
 
 ## Authentication, bounds and cancellation
 
 The API accepts only exact-key bounded JSON POST with explicit confirmation,
 same-origin header protection, expected Host and a ready session. Setup-only
 and anonymous callers have no connector authority. A global in-memory busy bit
-and 30-second interval bound concurrent/repeated requests; there is no queue
+and a 5-second interval bound concurrent/repeated requests; there is no queue
 or unbounded per-target state. Revalidation occurs before DNS/dial/handshake
 and result publication. Logout, revision changes, expiry, cancellation or
 server shutdown revoke publication; already transmitted bytes cannot be recalled.
 
-The total operation is bounded to eight seconds; TCP dialing to three seconds.
+The total operation is bounded to 15 seconds, each TCP dial to three seconds
+and each handshake to five.
 Socket input is capped at 256 KiB and output at 64 KiB. The standard Go TLS
 parser still sees hostile handshake data within that input bound. At most ten
-certificates / 128 KiB of raw certificate data reach the analyzer. Certificates
-with duplicate DER or malformed observation shape produce no partial report.
+certificates / 128 KiB of raw certificate data reach the analyzer. A certificate
+sent twice is analyzed once and named; a malformed observation produces no
+partial report.
 Peer subject/issuer text is bounded, controls/bidi formatting removed, and
-rendered only as text. Fixed errors do not echo peer diagnostics or user input.
+rendered only as text. Fixed errors do not echo peer diagnostics; they name
+only the canonical target and the address Rootwell dialed.
 The browser independently bounds response bytes, fields, dates and arrays;
 malformed, timed-out, late, hidden or mismatched-target results cannot show
 success. New input clears the previous result. Example data is labeled synthetic.
@@ -71,15 +83,19 @@ preview refuses before DNS and the read-only fixture server refuses all live
 check POSTs. Synthetic TLS tests use injected local sockets, not real websites.
 
 Peer-provided roots are candidates, never added to the trust pool. A trusted
-root need not be sent by the server. Every displayed path link is established
-cryptographically; matching names alone cannot link an issuer. On failure,
-only unambiguous supplied signature links are shown. Unknown trust is not
-automatically diagnosed as a missing intermediate or attack. Multiple valid
-cross-signed paths may exist; the displayed path is one verifier-selected path,
-not an assertion of a unique universal chain. A sent certificate with the same
-name and key as one on that path is its cross-signed copy, which servers send
-for older clients (example.com sends its root's copy), so it is not reported.
-Only a sent certificate that belongs to no chain for the site is reported.
+root need not be sent by the server. When the chain does not reach the host's
+roots, the check tries the self-signed certificate authorities the owner saved
+in Certificates (at most 64) and says so by name; nothing a check observes is
+saved. Every displayed path link is established cryptographically; matching
+names alone cannot link an issuer. On failure, only unambiguous supplied
+signature links are shown, and the issuer that the last link names is called
+missing, with both fixes: send it, or save the company root. Multiple valid
+cross-signed paths may exist; the displayed path is the shortest
+verifier-selected path, not a unique universal chain. Every other sent
+certificate is classified by signature: an older chain (another issuer's copy
+of a path certificate, or an issuer of such a copy, which servers send for old
+devices; emanat.az and example.com do), a root, or unrelated. Only an
+unrelated or out-of-date extra certificate is reported as needing a fix.
 
 ADR 0085 also publishes per-child verified/rejected issuer candidate
 fingerprints, bounded to ten children / nine other sent candidates each.

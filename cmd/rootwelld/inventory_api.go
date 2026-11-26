@@ -2,8 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -55,6 +60,9 @@ type inventoryItem struct {
 	Subject          string                 `json:"subject"`
 	Issuer           string                 `json:"issuer"`
 	DNSNames         []string               `json:"dns_names"`
+	IPAddresses      []string               `json:"ip_addresses"`
+	KeyType          string                 `json:"key_type"`
+	Chain            []chainLink            `json:"chain"`
 	NotBefore        string                 `json:"not_before"`
 	NotAfter         string                 `json:"not_after"`
 	Owner            string                 `json:"owner"`
@@ -504,6 +512,44 @@ func inventoryError(w http.ResponseWriter, err error) {
 	}
 }
 
+// chainLink is one issuer above a saved certificate, nearest first.
+type chainLink struct {
+	Subject  string `json:"subject"`
+	Issuer   string `json:"issuer"`
+	NotAfter string `json:"not_after"`
+	Root     bool   `json:"root"`
+}
+
+// certificateFacts reads what a page shows beside a saved certificate from
+// its own public certificates: its IP names, its key type and its issuers.
+func certificateFacts(r publicinventory.Record) (ips []string, keyType string, chain []chainLink) {
+	ips, chain = []string{}, []chainLink{}
+	c, err := x509.ParseCertificate(r.DER)
+	if err != nil {
+		return ips, "", chain
+	}
+	for _, ip := range c.IPAddresses {
+		ips = append(ips, ip.String())
+	}
+	switch key := c.PublicKey.(type) {
+	case *rsa.PublicKey:
+		keyType = fmt.Sprintf("RSA %d", key.N.BitLen())
+	case *ecdsa.PublicKey:
+		keyType = "ECDSA " + key.Curve.Params().Name
+	case ed25519.PublicKey:
+		keyType = "Ed25519"
+	}
+	for _, der := range r.IssuerDER {
+		issuer, err := x509.ParseCertificate(der)
+		if err != nil {
+			break
+		}
+		chain = append(chain, chainLink{Subject: issuer.Subject.String(), Issuer: issuer.Issuer.String(),
+			NotAfter: issuer.NotAfter.UTC().Format(time.RFC3339), Root: bytes.Equal(issuer.RawIssuer, issuer.RawSubject) && issuer.CheckSignatureFrom(issuer) == nil})
+	}
+	return ips, keyType, chain
+}
+
 func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []publicinventory.Record, generation uint64) {
 	now := g.now().UTC().Truncate(time.Second)
 	if now.Year() < 0 || now.Year() > 9999 {
@@ -512,7 +558,9 @@ func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []p
 	}
 	items := make([]inventoryItem, 0, len(records))
 	for _, r := range records {
+		ips, keyType, chain := certificateFacts(r)
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
+			IPAddresses: ips, KeyType: keyType, Chain: chain,
 			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
 			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now)})
 	}

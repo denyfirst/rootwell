@@ -108,6 +108,66 @@
     return match ? match[1].replace(/\\(.)/g, "$1") : String(dn || "");
   }
 
+  // The organization of a distinguished name ("O=Let's Encrypt"), or "".
+  function organization(dn) {
+    const match = /(?:^|,)O=((?:\\.|[^,\\])+)/.exec(String(dn || ""));
+    return match ? match[1].replace(/\\(.)/g, "$1") : "";
+  }
+
+  // Who issued a certificate, as a person knows them: the organization, else
+  // the issuing certificate's own name.
+  function issuerName(dn) {
+    return organization(dn) || commonName(dn);
+  }
+
+  // RFC 3492: one xn-- label back to the letters it stands for, or null.
+  function punycode(input) {
+    const base = 36, tMin = 1, tMax = 26;
+    const digit = (c) => (c >= 48 && c <= 57 ? c - 22 : c >= 97 && c <= 122 ? c - 97 : base);
+    const output = [];
+    let n = 128, i = 0, bias = 72, first = true;
+    const basic = Math.max(input.lastIndexOf("-"), 0);
+    for (let j = 0; j < basic; j++) {
+      if (input.charCodeAt(j) >= 128) return null;
+      output.push(input.charCodeAt(j));
+    }
+    for (let index = basic > 0 ? basic + 1 : 0; index < input.length;) {
+      const old = i;
+      for (let w = 1, k = base; ; k += base) {
+        if (index >= input.length) return null;
+        const d = digit(input.charCodeAt(index++));
+        if (d >= base) return null;
+        i += d * w;
+        const t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+        if (d < t) break;
+        w *= base - t;
+        if (i > 0x10ffff * 64 || w > 0x10ffff * 64) return null;
+      }
+      const length = output.length + 1;
+      let delta = first ? Math.floor((i - old) / 700) : (i - old) >> 1;
+      first = false;
+      delta += Math.floor(delta / length);
+      let k = 0;
+      for (; delta > ((base - tMin) * tMax) >> 1; k += base) delta = Math.floor(delta / (base - tMin));
+      bias = k + Math.floor(((base - tMin + 1) * delta) / (delta + 38));
+      n += Math.floor(i / length);
+      i %= length;
+      if (n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff) || output.length >= 63) return null;
+      output.splice(i++, 0, n);
+    }
+    return String.fromCodePoint(...output);
+  }
+
+  // A DNS name as people write it: xn-- labels shown in their own letters,
+  // unless they decode to something invisible or direction-changing.
+  function unicodeName(name) {
+    return String(name || "").split(".").map((label) => {
+      if (!/^xn--/i.test(label)) return label;
+      const decoded = punycode(label.slice(4).toLowerCase());
+      return decoded && /[^ -~]/.test(decoded) && !/[\u0000-\u0020\u007f-\u00a0\u00ad\u115f\u1160\u180e\u200b-\u200f\u2028-\u202f\u205f-\u206f\u3000\ufeff]/.test(decoded) ? decoded : label;
+    }).join(".");
+  }
+
   function shortFingerprint(fingerprint) {
     const parts = String(fingerprint || "").split(":");
     return parts.length > 8 ? parts.slice(0, 4).join(":") + ":…:" + parts.slice(-2).join(":") : String(fingerprint || "");
@@ -262,7 +322,7 @@
   }
 
   Object.defineProperty(globalThis, "rootwellUI", {
-    value: Object.freeze({ icon, el, lifetime, pill, lifetimeBar, formatDate, commonName, shortFingerprint, download, friendlyName, dropZone,
+    value: Object.freeze({ icon, el, lifetime, pill, lifetimeBar, formatDate, commonName, organization, issuerName, unicodeName, shortFingerprint, download, friendlyName, dropZone,
       chainOrder, concat, strongPassword, isStrongPassword, zip, fileProblem, pfxProblem }),
     writable: false, configurable: false, enumerable: false,
   });

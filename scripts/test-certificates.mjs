@@ -49,7 +49,7 @@ const hexFingerprint = (n) => Array.from({ length: 32 }, (_, i) => ((n * 29 + i 
 const record = (n, name, days, extra = {}) => ({ fingerprint: hexFingerprint(n), subject: "CN=" + name, issuer: "CN=Synthetic CA " + n,
   dns_names: [name], not_before: iso(Date.now() - 30 * day), not_after: iso(Date.now() + days * day), owner: "", location: "", locations: [],
   import_generation: 1, imported_at: iso(Date.now() - 2 * day), has_private_key: false, key_status: "not-added", bundle_count: 0,
-  expiry: { status: "valid" }, ...extra });
+  ip_addresses: [], key_type: "ECDSA P-256", chain: [], expiry: { status: "valid" }, ...extra });
 // fresh: a phone code was entered in the last ten minutes. freshAnswer is what
 // the page's code dialog does when Rootwell asks for one.
 const api = { generation: 1, records: [], requests: [], selection: false, fresh: true, freshAnswer: true, freshAsked: 0 };
@@ -214,7 +214,10 @@ await go(shop);
 assert.equal($("sheet").hidden, false);
 assert.match($("sheet-hero").text(), /^shop\.test Issued by Synthetic CA 1/);
 assert.equal($("sheet-names").text(), "shop.test");
-assert.match($("sheet-facts").text(), /^Private key Saved Fingerprint .+ Added /);
+assert.match($("sheet-facts").text(), /^Private key Saved Key type ECDSA P-256 Fingerprint .+ Added /);
+// No issuer was saved with it: the chain says where it stops.
+assert.equal($("sheet-chain").text(), "shop.test This certificate 80 days left Synthetic CA 1 Not saved with this certificate");
+assert.deepEqual($("sheet-chain").children.map((n) => n.className), ["link ok", "link gap"], "an issuer not saved is a quiet gap, not an error");
 assert.equal($("sheet-website").href, "/website-check#shop.test");
 assert.equal($("sheet-owner").value, "Web team");
 $("sheet-owner").value = "Platform team";
@@ -539,5 +542,37 @@ document.listeners.keydown({ key: "Escape" });
 assert.equal($("add-dialog").hidden, true);
 win.listeners.pagehide();
 assert.equal($("download-key-password").value, "", "the key file password is forgotten");
+
+// Names as people know them: the issuer's organization, a name in its own
+// letters, an address; search finds each of them, and the sheet draws the chain.
+{
+  const leChain = [{ subject: "CN=YE2,O=Let's Encrypt,C=US", issuer: "CN=ISRG Root X2,O=Internet Security Research Group,C=US", not_after: iso(Date.now() + 500 * day), root: false },
+    { subject: "CN=ISRG Root X2,O=Internet Security Research Group,C=US", issuer: "CN=ISRG Root X2,O=Internet Security Research Group,C=US", not_after: iso(Date.now() + 3000 * day), root: true }];
+  api.records = [record(10, "xn--bak-lua.lab.az", 60, { issuer: "CN=YE2,O=Let's Encrypt,C=US", chain: leChain }),
+    record(11, "nas", 90, { dns_names: [], ip_addresses: ["10.0.0.5", "fd00::5"], key_type: "RSA 2048" }),
+    ...[12, 13, 14, 15, 16, 17].map((n) => record(n, "host" + n + ".test", 100 + n))];
+  for (const key of Object.keys(ids)) delete ids[key];
+  load(source, "certificates.js");
+  await settle();
+  assert.equal(rowText(rows()[0]), "bak\u0131.lab.az Let's Encrypt");
+  assert.equal(rowText(rows()[1]), "nas Synthetic CA 11");
+  const find = (query) => { $("search").value = query; $("search").listeners.input(); return rows().map((r) => r.children[0].children[1].children[0].textContent); };
+  assert.deepEqual(find("10.0.0.5"), ["nas"]);
+  assert.deepEqual(find("let's encrypt"), ["bak\u0131.lab.az"]);
+  assert.deepEqual(find("bak\u0131"), ["bak\u0131.lab.az"]);
+  assert.deepEqual(find("xn--bak"), ["bak\u0131.lab.az"]);
+  assert.deepEqual(find("ye2"), ["bak\u0131.lab.az"]);
+  find("");
+  await go(api.records[0]);
+  assert.match($("sheet-hero").text(), /^bak\u0131\.lab\.az Issued by Let's Encrypt \u00b7 YE2/);
+  assert.equal($("sheet-names").text(), "bak\u0131.lab.az (xn--bak-lua.lab.az)");
+  assert.match($("sheet-chain").text(), /^bak\u0131\.lab\.az This certificate .* YE2 Intermediate .* ISRG Root X2 Root /);
+  assert.equal($("sheet-chain").children.filter((n) => /gap/.test(n.className)).length, 0, "a chain that reaches its root has no gap");
+  await go(api.records[1]);
+  assert.equal($("sheet-names").text(), "10.0.0.5 fd00::5");
+  assert.equal($("sheet-website").href, "/website-check#10.0.0.5");
+  assert.equal($("sheet-website").hidden, false);
+  assert.match($("sheet-facts").text(), /Key type RSA 2048/);
+}
 
 console.log("Certificates lists, filters, edits, downloads, deletes and adds certificates through the inventory API.");

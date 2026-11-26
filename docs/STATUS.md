@@ -63,17 +63,27 @@ independent review that a release needs (Phase 4) comes before any release.
   - add certificates, a bundle, a key or a PFX, several files at once;
   - add a key later to a certificate saved without one;
   - note where it is used and who is responsible;
-  - see how long each one has left;
-  - download the certificate, the full chain, or the certificate and key;
-  - download the key locked with a password.
+  - see how long each one has left, who issued it (by organization), its key
+    type and its chain up to the root saved with it;
+  - find one by name, address, issuer, place or owner; names in other
+    scripts show in their own letters;
+  - download the certificate, the full chain, or a ZIP with `fullchain.pem`,
+    `cert.pem`, `chain.pem` and `privkey.pem`, the names nginx, Apache and
+    certbot use;
+  - download the key locked with a password. A key never leaves unlocked; Convert
+    can unlock a downloaded key in the browser.
 - Downloading a key, or deleting a certificate that has one, needs a code
   from the phone, or a passkey, in the last ten minutes; the page asks for it
   when needed.
 - `rootwelld` runs only on Linux, in practice in its container.
 
 **Website check (Linux only)**
-- Connects once to a public HTTPS site and explains its chain: missing or
-  wrong intermediates, dates, and names.
+- Connects to a website or internal server (any name or private address, any
+  port; never this machine, link-local or metadata addresses) and explains its
+  chain: missing or wrong intermediates, older chains for old devices, roots,
+  dates and names, each naming its certificate.
+- Trusts public roots and the roots saved in Certificates.
+- Does not check revocation.
 
 **Renewal: removed for now**
 - The staging-only ACME automation and its hidden Renewals page were removed
