@@ -101,10 +101,10 @@ async function exerciseWorker(operation) {
   };
   const workerContext = vm.createContext(workerGlobal);
   vm.runInContext(fs.readFileSync("web/workbench/private-key-worker.js", "utf8"), workerContext);
-  workerGlobal.onmessage({ data: { type: "init", module: new Module() } });
+  workerGlobal.onmessage({ origin: "", source: null, data: { type: "init", module: new Module() } });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(posted[0].type, "ready");
-  workerGlobal.onmessage({ data: { type: "operate", operation,
+  workerGlobal.onmessage({ origin: "", source: null, data: { type: "operate", operation,
     input: Uint8Array.of(65).buffer, currentPassword: Uint8Array.of(80).buffer,
     outputPassword: operation === "inspect" ? new Uint8Array().buffer : Uint8Array.of(81).buffer,
     fingerprint: "A".repeat(95), format: "encrypted-pkcs8-pem" } });
@@ -117,4 +117,22 @@ async function exerciseWorker(operation) {
 }
 await exerciseWorker("inspect");
 await exerciseWorker("export");
+// Only the page's own dedicated-worker channel is heard: a message that
+// carries an origin or a source is refused before anything runs.
+for (const foreign of [{ origin: "https://evil.example", source: null }, { origin: "", source: {} }, {}]) {
+  const sent = [];
+  let started = false;
+  const scope = {
+    WebAssembly: { Module, instantiate: async () => { started = true; return {}; } }, Uint8Array, ArrayBuffer,
+    importScripts() {}, postMessage(message) { sent.push(message); }, close() { this.closed = true; },
+  };
+  scope.self = scope;
+  scope.Go = class { constructor() { this.importObject = {}; } run() { started = true; return new Promise(() => {}); } };
+  vm.runInContext(fs.readFileSync("web/workbench/private-key-worker.js", "utf8"), vm.createContext(scope));
+  scope.onmessage({ ...foreign, data: { type: "init", module: new Module() } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(started, false, "a foreign message started the worker");
+  assert.equal(sent[0] && sent[0].type, "failure");
+  assert.equal(scope.closed, true);
+}
 console.log("Private worker deadline, transfer, abort, and refusal tests passed.");

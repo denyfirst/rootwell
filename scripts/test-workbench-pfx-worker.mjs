@@ -86,10 +86,10 @@ workerGlobal.Go = class {
 };
 const workerContext = vm.createContext(workerGlobal);
 vm.runInContext(fs.readFileSync("web/workbench/pfx-worker.js", "utf8"), workerContext);
-workerGlobal.onmessage({ data: { type: "init", module: new Module() } });
+workerGlobal.onmessage({ origin: "", source: null, data: { type: "init", module: new Module() } });
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(posted[0].type, "ready");
-workerGlobal.onmessage({ data: { type: "operate", operation: "key", inputs: [source.slice().buffer, new Uint8Array().buffer, new Uint8Array().buffer],
+workerGlobal.onmessage({ origin: "", source: null, data: { type: "operate", operation: "key", inputs: [source.slice().buffer, new Uint8Array().buffer, new Uint8Array().buffer],
   password: password.slice().buffer, secondPassword: outputPassword.slice().buffer, option: "A".repeat(95) } });
 assert.equal(posted[1].type, "result");
 assert.deepEqual([...posted[1].answer.result.bytes], [65, 66]);
@@ -112,11 +112,29 @@ assert.equal(workerGlobal.closed, true);
     }
   };
   vm.runInContext(fs.readFileSync("web/workbench/pfx-worker.js", "utf8"), vm.createContext(empty));
-  empty.onmessage({ data: { type: "init", module: new Module() } });
+  empty.onmessage({ origin: "", source: null, data: { type: "init", module: new Module() } });
   await new Promise(resolve => setImmediate(resolve));
-  empty.onmessage({ data: { type: "operate", operation: "inspect", inputs: [source.slice().buffer, new ArrayBuffer(0), new ArrayBuffer(0)],
+  empty.onmessage({ origin: "", source: null, data: { type: "operate", operation: "inspect", inputs: [source.slice().buffer, new ArrayBuffer(0), new ArrayBuffer(0)],
     password: new ArrayBuffer(0), secondPassword: new ArrayBuffer(0), option: "" } });
   assert.equal(sent.at(-1).type, "result");
   assert.equal(sent.at(-1).answer, "public-summary");
+}
+// Only the page's own dedicated-worker channel is heard: a message that
+// carries an origin or a source is refused before anything runs.
+for (const foreign of [{ origin: "https://evil.example", source: null }, { origin: "", source: {} }, {}]) {
+  const sent = [];
+  let started = false;
+  const scope = {
+    WebAssembly: { Module, instantiate: async () => { started = true; return {}; } }, Uint8Array, ArrayBuffer,
+    importScripts() {}, postMessage(message) { sent.push(message); }, close() { this.closed = true; },
+  };
+  scope.self = scope;
+  scope.Go = class { constructor() { this.importObject = {}; } run() { started = true; return new Promise(() => {}); } };
+  vm.runInContext(fs.readFileSync("web/workbench/pfx-worker.js", "utf8"), vm.createContext(scope));
+  scope.onmessage({ ...foreign, data: { type: "init", module: new Module() } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(started, false, "a foreign message started the worker");
+  assert.equal(sent[0] && sent[0].type, "failure");
+  assert.equal(scope.closed, true);
 }
 console.log("PFX worker deadline, abort, transfer, one-shot and memory-clearing checks passed.");
