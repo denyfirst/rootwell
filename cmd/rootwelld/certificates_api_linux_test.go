@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -307,16 +308,26 @@ func openPair(t *testing.T, cert, archiveBytes []byte) {
 		t.Fatal(err)
 	}
 	var protected []byte
+	files := map[string][]byte{}
+	var names []string
 	for _, file := range archive.File {
-		if file.Name != "private-key.encrypted.pem" {
-			continue
-		}
 		r, err := file.Open()
 		if err != nil {
 			t.Fatal(err)
 		}
-		protected, _ = io.ReadAll(r)
+		files[file.Name], _ = io.ReadAll(r)
 		_ = r.Close()
+		names = append(names, file.Name)
+	}
+	// The names servers expect, the full chain led by the certificate, and a
+	// key that is locked.
+	protected = files["privkey.pem"]
+	if want := []string{"fullchain.pem", "cert.pem", "privkey.pem"}; !slices.Equal(names, want) && !slices.Equal(names, []string{"fullchain.pem", "cert.pem", "chain.pem", "privkey.pem"}) {
+		t.Fatalf("zip holds %v", names)
+	}
+	if !bytes.HasPrefix(files["fullchain.pem"], files["cert.pem"]) || !bytes.Equal(files["fullchain.pem"], append(bytes.Clone(files["cert.pem"]), files["chain.pem"]...)) ||
+		!bytes.Contains(protected, []byte("BEGIN ENCRYPTED PRIVATE KEY")) || bytes.Contains(protected, []byte("BEGIN PRIVATE KEY")) {
+		t.Fatal("the zip's files are not the certificate, its chain and a locked key")
 	}
 	_, exported, err := certificatepair.Prepare(cert, protected, []byte("new-download-password"), "", "")
 	if err != nil {

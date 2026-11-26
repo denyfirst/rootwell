@@ -383,16 +383,16 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 				output = bytes.Clone(encrypted)
 				return nil
 			}
+			// The names nginx, Apache and certbot use. The key stays locked
+			// with the download password; there is no plaintext key export.
+			chain := certificatepair.PublicPEM(record.IssuerDER)
 			var archive bytes.Buffer
 			defer func() { clear(archive.Bytes()) }()
 			z := zip.NewWriter(&archive)
 			for _, file := range []struct {
 				name string
 				body []byte
-			}{{"certificate.pem", certificate}, {"private-key.encrypted.pem", encrypted}, {"included-certificates.pem", certificatepair.PublicPEM(record.BundleDER)}} {
-				if file.name == "included-certificates.pem" && len(record.BundleDER) < 2 {
-					continue
-				}
+			}{{"fullchain.pem", append(bytes.Clone(certificate), chain...)}, {"cert.pem", certificate}, {"chain.pem", chain}, {"privkey.pem", encrypted}} {
 				if len(file.body) == 0 {
 					continue
 				}
