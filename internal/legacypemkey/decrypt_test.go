@@ -125,7 +125,7 @@ func TestDecryptAgreesWithTheStandardLibrary(t *testing.T) {
 	}
 }
 
-func FuzzDecrypt(f *testing.F) {
+func FuzzDecryptLegacyKey(f *testing.F) {
 	der := keys(f)["EC PRIVATE KEY"]
 	block := encrypt(f, "EC PRIVATE KEY", der, x509.PEMCipher3DES)
 	f.Add(block.Type, block.Headers["Proc-Type"], block.Headers["DEK-Info"], block.Bytes, []byte(password))

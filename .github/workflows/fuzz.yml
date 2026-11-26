@@ -81,6 +81,12 @@ jobs:
             package: ./internal/pfxinspect
           - target: FuzzPFXImportNoPartialSecret
             package: ./internal/browserpfximport
+          - target: FuzzParseCertsOnly
+            package: ./internal/pkcs7certs
+          - target: FuzzDecryptLegacyKey
+            package: ./internal/legacypemkey
+          - target: FuzzSplit
+            package: ./internal/fileformat
           - target: FuzzInspectCSR
             package: ./internal/csrworkbench
           - target: FuzzPublicComparison

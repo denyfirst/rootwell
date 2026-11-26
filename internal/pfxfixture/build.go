@@ -133,7 +133,7 @@ type pbeParams struct {
 func bmp(password string) []byte {
 	out := make([]byte, 0, 2*len(password)+2)
 	for _, unit := range utf16.Encode([]rune(password)) {
-		out = append(out, byte(unit>>8), byte(unit))
+		out = append(out, byte(unit>>8), byte(unit)) // #nosec G115 -- a UTF-16 code unit split into its two bytes.
 	}
 	return append(out, 0, 0)
 }
@@ -176,7 +176,7 @@ func kdf(newHash func() hash.Hash, v int, salt, password []byte, iterations int,
 			carry := 1
 			for k := v - 1; k >= 0; k-- {
 				sum := int(input[start+k]) + int(increment[k]) + carry
-				input[start+k] = byte(sum)
+				input[start+k] = byte(sum) // #nosec G115 -- byte-wise addition; the overflow is the carry.
 				carry = sum >> 8
 			}
 		}
@@ -205,7 +205,7 @@ func random(t testing.TB, size int) []byte {
 
 func pad(plaintext []byte, block int) []byte {
 	n := block - len(plaintext)%block
-	return append(bytes.Clone(plaintext), bytes.Repeat([]byte{byte(n)}, n)...)
+	return append(bytes.Clone(plaintext), bytes.Repeat([]byte{byte(n)}, n)...) // #nosec G115 -- n is 1 to 16.
 }
 
 // encrypt returns the AlgorithmIdentifier and ciphertext for one protection.
@@ -218,7 +218,7 @@ func (spec Spec) encrypt(t testing.TB, p Protection, plaintext []byte) (pkix.Alg
 		password := spec.passwordBytes()
 		key := kdf(sha1.New, 64, salt, password, p.Iterations, 1, 24)
 		iv := kdf(sha1.New, 64, salt, password, p.Iterations, 2, 8)
-		block, err := des.NewTripleDESCipher(key) // #nosec G401 -- a legacy 3DES test fixture.
+		block, err := des.NewTripleDESCipher(key) // #nosec G401 G405 -- a legacy 3DES test fixture.
 		if err != nil {
 			t.Fatal(err)
 		}

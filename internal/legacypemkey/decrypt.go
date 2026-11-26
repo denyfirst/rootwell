@@ -10,12 +10,10 @@
 package legacypemkey
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des" // #nosec G502 -- reads 3DES-protected keys that older OpenSSL wrote; never used to protect output.
 	"crypto/md5" // #nosec G501 -- EVP_BytesToKey of this read-only legacy format is defined over MD5.
-	"crypto/subtle"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
@@ -81,9 +79,17 @@ func Decrypt(block *pem.Block, password []byte) ([]byte, error) {
 	}
 	plain := make([]byte, len(block.Bytes))
 	cipher.NewCBCDecrypter(engine, iv).CryptBlocks(plain, block.Bytes)
-	padding := int(plain[len(plain)-1])
-	if padding == 0 || padding > spec.blockBytes ||
-		subtle.ConstantTimeCompare(plain[len(plain)-padding:], bytes.Repeat([]byte{byte(padding)}, padding)) != 1 {
+	last := plain[len(plain)-1]
+	padding := int(last)
+	if padding == 0 || padding > spec.blockBytes {
+		clear(plain)
+		return nil, ErrWrongPassword
+	}
+	var differs byte
+	for _, value := range plain[len(plain)-padding:] {
+		differs |= value ^ last
+	}
+	if differs != 0 {
 		clear(plain)
 		return nil, ErrWrongPassword
 	}
