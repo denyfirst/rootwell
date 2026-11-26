@@ -65,7 +65,11 @@ func TestABackupNeedsAFreshCodeAndOpensWithTheInstanceKey(t *testing.T) {
 		!strings.HasPrefix(w.Header().Get("Content-Disposition"), `attachment; filename="rootwell-backup-`) || w.Body.Len() == 0 {
 		t.Fatalf("backup: %d %v", w.Code, w.Header())
 	}
-	if strings.Contains(w.Body.String(), testName) || strings.Contains(w.Body.String(), e.seed) {
+	// A record in the clear would hold the name as a JSON string and the phone
+	// seed as it is. The bare name is not looked for: three letters such as
+	// "ada" turn up by chance in the vault's hex record keys and base64
+	// ciphertext, in about one backup in 25.
+	if body := w.Body.String(); strings.Contains(body, `"`+testName+`"`) || strings.Contains(body, e.seed) {
 		t.Fatal("the backup holds the account in the clear")
 	}
 	// The copy is a whole vault: it opens with the instance key, and only so.
