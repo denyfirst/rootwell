@@ -364,21 +364,23 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .lifetime-dates { display: flex; justify-content: space-between; color: var(--ink-faint); font-size: var(--fs-14); }
 .field label .muted, .label .muted { margin-left: 6px; font-weight: 400; }
 
-/* The chain: who vouches for whom, top to bottom. */
+/* The chain: who vouches for whom, top to bottom. A row is a .link inside a
+   .chain, and every rule names the .chain: a text link elsewhere stays an
+   ordinary link. */
 .chain { display: grid; gap: 0; }
-.link { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3); padding: var(--sp-3) 0; }
-.link + .link::before { content: ""; position: absolute; left: 19px; top: -10px; height: 20px; width: 2px; background: var(--rule-strong); }
-.link.warn + .link::before, .link + .link.warn::before { background: var(--weak); }
-.link.broken + .link::before, .link + .link.broken::before { background: var(--insecure); }
+.chain > .link { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3); padding: var(--sp-3) 0; }
+.chain > .link + .link::before { content: ""; position: absolute; left: 19px; top: -10px; height: 20px; width: 2px; background: var(--rule-strong); }
+.chain > .link.warn + .link::before, .chain > .link + .link.warn::before { background: var(--weak); }
+.chain > .link.broken + .link::before, .chain > .link + .link.broken::before { background: var(--insecure); }
 .link-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--paper-sunk); color: var(--ink-soft); }
-.link.ok .link-mark { color: var(--strong); background: var(--strong-wash); }
-.link.broken .link-mark { color: var(--insecure); background: var(--insecure-wash); }
-.link.missing .link-mark { color: var(--insecure); background: var(--card); border: 2px dashed var(--insecure); }
-.link.gap .link-mark { background: var(--card); border: 2px dashed var(--rule-strong); }
-.link.warn .link-mark { color: var(--weak); background: var(--weak-wash); }
-.chain.extras .link + .link::before { display: none; }
-.link strong { display: block; font-weight: 600; overflow-wrap: anywhere; }
-.link small { display: block; color: var(--ink-faint); font-size: var(--fs-14); }
+.chain > .link.ok .link-mark { color: var(--strong); background: var(--strong-wash); }
+.chain > .link.broken .link-mark { color: var(--insecure); background: var(--insecure-wash); }
+.chain > .link.missing .link-mark { color: var(--insecure); background: var(--card); border: 2px dashed var(--insecure); }
+.chain > .link.gap .link-mark { background: var(--card); border: 2px dashed var(--rule-strong); }
+.chain > .link.warn .link-mark { color: var(--weak); background: var(--weak-wash); }
+.chain.extras > .link + .link::before { display: none; }
+.chain > .link strong { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.chain > .link small { display: block; color: var(--ink-faint); font-size: var(--fs-14); }
 
 /* A verdict at the top of a result. */
 .verdict { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-5); border-radius: var(--r-lg); }
