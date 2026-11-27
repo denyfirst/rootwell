@@ -385,11 +385,18 @@ func mayTakeOver(newer, older certificateRecord) bool {
 	return true
 }
 
+// renews says whether a finished renewal still takes older's place: the
+// person chose older when making the request, so neither names nor end dates
+// are asked about. An early renewal may end before the older one, now that
+// certificates last shorter; it is still the one the person asked for.
+func renews(newer, older certificateRecord) bool {
+	return older.Fingerprint != newer.Fingerprint && older.ReplacedBy == ""
+}
+
 // takeOver gives c the place of the saved certificate older: c keeps where
 // older is used and, when c has none, who looks after it, and older is
-// marked replaced. renewal is for a finished renewal request: the person
-// chose older when making the request, so names need not match, and an older
-// one deleted, replaced or outlasting c since then is passed over.
+// marked replaced. renewal is for a finished renewal request (see renews):
+// an older one deleted or replaced since then is passed over.
 //
 // It returns the fingerprint of the certificate replaced, or "".
 func (s *Store) takeOver(t *vault.Tx, c *certificateRecord, older string, renewal bool) (string, error) {
@@ -402,7 +409,7 @@ func (s *Store) takeOver(t *vault.Tx, c *certificateRecord, older string, renewa
 	}
 	allowed := mayTakeOver(*c, old)
 	if renewal {
-		allowed = old.Fingerprint != c.Fingerprint && old.ReplacedBy == "" && outlasts(*c, old)
+		allowed = renews(*c, old)
 		if !allowed {
 			return "", nil
 		}
@@ -452,7 +459,7 @@ func (s *Store) Successor(r publicinventory.Record) (Plan, error) {
 		plan.Finishes = found
 		if found && q.Renews != "" {
 			old, _, err := s.read(t, q.Renews)
-			if err == nil && old.ReplacedBy == "" && old.Fingerprint != newer.Fingerprint && outlasts(newer, old) {
+			if err == nil && renews(newer, old) {
 				plan.Renews = old.Fingerprint
 				return nil
 			}

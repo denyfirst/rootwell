@@ -63,8 +63,10 @@ such as a root.
 **Taking the place.** A finished renewal takes the place of the certificate
 it renews: it keeps the places the older one is used, adds its own, keeps the
 older one's owner when it has none, and the older one is marked replaced,
-with the date. When the older one was deleted or replaced meanwhile, or would
-outlast the new one, nothing is replaced. Any other newer certificate may
+with the date. When the older one was deleted or replaced meanwhile, nothing
+is replaced. End dates are not compared: certificates last shorter every
+year, so an early renewal may end before the one it renews, and it is still
+the one the person asked for. Any other newer certificate may
 take an older one's place when the person keeps the box ticked in Add. Then
 the older one must be saved, not replaced, not an authority, name at least
 one DNS name or address, all of which the newer one covers, and end before
@@ -97,6 +99,7 @@ know what a server serves; Website check, and later watched websites, tell.
 
 `TestARequestKeepsItsKeyUntilItsCertificateFinishesIt`,
 `TestARenewalTakesTheOlderCertificatesPlace`,
+`TestAnEarlyRenewalThatEndsSoonerStillTakesThePlace`,
 `TestAChosenReplacementMustCoverTheNamesAndLastLonger`,
 `TestARequestNeedsItsOwnKeyAndGivingItUpDeletesTheKey`,
 `TestARequestRecordIsReadStrictly`, `TestGenerateKeptChecksLikeTheBrowser`,

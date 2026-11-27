@@ -325,3 +325,29 @@ func TestARequestRecordIsReadStrictly(t *testing.T) {
 		t.Fatalf("a request record with an unknown field was listed: %v", err)
 	}
 }
+
+// Certificates last shorter every year: a renewal made early may end before
+// the certificate it renews, and still takes its place.
+func TestAnEarlyRenewalThatEndsSoonerStillTakesThePlace(t *testing.T) {
+	s, _ := newStore(t)
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	old := issueKey(t, &key.PublicKey, nil, 300*24*time.Hour, "long.example")
+	_, g, err := s.Save(1, old.certificate, nil, nil, "Ops", "edge-1", old.fingerprint, false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	csr, requestKey := request(t, "long.example")
+	defer clear(requestKey)
+	if _, g, err = s.AddRequest(g, csr, requestKey, old.fingerprint); err != nil {
+		t.Fatal(err)
+	}
+	renewed := issueFor(t, csr, 100*24*time.Hour, "long.example")
+	check, _ := certificatepair.Analyze(renewed.certificate, nil, nil)
+	if plan, err := s.Successor(check[0]); err != nil || plan.Renews != old.fingerprint {
+		t.Fatalf("a shorter renewal is not offered as the renewal: %+v %v", plan, err)
+	}
+	saved, _, err := s.Save(g, renewed.certificate, nil, nil, "", "", renewed.fingerprint, false, "")
+	if err != nil || saved.Replaces != old.fingerprint || saved.Owner != "Ops" || !slices.Equal(saved.Locations, []string{"edge-1"}) {
+		t.Fatalf("a shorter renewal did not take the place: %+v %v", saved, err)
+	}
+}

@@ -32,7 +32,8 @@ request's key with it, after the same match check as a chosen key, and
 deletes the request and its key in the same write; a key sent with it is set
 aside. A finished renewal marks the certificate it renews replaced and gives
 the new one its places and, when it has none, its owner, unless that one was
-deleted, replaced or outlasts the new one meanwhile. Any other replacement
+deleted or replaced meanwhile; end dates are not compared, since an early
+renewal may end first. Any other replacement
 needs the person's choice (`replaces`) and an older certificate that is
 saved, not replaced, not an authority, names something, has every name the
 newer one has, and ends first; otherwise 409 and nothing is saved. A replaced
@@ -51,6 +52,7 @@ element.
 Guarded by `TestGenerateKeptChecksLikeTheBrowser`,
 `TestARequestKeepsItsKeyUntilItsCertificateFinishesIt`,
 `TestARenewalTakesTheOlderCertificatesPlace`,
+`TestAnEarlyRenewalThatEndsSoonerStillTakesThePlace`,
 `TestAChosenReplacementMustCoverTheNamesAndLastLonger`,
 `TestARequestNeedsItsOwnKeyAndGivingItUpDeletesTheKey`,
 `TestARequestRecordIsReadStrictly`,
