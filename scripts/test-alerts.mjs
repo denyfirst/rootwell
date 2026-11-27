@@ -72,7 +72,8 @@ class Node {
   text() { return [this.textContent, ...this.children.map((c) => c.text())].join(" ").replace(/\s+/g, " ").trim(); }
 }
 const ids = {};
-const $ = (id) => (ids[id] ??= new Node(/token|chat|host|port|user|password|from|to$/.test(id) && !/-(state|status|save|test|off)$/.test(id) ? "input" : "div"));
+// The page's text fields: their IDs end in what they hold.
+const $ = (id) => (ids[id] ??= new Node(/-(?:token|chat|host|port|user|password|from|to)$/.test(id) ? "input" : "div"));
 for (const value of ["starttls", "tls"]) {
   const radio = new Node("input");
   Object.assign(radio, { type: "radio", value, checked: value === "starttls" });
