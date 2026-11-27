@@ -12,17 +12,18 @@ Phase 3b: backups from the new Installation page, and restore, instance key
 rotation and key export on the server. A first internal review of Phase 3
 followed, and its findings are fixed. On 27 November 2026 renewal by hand
 landed: a request keeps its new key in Rootwell, and the certificate that
-comes back takes the old one's place. Alerts, watched websites and downloads
-for the server come next; renewal through ACME and delivery to servers come
+comes back takes the old one's place. Alerts by e-mail and Telegram
+followed the same day. Watched websites and downloads for the server come
+next; renewal through ACME and delivery to servers come
 after the first release. The independent review that a release needs
 (Phase 4) comes before any release.
 
 ## What exists
 
 **Pages**
-- Seven pages in the menu, in the graphite design, light and dark:
+- Eight pages in the menu, in the graphite design, light and dark:
   Certificates (the home page), Website check, Inspect, Convert, Request,
-  Account and Installation. Sign-in and setup wear the same design.
+  Alerts, Account and Installation. Sign-in and setup wear the same design.
 - No demo files, demo links or sample websites ship with the pages; the tests
   generate their own material.
 
@@ -87,6 +88,13 @@ after the first release. The independent review that a release needs
   request with its new key, needs a code
   from the phone, or a passkey, in the last ten minutes; the page asks for it
   when needed.
+- **Alerts** go by e-mail, Telegram or both, 30, 14 and 7 days before a
+  certificate ends and on the day it ends, once each; a replaced certificate
+  gets none. E-mail goes over TLS only, to the person's mail server, checked
+  against the public roots or an authority saved in Certificates; Telegram
+  through a bot. The page shows what was sent and why a channel failed, and
+  sends a test. The mail password and the bot token are sealed apart and
+  never shown; saving or turning off a channel needs a phone code.
 - `rootwelld` runs only on Linux, in practice in its container.
 
 **Website check (Linux only)**
@@ -194,7 +202,7 @@ after the first release. The independent review that a release needs
 
 - A certificate from a public CA, for Rootwell itself or for the
   certificates it keeps.
-- Alerts, watched websites and downloads for the server (next).
+- Watched websites and downloads for the server (next).
 - Renewal through ACME, and delivery to servers: after the first release.
 - More than one account.
 - An install script and releases.

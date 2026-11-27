@@ -8,7 +8,7 @@ the `rootwell` command.
 
 ## The pages
 
-The menu has seven pages. `/` leads to Certificates.
+The menu has eight pages. `/` leads to Certificates.
 
 | Page | Route | Files | What it does |
 |---|---|---|---|
@@ -17,6 +17,7 @@ The menu has seven pages. `/` leads to Certificates.
 | Inspect | `/inspect` | `inspect.html`, `inspect.js` | Shows who a certificate is for, who issued it, how long it lasts, whether its chain is complete, and whether a private key belongs to it |
 | Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
 | Request | `/request` | `request.html`, `request.js`, `request-keep.js` | Makes a CSR: a new key is made and kept by Rootwell, an existing one stays in the browser |
+| Alerts | `/alerts` | `alerts.html`, `alerts.js`, and `fresh.js` | Saves where alerts go, Telegram and e-mail, sends a test, and lists what was sent |
 | Account | `/account` | `account.html`, `auth.js`, `qr.js` and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, adds and removes passkeys, and says how to get back in from the server |
 | Installation | `/installation` | `installation.html`, `auth.js` (its installation mode) and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Shows the names Rootwell answers to on port 4180, its certificate authority's fingerprint with a link to `/rootwell-ca.pem`, when the server certificate ends and how many certificates are saved; downloads a backup; says what `restore`, `key-rotate` and `key-export` do on the server |
 
@@ -84,6 +85,9 @@ The hidden Renewals page and its older stylesheet were removed on
   `X-Rootwell-Request` header and same-origin credentials. A PFX is opened in
   its worker first; the server receives its certificate and the key encrypted
   again for the transfer, never the PFX itself or its password.
+- Alerts reads and changes only `/api/alerts`. A saved mail password or bot
+  token never comes back to the page: leaving its field empty keeps it.
+  Saving or turning off a channel needs a fresh code (ADR 0092).
 - No page asks for the Rootwell password again; only changing it on Account
   takes the current one. Downloading a key, deleting a certificate that has
   one, changing the password, the phone or the recovery codes, adding or
