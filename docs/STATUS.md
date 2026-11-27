@@ -1,6 +1,6 @@
 # Rootwell — current status
 
-24 November 2026. Rootwell is in development and has not been released: use
+27 November 2026. Rootwell is in development and has not been released: use
 only test material. The plan is
 [`PRODUCT-PLAN.md`](PRODUCT-PLAN.md); the review behind it is
 [`AUDIT-2026-11-22.md`](AUDIT-2026-11-22.md).
@@ -10,8 +10,12 @@ Certificates page on them, accounts with phone codes and short sessions, and
 HTTPS with Rootwell's own certificate authority. Passkeys followed, then
 Phase 3b: backups from the new Installation page, and restore, instance key
 rotation and key export on the server. A first internal review of Phase 3
-followed, and its findings are fixed. Next comes Phase 3c, renewal; the
-independent review that a release needs (Phase 4) comes before any release.
+followed, and its findings are fixed. On 27 November 2026 renewal by hand
+landed: a request keeps its new key in Rootwell, and the certificate that
+comes back takes the old one's place. Alerts, watched websites and downloads
+for the server come next; renewal through ACME and delivery to servers come
+after the first release. The independent review that a release needs
+(Phase 4) comes before any release.
 
 ## What exists
 
@@ -33,7 +37,9 @@ independent review that a release needs (Phase 4) comes before any release.
     key.
   - **Convert** a certificate, key or PFX into PEM files, a single
     certificate, a new PFX, or a key in PEM, DER or the older RSA and EC forms.
-  - **Request** a CSR with a new key or an existing one.
+  - **Request** a CSR. A new key is made and kept by `rootwelld`, which
+    puts it with the certificate when that is added; a key you already have
+    stays in the browser, and only the request comes out.
 - They read files as other tools write them, by content, not name
   ([ADR 0089](adr/0089-real-world-file-formats.md)):
   - PFX files from Windows, .NET, OpenSSL (old and new) and Java, with or
@@ -63,6 +69,10 @@ independent review that a release needs (Phase 4) comes before any release.
 - What a user can do:
   - add certificates, a bundle, a key or a PFX, several files at once;
   - add a key later to a certificate saved without one;
+  - renew one by hand: Renew makes a request for the same names with a new
+    key Rootwell keeps; the certificate that comes back finds its key and
+    takes the old one's place, keeping where it is used and its owner. The
+    old one shows under Replaced;
   - note where it is used and who is responsible;
   - see how long each one has left, who issued it (by organization), its key
     type and its chain up to the root saved with it;
@@ -73,7 +83,8 @@ independent review that a release needs (Phase 4) comes before any release.
     certbot use;
   - download the key locked with a password. A key never leaves unlocked; Convert
     can unlock a downloaded key in the browser.
-- Downloading a key, or deleting a certificate that has one, needs a code
+- Downloading a key, deleting a certificate that has one, or giving up a
+  request with its new key, needs a code
   from the phone, or a passkey, in the last ten minutes; the page asks for it
   when needed.
 - `rootwelld` runs only on Linux, in practice in its container.
@@ -183,8 +194,8 @@ independent review that a release needs (Phase 4) comes before any release.
 
 - A certificate from a public CA, for Rootwell itself or for the
   certificates it keeps.
-- Renewal of any kind.
-- Delivery to servers.
+- Alerts, watched websites and downloads for the server (next).
+- Renewal through ACME, and delivery to servers: after the first release.
 - More than one account.
 - An install script and releases.
 

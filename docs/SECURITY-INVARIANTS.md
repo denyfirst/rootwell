@@ -8,6 +8,61 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C116 — A request's new key is made and kept in the vault, joins only its own certificate, and a renewal is bookkeeping (ADR 0091)
+
+`POST /api/requests/create` needs a signed-in session, the exact Origin and
+the page header. It takes a key kind (`ec-p256`, `rsa-2048`, `ec-p384`,
+`rsa-3072` or `rsa-4096`) with either DNS names and IP addresses and optional
+organization details, or `renews` and the fingerprint of a saved certificate,
+and nothing else: an unknown field, a key or a password is refused. The names
+are checked as the browser's request maker checks them (C63). `rootwelld`
+makes the key with `crypto/rand`, one at a time, and keeps it in a sealed
+record of its own, apart from the request, under an index that is an HMAC of
+the key's public fingerprint (C107). No answer, list or log carries the key:
+the page gets the request, which is public. At most 50 requests wait; a
+stale page gets 409 and nothing is kept.
+
+A renewal takes the certificate's DNS names, IP addresses, common name when
+it is one of them, and its organization, locality, province and country, and
+always a new key. One renewal waits per certificate; a certificate replaced
+already, an authority or one with no names gets none.
+
+Saving a certificate whose public key is a waiting request's saves the
+request's key with it, after the same match check as a chosen key, and
+deletes the request and its key in the same write; a key sent with it is set
+aside. A finished renewal marks the certificate it renews replaced and gives
+the new one its places and, when it has none, its owner, unless that one was
+deleted or replaced meanwhile; end dates are not compared, since an early
+renewal may end first. Any other replacement
+needs the person's choice (`replaces`) and an older certificate that is
+saved, not replaced, not an authority, names something, has every name the
+newer one has, and ends first; otherwise 409 and nothing is saved. A replaced
+certificate keeps its key and record; deleting its successor makes it current
+again. Replaced is the person's record, never a claim about what a server
+serves.
+
+`POST /api/requests/delete` gives up a request and deletes its key only after
+a fresh code (C111); without one it answers 428 and keeps both.
+
+On the Request page, `request.js` reads key files and makes no request;
+`request-keep.js` sends the typed names to `/api/requests/create`, after
+`/api/inventory` for the list's count, and touches no file, worker or page
+element.
+
+Guarded by `TestGenerateKeptChecksLikeTheBrowser`,
+`TestARequestKeepsItsKeyUntilItsCertificateFinishesIt`,
+`TestARenewalTakesTheOlderCertificatesPlace`,
+`TestAnEarlyRenewalThatEndsSoonerStillTakesThePlace`,
+`TestACertificateWithAKeyGoCannotReadIsStillSaved`,
+`TestAChosenReplacementMustCoverTheNamesAndLastLonger`,
+`TestARequestNeedsItsOwnKeyAndGivingItUpDeletesTheKey`,
+`TestARequestRecordIsReadStrictly`,
+`TestLinuxARequestKeepsItsKeyAndItsCertificateFinishesIt`,
+`TestLinuxARenewalIsMadeFromTheCertificateAndTakesItsPlace`,
+`TestLinuxGivingUpARequestNeedsAFreshCode`, `TestLinuxRequestInputIsRefused`,
+`TestPagesSeparateFileAndNetworkCapabilities`,
+`scripts/test-certificates.mjs` and `scripts/test-request.mjs`.
+
 ## C115 — A chosen file is read by what it holds, and nothing in it is skipped (ADR 0089)
 
 Add, Inspect and Convert read each chosen file with the engine's
@@ -254,7 +309,8 @@ the dialog that sends it to `/api/fresh`, or a passkey used from its
 does nothing when asked to:
 
 - download a key, with its certificate or alone;
-- delete a certificate that has a saved key (audit RW-10);
+- delete a certificate that has a saved key (audit RW-10), or give up a
+  request whose new key Rootwell keeps (C116);
 - change the password, move to a new phone, make new recovery codes, or add
   or remove a passkey;
 - download a backup of the whole vault from the Installation page (C114).
@@ -278,6 +334,7 @@ Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
 `TestCertificateRequestsRefuseAPasswordField`,
+`TestLinuxGivingUpARequestNeedsAFreshCode`,
 `scripts/test-certificates.mjs` and `scripts/test-rootwelld-auth.mjs`.
 
 ## C110 — Only failures count, per known device or per name and source (ADR 0088)

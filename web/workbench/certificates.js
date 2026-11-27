@@ -16,6 +16,8 @@
   class Plain extends Error {}
 
   let records = [];
+  // Requests whose key Rootwell keeps, waiting for their certificate.
+  let waiting = [];
   let generation = 0;
   let filter = "all";
   let loading = null;
@@ -31,6 +33,13 @@
     503: "Rootwell is busy. Try again in a moment.",
   };
   const wrongKeyPassword = "That password does not open the key.";
+  // Refusals the server names, in the page's words.
+  const refusals = {
+    "renewal-waiting": "A renewal of this certificate is waiting already.",
+    "replaced": "A newer certificate has taken this one's place.",
+    "cannot-replace": "This certificate cannot take that one's place. Save it without replacing.",
+    "requests-full": "50 requests are waiting. Finish or cancel one first.",
+  };
 
   // A key download, or deleting a certificate with a key, needs a code from the
   // phone in the last ten minutes. The server answers 428 without one: the page
@@ -48,6 +57,8 @@
     if (!response.ok) {
       if (response.status === 409 && response.headers.get("X-Rootwell-Refusal") === "duplicate-certificate") throw new Plain("This certificate is already saved.");
       if (response.status === 422 && response.headers.get("X-Rootwell-Refusal") === "key-password-wrong") throw new Plain(wrongKeyPassword);
+      const named = response.status === 409 && refusals[response.headers.get("X-Rootwell-Refusal")];
+      if (named) throw new Plain(named);
       if (response.status === 409) void load();
       throw new Plain(messages[response.status] || expect || "Rootwell could not do that. Try again.");
     }
@@ -101,6 +112,8 @@
         const answer = await json(await call("/api/inventory", null, "The list could not be read. Reload the page."));
         if (!Array.isArray(answer.records) || !Number.isSafeInteger(answer.generation)) throw new Error("answer");
         records = answer.records.filter((r) => r && fingerprintPattern.test(r.fingerprint));
+        waiting = (Array.isArray(answer.requests) ? answer.requests : []).filter((q) => q && fingerprintPattern.test(q.public_fingerprint) &&
+          typeof q.csr === "string" && Array.isArray(q.dns_names) && Array.isArray(q.ip_addresses));
         generation = answer.generation;
         listError.hidden = true;
         draw();
@@ -144,7 +157,7 @@
     const places = record.locations && record.locations.length ? record.locations : [];
     link.appendChild(ui.el("span", places.length ? "row-cell" : "row-cell row-empty", places.length ? places.join(", ") : "—"));
     const pill = ui.el("span");
-    pill.appendChild(ui.pill(record.not_after, now));
+    pill.appendChild(record.replaced_by ? ui.el("span", "pill pill-plain", "Replaced") : ui.pill(record.not_after, now));
     link.appendChild(pill);
     const key = ui.el("span");
     if (record.has_private_key && record.key_status === "matched") {
@@ -162,10 +175,51 @@
     return link;
   }
 
+  const waitingCard = $("waiting");
+  const waitingRows = $("waiting-rows");
+  const waitingCount = $("waiting-count");
+  const requestName = (q) => ui.unicodeName(q.dns_names[0] || q.ip_addresses[0] || "Request");
+  const recordOf = (fingerprint) => records.find((r) => r.fingerprint === fingerprint);
+  const csrFile = (q) => ({ bytes: encoder.encode(q.csr), name: ui.friendlyName(requestName(q), "request") + ".csr" });
+
+  // Requests whose key Rootwell keeps: the request to send again, and a way
+  // to give one up.
+  function drawWaiting() {
+    waitingCard.hidden = !waiting.length;
+    waitingCount.textContent = waiting.length === 1 ? "1 request" : waiting.length + " requests";
+    waitingRows.replaceChildren(...waiting.map((q) => {
+      const chip = ui.el("div", "file-chip");
+      const mark = ui.el("span", "cert-mark");
+      mark.appendChild(ui.icon("file"));
+      chip.appendChild(mark);
+      const words = ui.el("div");
+      words.appendChild(ui.el("strong", "", requestName(q)));
+      const renews = q.renews && recordOf(q.renews);
+      words.appendChild(ui.el("small", "", "Requested " + ui.formatDate(q.created_at) + " · " + q.key_type + (renews ? " · renews " + nameOf(renews) : "")));
+      chip.appendChild(words);
+      const save = ui.el("button", "btn btn-secondary btn-sm");
+      save.type = "button";
+      save.appendChild(ui.icon("download"));
+      save.appendChild(ui.el("span", "", "Download"));
+      save.addEventListener("click", () => { const file = csrFile(q); ui.download(file.bytes, file.name, "application/pkcs10"); });
+      chip.appendChild(save);
+      const cancel = ui.el("button", "btn btn-ghost btn-sm", "Cancel");
+      cancel.type = "button";
+      cancel.addEventListener("click", () => askCancel(q));
+      chip.appendChild(cancel);
+      return chip;
+    }));
+  }
+
   function draw() {
     const now = Date.now();
-    const counts = { all: records.length, good: 0, soon: 0, bad: 0 };
-    for (const record of records) counts[kindOf(record, now)]++;
+    drawWaiting();
+    // A replaced certificate is kept, but it no longer counts.
+    const current = records.filter((r) => !r.replaced_by);
+    const replaced = records.length - current.length;
+    if (filter === "replaced" && !replaced) filter = "all";
+    const counts = { all: current.length, good: 0, soon: 0, bad: 0 };
+    for (const record of current) counts[kindOf(record, now)]++;
     const any = records.length > 0;
     empty.hidden = any;
     stats.hidden = !any;
@@ -177,10 +231,11 @@
       statTile("good", "Good", counts.good, "ok"),
       statTile("soon", "Expiring soon", counts.soon, "alert"),
       statTile("bad", "Expired", counts.bad, "bad"),
+      ...(replaced ? [statTile("replaced", "Replaced", replaced, "renew")] : []),
     );
     const query = searchRow.hidden ? "" : search.value.trim().toLowerCase();
-    const shown = records
-      .filter((r) => filter === "all" || kindOf(r, now) === filter)
+    const shown = (filter === "replaced" ? records.filter((r) => r.replaced_by) : current)
+      .filter((r) => filter === "all" || filter === "replaced" || kindOf(r, now) === filter)
       .filter((r) => !query || [nameOf(r), r.issuer || "", ...(r.dns_names || []), ...(r.dns_names || []).map(ui.unicodeName), ...(r.ip_addresses || []), ...(r.locations || []), r.owner || ""].some((v) => v.toLowerCase().includes(query)))
       .sort((a, b) => Date.parse(a.not_after) - Date.parse(b.not_after));
     const head = ui.el("div", "list-head");
@@ -212,6 +267,8 @@
   const ownerSave = $("sheet-owner-save");
   const sheetStatus = $("sheet-status");
   const website = $("sheet-website");
+  const sheetNote = $("sheet-note");
+  const renewButton = $("sheet-renew");
   const downloadPanel = $("download-panel");
   const keyPanel = $("key-panel");
 
@@ -272,7 +329,8 @@
     if (!same && deleteTarget) closeDelete();
     open = record;
     const now = Date.now();
-    sheetPill.replaceChildren(ui.pill(record.not_after, now));
+    sheetPill.replaceChildren(record.replaced_by ? ui.el("span", "pill pill-plain", "Replaced") : ui.pill(record.not_after, now));
+    drawNote(record);
     const hero = ui.el("div", "cert-hero");
     const mark = ui.el("span", "cert-mark");
     mark.appendChild(ui.icon("certificate"));
@@ -297,6 +355,7 @@
       addKey.type = "button";
       addKey.addEventListener("click", () => { downloadPanel.hidden = true; keyPanel.hidden = false; resetKeyPanel(); });
     }
+    const before = record.replaces && recordOf(record.replaces);
     const fingerprint = fact("Fingerprint", ui.shortFingerprint(record.fingerprint));
     fingerprint.strong.className = "mono";
     fingerprint.block.title = record.fingerprint;
@@ -305,7 +364,12 @@
       fact("Key type", record.key_type || "\u2014").block,
       fingerprint.block,
       fact("Added", record.imported_at ? ui.formatDate(record.imported_at) : "—").block,
+      ...(before ? [fact("Replaces", nameOf(before) + ", until " + ui.formatDate(before.not_after)).block] : []),
     );
+    // Renew makes a request for the same names. A replaced certificate, one
+    // with a renewal waiting, and one that names nothing have none.
+    renewButton.hidden = !!record.replaced_by || waiting.some((q) => q.renews === record.fingerprint) ||
+      !((record.dns_names || []).length || (record.ip_addresses || []).length);
     drawPlaces(record);
     if (!same || document.activeElement !== owner) owner.value = record.owner || "";
     ownerSave.hidden = owner.value.trim() === (record.owner || "");
@@ -322,8 +386,38 @@
     if (location.hash !== "#" + hashOf(record)) history.replaceState(null, "", "#" + hashOf(record));
   }
 
+  // What became of the certificate: replaced by a newer one, or a renewal
+  // waiting for its certificate.
+  function drawNote(record) {
+    const renewal = waiting.find((q) => q.renews === record.fingerprint);
+    const newer = record.replaced_by && recordOf(record.replaced_by);
+    sheetNote.hidden = !renewal && !record.replaced_by;
+    if (sheetNote.hidden) return sheetNote.replaceChildren();
+    const box = ui.el("div", "notice info");
+    box.appendChild(ui.icon(renewal ? "file" : "renew"));
+    if (renewal) {
+      box.appendChild(ui.el("span", "", "A renewal is waiting for its certificate, requested " + ui.formatDate(renewal.created_at) + "."));
+      const again = ui.el("button", "btn btn-secondary btn-sm push-right");
+      again.type = "button";
+      again.appendChild(ui.icon("download"));
+      again.appendChild(ui.el("span", "", "Download request"));
+      again.addEventListener("click", () => { const file = csrFile(renewal); ui.download(file.bytes, file.name, "application/pkcs10"); });
+      box.appendChild(again);
+    } else {
+      box.appendChild(ui.el("span", "", "Replaced" + (record.replaced_at ? " on " + ui.formatDate(record.replaced_at) : "") + " by " +
+        (newer ? nameOf(newer) + ", which lasts until " + ui.formatDate(newer.not_after) : "a newer certificate") + "."));
+      if (newer) {
+        const show = ui.el("a", "btn btn-secondary btn-sm push-right", "Open it");
+        show.href = "#" + hashOf(newer);
+        box.appendChild(show);
+      }
+    }
+    sheetNote.replaceChildren(box);
+  }
+
   function closeSheet() {
     if (deleteTarget) closeDelete();
+    closeRenew();
     if (!open && sheet.hidden) return;
     open = null;
     sheet.hidden = true;
@@ -633,6 +727,139 @@
   deleteScrim.addEventListener("click", closeDelete);
   deleteGo.addEventListener("click", confirmDelete);
 
+  // ── Renew ──────────────────────────────────────────────────────────────
+  // A request for the same names, with a new key Rootwell makes and keeps.
+  // The person sends the request to their provider and adds what comes back.
+
+  const renewDialog = $("renew-dialog");
+  const renewScrim = $("renew-scrim");
+  const renewForm = $("renew-form");
+  const renewNames = $("renew-names");
+  const renewKeys = $("renew-keys");
+  const renewSteps = $("renew-steps");
+  const renewFile = $("renew-file");
+  const renewCopy = $("renew-copy");
+  const renewStatus = $("renew-status");
+  const renewGo = $("renew-go");
+  const renewCancel = $("renew-cancel");
+  let renewTarget = null;
+  let renewMade = null;
+
+  function openRenew() {
+    if (!open || renewButton.hidden) return;
+    renewTarget = open;
+    renewMade = null;
+    $("renew-title").textContent = "Renew " + nameOf(renewTarget);
+    const covered = [...(renewTarget.dns_names || []).map(ui.unicodeName), ...(renewTarget.ip_addresses || [])];
+    renewNames.replaceChildren(...covered.map((n) => ui.el("span", "", n)));
+    const rsa = /^RSA/.test(renewTarget.key_type || "");
+    for (const radio of renewKeys.querySelectorAll("input")) radio.checked = radio.value === (rsa ? "rsa-2048" : "ec-p256");
+    renewForm.hidden = false;
+    renewSteps.hidden = true;
+    renewGo.hidden = false;
+    renewGo.disabled = false;
+    renewCancel.textContent = "Cancel";
+    say(renewStatus);
+    renewDialog.hidden = false;
+    renewScrim.hidden = false;
+  }
+
+  function closeRenew() {
+    renewTarget = null;
+    renewMade = null;
+    renewDialog.hidden = true;
+    renewScrim.hidden = true;
+  }
+
+  async function makeRenewal() {
+    const target = renewTarget;
+    if (!target) return;
+    const radio = renewKeys.querySelector("input:checked");
+    const algorithm = radio ? radio.value : "ec-p256";
+    renewGo.disabled = true;
+    say(renewStatus, "plain", algorithm === "rsa-2048" ? "Making an RSA key takes a few seconds…" : "Making the request…");
+    try {
+      const answer = await json(await call("/api/requests/create", { expected_generation: generation, algorithm, renews: target.fingerprint }, "The request was not made. Try again."));
+      const made = answer && answer.request;
+      if (!made || typeof made.csr !== "string" || !Array.isArray(made.dns_names) || !Array.isArray(made.ip_addresses)) throw new Error("answer");
+      if (Number.isSafeInteger(answer.generation) && answer.generation > generation) generation = answer.generation;
+      // The person closed the dialog meanwhile: the request waits in the list.
+      if (renewTarget !== target) { void load(); return; }
+      renewMade = made;
+      renewFile.textContent = csrFile(made).name;
+      renewCopy.hidden = !(navigator.clipboard && navigator.clipboard.writeText);
+      renewForm.hidden = true;
+      renewSteps.hidden = false;
+      renewGo.hidden = true;
+      renewCancel.textContent = "Done";
+      say(renewStatus);
+      await load();
+    } catch (failure) {
+      if (renewTarget === target) say(renewStatus, "bad", failure instanceof Plain ? failure.message : "The request was not made. Try again.");
+    } finally {
+      renewGo.disabled = false;
+    }
+  }
+
+  renewButton.addEventListener("click", openRenew);
+  renewGo.addEventListener("click", makeRenewal);
+  for (const id of ["renew-close", "renew-cancel"]) $(id).addEventListener("click", closeRenew);
+  renewScrim.addEventListener("click", closeRenew);
+  $("renew-download").addEventListener("click", () => {
+    if (!renewMade) return;
+    const file = csrFile(renewMade);
+    ui.download(file.bytes, file.name, "application/pkcs10");
+  });
+  renewCopy.addEventListener("click", async () => {
+    if (!renewMade) return;
+    try {
+      await navigator.clipboard.writeText(renewMade.csr);
+      renewCopy.textContent = "Copied";
+      setTimeout(() => { renewCopy.textContent = "Copy"; }, 2000);
+    } catch {
+      renewCopy.hidden = true;
+    }
+  });
+
+  // ── Giving up a request ────────────────────────────────────────────────
+
+  const cancelDialog = $("cancel-dialog");
+  const cancelScrim = $("cancel-scrim");
+  const cancelGo = $("cancel-go");
+  let cancelTarget = null;
+
+  function askCancel(q) {
+    cancelTarget = q;
+    $("cancel-text").textContent = "The request for " + requestName(q) + " and its new key leave Rootwell. A certificate made from this request will then have no key.";
+    cancelDialog.hidden = false;
+    cancelScrim.hidden = false;
+    cancelGo.focus();
+  }
+  function closeCancel() {
+    cancelTarget = null;
+    cancelDialog.hidden = true;
+    cancelScrim.hidden = true;
+  }
+  async function confirmCancel() {
+    const target = cancelTarget;
+    if (!target) return closeCancel();
+    cancelGo.disabled = true;
+    try {
+      await call("/api/requests/delete", { expected_generation: generation, public_fingerprint: target.public_fingerprint }, "The request was not cancelled.");
+      closeCancel();
+      await load();
+      notice("good", "Cancelled the request for " + requestName(target) + ".");
+    } catch (failure) {
+      closeCancel();
+      notice("bad", failure instanceof Plain ? failure.message : "The request was not cancelled.");
+    } finally {
+      cancelGo.disabled = false;
+    }
+  }
+  cancelGo.addEventListener("click", confirmCancel);
+  $("cancel-keep").addEventListener("click", closeCancel);
+  cancelScrim.addEventListener("click", closeCancel);
+
   // ── Add ────────────────────────────────────────────────────────────────
 
   const addDialog = $("add-dialog");
@@ -652,6 +879,10 @@
   const addPlace = $("add-place");
   const addStatus = $("add-status");
   const addSave = $("add-save");
+  const addRenews = $("add-renews");
+  const addReplaceField = $("add-replace-field");
+  const addReplace = $("add-replace");
+  const addReplaceText = $("add-replace-text");
   let add = null;
   let addTicket = 0;
 
@@ -673,6 +904,10 @@
     addPreview.replaceChildren();
     addPlaceField.hidden = true;
     addPlace.value = "";
+    addRenews.hidden = true;
+    addRenews.textContent = "";
+    addReplaceField.hidden = true;
+    addReplace.checked = true;
     addSave.disabled = true;
     say(addStatus);
   }
@@ -863,6 +1098,15 @@
       addPasswordField.hidden = true;
       preview(record);
       if (record.key_status === "mismatch") return say(addStatus, "bad", "This key does not belong to the certificate. Choose the right key, or add the certificate alone.");
+      // A renewal request takes the older one's place by itself; any other
+      // newer certificate for the same names may, if the person agrees.
+      const renews = record.renews && recordOf(record.renews);
+      const older = !renews && record.replaces && recordOf(record.replaces);
+      addRenews.hidden = !renews;
+      addRenews.textContent = renews ? "This is the renewal of " + nameOf(renews) + ". It takes that one's place." : "";
+      addReplaceField.hidden = !older;
+      addReplace.checked = true;
+      addReplaceText.textContent = older ? "Take the place of " + nameOf(older) + ", which ends " + ui.formatDate(older.not_after) + ". It keeps where that one is used and who looks after it." : "";
       addPlaceField.hidden = false;
       addSave.disabled = false;
       say(addStatus);
@@ -900,7 +1144,8 @@
     words.appendChild(ui.el("small", "", ui.commonName(record.issuer) + " · until " + ui.formatDate(record.not_after)));
     card.appendChild(words);
     card.appendChild(record.key_status === "matched" ? ui.el("span", "pill pill-good", "Key matches") :
-      record.key_status === "mismatch" ? ui.el("span", "pill pill-bad", "Key does not match") : ui.pill(record.not_after));
+      record.key_status === "mismatch" ? ui.el("span", "pill pill-bad", "Key does not match") :
+      record.finishes_request ? ui.el("span", "pill pill-good", "Key from your request") : ui.pill(record.not_after));
     addPreview.replaceChildren(card);
   }
 
@@ -911,14 +1156,19 @@
     say(addStatus, "plain", "Saving…");
     try {
       const body = { ...request(), fingerprint: add.record.fingerprint, allow_mismatch: false };
+      if (!addReplaceField.hidden && addReplace.checked && add.record.replaces) body.replaces = add.record.replaces;
       const saved = await json(await call("/api/certificates/save", body, "The certificate was not saved."));
       if (ticket !== addTicket) return;
       // The answer carries the list's new count: the next change uses it at
       // once, without waiting for the list to come back.
       if (Number.isSafeInteger(saved.generation) && saved.generation > generation) generation = saved.generation;
       const name = nameOf(add.record);
+      const kept = saved.records && saved.records[0];
+      const older = kept && kept.replaces && recordOf(kept.replaces);
+      const fromRequest = !!(kept && kept.has_private_key && add.record.finishes_request);
       closeAdd();
-      notice("good", "Saved " + name + ".");
+      notice("good", "Saved " + name + "." + (fromRequest ? " Its key came from your request." : "") +
+        (older ? " It took the place of " + nameOf(older) + "." : ""));
       await load();
     } catch (failure) {
       if (ticket === addTicket) {
@@ -940,6 +1190,8 @@
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!deleteDialog.hidden) closeDelete();
+    else if (!cancelDialog.hidden) closeCancel();
+    else if (!renewDialog.hidden) closeRenew();
     else if (!addDialog.hidden) closeAdd();
     else if (!sheet.hidden) closeSheet();
   });

@@ -249,7 +249,7 @@ func TestWebsiteCheckTrustsOnlyRootsSavedInCertificates(t *testing.T) {
 			fingerprint = r.Fingerprint
 		}
 	}
-	if _, _, err := g.certificates.Save(1, files, nil, nil, "", "", fingerprint, false); err != nil {
+	if _, _, err := g.certificates.Save(1, files, nil, nil, "", "", fingerprint, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	var got []*x509.Certificate

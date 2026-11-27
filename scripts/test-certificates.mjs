@@ -20,7 +20,7 @@ for (const forbidden of ["innerHTML", "outerHTML", "insertAdjacentHTML", "docume
 }
 assert.deepEqual([...new Set([...source.matchAll(/call\("([^"]+)"/g)].map((m) => m[1]))].sort(), [
   "/api/certificates/check", "/api/certificates/download", "/api/certificates/key/check", "/api/certificates/key/save",
-  "/api/certificates/save", "/api/inventory", "/api/inventory/delete"]);
+  "/api/certificates/save", "/api/inventory", "/api/inventory/delete", "/api/requests/create", "/api/requests/delete"]);
 assert.match(source, /edit\("\/api\/inventory\/owner"/);
 assert.match(source, /edit\("\/api\/inventory\/locations"/);
 assert.match(source, /edit\("\/api\/inventory\/locations\/change"/);
@@ -52,7 +52,10 @@ const record = (n, name, days, extra = {}) => ({ fingerprint: hexFingerprint(n),
   ip_addresses: [], key_type: "ECDSA P-256", chain: [], expiry: { status: "valid" }, ...extra });
 // fresh: a phone code was entered in the last ten minutes. freshAnswer is what
 // the page's code dialog does when Rootwell asks for one.
-const api = { generation: 1, records: [], requests: [], selection: false, fresh: true, freshAnswer: true, freshAsked: 0 };
+// waiting: requests whose key Rootwell keeps. plan: what the next check says
+// a save would do (finish a request, renew or replace a saved certificate).
+const api = { generation: 1, records: [], requests: [], waiting: [], plan: null, selection: false, fresh: true, freshAnswer: true, freshAsked: 0 };
+const csrText = "-----BEGIN CERTIFICATE REQUEST-----\nMIIBsynthetic\n-----END CERTIFICATE REQUEST-----\n";
 const pemBlocks = (text) => text.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
 function parse(body) {
   const bytes = Buffer.from(body.certificate, "base64");
@@ -78,7 +81,7 @@ function keyStatus(certificate, body) {
   }
 }
 const reply = (status, body, headers = {}) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
-const listing = (records) => ({ generation: api.generation, records, verification: "not-performed" });
+const listing = (records) => ({ generation: api.generation, records, requests: api.waiting, verification: "not-performed" });
 async function fetch(url, options) {
   const body = options.body ? JSON.parse(options.body) : null;
   api.requests.push({ url, body, headers: options.headers });
@@ -100,6 +103,21 @@ async function fetch(url, options) {
       api.records = api.records.filter((r) => r !== target);
       api.generation++;
       return reply(200, { fingerprint: body.fingerprint, generation: api.generation, deleted: true });
+    case "/api/requests/create": {
+      const renewed = api.records.find((r) => r.fingerprint === body.renews);
+      if (body.renews && !renewed) return reply(404, "not found");
+      if (renewed && api.waiting.some((q) => q.renews === body.renews)) return reply(409, "waiting", { "X-Rootwell-Refusal": "renewal-waiting" });
+      const request = { public_fingerprint: hexFingerprint(90 + api.waiting.length), created_at: iso(Date.now()), csr: csrText, subject: "CN=x",
+        dns_names: renewed ? renewed.dns_names : body.dns_names, ip_addresses: [], key_type: body.algorithm === "rsa-2048" ? "RSA 2048" : "ECDSA P-256", renews: body.renews };
+      api.waiting.push(request);
+      api.generation++;
+      return reply(201, { generation: api.generation, request });
+    }
+    case "/api/requests/delete":
+      if (!api.fresh) return reply(428, "Enter a code from your phone first.");
+      api.waiting = api.waiting.filter((q) => q.public_fingerprint !== body.public_fingerprint);
+      api.generation++;
+      return reply(200, { generation: api.generation, deleted: true });
     case "/api/certificates/download":
       assert.equal("password" in body, false, "no Rootwell password is sent");
       if ((body.pair || body.key_only) && !api.fresh) return reply(428, "Enter a code from your phone first.");
@@ -119,9 +137,18 @@ async function fetch(url, options) {
       if (status === "wrong") return reply(422, "That password does not open the key.", { "X-Rootwell-Refusal": "key-password-wrong" });
       const result = { ...toRecord(chosen), has_private_key: status !== "not-added", key_status: status };
       if (api.records.some((r) => r.fingerprint === result.fingerprint)) return reply(409, "duplicate", { "X-Rootwell-Refusal": "duplicate-certificate" });
-      if (url === "/api/certificates/check") return reply(200, listing([result]));
+      const plan = api.plan || {};
+      if (url === "/api/certificates/check") return reply(200, listing([{ ...result, ...plan }]));
       assert.equal(body.fingerprint, result.fingerprint);
       assert.equal(body.allow_mismatch, false);
+      if (plan.finishes_request) Object.assign(result, { has_private_key: true, key_status: "matched" });
+      const older = api.records.find((r) => r.fingerprint === (plan.renews || body.replaces));
+      if (older) {
+        older.replaced_by = result.fingerprint;
+        older.replaced_at = iso(Date.now());
+        Object.assign(result, { replaces: older.fingerprint, owner: result.owner || older.owner, locations: [...older.locations, ...result.locations] });
+      }
+      if (plan.renews) api.waiting = api.waiting.filter((q) => q.renews !== plan.renews);
       api.records.push(result);
       api.generation++;
       return reply(201, listing([result]));
@@ -146,10 +173,13 @@ class Node {
   click() { if (this.tag === "a" && this.download) downloads.push({ name: this.download, blob: lastBlob }); else this.listeners.click?.(); }
   all() { return [this, ...this.children.flatMap((c) => c.all())]; }
   querySelector(selector) { return selector === "input:checked" ? this.all().find((n) => n.tag === "input" && n.checked) || null : this.all().find((n) => n.tag === selector) || null; }
+  querySelectorAll(selector) { return this.all().filter((n) => n !== this && n.tag === selector); }
   text() { return [this.textContent, ...this.children.map((c) => c.text())].join(" ").replace(/\s+/g, " ").trim(); }
 }
 const ids = {};
-const $ = (id) => (ids[id] ??= new Node(/file$|password|place$|owner$|search/.test(id) ? "input" : "div"));
+// Dialogs and their scrims start hidden, as certificates.html has them.
+const $ = (id) => (ids[id] ??= Object.assign(new Node(/file$|password|place$|owner$|search|^add-replace$/.test(id) ? "input" : "div"),
+  /-(dialog|scrim)$/.test(id) ? { hidden: true } : {}));
 const document = { getElementById: $, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), body: new Node("body"),
   activeElement: null, listeners: {}, addEventListener(name, fn) { this.listeners[name] = fn; } };
 const downloads = [];
@@ -572,6 +602,153 @@ document.listeners.keydown({ key: "Escape" });
 assert.equal($("add-dialog").hidden, true);
 win.listeners.pagehide();
 assert.equal($("download-key-password").value, "", "the key file password is forgotten");
+
+// Renewal: a request for the same names, with a new key Rootwell keeps; the
+// certificate that comes back takes the older one's place.
+{
+  api.records = [record(20, "shop.test", 10, { has_private_key: true, key_status: "matched", key_type: "RSA 2048", locations: ["web-1"], location: "web-1", owner: "Web team" }),
+    record(21, "root.test", 3000, { dns_names: [] })];
+  api.waiting = [];
+  api.generation = 30;
+  api.fresh = true;
+  for (const key of Object.keys(ids)) delete ids[key];
+  for (const value of ["ec-p256", "rsa-2048"]) {
+    const radio = new Node("input");
+    Object.assign(radio, { type: "radio", value });
+    $("renew-keys").appendChild(new Node("label")).appendChild(radio);
+  }
+  load(source, "certificates.js");
+  await settle();
+  assert.equal($("waiting").hidden, true, "no request waits yet");
+  const old = api.records[0];
+  await go(old);
+  assert.equal($("sheet-renew").hidden, false);
+  assert.equal($("sheet-note").hidden, true);
+  $("sheet-renew").listeners.click();
+  assert.equal($("renew-dialog").hidden, false);
+  assert.equal($("renew-title").textContent, "Renew shop.test");
+  assert.equal($("renew-names").text(), "shop.test");
+  assert.equal($("renew-keys").querySelector("input:checked").value, "rsa-2048", "an RSA certificate is renewed with RSA unless the person picks otherwise");
+  await $("renew-go").listeners.click();
+  await settle();
+  assert.deepEqual(lastRequest("/api/requests/create").body, { expected_generation: 30, algorithm: "rsa-2048", renews: old.fingerprint });
+  assert.equal($("renew-form").hidden, true);
+  assert.equal($("renew-steps").hidden, false);
+  assert.equal($("renew-go").hidden, true);
+  assert.equal($("renew-cancel").textContent, "Done");
+  assert.equal($("renew-file").textContent, "shop.test.csr");
+  $("renew-download").listeners.click();
+  assert.equal(downloads.at(-1).name, "shop.test.csr");
+  assert.equal(downloads.at(-1).blob.type, "application/pkcs10");
+  assert.equal(await downloads.at(-1).blob.text(), csrText);
+  // The list shows the request waiting; the sheet says a renewal waits, and
+  // offers no second one.
+  assert.equal($("waiting").hidden, false);
+  assert.equal($("waiting-count").textContent, "1 request");
+  assert.match($("waiting-rows").text(), /^shop\.test Requested .+ · RSA 2048 · renews shop\.test Download Cancel$/);
+  assert.equal($("sheet-renew").hidden, true, "one renewal at a time");
+  assert.match($("sheet-note").text(), /^A renewal is waiting for its certificate, requested .+\. Download request$/);
+  $("renew-cancel").listeners.click();
+  assert.equal($("renew-dialog").hidden, true);
+  // A certificate that names nothing, such as a root, has no Renew.
+  await go(api.records[1]);
+  assert.equal($("sheet-renew").hidden, true);
+  $("sheet-close").listeners.click();
+
+  // The certificate comes back: Add says it is the renewal, its key comes
+  // from the request, and saving it replaces the older one by itself.
+  api.plan = { finishes_request: true, renews: old.fingerprint };
+  await dropAdd(new File([bytesOf("leaf")], "renewed.pem"));
+  assert.match($("add-preview").text(), /Key from your request/);
+  assert.equal($("add-renews").hidden, false);
+  assert.equal($("add-renews").textContent, "This is the renewal of shop.test. It takes that one's place.");
+  assert.equal($("add-replace-field").hidden, true, "a renewal is not asked about");
+  await $("add-save").listeners.click();
+  await settle();
+  api.plan = null;
+  assert.equal("replaces" in lastRequest("/api/certificates/save").body, false, "a renewal replaces by itself");
+  assert.match($("page-status").text(), /^Saved shop\.test\. Its key came from your request\. It took the place of shop\.test\.$/);
+  assert.equal($("waiting").hidden, true, "the finished request no longer waits");
+  const tiles = $("stats").children.map((t) => t.text());
+  assert.equal(tiles[0], "2 All", "a replaced certificate no longer counts");
+  assert.equal(tiles.at(-1), "1 Replaced");
+  assert.ok(!rows().some((r) => /Replaced/.test(r.text())), "a replaced certificate leaves the main list");
+  $("stats").children.at(-1).listeners.click();
+  assert.deepEqual(rows().map(rowText), ["shop.test Synthetic CA 20"]);
+  assert.match(rows()[0].text(), /Replaced/);
+  await go(old);
+  assert.equal($("sheet-pill").text(), "Replaced");
+  assert.match($("sheet-note").text(), /^Replaced on .+ by shop\.test, which lasts until .+\. Open it$/);
+  assert.equal($("sheet-renew").hidden, true);
+  const newer = api.records.find((r) => r.replaces === old.fingerprint);
+  assert.equal($("sheet-note").children[0].children.at(-1).href, "#" + newer.fingerprint.replace(/:/g, "").toLowerCase());
+  await go(newer);
+  assert.match($("sheet-facts").text(), /Replaces shop\.test, until /);
+  assert.deepEqual(newer.locations, ["web-1"], "the renewal keeps where the older one is used");
+  $("sheet-close").listeners.click();
+  $("stats").children.at(-1).listeners.click();
+
+  // Another newer certificate for the same names may take the place, if the
+  // person keeps the box ticked.
+  api.plan = { replaces: api.records[1].fingerprint };
+  await dropAdd(new File([bytesOf("issuer")], "issuer.pem"));
+  assert.equal($("add-renews").hidden, true);
+  assert.equal($("add-replace-field").hidden, false);
+  assert.match($("add-replace-text").textContent, /^Take the place of root\.test, which ends .+\. It keeps where that one is used and who looks after it\.$/);
+  $("add-replace").checked = false;
+  await $("add-save").listeners.click();
+  await settle();
+  assert.equal("replaces" in lastRequest("/api/certificates/save").body, false, "an unticked box replaces nothing");
+  api.records.pop();
+  await dropAdd(new File([bytesOf("issuer")], "issuer.pem"));
+  assert.equal($("add-replace").checked, true, "the box starts ticked");
+  await $("add-save").listeners.click();
+  await settle();
+  api.plan = null;
+  assert.equal(lastRequest("/api/certificates/save").body.replaces, api.records[1].fingerprint);
+
+  // Giving up a request deletes its new key, so it asks first and needs a
+  // phone code.
+  api.waiting = [{ public_fingerprint: hexFingerprint(95), created_at: iso(Date.now()), csr: csrText, subject: "CN=new.test",
+    dns_names: ["new.test"], ip_addresses: [], key_type: "ECDSA P-256" }];
+  for (const key of Object.keys(ids)) delete ids[key];
+  load(source, "certificates.js");
+  await settle();
+  assert.match($("waiting-rows").text(), /^new\.test Requested .+ · ECDSA P-256 Download Cancel$/);
+  $("waiting-rows").children[0].children[3].listeners.click();
+  assert.equal($("cancel-dialog").hidden, false);
+  assert.equal($("cancel-text").textContent, "The request for new.test and its new key leave Rootwell. A certificate made from this request will then have no key.");
+  $("cancel-keep").listeners.click();
+  assert.equal($("cancel-dialog").hidden, true);
+  assert.equal(api.waiting.length, 1);
+  api.fresh = false;
+  api.freshAnswer = false;
+  $("waiting-rows").children[0].children[3].listeners.click();
+  await $("cancel-go").listeners.click();
+  await settle();
+  assert.match($("page-status").text(), /Nothing changed. That needs a code from your phone/);
+  assert.equal(api.waiting.length, 1, "nothing was given up without the code");
+  api.freshAnswer = true;
+  $("waiting-rows").children[0].children[3].listeners.click();
+  await $("cancel-go").listeners.click();
+  await settle();
+  assert.deepEqual(lastRequest("/api/requests/delete").body, { expected_generation: api.generation - 1, public_fingerprint: hexFingerprint(95) });
+  assert.match($("page-status").text(), /Cancelled the request for new\.test\./);
+  assert.equal($("waiting").hidden, true);
+  // A refusal the server names is said in its words: here a renewal another
+  // page asked for meanwhile.
+  const current = api.records.find((r) => r.fingerprint === newer.fingerprint);
+  await go(current);
+  assert.equal($("sheet-renew").hidden, false);
+  api.waiting = [{ public_fingerprint: hexFingerprint(96), created_at: iso(Date.now()), csr: csrText, dns_names: ["shop.test"], ip_addresses: [], key_type: "ECDSA P-256", renews: current.fingerprint }];
+  $("sheet-renew").listeners.click();
+  await $("renew-go").listeners.click();
+  await settle();
+  assert.equal($("renew-status").text(), "A renewal of this certificate is waiting already.");
+  assert.equal($("renew-form").hidden, false);
+  $("renew-close").listeners.click();
+  api.waiting = [];
+}
 
 // Names as people know them: the issuer's organization, a name in its own
 // letters, an address; search finds each of them, and the sheet draws the chain.

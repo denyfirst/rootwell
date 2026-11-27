@@ -81,6 +81,8 @@ type certificateRecord struct {
 	Issuers     [][]byte `json:"issuers,omitempty"`
 	HasKey      bool     `json:"has_key,omitempty"`
 	KeyStatus   string   `json:"key_status"`
+	ReplacedBy  string   `json:"replaced_by,omitempty"`
+	ReplacedAt  string   `json:"replaced_at,omitempty"`
 }
 
 type keyRecord struct {
@@ -104,6 +106,7 @@ func (c certificateRecord) record() publicinventory.Record {
 		Owner: c.Owner, Locations: slices.Clone(c.Locations),
 		HasPrivateKey: c.HasKey, KeyStatus: c.KeyStatus,
 		BundleDER: cloneDER(c.Bundle), IssuerDER: cloneDER(c.Issuers),
+		ReplacedBy: c.ReplacedBy, ReplacedAt: c.ReplacedAt,
 	}
 	if len(r.Locations) > 0 {
 		r.Location = r.Locations[0]
@@ -129,38 +132,52 @@ func (s *Store) List() ([]publicinventory.Record, uint64, error) {
 	var generation uint64
 	err := s.v.View(func(t *vault.Tx) error {
 		var err error
-		if generation, err = s.generation(t); err != nil {
-			return err
-		}
-		ids, err := t.IDs(kindCertificate)
-		if err != nil {
-			return ErrUnavailable
-		}
-		stored := make([]certificateRecord, 0, len(ids))
-		for _, id := range ids {
-			c, err := s.readID(t, id)
-			if err != nil {
-				return err
-			}
-			stored = append(stored, c)
-		}
-		slices.SortFunc(stored, func(a, b certificateRecord) int {
-			if a.Added != b.Added {
-				if a.Added < b.Added {
-					return -1
-				}
-				return 1
-			}
-			return bytes.Compare([]byte(a.Fingerprint), []byte(b.Fingerprint))
-		})
-		records = make([]publicinventory.Record, 0, len(stored))
-		for _, c := range stored {
-			records = append(records, c.record())
-		}
-		return nil
+		records, generation, err = s.list(t)
+		return err
 	})
 	if err != nil {
 		return nil, 0, err
+	}
+	return records, generation, nil
+}
+
+func (s *Store) list(t *vault.Tx) ([]publicinventory.Record, uint64, error) {
+	generation, err := s.generation(t)
+	if err != nil {
+		return nil, 0, err
+	}
+	ids, err := t.IDs(kindCertificate)
+	if err != nil {
+		return nil, 0, ErrUnavailable
+	}
+	stored := make([]certificateRecord, 0, len(ids))
+	for _, id := range ids {
+		c, err := s.readID(t, id)
+		if err != nil {
+			return nil, 0, err
+		}
+		stored = append(stored, c)
+	}
+	slices.SortFunc(stored, func(a, b certificateRecord) int {
+		if a.Added != b.Added {
+			if a.Added < b.Added {
+				return -1
+			}
+			return 1
+		}
+		return bytes.Compare([]byte(a.Fingerprint), []byte(b.Fingerprint))
+	})
+	replaces := map[string]string{}
+	for _, c := range stored {
+		if c.ReplacedBy != "" {
+			replaces[c.ReplacedBy] = c.Fingerprint
+		}
+	}
+	records := make([]publicinventory.Record, 0, len(stored))
+	for _, c := range stored {
+		r := c.record()
+		r.Replaces = replaces[c.Fingerprint]
+		records = append(records, r)
 	}
 	return records, generation, nil
 }
@@ -178,7 +195,8 @@ func (s *Store) readID(t *vault.Tx, id string) (certificateRecord, error) {
 	var c certificateRecord
 	if strictJSON(plain, &c) != nil || !publicinventory.ValidFingerprint(c.Fingerprint) ||
 		s.v.Index(kindCertificate, c.Fingerprint) != id || len(c.DER) == 0 || len(c.Bundle) == 0 ||
-		!bytes.Equal(c.Bundle[0], c.DER) || c.Added == 0 {
+		!bytes.Equal(c.Bundle[0], c.DER) || c.Added == 0 ||
+		(c.ReplacedBy != "") != (c.ReplacedAt != "") || (c.ReplacedBy != "" && !publicinventory.ValidFingerprint(c.ReplacedBy)) {
 		return certificateRecord{}, ErrUnavailable
 	}
 	return c, nil
@@ -257,14 +275,23 @@ func (s *Store) change(expected uint64, fn func(t *vault.Tx) error) error {
 // Save adds one certificate, with the related certificates sent beside it and
 // an optional key. The files are checked again here; a check the page ran
 // earlier grants nothing. A key that does not match is kept only with ack.
-func (s *Store) Save(expected uint64, files, key, keyPassword []byte, owner, location, fingerprint string, ack bool) (publicinventory.Record, uint64, error) {
+//
+// When the certificate's key is the key of a request kept here, that key is
+// saved with it, in place of any key sent, and the request is closed. When
+// the request renews a saved certificate, the new one takes its place.
+// Otherwise replaces, when set, names a saved certificate the person chose to
+// replace, which must pass mayTakeOver.
+func (s *Store) Save(expected uint64, files, key, keyPassword []byte, owner, location, fingerprint string, ack bool, replaces string) (publicinventory.Record, uint64, error) {
 	r, canonical, err := certificatepair.PrepareBundle(files, key, keyPassword, owner, location, fingerprint)
-	defer clear(canonical)
+	defer func() { clear(canonical) }()
 	if err != nil || r.Fingerprint != fingerprint || (r.KeyStatus == "mismatch") != ack || len(canonical) > maxKeyBytes {
 		return publicinventory.Record{}, 0, certificatepair.ErrInvalid
 	}
 	if !publicinventory.ValidOwner(owner) || (location != "" && publicinventory.ValidateLocation(location) != nil) {
 		return publicinventory.Record{}, 0, publicinventory.ErrLabel
+	}
+	if replaces != "" && !publicinventory.ValidFingerprint(replaces) {
+		return publicinventory.Record{}, 0, ErrCannotReplace
 	}
 	c := certificateRecord{
 		Fingerprint: r.Fingerprint, Added: expected + 1, AddedAt: s.now().UTC().Format("2006-01-02T15:04:05Z"),
@@ -277,6 +304,7 @@ func (s *Store) Save(expected uint64, files, key, keyPassword []byte, owner, loc
 	if location != "" {
 		c.Locations = []string{location}
 	}
+	var took string
 	err = s.change(expected, func(t *vault.Tx) error {
 		ids, err := t.IDs(kindCertificate)
 		if err != nil {
@@ -289,18 +317,59 @@ func (s *Store) Save(expected uint64, files, key, keyPassword []byte, owner, loc
 		if len(ids) >= MaxCertificates {
 			return ErrFull
 		}
+		keyAck, older, renewal := ack, replaces, false
+		q, requestID, found, err := s.waitingFor(t, c.DER)
+		if err != nil {
+			return err
+		}
+		if found {
+			// The request's key is this certificate's own: it is checked
+			// against the certificate like a key the person chose.
+			requestKey, err := s.requestKey(t, requestID)
+			defer clear(requestKey)
+			if err != nil {
+				return err
+			}
+			kept, own, err := certificatepair.PrepareBundle(files, requestKey, nil, owner, location, fingerprint)
+			if err != nil || kept.KeyStatus != "matched" || len(own) == 0 || len(own) > maxKeyBytes {
+				clear(own)
+				return ErrUnavailable
+			}
+			clear(canonical)
+			canonical, keyAck = own, false
+			c.HasKey, c.KeyStatus, c.Bundle, c.Issuers = true, kept.KeyStatus, kept.BundleDER, kept.IssuerDER
+			if len(c.Bundle) == 0 {
+				c.Bundle = [][]byte{kept.DER}
+			}
+			if q.Renews != "" {
+				if older != "" && older != q.Renews {
+					return ErrCannotReplace
+				}
+				older, renewal = q.Renews, true
+			}
+			if t.Delete(kindRequestKey, requestID) != nil || t.Delete(kindRequest, requestID) != nil {
+				return ErrUnavailable
+			}
+		}
+		if older != "" {
+			if took, err = s.takeOver(t, &c, older, renewal); err != nil {
+				return err
+			}
+		}
 		if err := put(t, kindCertificate, id, c); err != nil {
 			return err
 		}
 		if len(canonical) == 0 {
 			return nil
 		}
-		return put(t, kindKey, id, keyRecord{Key: canonical, MismatchAcknowledged: ack})
+		return put(t, kindKey, id, keyRecord{Key: canonical, MismatchAcknowledged: keyAck})
 	})
 	if err != nil {
 		return publicinventory.Record{}, 0, err
 	}
-	return c.record(), expected + 1, nil
+	out := c.record()
+	out.Replaces = took
+	return out, expected + 1, nil
 }
 
 // prepareKey checks a key against a saved certificate without saving it.
@@ -437,7 +506,8 @@ func (s *Store) SetOwner(expected uint64, fingerprint, owner string) (publicinve
 }
 
 // Delete removes a certificate and its key. A certificate with a key is
-// removed only when keyAllowed: the person entered a fresh phone code.
+// removed only when keyAllowed: the person entered a fresh phone code. A
+// certificate this one replaced is no longer replaced.
 func (s *Store) Delete(expected uint64, fingerprint string, keyAllowed bool) (uint64, error) {
 	err := s.change(expected, func(t *vault.Tx) error {
 		c, id, err := s.read(t, fingerprint)
@@ -449,6 +519,22 @@ func (s *Store) Delete(expected uint64, fingerprint string, keyAllowed bool) (ui
 		}
 		if t.Delete(kindKey, id) != nil || t.Delete(kindCertificate, id) != nil {
 			return ErrUnavailable
+		}
+		ids, err := t.IDs(kindCertificate)
+		if err != nil {
+			return ErrUnavailable
+		}
+		for _, other := range ids {
+			old, err := s.readID(t, other)
+			if err != nil {
+				return err
+			}
+			if old.ReplacedBy == fingerprint {
+				old.ReplacedBy, old.ReplacedAt = "", ""
+				if err := put(t, kindCertificate, other, old); err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	})

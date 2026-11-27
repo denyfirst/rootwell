@@ -41,6 +41,7 @@ while IFS= read -r file; do
     internal/account/password-blocklist.txt) ;;
     web/workbench/certificates.html | web/workbench/certificates.js | web/workbench/inspect.html | web/workbench/inspect.js) ;;
     web/workbench/convert.html | web/workbench/convert.js | web/workbench/request.html | web/workbench/request.js) ;;
+    web/workbench/request-keep.js) ;;
     web/workbench/ui.js | web/workbench/rootwell.css | web/workbench/favicon.svg) ;;
     web/workbench/theme.js | web/workbench/session.js | web/workbench/fresh.js | web/workbench/wasm-loader.js) ;;
     web/workbench/private-worker-client.js | web/workbench/private-key-worker.js) ;;

@@ -254,6 +254,7 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .stat-mark.soon { color: var(--weak); background: var(--weak-wash); }
 .stat-mark.bad { color: var(--insecure); background: var(--insecure-wash); }
 .stat-mark.all { color: var(--tool); background: var(--tool-wash); }
+.stat-mark.replaced { color: var(--ink-soft); background: var(--paper-sunk); }
 
 /* ── The certificate list ───────────────────────────────────────────────── */
 .list { overflow: hidden; }
@@ -315,6 +316,19 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .choice span { color: var(--ink-faint); font-size: var(--fs-14); }
 .choice:has(input:checked) { border-color: var(--tool); box-shadow: 0 0 0 1px var(--tool); background: var(--tool-wash); }
 .choice:has(input:focus-visible) { outline: 2px solid var(--tool); outline-offset: 2px; }
+
+/* ── A yes-or-no beside its sentence ───────────────────────────────────── */
+.check { display: flex; align-items: flex-start; gap: var(--sp-3); font-size: var(--fs-14); cursor: pointer; }
+.check input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--tool); }
+
+/* ── Numbered steps: what happens next ─────────────────────────────────── */
+.steps { display: grid; gap: var(--sp-4); margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.steps li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--sp-3); align-items: start; counter-increment: step; }
+.steps li::before { content: counter(step); display: grid; place-items: center; width: 32px; height: 32px; color: var(--ink-soft); background: var(--paper-sunk); border-radius: var(--r-full); font-size: var(--fs-14); font-weight: 600; }
+.steps strong { display: block; padding-top: var(--sp-1); font-weight: 600; }
+.steps li > div > span { display: block; color: var(--ink-faint); font-size: var(--fs-14); }
+.steps .input-row { margin-top: var(--sp-2); }
+.waiting-note { border-top: 1px solid var(--rule); }
 
 /* ── Fields ─────────────────────────────────────────────────────────────── */
 .field { display: grid; gap: var(--sp-2); }

@@ -19,6 +19,7 @@
     plus: [["", "path", "M12 5v14M5 12h14"]],
     chevron: [["", "path", "M9.5 6l6 6-6 6"]],
     trash: [["", "path", "M4.5 7h15M9.5 7V4.5h5V7"], ["soft-fill", "path", "M6.5 7l1 12.5h9l1-12.5"]],
+    renew: [["", "path", "M19 12a7 7 0 1 1-2.05-4.95M19 4.5V9h-4.5"]],
   };
 
   function icon(name, extra) {

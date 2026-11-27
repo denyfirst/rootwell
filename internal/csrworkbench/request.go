@@ -88,15 +88,9 @@ type Comparison struct {
 	TrustChecked    bool     `json:"trust_checked"`
 }
 
-func Generate(algorithm string, params Params, password []byte) (Output, error) {
-	if !passwordAllowed(password) {
-		return Output{}, ErrPassword
-	}
-	template, err := template(params)
-	if err != nil {
-		return Output{}, err
-	}
+func newKey(algorithm string) (crypto.Signer, error) {
 	var key crypto.Signer
+	var err error
 	switch algorithm {
 	case "rsa-2048":
 		key, err = rsa.GenerateKey(rand.Reader, 2048)
@@ -111,10 +105,51 @@ func Generate(algorithm string, params Params, password []byte) (Output, error) 
 	case "ec-p521":
 		key, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	default:
-		return Output{}, ErrInvalid
+		return nil, ErrInvalid
 	}
 	if err != nil {
-		return Output{}, ErrInvalid
+		return nil, ErrInvalid
+	}
+	return key, nil
+}
+
+// GenerateKept makes a new key and a request for it, for a key that stays in
+// Rootwell's vault. It returns the request (PEM) and the key in the clear as
+// PKCS #8 DER, for the caller to seal at once and then clear. Nothing is
+// written, encrypted or sent here, and the request is checked as Generate's.
+func GenerateKept(algorithm string, params Params) ([]byte, []byte, Summary, error) {
+	template, err := template(params)
+	if err != nil {
+		return nil, nil, Summary{}, err
+	}
+	key, err := newKey(algorithm)
+	if err != nil {
+		return nil, nil, Summary{}, err
+	}
+	defer keymatch.ClearParsedKey(key)
+	csr, summary, err := sign(template, key)
+	if err != nil {
+		return nil, nil, Summary{}, ErrInvalid
+	}
+	plain, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		clear(plain)
+		return nil, nil, Summary{}, ErrInvalid
+	}
+	return csr, plain, summary, nil
+}
+
+func Generate(algorithm string, params Params, password []byte) (Output, error) {
+	if !passwordAllowed(password) {
+		return Output{}, ErrPassword
+	}
+	template, err := template(params)
+	if err != nil {
+		return Output{}, err
+	}
+	key, err := newKey(algorithm)
+	if err != nil {
+		return Output{}, err
 	}
 	defer keymatch.ClearParsedKey(key)
 	csr, summary, err := sign(template, key)

@@ -12,11 +12,11 @@ The menu has seven pages. `/` leads to Certificates.
 
 | Page | Route | Files | What it does |
 |---|---|---|---|
-| Certificates | `/certificates` | `certificates.html`, `certificates.js`, and `certificate-pfx.js` with `certificate-pfx-worker.js` from `cmd/rootwelld/auth` | Lists the saved certificates with the days each has left, where it is used and whether its key is kept; opens one in a side sheet; adds certificates, bundles, keys and PFX files |
+| Certificates | `/certificates` | `certificates.html`, `certificates.js`, and `certificate-pfx.js` with `certificate-pfx-worker.js` from `cmd/rootwelld/auth` | Lists the saved certificates with the days each has left, where it is used and whether its key is kept; opens one in a side sheet; adds certificates, bundles, keys and PFX files; renews one, lists the requests waiting for their certificate, and shows what was replaced |
 | Website check | `/website-check` | `website-check.html`, `website-check.js` in `cmd/rootwelld/auth` | Asks this server to read what a public HTTPS website sends, and explains the chain |
 | Inspect | `/inspect` | `inspect.html`, `inspect.js` | Shows who a certificate is for, who issued it, how long it lasts, whether its chain is complete, and whether a private key belongs to it |
 | Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
-| Request | `/request` | `request.html`, `request.js` | Makes a CSR with a new key or an existing one |
+| Request | `/request` | `request.html`, `request.js`, `request-keep.js` | Makes a CSR: a new key is made and kept by Rootwell, an existing one stays in the browser |
 | Account | `/account` | `account.html`, `auth.js`, `qr.js` and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Changes the password, moves to a new phone, makes new recovery codes, adds and removes passkeys, and says how to get back in from the server |
 | Installation | `/installation` | `installation.html`, `auth.js` (its installation mode) and `passkey.js` in `cmd/rootwelld/auth`, and `fresh.js` | Shows the names Rootwell answers to on port 4180, its certificate authority's fingerprint with a link to `/rootwell-ca.pem`, when the server certificate ends and how many certificates are saved; downloads a backup; says what `restore`, `key-rotate` and `key-export` do on the server |
 
@@ -76,8 +76,11 @@ The hidden Renewals page and its older stylesheet were removed on
 - Inspect, Convert and Request read the files a person chooses and make no
   request: their scripts and `ui.js` have no network, storage, worker or
   HTML-writing capability of their own. Files never leave the browser.
+  Request's new keys are made by Rootwell itself: `request-keep.js` sends the
+  names and details a person typed to `/api/requests/create`, after
+  `/api/inventory` for the list's count, and reads no file (ADR 0091).
 - Certificates sends what a person adds only to this Rootwell's own
-  `/api/inventory` and `/api/certificates` endpoints, with the
+  `/api/inventory`, `/api/certificates` and `/api/requests` endpoints, with the
   `X-Rootwell-Request` header and same-origin credentials. A PFX is opened in
   its worker first; the server receives its certificate and the key encrypted
   again for the transfer, never the PFX itself or its password.

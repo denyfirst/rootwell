@@ -1,10 +1,13 @@
 "use strict";
 
-// Request: make the request file (CSR) a certificate provider asks for, with
-// a new key locked by a password or with a key you already have. The key is
-// made and signed in a one-shot worker in this browser; this script makes no
-// request. What was made is forgotten on leaving the page, on starting again,
-// and after ten idle minutes.
+// Request: make the request file (CSR) a certificate provider asks for.
+// With a new key, Rootwell makes the key and keeps it: request-keep.js sends
+// the typed names, and the key never reaches this page. When the provider's
+// certificate is added in Certificates, Rootwell puts it with that key. With a
+// key the person already has, the request is signed in a one-shot worker in
+// this browser, and the key stays here. This script makes no request itself.
+// What was made is forgotten on leaving the page, on starting again, and
+// after ten idle minutes.
 (function () {
   const ui = globalThis.rootwellUI;
   const $ = (id) => document.getElementById(id);
@@ -15,11 +18,6 @@
   const own = $("request-own");
   const ownFile = $("request-own-file");
   const ownPassword = $("request-own-password");
-  const secretRow = $("request-secret-row");
-  const secret = $("request-secret");
-  const generate = $("request-generate");
-  const copy = $("request-copy");
-  const secretNote = $("request-secret-note");
   const details = {
     organization: $("request-organization"),
     locality: $("request-city"),
@@ -38,10 +36,15 @@
   const idleLimit = 10 * 60 * 1000;
   const maxNames = 32;
   const maxAddresses = 8;
+  const refused = {
+    400: "These names cannot go into a request. Check them, then try again.",
+    401: "Your session has ended. Sign in again.",
+    503: "Rootwell is busy. Try again in a moment.",
+  };
 
   let list = [];
   let nameNote = false;
-  let made = [];
+  let made = null;
   let generation = 0;
   let controller = null;
   let busy = false;
@@ -76,11 +79,11 @@
   }
 
   function addNames(text) {
-    const refused = [];
+    const refusedNames = [];
     for (const raw of String(text).split(/[\s,;]+/)) {
       if (!raw) continue;
       const value = clean(raw);
-      if (!value) { refused.push(raw); continue; }
+      if (!value) { refusedNames.push(raw); continue; }
       if (list.includes(value)) continue;
       const addresses = list.filter(isAddress).length;
       if (isAddress(value) ? addresses >= maxAddresses : list.length - addresses >= maxNames) {
@@ -90,8 +93,8 @@
       list.push(value);
     }
     drawNames();
-    if (refused.length) {
-      say("bad", refused.join(", ") + (refused.length === 1 ? " is not a name a certificate can hold." : " are not names a certificate can hold."));
+    if (refusedNames.length) {
+      say("bad", refusedNames.join(", ") + (refusedNames.length === 1 ? " is not a name a certificate can hold." : " are not names a certificate can hold."));
       nameNote = true;
     } else if (nameNote) {
       say();
@@ -143,42 +146,15 @@
   }
 
   function updateKey() {
-    const mine = keyKind() === "own";
-    own.hidden = !mine;
-    secretRow.hidden = mine;
+    own.hidden = keyKind() !== "own";
     touch();
   }
-
-  generate.addEventListener("click", () => {
-    secret.value = ui.strongPassword();
-    secret.type = "text";
-    const canCopy = !!(navigator.clipboard && navigator.clipboard.writeText);
-    copy.hidden = !canCopy;
-    generate.hidden = canCopy;
-    secretNote.hidden = false;
-    touch();
-  });
-  copy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(secret.value);
-      copy.textContent = "Copied";
-      setTimeout(() => { copy.textContent = "Copy"; }, 2000);
-    } catch {
-      copy.hidden = true;
-      generate.hidden = false;
-    }
-  });
-  secret.addEventListener("input", () => {
-    copy.hidden = true;
-    generate.hidden = false;
-    if (!secret.value) { secret.type = "password"; secretNote.hidden = true; }
-  });
 
   // ── Making the request ─────────────────────────────────────────────────
 
   function forgetMade() {
-    made.forEach((file) => wipe(file.bytes));
-    made = [];
+    if (made) wipe(made.bytes);
+    made = null;
     resultFiles.replaceChildren();
     resultFacts.replaceChildren();
     result.hidden = true;
@@ -192,11 +168,6 @@
     create.disabled = false;
     clearTimeout(idle);
     forgetMade();
-    secret.value = "";
-    secret.type = "password";
-    secretNote.hidden = true;
-    copy.hidden = true;
-    generate.hidden = false;
     ownPassword.value = "";
     ownFile.value = "";
   }
@@ -204,7 +175,7 @@
   function touch() {
     clearTimeout(idle);
     idle = setTimeout(() => {
-      if (made.length || secret.value) { forget(); say("bad", "The request and its key were cleared after ten idle minutes."); }
+      if (made) { forget(); say("bad", "The request was cleared from this page after ten idle minutes."); }
     }, idleLimit);
   }
 
@@ -215,34 +186,53 @@
     return fact;
   }
 
-  function show(summary) {
-    const first = summary.dns_names[0] || summary.ip_addresses[0];
-    resultTitle.textContent = "Request ready for " + first;
-    const covered = [...summary.dns_names, ...summary.ip_addresses];
-    resultFacts.replaceChildren(
-      factBlock("Works for", covered.join(", ")),
-      factBlock("Key", summary.curve ? summary.algorithm + " " + summary.curve : summary.algorithm === "RSA" ? "RSA " + summary.bits : summary.algorithm),
+  function step(title, hint, extra) {
+    const item = ui.el("li");
+    const words = ui.el("div");
+    words.appendChild(ui.el("strong", "", title));
+    if (hint) words.appendChild(ui.el("span", "", hint));
+    if (extra) words.appendChild(extra);
+    item.appendChild(words);
+    return item;
+  }
+
+  // What happens next, in three steps: the request to send, the provider,
+  // and where the certificate goes when it comes back.
+  function show(covered, keyType, kept) {
+    resultTitle.textContent = "Request ready for " + covered[0];
+    resultFacts.replaceChildren(factBlock("Works for", covered.join(", ")), factBlock("Key", kept ? keyType + ", kept in Rootwell" : keyType));
+    const buttons = ui.el("div", "input-row");
+    const save = ui.el("button", "btn btn-sm");
+    save.type = "button";
+    save.appendChild(ui.icon("download"));
+    save.appendChild(ui.el("span", "", made.name));
+    save.addEventListener("click", () => { ui.download(made.bytes, made.name, "application/pkcs10"); touch(); });
+    buttons.appendChild(save);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      const copy = ui.el("button", "btn btn-secondary btn-sm", "Copy");
+      copy.type = "button";
+      copy.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(new TextDecoder().decode(made.bytes));
+          copy.textContent = "Copied";
+          setTimeout(() => { copy.textContent = "Copy"; }, 2000);
+        } catch {
+          copy.hidden = true;
+        }
+        touch();
+      });
+      buttons.appendChild(copy);
+    }
+    resultFiles.replaceChildren(
+      step("Download the request", "", buttons),
+      step("Give it to your certificate provider", "They send the certificate back."),
+      step("Add the certificate in Certificates", kept ? "Rootwell puts it with the key it keeps. The request waits there until then." : "Add your key with it."),
     );
-    resultFiles.replaceChildren(...made.map((file) => {
-      const row = ui.el("div", "file-chip");
-      const mark = ui.el("span", "cert-mark");
-      mark.appendChild(ui.icon(file.icon));
-      row.appendChild(mark);
-      const words = ui.el("div");
-      words.appendChild(ui.el("strong", "", file.name));
-      words.appendChild(ui.el("small", "", file.hint));
-      row.appendChild(words);
-      const button = ui.el("button", file.primary ? "btn btn-sm" : "btn btn-secondary btn-sm");
-      button.type = "button";
-      button.appendChild(ui.icon("download"));
-      button.appendChild(ui.el("span", "", "Download"));
-      button.addEventListener("click", () => { ui.download(file.bytes, file.name, file.type); touch(); });
-      row.appendChild(button);
-      return row;
-    }));
     result.hidden = false;
     result.classList.add("result-enter");
   }
+
+  const keyName = (summary) => summary.curve ? summary.algorithm + " " + summary.curve : summary.algorithm === "RSA" ? "RSA " + summary.bits : summary.algorithm;
 
   async function submit(event) {
     event.preventDefault();
@@ -254,9 +244,7 @@
     const params = {
       dns_names: list.filter((n) => !isAddress(n)),
       ip_addresses: list.filter(isAddress),
-      common_name: "",
       organization: details.organization.value.trim(),
-      organizational_unit: "",
       country,
       locality: details.locality.value.trim(),
       province: details.province.value.trim(),
@@ -264,14 +252,7 @@
     const kind = keyKind();
     const file = ownFile.files && ownFile.files[0];
     if (kind === "own" && !file) return say("bad", "Choose your key file.");
-    if (kind !== "own" && !ui.isStrongPassword(secret.value)) return say("bad", "Use 20 to 128 letters, digits or symbols for the key password, or press Generate.");
-    const password = encoder.encode(kind === "own" ? ownPassword.value : secret.value);
-    ownPassword.value = "";
-    const option = JSON.stringify({ algorithm: kind === "own" ? "" : kind, params, format: kind === "own" ? "pem" : "" });
-    if (password.byteLength > 256 || encoder.encode(option).byteLength > 16384) {
-      wipe(password);
-      return say("bad", "The details are too long.");
-    }
+    if (JSON.stringify(params).length > 16384) return say("bad", "The details are too long.");
     const ticket = ++generation;
     controller?.abort();
     const signal = (controller = new AbortController()).signal;
@@ -279,36 +260,31 @@
     create.disabled = true;
     forgetMade();
     say("plain", kind === "rsa-2048" ? "Making an RSA key takes a few seconds…" : "Making the request…");
+    if (kind !== "own") return keepOnServer(ticket, kind, params);
+    const password = encoder.encode(ownPassword.value);
+    ownPassword.value = "";
     let input = none();
     let answer = null;
     try {
+      if (password.byteLength > 256) throw new Error("long");
+      const option = JSON.stringify({ algorithm: "", params: { ...params, common_name: "", organizational_unit: "" }, format: "pem" });
       const engine = await globalThis.rootwellWorkbenchReady;
-      if (kind === "own") {
-        if (!file.size || file.size > keyLimit) throw new Error("size");
-        input = new Uint8Array(await file.slice(0, keyLimit + 1).arrayBuffer());
-        if (input.byteLength !== file.size) throw new Error("changed");
-      }
-      answer = await globalThis.rootwellCSRWorker.run(engine.module, kind === "own" ? "key" : "generate", input, none(), password, option, signal);
+      if (!file.size || file.size > keyLimit) throw new Error("size");
+      input = new Uint8Array(await file.slice(0, keyLimit + 1).arrayBuffer());
+      if (input.byteLength !== file.size) throw new Error("changed");
+      answer = await globalThis.rootwellCSRWorker.run(engine.module, "key", input, none(), password, option, signal);
       if (ticket !== generation) return;
       const value = answer && answer.ok === true && answer.result;
-      if (!value || !(value.bytes instanceof Uint8Array) || !(value.csr instanceof Uint8Array) || typeof value.summary !== "string") throw new Error("answer");
+      if (!value || !(value.csr instanceof Uint8Array) || typeof value.summary !== "string") throw new Error("answer");
       const summary = JSON.parse(value.summary);
       if (!Array.isArray(summary.dns_names) || !Array.isArray(summary.ip_addresses)) throw new Error("summary");
-      const base = ui.friendlyName(summary.dns_names[0] || summary.ip_addresses[0], "request");
-      if (kind !== "own") {
-        made.push({ name: base + "-key-and-request.zip", bytes: value.bytes.slice(), type: "application/zip", icon: "lock", primary: true,
-          hint: "Your new key, locked with your password, and the request" });
-      }
-      made.push({ name: base + ".csr", bytes: value.csr.slice(), type: "application/pkcs10", icon: "file", primary: kind === "own",
-        hint: "Send this to your certificate provider" });
-      show(summary);
+      const covered = [...summary.dns_names, ...summary.ip_addresses];
+      made = { name: ui.friendlyName(covered[0], "request") + ".csr", bytes: value.csr.slice() };
+      show(covered, keyName(summary), false);
       say();
       touch();
     } catch {
-      if (ticket === generation) {
-        say("bad", kind === "own" ? "The request could not be made. Check the key file and its password." :
-          "The request could not be made. Check the names and details, then try again.");
-      }
+      if (ticket === generation) say("bad", "The request could not be made. Check the key file and its password.");
     } finally {
       wipe(input);
       wipe(password);
@@ -317,9 +293,32 @@
     }
   }
 
+  // A new key: Rootwell makes and keeps it, and sends back the request.
+  async function keepOnServer(ticket, algorithm, params) {
+    try {
+      const answer = await globalThis.rootwellKeepRequest({ algorithm, ...params });
+      if (ticket !== generation) return;
+      if (!answer.request) {
+        const message = answer.refusal === "requests-full" ? "50 requests are waiting in Certificates. Finish or cancel one first." :
+          refused[answer.status] || "The request could not be made. Try again.";
+        return say("bad", message);
+      }
+      const request = answer.request;
+      const covered = [...request.dns_names, ...request.ip_addresses];
+      made = { name: ui.friendlyName(covered[0] || "request", "request") + ".csr", bytes: encoder.encode(request.csr) };
+      show(covered, request.key_type, true);
+      say();
+      touch();
+    } catch {
+      if (ticket === generation) say("bad", "The request could not be made. Check the names and details, then try again.");
+    } finally {
+      if (ticket === generation) { busy = false; create.disabled = false; controller = null; }
+    }
+  }
+
   form.addEventListener("submit", submit);
   for (const radio of keys.querySelectorAll("input")) radio.addEventListener("change", updateKey);
-  // Leaving the page forgets the request and its key.
+  // Leaving the page forgets the request and any key file chosen.
   globalThis.addEventListener("pagehide", forget);
   drawNames();
   updateKey();

@@ -17,8 +17,11 @@ const (
 	maxRecords   = 500
 	maxDERBytes  = 64 << 10
 	maxLabel     = 128
-	maxLocations = 32
+	maxLocations = MaxLocations
 )
+
+// MaxLocations is how many places one certificate may list.
+const MaxLocations = 32
 
 var (
 	ErrDuplicate         = errors.New("certificate is already in the inventory draft")
@@ -62,6 +65,12 @@ type Record struct {
 	KeyStatus string
 	BundleDER [][]byte
 	IssuerDER [][]byte
+	// ReplacedBy names the newer certificate that took this one's place, and
+	// ReplacedAt when; Replaces names the one this certificate took over. They
+	// are the person's bookkeeping, never a claim about what servers use.
+	ReplacedBy string
+	ReplacedAt string
+	Replaces   string
 	// StagingOrigin is authenticated historical acceptance, never deployment,
 	// revocation or ordinary browser trust. It is not operator-editable.
 	StagingOrigin *StagingOrigin

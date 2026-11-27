@@ -39,6 +39,11 @@
 <p class="notice bad" id="list-error" role="alert" hidden></p>
 <div class="stats" id="stats" hidden></div>
 <div class="gap-bottom" id="search-row" hidden><input class="input" id="search" type="search" autocomplete="off" placeholder="Search names, servers or owners" aria-label="Search certificates"></div>
+<section class="card gap-bottom" id="waiting" aria-labelledby="waiting-title" hidden>
+  <div class="card-head"><h3 id="waiting-title">Waiting for a certificate</h3><span class="pill pill-plain" id="waiting-count"></span></div>
+  <div class="card-body stack" id="waiting-rows"></div>
+  <p class="card-body meta waiting-note">When the certificate arrives, add it with Add certificate. Rootwell puts it with its key.</p>
+</section>
 <section class="card list" id="list" aria-label="Saved certificates" hidden></section>
 <section class="card" id="empty" hidden><div class="empty">
   <span class="cert-mark"><svg class="icon icon-lg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="soft-fill" d="M5 3.5h10l4 4v13H5z"/><path d="M15 3.5v4h4M8.5 11h7M8.5 14.5h4.5"/></svg></span>
@@ -52,6 +57,7 @@
   <div class="sheet-head"><span id="sheet-pill"></span><button class="icon-btn" id="sheet-close" type="button" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
   <div class="sheet-body">
     <div class="sheet-section stack" id="sheet-hero"></div>
+    <div class="sheet-section" id="sheet-note" hidden></div>
     <div class="sheet-section"><span class="label">Works for</span><div class="names" id="sheet-names"></div></div>
     <div class="sheet-section"><span class="label">Chain</span><div class="chain" id="sheet-chain"></div></div>
     <div class="sheet-section"><div class="facts" id="sheet-facts"></div></div>
@@ -73,7 +79,7 @@
     </div>
     <div class="sheet-section" id="sheet-status" role="status" aria-live="polite"></div>
   </div>
-  <div class="sheet-foot"><button class="btn" id="sheet-download" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></svg>Download</button><a class="btn btn-secondary" id="sheet-website" href="/website-check"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/></svg>Check website</a><button class="btn btn-danger push-right" id="sheet-delete" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 7h15M9.5 7V4.5h5V7"/><path class="soft-fill" d="M6.5 7l1 12.5h9l1-12.5"/></svg>Delete</button></div>
+  <div class="sheet-foot"><button class="btn" id="sheet-download" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></svg>Download</button><button class="btn btn-secondary" id="sheet-renew" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4.5V9h-4.5"/></svg>Renew</button><a class="btn btn-secondary" id="sheet-website" href="/website-check"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="soft-fill" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/></svg>Check website</a><button class="btn btn-danger push-right" id="sheet-delete" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 7h15M9.5 7V4.5h5V7"/><path class="soft-fill" d="M6.5 7l1 12.5h9l1-12.5"/></svg>Delete</button></div>
 </aside>
 
 <div class="scrim" id="delete-scrim" hidden></div>
@@ -101,10 +107,40 @@
     <div class="field" id="add-password-field" hidden><label for="add-password" id="add-password-label">Password</label><div class="input-row"><input class="input" id="add-password" type="password" autocomplete="off"><button class="btn btn-secondary" id="add-unlock" type="button">Open</button></div></div>
     <div class="field" id="add-pick" hidden><span class="label">Which certificate?</span><div class="choices" id="add-choices"></div></div>
     <div id="add-preview"></div>
+    <p class="notice info" id="add-renews" hidden></p>
+    <label class="check" id="add-replace-field" hidden><input id="add-replace" type="checkbox" checked><span id="add-replace-text"></span></label>
     <div class="field" id="add-place-field" hidden><label for="add-place">Where is it used?<span class="muted">Optional</span></label><input class="input" id="add-place" type="text" autocomplete="off" maxlength="128" placeholder="A server or service"></div>
     <div id="add-status" role="status" aria-live="polite"></div>
   </div>
   <div class="dialog-foot"><button class="btn btn-secondary" id="add-cancel" type="button">Cancel</button><button class="btn" id="add-save" type="button" disabled>Save certificate</button></div>
+</div>
+
+<div class="scrim" id="renew-scrim" hidden></div>
+<div class="dialog" id="renew-dialog" role="dialog" aria-labelledby="renew-title" hidden>
+  <div class="dialog-head"><h2 id="renew-title">Renew</h2><button class="icon-btn" id="renew-close" type="button" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button></div>
+  <div class="dialog-body stack">
+    <div class="stack" id="renew-form">
+      <div class="field"><span class="label">Works for</span><div class="names" id="renew-names"></div></div>
+      <div class="field"><span class="label">New key</span><div class="choices" id="renew-keys">
+        <label class="choice"><input type="radio" name="renew-key" value="ec-p256" checked><strong>ECDSA P-256</strong><span>Recommended</span></label>
+        <label class="choice"><input type="radio" name="renew-key" value="rsa-2048"><strong>RSA 2048</strong><span>For older systems</span></label>
+      </div></div>
+    </div>
+    <ol class="steps" id="renew-steps" hidden>
+      <li><div><strong>Download the request</strong><div class="input-row"><button class="btn btn-sm" id="renew-download" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></svg><span id="renew-file"></span></button><button class="btn btn-secondary btn-sm" id="renew-copy" type="button" hidden>Copy</button></div></div></li>
+      <li><div><strong>Give it to your certificate provider</strong><span>They send the new certificate back.</span></div></li>
+      <li><div><strong>Add the new certificate here</strong><span>It takes this one's place, with its key.</span></div></li>
+    </ol>
+    <div id="renew-status" role="status" aria-live="polite"></div>
+  </div>
+  <div class="dialog-foot"><button class="btn btn-secondary" id="renew-cancel" type="button">Cancel</button><button class="btn" id="renew-go" type="button">Create request</button></div>
+</div>
+
+<div class="scrim" id="cancel-scrim" hidden></div>
+<div class="dialog" id="cancel-dialog" role="alertdialog" aria-labelledby="cancel-title" aria-describedby="cancel-text" hidden>
+  <div class="dialog-head"><h2 id="cancel-title">Cancel this request?</h2></div>
+  <div class="dialog-body"><p class="soft" id="cancel-text"></p></div>
+  <div class="dialog-foot"><button class="btn btn-secondary" id="cancel-keep" type="button">Keep it</button><button class="btn btn-danger" id="cancel-go" type="button">Cancel request</button></div>
 </div>
 </div></main>
 </div>

@@ -34,6 +34,8 @@ type certificateInput struct {
 	Bundle         bool
 	Primary        string
 	AllowMismatch  bool
+	// Replaces names the saved certificate this one is to take over.
+	Replaces string
 }
 
 func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -125,7 +127,16 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		return
 	}
 	if r.URL.Path == "/api/certificates/check" {
-		g.writeInventoryJSON(w, http.StatusOK, []publicinventory.Record{record}, generation)
+		// What saving would do: finish a request kept here, and which saved
+		// certificate it would take over. Saving decides again.
+		plan, err := g.certificates.Successor(record)
+		if err != nil {
+			inventoryError(w, err)
+			return
+		}
+		g.writeInventory(w, http.StatusOK, []publicinventory.Record{record}, generation, func(out *inventoryOutput) {
+			out.Records[0].FinishesRequest, out.Records[0].Renews, out.Records[0].Replaces = plan.Finishes, plan.Renews, plan.Replaces
+		})
 		return
 	}
 	if input.Fingerprint != record.Fingerprint {
@@ -133,7 +144,7 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 		return
 	}
 	// Prepare is repeated by the store itself; a preview never grants write authority.
-	record, generation, err = g.certificates.Save(input.Expected, input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, input.Fingerprint, input.AllowMismatch)
+	record, generation, err = g.certificates.Save(input.Expected, input.Certificate, input.PrivateKey, input.KeyPassword, input.Owner, input.Location, input.Fingerprint, input.AllowMismatch, input.Replaces)
 	if err != nil {
 		inventoryError(w, err)
 		return
@@ -246,6 +257,14 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 				return bad()
 			}
 			err = readString(&input.Primary)
+		case "replaces":
+			if r.URL.Path != "/api/certificates/save" {
+				return bad()
+			}
+			err = readString(&input.Replaces)
+			if err == nil && !publicinventory.ValidFingerprint(input.Replaces) {
+				return bad()
+			}
 		case "allow_mismatch":
 			if download || (r.URL.Path != "/api/certificates/save" && !attachSave) {
 				return bad()

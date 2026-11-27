@@ -12,7 +12,7 @@ import (
 // runtime, which are built at release.
 var pageAssetNames = []string{
 	"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js",
-	"request.html", "request.js", "ui.js", "rootwell.css", "theme.js", "session.js", "favicon.svg",
+	"request.html", "request.js", "request-keep.js", "ui.js", "rootwell.css", "theme.js", "session.js", "favicon.svg",
 	"wasm-loader.js", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js",
 	"csr-worker-client.js", "csr-worker.js",
 }
@@ -79,6 +79,21 @@ func TestPagesSeparateFileAndNetworkCapabilities(t *testing.T) {
 		if strings.Contains(assets["certificates.js"], forbidden) {
 			t.Errorf("certificates.js must not use %q", forbidden)
 		}
+	}
+	// Request's new keys are made and kept by Rootwell: request-keep.js sends
+	// the typed names to this Rootwell's own request endpoint, and touches no
+	// file, worker or page element. request.js, which reads key files, calls it
+	// and makes no request itself (checked above).
+	keep := assets["request-keep.js"]
+	for _, forbidden := range []string{".files", "arrayBuffer", "FileReader", "readAs", "Uint8Array", "Worker(", "import(", "document",
+		"XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon", "localStorage", "sessionStorage", "indexedDB", "innerHTML", "eval(", "https://", "http://"} {
+		if strings.Contains(keep, forbidden) {
+			t.Errorf("request-keep.js must not use %q", forbidden)
+		}
+	}
+	if strings.Count(keep, "fetch(") != 1 || !strings.Contains(keep, `send("/api/inventory")`) || !strings.Contains(keep, `send("/api/requests/create"`) ||
+		strings.Count(keep, "send(\"") != 2 || !strings.Contains(keep, `credentials: "same-origin"`) || !strings.Contains(keep, `redirect: "error"`) {
+		t.Error("request-keep.js must ask only this Rootwell for the list's count and a new request")
 	}
 	// The colour scheme script remembers one choice and touches no file.
 	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", ".files", "arrayBuffer", "FileReader", "innerHTML", "eval("} {
