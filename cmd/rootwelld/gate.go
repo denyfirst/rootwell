@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/denyfirst/rootwell/internal/accountstore"
+	"github.com/denyfirst/rootwell/internal/alerts"
 	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
@@ -42,6 +44,10 @@ type gate struct {
 	websiteCheck websiteCheck
 	websiteBusy  bool
 	websiteLast  time.Time
+	alertStore   *alerts.Store
+	alerts       *alerts.Service
+	alertBusy    bool
+	alertLast    time.Time
 }
 
 // newGate serves the pages for the accounts and certificates in v, over HTTPS
@@ -51,7 +57,7 @@ func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, e
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "request-keep.js", "ui.js", "rootwell.css", "theme.js", "session.js", "fresh.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "request-keep.js", "alerts.html", "alerts.js", "ui.js", "rootwell.css", "theme.js", "session.js", "fresh.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -71,6 +77,8 @@ func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, e
 	g.certificates = certstore.New(v)
 	g.vault = v
 	g.backups = make(chan struct{}, 1)
+	g.alertStore = alerts.NewStore(v)
+	g.alerts = alerts.NewService(g.alertStore, g.alertCertificates, g.alertRoots, alertLink(linkHost(g.hosts, g.loopback)))
 	return g, nil
 }
 
@@ -228,6 +236,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/requests/create", "/api/requests/delete":
 		g.requestEndpoint(w, r, s, signedIn)
 		return
+	case "/api/alerts", "/api/alerts/email", "/api/alerts/telegram", "/api/alerts/remove", "/api/alerts/test":
+		g.alertsEndpoint(w, r, s, signedIn)
+		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		methodNotAllowed(w)
@@ -262,6 +273,32 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // stillReady says whether the request's session is still the signed-in one s
 // was: the same account at the same revision.
+// linkHost is the host and port a link in an alert names: the first DNS name
+// Rootwell answers to that is not loopback, else the first address; "" when
+// it answers on loopback only.
+func linkHost(hosts, loopback map[string]bool) string {
+	var names, addresses []string
+	for host := range hosts {
+		if loopback[host] {
+			continue
+		}
+		if c := host[0]; c == '[' || (c >= '0' && c <= '9') {
+			addresses = append(addresses, host)
+		} else {
+			names = append(names, host)
+		}
+	}
+	slices.Sort(names)
+	slices.Sort(addresses)
+	if len(names) > 0 {
+		return names[0]
+	}
+	if len(addresses) > 0 {
+		return addresses[0]
+	}
+	return ""
+}
+
 func (g *gate) stillReady(r *http.Request, s session) bool {
 	_, current, ok := g.currentSession(r, false)
 	return ok && current.stage == stageReady && current.name == s.name && current.revision == s.revision
@@ -311,6 +348,7 @@ var workbenchFiles = map[string]string{
 	"/inspect": "inspect.html", "/inspect.js": "inspect.js",
 	"/convert": "convert.html", "/convert.js": "convert.js",
 	"/request": "request.html", "/request.js": "request.js", "/request-keep.js": "request-keep.js",
+	"/alerts": "alerts.html", "/alerts.js": "alerts.js",
 	"/ui.js": "ui.js", "/rootwell.css": "rootwell.css", "/theme.js": "theme.js",
 	"/session.js": "session.js", "/fresh.js": "fresh.js", "/favicon.svg": "favicon.svg",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",

@@ -23,6 +23,8 @@
 !web/workbench/request.html
 !web/workbench/request.js
 !web/workbench/request-keep.js
+!web/workbench/alerts.html
+!web/workbench/alerts.js
 !web/workbench/ui.js
 !web/workbench/rootwell.css
 !web/workbench/theme.js

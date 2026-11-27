@@ -162,6 +162,7 @@ jobs:
           node --check web/workbench/convert.js
           node --check web/workbench/request.js
           node --check web/workbench/request-keep.js
+          node --check web/workbench/alerts.js
           node --check web/workbench/private-worker-client.js
           node --check web/workbench/private-key-worker.js
           node --check web/workbench/pfx-worker-client.js
@@ -209,6 +210,7 @@ jobs:
           node scripts/test-inspect.mjs "${wasm}" "${runtime}"
           node scripts/test-convert.mjs "${wasm}" "${runtime}"
           node scripts/test-request.mjs "${wasm}" "${runtime}"
+          node scripts/test-alerts.mjs
 
       - name: Smoke test PFX preparation and certificate custody in the vault
         run: go test -race -run '^TestPreparePreservesPublicCollectionAndOnlyEncryptsMatchingKey$|^TestPrepareRefusesWrongPasswordTamperAndUnrelatedWithoutPartialMaterial$|^TestPrepareOpensLegacyWindowsAndPasswordlessPFX$|^TestLinuxCertificatesLiveInTheVaultAndSurviveARestart$|^TestPFXImportPreparationHasNoNetworkOrCustodyAuthority$' -count=1 -timeout=8m ./internal/browserpfximport ./cmd/rootwelld ./internal/architecture
