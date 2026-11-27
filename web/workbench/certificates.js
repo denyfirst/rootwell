@@ -200,7 +200,7 @@
       const save = ui.el("button", "btn btn-secondary btn-sm");
       save.type = "button";
       save.appendChild(ui.icon("download"));
-      save.appendChild(ui.el("span", "", "Request"));
+      save.appendChild(ui.el("span", "", "Download"));
       save.addEventListener("click", () => { const file = csrFile(q); ui.download(file.bytes, file.name, "application/pkcs10"); });
       chip.appendChild(save);
       const cancel = ui.el("button", "btn btn-ghost btn-sm", "Cancel");
@@ -400,12 +400,12 @@
       const again = ui.el("button", "btn btn-secondary btn-sm push-right");
       again.type = "button";
       again.appendChild(ui.icon("download"));
-      again.appendChild(ui.el("span", "", "Request"));
+      again.appendChild(ui.el("span", "", "Download request"));
       again.addEventListener("click", () => { const file = csrFile(renewal); ui.download(file.bytes, file.name, "application/pkcs10"); });
       box.appendChild(again);
     } else {
-      box.appendChild(ui.el("span", "", "Replaced by " + (newer ? nameOf(newer) + ", until " + ui.formatDate(newer.not_after) : "a newer certificate") +
-        (record.replaced_at ? ", on " + ui.formatDate(record.replaced_at) : "") + "."));
+      box.appendChild(ui.el("span", "", "Replaced" + (record.replaced_at ? " on " + ui.formatDate(record.replaced_at) : "") + " by " +
+        (newer ? nameOf(newer) + ", which lasts until " + ui.formatDate(newer.not_after) : "a newer certificate") + "."));
       if (newer) {
         const show = ui.el("a", "btn btn-secondary btn-sm push-right", "Open it");
         show.href = "#" + hashOf(newer);

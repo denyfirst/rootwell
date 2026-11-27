@@ -326,7 +326,7 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .steps li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--sp-3); align-items: start; counter-increment: step; }
 .steps li::before { content: counter(step); display: grid; place-items: center; width: 32px; height: 32px; color: var(--ink-soft); background: var(--paper-sunk); border-radius: var(--r-full); font-size: var(--fs-14); font-weight: 600; }
 .steps strong { display: block; padding-top: var(--sp-1); font-weight: 600; }
-.steps span { display: block; color: var(--ink-faint); font-size: var(--fs-14); }
+.steps li > div > span { display: block; color: var(--ink-faint); font-size: var(--fs-14); }
 .steps .input-row { margin-top: var(--sp-2); }
 .waiting-note { border-top: 1px solid var(--rule); }
 

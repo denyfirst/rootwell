@@ -645,9 +645,9 @@ assert.equal($("download-key-password").value, "", "the key file password is for
   // offers no second one.
   assert.equal($("waiting").hidden, false);
   assert.equal($("waiting-count").textContent, "1 request");
-  assert.match($("waiting-rows").text(), /^shop\.test Requested .+ · RSA 2048 · renews shop\.test Request Cancel$/);
+  assert.match($("waiting-rows").text(), /^shop\.test Requested .+ · RSA 2048 · renews shop\.test Download Cancel$/);
   assert.equal($("sheet-renew").hidden, true, "one renewal at a time");
-  assert.match($("sheet-note").text(), /^A renewal is waiting for its certificate, requested .+\. Request$/);
+  assert.match($("sheet-note").text(), /^A renewal is waiting for its certificate, requested .+\. Download request$/);
   $("renew-cancel").listeners.click();
   assert.equal($("renew-dialog").hidden, true);
   // A certificate that names nothing, such as a root, has no Renew.
@@ -678,7 +678,7 @@ assert.equal($("download-key-password").value, "", "the key file password is for
   assert.match(rows()[0].text(), /Replaced/);
   await go(old);
   assert.equal($("sheet-pill").text(), "Replaced");
-  assert.match($("sheet-note").text(), /^Replaced by shop\.test, until .+, on .+\. Open it$/);
+  assert.match($("sheet-note").text(), /^Replaced on .+ by shop\.test, which lasts until .+\. Open it$/);
   assert.equal($("sheet-renew").hidden, true);
   const newer = api.records.find((r) => r.replaces === old.fingerprint);
   assert.equal($("sheet-note").children[0].children.at(-1).href, "#" + newer.fingerprint.replace(/:/g, "").toLowerCase());
@@ -714,7 +714,7 @@ assert.equal($("download-key-password").value, "", "the key file password is for
   for (const key of Object.keys(ids)) delete ids[key];
   load(source, "certificates.js");
   await settle();
-  assert.match($("waiting-rows").text(), /^new\.test Requested .+ · ECDSA P-256 Request Cancel$/);
+  assert.match($("waiting-rows").text(), /^new\.test Requested .+ · ECDSA P-256 Download Cancel$/);
   $("waiting-rows").children[0].children[3].listeners.click();
   assert.equal($("cancel-dialog").hidden, false);
   assert.equal($("cancel-text").textContent, "The request for new.test and its new key leave Rootwell. A certificate made from this request will then have no key.");
