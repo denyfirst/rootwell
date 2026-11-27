@@ -208,3 +208,52 @@ func TestWrongNameListsWhatTheCertificateCovers(t *testing.T) {
 		t.Fatalf("name finding unclear: %+v %v", r.Findings, err)
 	}
 }
+
+// A chain that breaks before any root, at a missing or wrong issuer: what the
+// server sends past the gap is kept, not called extra, since it may be needed
+// once the gap is fixed. A complete chain still names a real extra.
+func TestCertificatesPastABreakAreKept(t *testing.T) {
+	now := time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC)
+	year := now.Add(365 * 24 * time.Hour)
+	root := issue(t, "Public Root", true, nil, now.Add(-time.Hour), year)
+	roots := x509.NewCertPool()
+	roots.AddCert(root.cert)
+	upper := issue(t, "Upper Issuer", true, &root, now.Add(-time.Hour), year)
+	lower := issue(t, "Lower Issuer", true, &upper, now.Add(-time.Hour), year)
+	leaf := issue(t, "site.example.org", false, &lower, now.Add(-time.Hour), year)
+	wrong := issue(t, "Lower Issuer", true, &upper, now.Add(-time.Hour), year)
+	stray := issue(t, "Stray CA", true, nil, now.Add(-time.Hour), year)
+	use := func(r Report, c *x509.Certificate) string {
+		for _, p := range r.Presented {
+			if p.Fingerprint == fingerprintOf(c) {
+				return p.Use
+			}
+		}
+		return ""
+	}
+	kept := func(r Report, label string) {
+		t.Helper()
+		f := finding(r, "unplaced")
+		if r.State != "failed" || has(r, "unrelated") || use(r, upper.cert) != "unplaced" || f.Level != "note" ||
+			!strings.Contains(f.Title, "Upper Issuer") || !strings.Contains(f.Action, "Keep it") || !slices.Equal(f.Certificates, []string{fingerprintOf(upper.cert)}) {
+			t.Fatalf("%s: %s %+v %+v", label, r.State, r.Presented, r.Findings)
+		}
+	}
+
+	r, err := Analyze([]*x509.Certificate{leaf.cert, upper.cert}, roots, "site.example.org", now)
+	if err != nil || !has(r, "missing-issuer") {
+		t.Fatalf("missing issuer: %+v %v", r.Findings, err)
+	}
+	kept(r, "missing issuer")
+
+	r, err = Analyze([]*x509.Certificate{leaf.cert, wrong.cert, upper.cert}, roots, "site.example.org", now)
+	if err != nil || !has(r, "issuer-not-linked") || use(r, wrong.cert) != "unrelated" {
+		t.Fatalf("wrong issuer: %+v %+v %v", r.Presented, r.Findings, err)
+	}
+	kept(r, "wrong issuer")
+
+	r, err = Analyze([]*x509.Certificate{leaf.cert, lower.cert, upper.cert, stray.cert}, roots, "site.example.org", now)
+	if err != nil || !r.Trusted || has(r, "unplaced") || use(r, stray.cert) != "unrelated" || !has(r, "unrelated") {
+		t.Fatalf("a real extra on a complete chain: %+v %+v %v", r.Presented, r.Findings, err)
+	}
+}

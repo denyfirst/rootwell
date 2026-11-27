@@ -8,7 +8,7 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
-## C118 — A watched website is checked once a day exactly as a person's check, and each change is told once (ADR 0093)
+## C118 — A watched website is checked every six hours exactly as a person's check, and each change is told once (ADR 0093)
 
 `POST /api/watch/add` needs a signed-in session, the exact Origin and the
 page header, and takes only a target, read as Website check reads one; an
@@ -17,7 +17,7 @@ each a sealed vault record under an HMAC of its target, read strictly.
 `GET /api/watch` lists them; `POST /api/watch/remove` needs a fresh code
 (C111), and without it answers 428 and keeps the site.
 
-The hourly loop checks each site not checked for a day through the same
+The hourly loop checks each site not checked for six hours through the same
 checker, address rule, saved roots and limits as Website check (C103), and
 takes the same single slot and 5-second gap. It keeps the verdict, the first
 problem in one sentence of Rootwell's own, and the served certificate's
@@ -25,10 +25,10 @@ fingerprint, name and end; nothing a server sent is kept. A change is told
 once through the alert channels (C117): another certificate, or a problem
 the site did not have. The first check after watching tells nothing.
 
-Guarded by `TestSitesAreAddedOnceAndUpToTheLimit`, `TestASiteIsDueOnceADay`,
+Guarded by `TestSitesAreAddedOnceAndUpToTheLimit`, `TestASiteIsDueEverySixHours`,
 `TestEachChangeIsToldOnce`, `TestASiteRecordIsReadStrictly`,
 `TestLinuxASiteIsWatchedInCheckFormAndStoppingNeedsAFreshCode`,
-`TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes`,
+`TestLinuxWatchedSitesAreCheckedEverySixHoursAsWebsiteCheckDoes`,
 `TestAWatchMessageSaysWhatChanged` and `scripts/test-website-check.mjs`.
 
 ## C117 — Alerts reach only the mail server named, over verified TLS, and Telegram; their secrets are sealed apart and changed only after a fresh code (ADR 0092)

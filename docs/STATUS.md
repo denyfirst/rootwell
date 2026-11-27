@@ -14,7 +14,7 @@ followed, and its findings are fixed. On 27 November 2026 renewal by hand
 landed: a request keeps its new key in Rootwell, and the certificate that
 comes back takes the old one's place. Alerts by e-mail and Telegram
 followed the same day, then downloads named by the server and watched
-websites, checked once a day. Install scripts and the independent review
+websites, checked every six hours. Install scripts and the independent review
 come next; renewal through ACME and delivery to servers come
 after the first release. The independent review that a release needs
 (Phase 4) comes before any release.
@@ -100,7 +100,7 @@ after the first release. The independent review that a release needs
   sends a test. The mail password and the bot token are sealed apart and
   never shown; saving or turning off a channel needs a phone code.
 - **Watched websites:** after a check, Website check offers to watch the
-  site. Rootwell checks each watched site once a day, as a person's check,
+  site. Rootwell checks each watched site every six hours, as a person's check,
   and writes through the alert channels when it serves another certificate
   or has a problem, once per change. Up to 50 sites; stopping needs a phone
   code.

@@ -96,6 +96,10 @@ certificate is classified by signature: an older chain (another issuer's copy
 of a path certificate, or an issuer of such a copy, which servers send for old
 devices; emanat.az and example.com do), a root, or unrelated. Only an
 unrelated or out-of-date extra certificate is reported as needing a fix.
+When the chain breaks before any root, a certificate that links to nothing
+before the gap is not placed and not called extra: it may belong after the
+gap, so advice to remove it could break the fixed chain
+(`TestCertificatesPastABreakAreKept`).
 
 ADR 0085 also publishes per-child verified/rejected issuer candidate
 fingerprints, bounded to ten children / nine other sent candidates each.

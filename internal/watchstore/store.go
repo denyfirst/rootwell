@@ -1,4 +1,4 @@
-// Package watchstore keeps the websites Rootwell checks every day, and what
+// Package watchstore keeps the websites Rootwell checks every six hours, and what
 // each served when it was last checked (ADR 0093). Each site is one sealed
 // vault record, indexed by an HMAC of its target, so the file does not list
 // the names. It reaches no network: the daemon checks, and this package
@@ -21,7 +21,7 @@ const (
 	// MaxSites is how many websites may be watched.
 	MaxSites = 50
 	// Every is how often a site is checked.
-	Every = 24 * time.Hour
+	Every = 6 * time.Hour
 )
 
 var (
@@ -190,7 +190,7 @@ func (s *Store) Remove(target string) error {
 	})
 }
 
-// Due lists the sites not checked in the last day, the longest waiting
+// Due lists the sites not checked in the last six hours, the longest waiting
 // first.
 func (s *Store) Due(now time.Time) ([]Site, error) {
 	sites, err := s.List()

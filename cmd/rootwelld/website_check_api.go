@@ -209,7 +209,7 @@ func watchTarget(input string) (string, bool) {
 }
 
 // websiteTurn waits for Website check's one slot and its 5-second gap, which
-// the daily checks share with people's checks.
+// the watched checks share with people's checks.
 func (g *gate) websiteTurn(ctx context.Context) bool {
 	for {
 		g.mu.Lock()
@@ -232,8 +232,8 @@ func (g *gate) websiteTurn(ctx context.Context) bool {
 	}
 }
 
-// checkWatched checks the watched sites not checked in the last day, one at
-// a time, as Website check does, and tells the person what changed: another
+// checkWatched checks the watched sites not checked in the last six hours, one
+// at a time, as Website check does, and tells the person what changed: another
 // certificate, or a new problem (ADR 0093).
 func (g *gate) checkWatched(ctx context.Context) error {
 	if g.websiteCheck == nil && !websiteprobe.Available() {

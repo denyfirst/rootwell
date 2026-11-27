@@ -71,7 +71,7 @@ func TestLinuxASiteIsWatchedInCheckFormAndStoppingNeedsAFreshCode(t *testing.T) 
 	}
 }
 
-func TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes(t *testing.T) {
+func TestLinuxWatchedSitesAreCheckedEverySixHoursAsWebsiteCheckDoes(t *testing.T) {
 	g, cookie, e := readyGate(t)
 	for _, target := range []string{"shop.example", "down.example"} {
 		if w := post(t, e, cookie, "/api/watch/add", map[string]any{"target": target}); w.code != http.StatusCreated {
@@ -83,7 +83,7 @@ func TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes(t *testing.T) {
 	var last time.Time
 	g.websiteCheck = func(ctx context.Context, target websiteprobe.Target, _ []*x509.Certificate, permit func() bool) (websitechain.Report, error) {
 		if !permit() {
-			t.Fatal("a daily check without permission")
+			t.Fatal("a watched check without permission")
 		}
 		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > websiteprobe.Timeout+time.Second {
 			t.Fatal("no deadline")
@@ -92,7 +92,7 @@ func TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes(t *testing.T) {
 		busy, at := g.websiteBusy, g.websiteLast
 		g.mu.Unlock()
 		if !busy || (!last.IsZero() && at.Sub(last) < websiteGap) {
-			t.Fatal("a daily check did not take Website check's turn")
+			t.Fatal("a watched check did not take Website check's turn")
 		}
 		last = at
 		checked = append(checked, target.String())
@@ -116,7 +116,7 @@ func TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes(t *testing.T) {
 	if err != nil || sites[0].State != "unreachable" || !strings.Contains(sites[0].Problem, "Nothing answers on port 443 at 192.0.2.7") || sites[1].State != "verified" || sites[1].Leaf != "AA" {
 		t.Fatalf("recorded %+v", sites)
 	}
-	// Within the day, nothing is checked again.
+	// Within six hours, nothing is checked again.
 	if err := g.checkWatched(ctx); err != nil || len(checked) != 2 {
 		t.Fatalf("checked again: %v %v", checked, err)
 	}
@@ -128,7 +128,8 @@ func TestAWatchMessageSaysWhatChanged(t *testing.T) {
 		Site: watchstore.Site{Target: "shop.example", LeafName: "shop.example", NotAfter: "2027-03-01T00:00:00Z"}}, link)
 	if subject != "Rootwell: shop.example now serves another certificate" ||
 		!strings.Contains(text, "shop.example now serves shop.example, until 1 Mar 2027. The one it served before ended 1 Dec 2026.") ||
-		!strings.Contains(text, "https://rootwell.lab.test:4180/website-check#shop.example") {
+		!strings.Contains(text, "https://rootwell.lab.test:4180/website-check#shop.example") ||
+		!strings.Contains(text, "Rootwell checks this website every six hours") {
 		t.Fatalf("%s\n%s", subject, text)
 	}
 	subject, text = watchMessage(watchstore.Change{NewProblem: true, Site: watchstore.Site{Target: "intranet.lab:8443", Problem: "The chain is incomplete"}}, siteLink(""))

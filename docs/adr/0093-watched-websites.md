@@ -3,7 +3,9 @@
 ## Status
 
 Accepted on 27 November 2026. It is item 2 of PRODUCT-PLAN section 3 and
-builds on Website check (ADR 0090) and alerts (ADR 0092).
+builds on Website check (ADR 0090) and alerts (ADR 0092). Amended the same
+day: a site is checked every six hours, not once a day, so a change is known
+the same working day.
 
 ## Context
 
@@ -23,10 +25,10 @@ Watching needs a signed-in session, as a check does; stopping a watch
 silences it, so it needs a fresh code (C111).
 
 **Checking.** In the hourly loop that sends alerts, before them, each site
-not checked in the last day is checked, the one waiting longest first,
+not checked in the last six hours is checked, the one waiting longest first,
 exactly as a person's check: the same address rule, connection limits and
-saved roots, and the same single slot and 5-second gap, which the daily
-checks share with people's. A check saves only what the page shows: the
+saved roots, and the same single slot and 5-second gap, which the watched
+checks share with people's. Fifty sites make at most 200 checks a day. A check saves only what the page shows: the
 verdict, its first problem in one sentence, and the certificate the site
 served (fingerprint, name, end).
 
@@ -42,18 +44,19 @@ Website check for it.
 ## Consequences
 
 - The person learns that a renewal reached the server, and when a server
-  starts failing, within a day.
+  starts failing, within seven hours: six between checks, and up to one
+  more until the hourly loop runs.
 - Watched names are kept in the vault; like Website check, a watched site
   can be an internal server (ADR 0090).
 - A site that changes certificate often, such as one behind several servers
   with different certificates, tells each change.
-- Not built: watching more than once a day, and comparing a served
+- Not built: watching more often than every six hours, and comparing a served
   certificate with the saved ones beyond showing its end.
 
 ## Evidence
 
-`TestSitesAreAddedOnceAndUpToTheLimit`, `TestASiteIsDueOnceADay`,
+`TestSitesAreAddedOnceAndUpToTheLimit`, `TestASiteIsDueEverySixHours`,
 `TestEachChangeIsToldOnce`, `TestASiteRecordIsReadStrictly`,
 `TestLinuxASiteIsWatchedInCheckFormAndStoppingNeedsAFreshCode`,
-`TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes`,
+`TestLinuxWatchedSitesAreCheckedEverySixHoursAsWebsiteCheckDoes`,
 `TestAWatchMessageSaysWhatChanged` and `scripts/test-website-check.mjs`.

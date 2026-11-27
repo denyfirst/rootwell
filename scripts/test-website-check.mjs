@@ -131,6 +131,24 @@ const note = (code, title, certificates = []) => ({ code, level: "note", title, 
   assert.match(page.text(), /How to fix it .*Add \u201cR11\u201d after the website certificate\./);
 }
 
+// What the server sends past a missing issuer is kept, not called extra.
+{
+  const upper = { fingerprint: "EE", subject: "Upper Issuer", role: "intermediate", sent: true, position: 2, in_date: true, use: "unplaced", not_after: days(300) };
+  const report = { ...healthy, state: "failed", trusted: false, trust_source: "", path: [leaf], presented: [leaf, upper],
+    findings: [
+      { code: "missing-issuer", level: "failed", title: "\u201cR11\u201d is missing from the chain", detail: "The server does not send \u201cR11\u201d.", action: "Add \u201cR11\u201d after the website certificate.", certificates: [] },
+      { code: "unplaced", level: "note", title: "Rootwell can place \u201cUpper Issuer\u201d once the chain is fixed", detail: "The chain breaks before \u201cUpper Issuer\u201d.", action: "Keep it for now. Fix the chain, then check again.", certificates: ["EE"] }] };
+  const f = fixture({ reply: () => answer(200, report) });
+  await f.submit("shop.example.com");
+  const page = f.ids["site-result"];
+  const extras = page.all((n) => /^link /.test(n.className) && /Upper Issuer/.test(n.text()));
+  assert.equal(extras.length, 1);
+  assert.equal(extras[0].className, "link extra");
+  assert.match(extras[0].text(), /Upper Issuer Not placed yet \u00b7 Checked again once the chain is fixed/);
+  assert.doesNotMatch(extras[0].text(), /Needs a fix|Not part of this chain/);
+  assert.match(page.text(), /Keep it for now\. Fix the chain, then check again\./);
+}
+
 // An internal server trusted through the person's own saved root.
 {
   const saved = { ...root, subject: "Company Root" };
@@ -225,11 +243,11 @@ for (const bad of ["", "   ", "shop example.com"]) {
   await f.submit("shop.example.com");
   await settle();
   const row = f.ids["site-result"].children[1];
-  assert.match(row.text(), /^Watch this site Rootwell checks it once a day/);
+  assert.match(row.text(), /^Watch this site Rootwell checks it every six hours/);
   await row.children[0].listeners.click();
   await settle();
   assert.deepEqual(watch.calls.filter((c) => c.url === "/api/watch/add").map((c) => c.body), [{ target: "shop.example.com" }]);
-  assert.match(row.text(), /^Watched Rootwell checks it once a day\.$/);
+  assert.match(row.text(), /^Watched Rootwell checks it every six hours\.$/);
   assert.equal(f.ids["watched-count"].textContent, "2 websites");
   assert.equal(f.requests.length, 1, "watching sends no second check");
   // Stopping: Rootwell asks for a phone code, then the site leaves the list.
