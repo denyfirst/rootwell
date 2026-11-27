@@ -5,6 +5,7 @@
 // last ten minutes. When Rootwell asks for one (it answers 428), a page calls
 // rootwellFresh(): it asks for the code in a dialog and sends it. It resolves
 // true once Rootwell accepted a code, and false when the person cancels.
+// After a recovery code, the dialog first says how many are left.
 (function () {
   let pending = null;
   let parts = null;
@@ -44,10 +45,14 @@
     input.maxLength = 64;
     input.spellcheck = false;
     field.append(label, input);
+    const left = document.createElement("p");
+    left.className = "notice info";
+    left.setAttribute("role", "status");
+    left.hidden = true;
     const error = document.createElement("p");
     error.className = "error-text";
     error.setAttribute("role", "alert");
-    body.append(hint, field, error);
+    body.append(hint, field, left, error);
     const foot = document.createElement("div");
     foot.className = "dialog-foot";
     const cancel = document.createElement("button");
@@ -69,10 +74,27 @@
     scrim.hidden = true;
     dialog.hidden = true;
     document.body.append(scrim, dialog);
-    return { scrim, dialog, form, input, error, cancel, go, passkey };
+    return { scrim, dialog, form, title, hint, field, input, left, error, cancel, go, passkey, used: false };
+  }
+
+  // A recovery code was spent: Rootwell accepted it, and the dialog says how
+  // many are left before the page goes on.
+  function showLeft(value) {
+    const left = value && value.recovery_left;
+    if (!Number.isInteger(left) || left < 0 || left > 10) return close(true);
+    parts.used = true;
+    parts.title.textContent = "You used a recovery code";
+    parts.hint.hidden = parts.field.hidden = parts.cancel.hidden = parts.passkey.hidden = true;
+    parts.left.textContent = left === 0 ? "That was the last one. Make new codes on the Account page now." :
+      (left === 1 ? "1 recovery code is left" : left + " recovery codes are left") + ". Make new ones on the Account page before they run out.";
+    parts.left.className = "notice " + (left === 0 ? "bad" : left <= 2 ? "weak" : "info");
+    parts.left.hidden = false;
+    parts.go.focus();
   }
 
   function close(result) {
+    // Once a code was accepted, closing goes on in any way.
+    if (parts.used) result = true;
     parts.input.value = "";
     parts.error.textContent = "";
     parts.dialog.hidden = true;
@@ -84,6 +106,7 @@
 
   async function send(event) {
     event.preventDefault();
+    if (parts.used) return close(true);
     const code = parts.input.value.trim();
     if (!code) {
       parts.error.textContent = "Enter the code your phone shows.";
@@ -98,6 +121,10 @@
       });
       const text = response.ok ? "" : await response.text().catch(() => "");
       if (response.status === 204) return close(true);
+      if (response.status === 200) {
+        const json = (response.headers.get("content-type") || "").split(";")[0].trim() === "application/json";
+        return showLeft(json ? await response.json().catch(() => null) : null);
+      }
       if (response.status === 409 || (response.status === 401 && /signed out|sign in/i.test(text))) {
         window.location.assign("/login");
         return;
@@ -167,6 +194,10 @@
     }
     return new Promise((resolve) => {
       pending = resolve;
+      parts.used = false;
+      parts.title.textContent = "Enter a code from your phone";
+      parts.hint.hidden = parts.field.hidden = parts.cancel.hidden = false;
+      parts.left.hidden = true;
       parts.error.textContent = "";
       parts.input.value = "";
       // The passkey button shows only when the account has one, on a name.
