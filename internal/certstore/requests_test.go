@@ -351,3 +351,33 @@ func TestAnEarlyRenewalThatEndsSoonerStillTakesThePlace(t *testing.T) {
 		t.Fatalf("a shorter renewal did not take the place: %+v %v", saved, err)
 	}
 }
+
+// A certificate whose key Go cannot read, such as a GOST or SM2 key, is
+// saved as before: it simply finishes no request.
+func TestACertificateWithAKeyGoCannotReadIsStillSaved(t *testing.T) {
+	s, _ := newStore(t)
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	template := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "gost.example"}, DNSNames: []string{"gost.example"},
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour)}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The key's algorithm becomes one Go does not know.
+	oid := []byte{0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01}
+	der[bytes.Index(der, oid)+8] = 0x09
+	if c, err := x509.ParseCertificate(der); err != nil || c.PublicKey != nil {
+		t.Fatalf("the test certificate: %v", err)
+	}
+	file := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	records, err := certificatepair.Analyze(file, nil, nil)
+	if err != nil || len(records) != 1 {
+		t.Fatalf("analyze: %v", err)
+	}
+	if plan, err := s.Successor(records[0]); err != nil || plan != (Plan{}) {
+		t.Fatalf("plan: %+v %v", plan, err)
+	}
+	if _, _, err := s.Save(1, file, nil, nil, "", "", records[0].Fingerprint, false, ""); err != nil {
+		t.Fatalf("a certificate with an unknown key is no longer saved: %v", err)
+	}
+}

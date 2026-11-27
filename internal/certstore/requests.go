@@ -315,15 +315,17 @@ func (s *Store) DeleteRequest(expected uint64, publicFingerprint string) (uint64
 }
 
 // waitingFor finds the request whose key is this certificate's. found is
-// false when there is none.
+// false when there is none. A certificate whose key Go cannot read, such as
+// a GOST or SM2 key, has no request here: Rootwell never made such a key, and
+// it is saved as it always was.
 func (s *Store) waitingFor(t *vault.Tx, der []byte) (requestRecord, string, bool, error) {
 	certificate, err := x509.ParseCertificate(der)
 	if err != nil {
-		return requestRecord{}, "", false, ErrUnavailable
+		return requestRecord{}, "", false, nil
 	}
 	fingerprint, err := PublicFingerprint(certificate.PublicKey)
 	if err != nil {
-		return requestRecord{}, "", false, err
+		return requestRecord{}, "", false, nil
 	}
 	id := s.v.Index(kindRequest, fingerprint)
 	q, err := s.readRequest(t, id)
