@@ -138,7 +138,7 @@ func watchMessage(c watchstore.Change, link func(string) string) (string, string
 	if to := link(site.Target); to != "" {
 		b.WriteString(to + "\n")
 	}
-	b.WriteString("\nRootwell checks this website once a day, and writes when it serves another certificate or has a problem.")
+	b.WriteString("\nRootwell checks this website every six hours, and writes when it serves another certificate or has a problem.")
 	return subject, b.String()
 }
 

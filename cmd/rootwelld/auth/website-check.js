@@ -2,7 +2,7 @@
 
 // Website check: one connection from this Rootwell to an HTTPS website or
 // internal server, drawn as a verdict, the chain, and what to fix. A check
-// saves nothing; a site the person chooses to watch is checked once a day. The page builds every element with textContent; no server or
+// saves nothing; a site the person chooses to watch is checked every six hours. The page builds every element with textContent; no server or
 // certificate text is ever parsed as HTML.
 (function () {
   const form = document.getElementById("site-form");
@@ -220,7 +220,7 @@
 
 
   // ── Watched websites ───────────────────────────────────────────────────
-  // Rootwell checks these once a day and writes when one serves another
+  // Rootwell checks these every six hours and writes when one serves another
   // certificate or has a problem. Watching needs a signed-in session;
   // stopping silences a watch, so it needs a code from the phone.
 
@@ -312,7 +312,7 @@
     const row = el("div", "inline");
     const draw = () => {
       if (watchedSites.some((s) => s.target === site)) {
-        return row.replaceChildren(el("span", "pill pill-plain", "Watched"), el("span", "meta", "Rootwell checks it once a day."));
+        return row.replaceChildren(el("span", "pill pill-plain", "Watched"), el("span", "meta", "Rootwell checks it every six hours."));
       }
       const watch = el("button", "btn btn-secondary", "Watch this site");
       watch.type = "button";
@@ -328,7 +328,7 @@
           status.className = "error-text";
         }
       });
-      row.replaceChildren(watch, el("span", "meta", "Rootwell checks it once a day and writes to you when it changes certificate or has a problem."));
+      row.replaceChildren(watch, el("span", "meta", "Rootwell checks it every six hours and writes to you when it changes certificate or has a problem."));
     };
     draw();
     return row;

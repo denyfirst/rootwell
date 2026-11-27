@@ -115,7 +115,7 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
    Telegram were done on 27 November 2026 (ADR 0092); webhooks for Teams
    and Slack come later.
 2. **Watched websites:** "Watch this site" in Website check. Rootwell checks
-   it every day, and writes when it serves another certificate or has a
+   it every six hours, and writes when it serves another certificate or has a
    problem. Done on 27 November 2026 (ADR 0093).
 3. **Real renewal** with Let's Encrypt and Cloudflare DNS, nobody signed in
    (Phase 3c, after the first release).
@@ -346,7 +346,7 @@ it. Alerts by e-mail and Telegram followed (ADR 0092): 30, 14 and 7 days
 before a certificate ends and on the day, once each, from a page beside
 Account. Downloads named by the server followed: PEM files for nginx and
 Apache, a PFX for Windows and IIS. Last came watched websites (ADR 0093):
-checked once a day, with an alert when one serves another certificate or
+checked every six hours, with an alert when one serves another certificate or
 has a problem. Phase 3b+ is complete.
 
 **Next:** Phase 3e (install scripts and signed releases) and Phase 4 (an

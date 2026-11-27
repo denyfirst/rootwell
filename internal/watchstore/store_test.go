@@ -60,7 +60,7 @@ func TestSitesAreAddedOnceAndUpToTheLimit(t *testing.T) {
 	}
 }
 
-func TestASiteIsDueOnceADay(t *testing.T) {
+func TestASiteIsDueEverySixHours(t *testing.T) {
 	s, _ := newStore(t)
 	now := time.Date(2026, 11, 27, 9, 0, 0, 0, time.UTC)
 	s.now = func() time.Time { return now }
@@ -75,10 +75,10 @@ func TestASiteIsDueOnceADay(t *testing.T) {
 	if _, err := s.Record("a.example", Result{State: "verified", Leaf: "AA", LeafName: "a.example", NotAfter: "2027-01-01T00:00:00Z"}, now); err != nil {
 		t.Fatal(err)
 	}
-	if due, _ := s.Due(now.Add(23 * time.Hour)); len(due) != 1 || due[0].Target != "b.example" {
-		t.Fatalf("checked a day ago: %+v", due)
+	if due, _ := s.Due(now.Add(6*time.Hour - time.Minute)); len(due) != 1 || due[0].Target != "b.example" {
+		t.Fatalf("checked under six hours ago: %+v", due)
 	}
-	if due, _ := s.Due(now.Add(Every)); len(due) != 2 || due[0].Target != "b.example" {
+	if due, _ := s.Due(now.Add(6 * time.Hour)); len(due) != 2 || due[0].Target != "b.example" {
 		t.Fatalf("the longest waiting first: %+v", due)
 	}
 }

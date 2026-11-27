@@ -225,11 +225,11 @@ for (const bad of ["", "   ", "shop example.com"]) {
   await f.submit("shop.example.com");
   await settle();
   const row = f.ids["site-result"].children[1];
-  assert.match(row.text(), /^Watch this site Rootwell checks it once a day/);
+  assert.match(row.text(), /^Watch this site Rootwell checks it every six hours/);
   await row.children[0].listeners.click();
   await settle();
   assert.deepEqual(watch.calls.filter((c) => c.url === "/api/watch/add").map((c) => c.body), [{ target: "shop.example.com" }]);
-  assert.match(row.text(), /^Watched Rootwell checks it once a day\.$/);
+  assert.match(row.text(), /^Watched Rootwell checks it every six hours\.$/);
   assert.equal(f.ids["watched-count"].textContent, "2 websites");
   assert.equal(f.requests.length, 1, "watching sends no second check");
   // Stopping: Rootwell asks for a phone code, then the site leaves the list.
