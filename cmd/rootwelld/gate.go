@@ -17,6 +17,7 @@ import (
 	"github.com/denyfirst/rootwell/internal/certstore"
 	"github.com/denyfirst/rootwell/internal/servingstore"
 	"github.com/denyfirst/rootwell/internal/vault"
+	"github.com/denyfirst/rootwell/internal/watchstore"
 )
 
 //go:embed auth/*
@@ -48,6 +49,8 @@ type gate struct {
 	alerts       *alerts.Service
 	alertBusy    bool
 	alertLast    time.Time
+	watches      *watchstore.Store
+	alertSite    func(string) string
 }
 
 // newGate serves the pages for the accounts and certificates in v, over HTTPS
@@ -79,6 +82,8 @@ func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, e
 	g.backups = make(chan struct{}, 1)
 	g.alertStore = alerts.NewStore(v)
 	g.alerts = alerts.NewService(g.alertStore, g.alertCertificates, g.alertRoots, alertLink(linkHost(g.hosts, g.loopback)))
+	g.watches = watchstore.New(v)
+	g.alertSite = siteLink(linkHost(g.hosts, g.loopback))
 	return g, nil
 }
 
@@ -238,6 +243,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/api/alerts", "/api/alerts/email", "/api/alerts/telegram", "/api/alerts/remove", "/api/alerts/test":
 		g.alertsEndpoint(w, r, s, signedIn)
+		return
+	case "/api/watch", "/api/watch/add", "/api/watch/remove":
+		g.watchEndpoint(w, r, s, signedIn)
 		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {

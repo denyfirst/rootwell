@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/denyfirst/rootwell/internal/watchstore"
 	"github.com/denyfirst/rootwell/internal/websitechain"
 	"github.com/denyfirst/rootwell/internal/websiteprobe"
 )
@@ -195,4 +196,107 @@ func (g *gate) savedRoots() []*x509.Certificate {
 		}
 	}
 	return roots
+}
+
+// watchTarget reads a site to watch in Website check's own form, so a watched
+// site is checked exactly as a person's check is.
+func watchTarget(input string) (string, bool) {
+	target, err := websiteprobe.ParseTarget(input)
+	if err != nil || !target.Reachable() {
+		return "", false
+	}
+	return target.String(), true
+}
+
+// websiteTurn waits for Website check's one slot and its 5-second gap, which
+// the daily checks share with people's checks.
+func (g *gate) websiteTurn(ctx context.Context) bool {
+	for {
+		g.mu.Lock()
+		now := g.now()
+		if g.closed {
+			g.mu.Unlock()
+			return false
+		}
+		if !g.websiteBusy && (g.websiteLast.IsZero() || now.Sub(g.websiteLast) >= websiteGap) {
+			g.websiteBusy, g.websiteLast = true, now
+			g.mu.Unlock()
+			return true
+		}
+		g.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// checkWatched checks the watched sites not checked in the last day, one at
+// a time, as Website check does, and tells the person what changed: another
+// certificate, or a new problem (ADR 0093).
+func (g *gate) checkWatched(ctx context.Context) error {
+	if g.websiteCheck == nil && !websiteprobe.Available() {
+		return nil
+	}
+	due, err := g.watches.Due(g.now())
+	if err != nil {
+		return err
+	}
+	check := g.websiteCheck
+	if check == nil {
+		check = websiteprobe.Probe
+	}
+	for _, site := range due {
+		target, err := websiteprobe.ParseTarget(site.Target)
+		if err != nil {
+			continue
+		}
+		if !g.websiteTurn(ctx) {
+			return ctx.Err()
+		}
+		one, cancel := context.WithTimeout(ctx, websiteprobe.Timeout+time.Second)
+		report, err := check(one, target, g.savedRoots(), func() bool { g.mu.Lock(); defer g.mu.Unlock(); return !g.closed })
+		cancel()
+		g.mu.Lock()
+		g.websiteBusy = false
+		g.mu.Unlock()
+		result := watchstore.Result{State: "unreachable"}
+		if err != nil {
+			result.Problem = websiteFailure(target, err)
+		} else {
+			result = watchResult(report)
+		}
+		change, err := g.watches.Record(site.Target, result, g.now())
+		if err != nil {
+			return err
+		}
+		if change != nil && g.alerts != nil {
+			subject, text := watchMessage(*change, g.alertSite)
+			if err := g.alerts.Notify(ctx, subject, text); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// watchResult keeps what a person needs from one check: the verdict, the
+// first problem, and the certificate the site served.
+func watchResult(report websitechain.Report) watchstore.Result {
+	result := watchstore.Result{State: report.State}
+	for _, finding := range report.Findings {
+		if finding.Level == "failed" || (finding.Level == "attention" && result.Problem == "") {
+			result.Problem = finding.Title
+			if finding.Level == "failed" {
+				break
+			}
+		}
+	}
+	for _, c := range report.Presented {
+		if c.Position == 1 {
+			result.Leaf, result.LeafName, result.NotAfter = c.Fingerprint, c.Subject, c.NotAfter
+		}
+	}
+	return result
 }

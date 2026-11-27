@@ -77,6 +77,24 @@ func (s *Service) Run(ctx context.Context) error {
 	return s.store.record(Remember(state.Sent, due, listed), &entry)
 }
 
+// Notify sends one message about something other than a certificate's end,
+// such as a watched website, on every channel set up, and logs it. With no
+// channel set up it sends nothing.
+func (s *Service) Notify(ctx context.Context, subject, text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	email, telegram, err := s.store.channels()
+	if err != nil {
+		return err
+	}
+	if email == nil && telegram == nil {
+		return nil
+	}
+	defer forget(email, telegram)
+	entry := s.deliver(ctx, email, telegram, plain(subject), text, s.now())
+	return s.store.record(nil, &entry)
+}
+
 // Test sends a short message on one channel now, and says how it went.
 func (s *Service) Test(ctx context.Context, channel string) error {
 	s.mu.Lock()

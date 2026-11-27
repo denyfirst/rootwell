@@ -1,8 +1,8 @@
 "use strict";
 
 // Website check: one connection from this Rootwell to an HTTPS website or
-// internal server, drawn as a verdict, the chain, and what to fix. Nothing is
-// saved. The page builds every element with textContent; no server or
+// internal server, drawn as a verdict, the chain, and what to fix. A check
+// saves nothing; a site the person chooses to watch is checked once a day. The page builds every element with textContent; no server or
 // certificate text is ever parsed as HTML.
 (function () {
   const form = document.getElementById("site-form");
@@ -218,12 +218,128 @@
     return box;
   }
 
+
+  // ── Watched websites ───────────────────────────────────────────────────
+  // Rootwell checks these once a day and writes when one serves another
+  // certificate or has a problem. Watching needs a signed-in session;
+  // stopping silences a watch, so it needs a code from the phone.
+
+  const watchedCard = document.getElementById("watched");
+  const watchedList = document.getElementById("watched-list");
+  const watchedCount = document.getElementById("watched-count");
+  let watchedSites = [];
+
+  async function watchCall(path, body, asked) {
+    const response = await fetch(path, {
+      method: body ? "POST" : "GET", credentials: "same-origin", cache: "no-store", redirect: "error",
+      headers: body ? { "Content-Type": "application/json", "X-Rootwell-Request": "1" } : { "X-Rootwell-Request": "1" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (response.status === 428 && !asked && typeof rootwellFresh === "function") {
+      if (await rootwellFresh()) return watchCall(path, body, true);
+      throw new Error("Nothing changed. That needs a code from your phone.");
+    }
+    const text = await response.text();
+    if (!response.ok) {
+      let said = "";
+      try { said = JSON.parse(text).error || ""; } catch { said = ""; }
+      throw new Error(typeof said === "string" && said && said.length < 300 ? said : response.status === 401 ? "Your session has ended. Sign in again." : "That did not work. Try again.");
+    }
+    return text ? JSON.parse(text) : null;
+  }
+
+  const watchState = {
+    verified: ["pill pill-good", "Good"], attention: ["pill pill-soon", "Needs a look"],
+    failed: ["pill pill-bad", "Problem"], unreachable: ["pill pill-bad", "No answer"],
+  };
+
+  function dateOf(value) {
+    const when = new Date(value);
+    return Number.isFinite(when.getTime()) ? when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  }
+
+  function drawWatched() {
+    watchedCard.hidden = !watchedSites.length;
+    watchedCount.textContent = watchedSites.length === 1 ? "1 website" : watchedSites.length + " websites";
+    watchedList.replaceChildren(...watchedSites.map((site) => {
+      const row = el("div", "file-chip");
+      const words = el("div");
+      const name = el("button", "link-button", site.target);
+      name.type = "button";
+      name.addEventListener("click", () => { input.value = site.target; form.requestSubmit ? form.requestSubmit() : check({ preventDefault() {} }); });
+      words.appendChild(name);
+      const facts = [];
+      if (site.checked_at) facts.push("Checked " + dateOf(site.checked_at));
+      else facts.push("Checked within the hour");
+      if (site.not_after) facts.push("its certificate lasts until " + dateOf(site.not_after));
+      words.appendChild(el("small", "", facts.join(" · ")));
+      if (site.problem) words.appendChild(el("small", "error-text", site.problem));
+      row.appendChild(words);
+      const [pillClass, pillText] = watchState[site.state] || ["pill pill-plain", "Not checked yet"];
+      row.appendChild(el("span", pillClass, pillText));
+      const stop = el("button", "btn btn-ghost btn-sm", "Stop watching");
+      stop.type = "button";
+      stop.addEventListener("click", async () => {
+        stop.disabled = true;
+        try {
+          await watchCall("/api/watch/remove", { target: site.target });
+          await loadWatched();
+        } catch (failure) {
+          status.textContent = failure.message;
+          status.className = "error-text";
+        } finally {
+          stop.disabled = false;
+        }
+      });
+      row.appendChild(stop);
+      return row;
+    }));
+  }
+
+  async function loadWatched() {
+    try {
+      const answer = await watchCall("/api/watch");
+      watchedSites = answer && Array.isArray(answer.sites) ? answer.sites.filter((s) => s && typeof s.target === "string") : [];
+    } catch {
+      watchedSites = [];
+    }
+    drawWatched();
+  }
+
+  // Under a result: watch this site, or say it is watched. The site is named
+  // as the server wrote it, as the watched list names it.
+  function watchRow(site) {
+    const row = el("div", "inline");
+    const draw = () => {
+      if (watchedSites.some((s) => s.target === site)) {
+        return row.replaceChildren(el("span", "pill pill-plain", "Watched"), el("span", "meta", "Rootwell checks it once a day."));
+      }
+      const watch = el("button", "btn btn-secondary", "Watch this site");
+      watch.type = "button";
+      watch.addEventListener("click", async () => {
+        watch.disabled = true;
+        try {
+          await watchCall("/api/watch/add", { target: site });
+          await loadWatched();
+          draw();
+        } catch (failure) {
+          watch.disabled = false;
+          status.textContent = failure.message;
+          status.className = "error-text";
+        }
+      });
+      row.replaceChildren(watch, el("span", "meta", "Rootwell checks it once a day and writes to you when it changes certificate or has a problem."));
+    };
+    draw();
+    return row;
+  }
+
   function show(report) {
     const now = Date.now();
     const split = el("div", "split");
     split.appendChild(chainCard(report, now));
     split.appendChild(fixCard(report));
-    result.replaceChildren(verdict(report), split);
+    result.replaceChildren(verdict(report), watchRow(siteName(report)), split);
     result.hidden = false;
     result.classList.add("result-enter");
   }
@@ -282,6 +398,7 @@
   }
 
   form.addEventListener("submit", check);
+  void loadWatched();
   // Certificates links here as /website-check#name.
   const named = decodeURIComponent(location.hash.slice(1));
   if (target(named)) input.value = named;

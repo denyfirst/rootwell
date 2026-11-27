@@ -83,7 +83,8 @@ func TestWorkbenchHasNoNetworkOrProcessImports(t *testing.T) {
 				// Alerts reach the person's mail server and Telegram only (ADR 0092).
 				allowedAlerts := (filepath.ToSlash(relative) == "internal/alerts/email.go" && (importPath == "net" || importPath == "net/mail" || importPath == "net/netip" || importPath == "net/smtp")) ||
 					(filepath.ToSlash(relative) == "internal/alerts/telegram.go" && (importPath == "net" || importPath == "net/http")) ||
-					(filepath.ToSlash(relative) == "cmd/rootwelld/alerts_api.go" && importPath == "net/http")
+					(filepath.ToSlash(relative) == "cmd/rootwelld/alerts_api.go" && importPath == "net/http") ||
+					(filepath.ToSlash(relative) == "cmd/rootwelld/watch_api.go" && importPath == "net/http")
 				if forbiddenImport(importPath) && !allowedProbe && !allowedLoopbackServer && !allowedAddressParser && !allowedDirectoryConnector && !allowedDNSCore && !allowedARIRead && !allowedWebsite && !allowedServeCert && !allowedAlerts {
 					t.Errorf("forbidden Workbench import %q in %s", importPath, relative)
 				}
