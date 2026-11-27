@@ -8,6 +8,55 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C117 — Alerts reach only the mail server named, over verified TLS, and Telegram; their secrets are sealed apart and changed only after a fresh code (ADR 0092)
+
+`rootwelld serve` checks a minute after it starts and every hour, and sends
+an alert 30, 14 and 7 days before a saved certificate ends and on the day it
+ends, once per step and certificate, the nearest step only; a replaced
+certificate gets none. A step counts as sent only when a channel delivered
+it. All due certificates go in one message; text from a certificate loses
+its control characters and is cut at 200 characters.
+
+Telegram is reached only at `api.telegram.org:443`, over TLS against the
+public roots, with no environment proxy, no redirects and a time limit. Its
+errors are four fixed sentences: never the URL, which holds the token, nor
+Telegram's words. E-mail goes only over TLS, implicit or STARTTLS; a server
+without STARTTLS is left before anything is sent, and its certificate must
+verify for its name against the public roots or an authority saved in
+Certificates. Signing in is PLAIN over that TLS only. The server's address,
+and every address its name resolves to, must pass `netpolicy.Reachable`, the
+rule Website check uses: loopback, link-local, metadata, multicast,
+documentation and reserved ranges are never dialled. Sender and recipients
+are bare addresses, at most ten; a line break in any setting or the subject
+is refused, the subject is MIME-encoded and the body quoted-printable, so no
+header can be added. Mail server text is never shown.
+
+The settings and the secrets (mail password, bot token) are two sealed vault
+records, read strictly; reading the settings opens no secret, and no answer
+carries one. `GET /api/alerts` needs a signed-in session and the page header.
+`POST /api/alerts/email`, `/telegram` and `/remove` need the exact Origin, the
+header and a fresh code (C111): without it, 428 and nothing changes. A secret
+is kept only when the page asks to keep it and sends none; turning a channel
+off forgets its secret. `POST /api/alerts/test` needs a signed-in session,
+runs one at a time and at most one every ten seconds (429 with
+`Retry-After`).
+
+Guarded by `TestEachStepIsSentOnceAndOnlyTheNearest`,
+`TestANewEndDateStartsAgainAndTheRecordStaysSmall`, `TestDueIsSoonestFirst`,
+`TestTelegramSendsOneMessageToTheChat`,
+`TestTelegramRefusalsAreNamedWithoutTheToken`,
+`TestTelegramSettingsAreCheckedBeforeSending`,
+`TestTelegramConnectsOnlyToTelegram`, `TestEmailGoesOnlyOverVerifiedTLS`,
+`TestEmailRefusesWhatItCannotVerify`, `TestEmailReachesOnlyAllowedAddresses`,
+`TestEmailSettingsAreCheckedBeforeConnecting`,
+`TestTheSecretsAreKeptApartAndNeverShown`, `TestAlertRecordsAreReadStrictly`,
+`TestAlertsGoOutOnceAndRetryWhenNothingArrived`, `TestNoChannelSendsNothing`,
+`TestLinuxAlertSettingsNeedAFreshCodeAndNeverShowSecrets`,
+`TestLinuxAlertInputIsRefused`,
+`TestLinuxATestNeedsAChannelAndWaitsBetweenTries`,
+`TestWorkbenchHasNoNetworkOrProcessImports`,
+`TestPagesSeparateFileAndNetworkCapabilities` and `scripts/test-alerts.mjs`.
+
 ## C116 — A request's new key is made and kept in the vault, joins only its own certificate, and a renewal is bookkeeping (ADR 0091)
 
 `POST /api/requests/create` needs a signed-in session, the exact Origin and
@@ -313,7 +362,8 @@ does nothing when asked to:
   request whose new key Rootwell keeps (C116);
 - change the password, move to a new phone, make new recovery codes, or add
   or remove a passkey;
-- download a backup of the whole vault from the Installation page (C114).
+- download a backup of the whole vault from the Installation page (C114);
+- save an alert channel or turn one off (C117).
 
 The Certificates, Account and Installation pages then ask for a code in a
 dialog (`fresh.js`) and send the same request once more; Cancel changes
@@ -335,6 +385,7 @@ Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 `TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
 `TestCertificateRequestsRefuseAPasswordField`,
 `TestLinuxGivingUpARequestNeedsAFreshCode`,
+`TestLinuxAlertSettingsNeedAFreshCodeAndNeverShowSecrets`,
 `scripts/test-certificates.mjs` and `scripts/test-rootwelld-auth.mjs`.
 
 ## C110 — Only failures count, per known device or per name and source (ADR 0088)

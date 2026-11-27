@@ -12,7 +12,7 @@ import (
 // runtime, which are built at release.
 var pageAssetNames = []string{
 	"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js",
-	"request.html", "request.js", "request-keep.js", "ui.js", "rootwell.css", "theme.js", "session.js", "favicon.svg",
+	"request.html", "request.js", "request-keep.js", "alerts.html", "alerts.js", "ui.js", "rootwell.css", "theme.js", "session.js", "favicon.svg",
 	"wasm-loader.js", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js",
 	"csr-worker-client.js", "csr-worker.js",
 }
@@ -94,6 +94,17 @@ func TestPagesSeparateFileAndNetworkCapabilities(t *testing.T) {
 	if strings.Count(keep, "fetch(") != 1 || !strings.Contains(keep, `send("/api/inventory")`) || !strings.Contains(keep, `send("/api/requests/create"`) ||
 		strings.Count(keep, "send(\"") != 2 || !strings.Contains(keep, `credentials: "same-origin"`) || !strings.Contains(keep, `redirect: "error"`) {
 		t.Error("request-keep.js must ask only this Rootwell for the list's count and a new request")
+	}
+	// Alerts talks to /api/alerts only, and reads no file.
+	alertsScript := assets["alerts.js"]
+	for _, forbidden := range []string{".files", "arrayBuffer", "FileReader", "readAs", "Worker(", "import(", "XMLHttpRequest", "WebSocket",
+		"EventSource", "sendBeacon", "localStorage", "sessionStorage", "indexedDB", "innerHTML", "eval(", "https://", "http://"} {
+		if strings.Contains(alertsScript, forbidden) {
+			t.Errorf("alerts.js must not use %q", forbidden)
+		}
+	}
+	if strings.Count(alertsScript, "fetch(") != 1 || regexp.MustCompile(`call\("/api/(?:[^a]|a[^l])`).MatchString(alertsScript) {
+		t.Error("alerts.js must ask only this Rootwell's /api/alerts endpoints")
 	}
 	// The colour scheme script remembers one choice and touches no file.
 	for _, forbidden := range []string{"fetch(", "XMLHttpRequest", ".files", "arrayBuffer", "FileReader", "innerHTML", "eval("} {

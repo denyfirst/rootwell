@@ -53,6 +53,7 @@ func menuPages(t *testing.T) map[string]string {
 		"Request":       repositoryFile(t, "web", "workbench", "request.html"),
 		"Account":       repositoryFile(t, "cmd", "rootwelld", "auth", "account.html"),
 		"Installation":  repositoryFile(t, "cmd", "rootwelld", "auth", "installation.html"),
+		"Alerts":        repositoryFile(t, "web", "workbench", "alerts.html"),
 	}
 }
 
@@ -288,11 +289,11 @@ func TestTheToolColourIsNeverAVerdictColour(t *testing.T) {
 	}
 }
 
-// Every page in the menu carries the same rail: the wordmark, the seven pages
+// Every page in the menu carries the same rail: the wordmark, the eight pages
 // with the current one marked, the colour scheme, Sign out and the credit.
 func TestEveryWorkspacePageCarriesTheSharedShell(t *testing.T) {
 	paths := map[string]string{"Certificates": "/certificates", "Website check": "/website-check", "Inspect": "/inspect",
-		"Convert": "/convert", "Request": "/request", "Account": "/account", "Installation": "/installation"}
+		"Convert": "/convert", "Request": "/request", "Alerts": "/alerts", "Account": "/account", "Installation": "/installation"}
 	for current, page := range menuPages(t) {
 		if !strings.Contains(page, `<a class="wordmark" href="/certificates" aria-label="Rootwell, certificates">rootwell<span class="wordmark-stop">.</span></a>`) {
 			t.Errorf("%s: the rail does not carry the wordmark", current)

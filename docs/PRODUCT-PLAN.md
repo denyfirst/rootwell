@@ -81,6 +81,7 @@ The pages in the menu:
 | Inspect | What is inside a file; does a key match; is the chain complete |
 | Convert | A certificate, key or PFX into the format a server needs |
 | Request | A CSR for a commercial CA, whose new key Rootwell keeps until the certificate arrives |
+| Alerts | Where Rootwell writes when a certificate comes close to its end |
 | Account | Password, phone codes, recovery codes |
 | Installation | How browsers reach Rootwell; a backup |
 
@@ -108,9 +109,11 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
 
 **Added**, in order of value:
 
-1. **Alerts:** e-mail and a webhook (Telegram, Teams, Slack) when a
-   certificate has 30, 14 or 7 days left, when a renewal fails, or when a
-   watched website serves a certificate Rootwell does not expect.
+1. **Alerts:** e-mail and Telegram when a certificate has 30, 14 or 7 days
+   left or has ended; later also when a renewal fails, or when a watched
+   website serves a certificate Rootwell does not expect. E-mail and
+   Telegram were done on 27 November 2026 (ADR 0092); webhooks for Teams
+   and Slack come later.
 2. **Watched websites:** "Watch this site" in Website check. Rootwell checks
    it every day, and lists its certificate beside the kept ones.
 3. **Real renewal** with Let's Encrypt and Cloudflare DNS, nobody signed in
@@ -139,9 +142,12 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
   rolling log and never blocks a write.
 - The browser tools are the Go core compiled to WebAssembly and run in
   dedicated workers, as today. Selected files never leave the browser.
-- Network reach is limited to three kinds of destination:
+- Network reach is limited to four kinds of destination:
   - the ACME CAs and the DNS provider APIs, at fixed hosts;
-  - the websites a user checks, at public addresses only;
+  - the websites a user checks, public or private, never loopback,
+    link-local or metadata (ADR 0090);
+  - for alerts, the mail server the person names, under the same address
+    rule, and Telegram at its fixed host (ADR 0092);
   - nothing else.
 
 ## 5. Security model
@@ -169,7 +175,7 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
 | Live host compromise | None beyond the operating system: Rootwell must use keys to renew them | This is not a zero-knowledge design |
 | Session theft, CSRF, XSS | HTTPS, a `__Host-` cookie, exact Origin and Fetch Metadata checks, a strict CSP, safe DOM writes | Malicious browser extensions |
 | Password guessing | Argon2id, rate limits per name and per source, mandatory TOTP, optional passkeys | TOTP can be phished, even when a passkey is added |
-| Server-side request forgery | Fixed hosts for CAs and DNS APIs; website checks are for the signed-in owner only, dial only checked addresses (never loopback, link-local or metadata), one every 5 seconds; no redirects | A check can reach the owner's internal network, by design (ADR 0090) |
+| Server-side request forgery | Fixed hosts for CAs and DNS APIs; website checks are for the signed-in owner only, dial only checked addresses (never loopback, link-local or metadata), one every 5 seconds; no redirects; alerts reach the named mail server under the same address rule, over verified TLS, and Telegram's fixed host only (ADR 0092) | A check, or the mail server setting, can reach the owner's internal network, by design (ADR 0090) |
 | Wrong certificate delivered | Delivery only after the chain, names and key match are verified; atomic replace; the previous files are kept | The served result depends on the server's own reload |
 | Hostile files | Bounded parsers, fuzzing, single-use workers | Unknown parser defects |
 
@@ -334,8 +340,9 @@ sheet's Renew makes a request for the same names with a new key that
 Rootwell makes and keeps; the Request page keeps new keys the same way. When
 the provider's certificate is added, it finds its key, and a renewal takes
 the older certificate's place, keeping where it is used and who looks after
-it. Alerts by e-mail and Telegram, watched websites and downloads for the
-server come next.
+it. Alerts by e-mail and Telegram followed (ADR 0092): 30, 14 and 7 days
+before a certificate ends and on the day, once each, from a page beside
+Account. Watched websites and downloads for the server come next.
 
 **Next:** the rest of Phase 3b+, then Phase 3e and Phase 4.
 

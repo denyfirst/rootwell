@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -290,6 +291,19 @@ func serve(dir, keyFile, assetsDir string, listen []string) error {
 				current.Store(next.Certificate)
 				fmt.Fprintln(os.Stdout, "Renewed the serving certificate until "+next.Certificate.Leaf.NotAfter.UTC().Format("2006-01-02")+".")
 			}
+		}
+	}()
+	go func() {
+		// Alerts: a minute after the start, then every hour. A run sends only
+		// what is due, so restarts and missed hours send nothing twice.
+		time.Sleep(time.Minute)
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+			if err := gate.alerts.Run(ctx); err != nil {
+				fmt.Fprintln(os.Stderr, "the alert settings could not be read; Rootwell tries again in an hour")
+			}
+			cancel()
+			time.Sleep(time.Hour)
 		}
 	}()
 	served := make(chan error, len(listeners))
