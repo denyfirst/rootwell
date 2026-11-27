@@ -500,9 +500,12 @@
   const note = $("download-note");
   const downloadGo = $("download-go");
   const downloadName = $("download-go-name");
+  const olderField = $("download-older-field");
+  const older = $("download-older");
   let downloadOptions = [];
 
   function resetDownload() {
+    older.checked = false;
     keyPassword.value = "";
     keyPassword.type = "password";
     note.hidden = true;
@@ -518,6 +521,7 @@
   function updateDownload() {
     const choice = downloadChoice();
     downloadSecret.hidden = !choice.secret;
+    olderField.hidden = !choice.older;
     downloadName.textContent = "Download " + choice.file(ui.friendlyName(nameOf(open), "certificate"));
   }
 
@@ -525,10 +529,15 @@
     if (!open) return;
     keyPanel.hidden = true;
     const matched = open.has_private_key && open.key_status === "matched";
+    // With a key, the server's own download comes first: PEM files for nginx
+    // and Apache, or one PFX for Windows and IIS. A PFX holds RSA and ECDSA
+    // keys only.
+    const pfx = matched && !/^Ed25519/.test(open.key_type || "");
     downloadOptions = [
+      ...(matched ? [{ id: "pair", title: "For nginx and Apache", hint: ".zip · PEM files, the key locked with a password", file: (n) => n + ".zip", body: { pair: true }, secret: true, type: "application/zip" }] : []),
+      ...(pfx ? [{ id: "pfx", title: "For Windows and IIS", hint: ".pfx · certificate, chain and key, with a password", file: (n) => n + ".pfx", body: { pfx: true }, secret: true, older: true, type: "application/x-pkcs12" }] : []),
       { id: "certificate", title: "Certificate", hint: ".pem · the certificate alone", file: (n) => n + ".pem", body: {} },
       ...(open.bundle_count > 0 ? [{ id: "bundle", title: "Full chain", hint: ".pem · with its issuers", file: (n) => n + "-fullchain.pem", body: { bundle: true } }] : []),
-      ...(matched ? [{ id: "pair", title: "Certificate and key", hint: ".zip · key locked with a password", file: (n) => n + ".zip", body: { pair: true }, secret: true }] : []),
       ...(open.has_private_key ? [{ id: "key", title: "Key only", hint: ".key · locked with a password", file: (n) => n + ".key", body: { key_only: true }, secret: true }] : []),
     ];
     downloadChoices.replaceChildren(...downloadOptions.map((option, index) => {
@@ -555,6 +564,7 @@
     if (!open) return;
     const choice = downloadChoice();
     const body = { fingerprint: open.fingerprint, expected_generation: generation, pair: false, ...choice.body };
+    if (choice.older && older.checked) body.older_windows = true;
     if (choice.secret) {
       if (!ui.isStrongPassword(keyPassword.value)) return say(sheetStatus, "bad", "Use 20 to 128 letters, digits or symbols for the key file, or press Generate.");
       const bytes = encoder.encode(keyPassword.value);
@@ -569,7 +579,7 @@
       const response = await call("/api/certificates/download", body, "The download did not start. Try again.");
       bytes = new Uint8Array(await response.arrayBuffer());
       if (!bytes.byteLength || bytes.byteLength > 1200 * 1024) throw new Error("size");
-      ui.download(bytes, name, choice.id === "pair" ? "application/zip" : "application/x-pem-file");
+      ui.download(bytes, name, choice.type || "application/x-pem-file");
       say(sheetStatus, "good", "Downloaded " + name);
     } catch (failure) {
       say(sheetStatus, "bad", failure instanceof Plain ? failure.message : "The download did not start. Try again.");

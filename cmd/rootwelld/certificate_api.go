@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,8 @@ import (
 	"github.com/denyfirst/rootwell/internal/browserprivateconvert"
 	"github.com/denyfirst/rootwell/internal/certificatepair"
 	"github.com/denyfirst/rootwell/internal/certstore"
+	"github.com/denyfirst/rootwell/internal/keymatch"
+	"github.com/denyfirst/rootwell/internal/pfxcreate"
 	"github.com/denyfirst/rootwell/internal/publicinventory"
 )
 
@@ -31,9 +34,13 @@ type certificateInput struct {
 	OutputPassword []byte
 	Pair           bool
 	KeyOnly        bool
-	Bundle         bool
-	Primary        string
-	AllowMismatch  bool
+	// PFX asks for the certificate, its issuers and its key in one PFX for
+	// Windows and IIS; OlderWindows for one Windows Server 2016 can read.
+	PFX           bool
+	OlderWindows  bool
+	Bundle        bool
+	Primary       string
+	AllowMismatch bool
 	// Replaces names the saved certificate this one is to take over.
 	Replaces string
 }
@@ -61,7 +68,7 @@ func (g *gate) certificateEndpoint(w http.ResponseWriter, r *http.Request, s ses
 	if !ok {
 		return
 	}
-	if r.URL.Path == "/api/certificates/download" && (input.Pair || input.KeyOnly) && !s.isFresh(g.now()) {
+	if r.URL.Path == "/api/certificates/download" && (input.Pair || input.KeyOnly || input.PFX) && !s.isFresh(g.now()) {
 		needFresh(w)
 		return
 	}
@@ -275,7 +282,7 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 				return bad()
 			}
 			input.AllowMismatch = *value
-		case "key_only", "bundle":
+		case "key_only", "bundle", "pfx", "older_windows":
 			if !download {
 				return bad()
 			}
@@ -284,10 +291,15 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 			if value == nil {
 				return bad()
 			}
-			if name == "key_only" {
+			switch name {
+			case "key_only":
 				input.KeyOnly = *value
-			} else {
+			case "bundle":
 				input.Bundle = *value
+			case "pfx":
+				input.PFX = *value
+			default:
+				input.OlderWindows = *value
 			}
 		case "expected_generation":
 			err = d.Decode(&input.Expected)
@@ -326,8 +338,14 @@ func readCertificateInput(w http.ResponseWriter, r *http.Request) (certificateIn
 			return bad()
 		}
 	} else if download {
-		secret := input.Pair || input.KeyOnly
-		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || (input.Pair && input.KeyOnly) || (input.Bundle && secret) || (!secret && seen["output_password"]) || (secret && len(input.OutputPassword) == 0) {
+		secret := input.Pair || input.KeyOnly || input.PFX
+		kinds := 0
+		for _, chosen := range []bool{input.Pair, input.KeyOnly, input.PFX, input.Bundle} {
+			if chosen {
+				kinds++
+			}
+		}
+		if !publicinventory.ValidFingerprint(input.Fingerprint) || !seen["pair"] || kinds > 1 || (input.OlderWindows && !input.PFX) || (!secret && seen["output_password"]) || (secret && len(input.OutputPassword) == 0) {
 			return bad()
 		}
 	} else if len(input.Certificate) == 0 || (r.URL.Path == "/api/certificates/save" && !publicinventory.ValidFingerprint(input.Fingerprint)) || (r.URL.Path == "/api/certificates/check" && seen["fingerprint"]) {
@@ -385,7 +403,7 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 	err := g.certificates.WithCertificate(input.Expected, input.Fingerprint,
 		func(record publicinventory.Record, key []byte) error {
 			certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: record.DER})
-			if !input.Pair && !input.KeyOnly {
+			if !input.Pair && !input.KeyOnly && !input.PFX {
 				if input.Bundle {
 					certificate = certificatepair.PublicPEM(record.BundleDER)
 					if len(certificate) == 0 {
@@ -399,8 +417,26 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 			if len(key) == 0 {
 				return certificatepair.ErrInvalid
 			}
-			if input.Pair && record.KeyStatus != "matched" {
+			if (input.Pair || input.PFX) && record.KeyStatus != "matched" {
 				return certificatepair.ErrInvalid
+			}
+			if input.PFX {
+				// Windows and IIS take one PFX: the certificate, its issuers
+				// and its key, locked with the download password.
+				profile := pfxcreate.Modern
+				if input.OlderWindows {
+					profile = pfxcreate.OlderWindows
+				}
+				chain := certificatepair.PublicPEM(intermediates(record.IssuerDER))
+				defer clear(chain)
+				return keymatch.WithPrivateKey(key, func(parsed any, _ keymatch.Encoding) error {
+					made, err := pfxcreate.CreateWithParsedKeyProfile(certificate, parsed, chain, string(input.OutputPassword), profile)
+					if err != nil {
+						return certificatepair.ErrInvalid
+					}
+					output = made
+					return nil
+				})
 			}
 			metadata, err := browserprivateconvert.Inspect(key)
 			if err != nil {
@@ -424,7 +460,7 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 			for _, file := range []struct {
 				name string
 				body []byte
-			}{{"fullchain.pem", append(bytes.Clone(certificate), chain...)}, {"cert.pem", certificate}, {"chain.pem", chain}, {"privkey.pem", encrypted}} {
+			}{{"fullchain.pem", append(bytes.Clone(certificate), chain...)}, {"cert.pem", certificate}, {"chain.pem", chain}, {"privkey.pem", encrypted}, {"HOW-TO-INSTALL.txt", []byte(installNotes)}} {
 				if len(file.body) == 0 {
 					continue
 				}
@@ -463,7 +499,52 @@ func (g *gate) downloadCertificate(w http.ResponseWriter, r *http.Request, s ses
 	if input.Pair {
 		ext, media = ".zip", "application/zip"
 	}
+	if input.PFX {
+		ext, media = ".pfx", "application/x-pkcs12"
+	}
 	w.Header().Set("Content-Type", media)
 	w.Header().Set("Content-Disposition", `attachment; filename="rootwell-certificate-`+hex.EncodeToString(nonce[:])+ext+`"`)
 	_, _ = w.Write(output)
+}
+
+// installNotes go in the ZIP for nginx and Apache. The key in it stays locked
+// with the download password; a server reads it with that password, or after
+// it is opened on the server itself (C111: Rootwell sends no open key).
+const installNotes = `These files are for nginx, Apache, HAProxy and other servers that read PEM.
+
+  fullchain.pem  the certificate, then its issuers
+  cert.pem       the certificate alone
+  chain.pem      the issuers alone
+  privkey.pem    the private key, locked with the password you chose
+
+nginx
+  ssl_certificate      /etc/nginx/ssl/fullchain.pem;
+  ssl_certificate_key  /etc/nginx/ssl/privkey.pem;
+  ssl_password_file    /etc/nginx/ssl/privkey.pass;
+  Put the download password, alone on one line, in privkey.pass.
+  Make privkey.pem and privkey.pass readable by root only (chmod 600).
+
+Apache
+  Apache asks for the password at every start, so open the key once on the
+  server, then keep it readable by root only:
+    openssl pkey -in privkey.pem -out privkey-open.pem
+    chmod 600 privkey-open.pem
+  SSLCertificateFile     /etc/ssl/rootwell/fullchain.pem
+  SSLCertificateKeyFile  /etc/ssl/rootwell/privkey-open.pem
+
+After installing, reload the server and check the site with Website check.
+`
+
+// intermediates leaves out the self-signed roots: a PFX carries the issuers
+// between the certificate and its root, and Windows trusts the root itself.
+func intermediates(issuers [][]byte) [][]byte {
+	var out [][]byte
+	for _, der := range issuers {
+		c, err := x509.ParseCertificate(der)
+		if err != nil || (bytes.Equal(c.RawIssuer, c.RawSubject) && c.CheckSignatureFrom(c) == nil) {
+			continue
+		}
+		out = append(out, der)
+	}
+	return out
 }

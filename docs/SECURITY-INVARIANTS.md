@@ -308,7 +308,10 @@ the dialog that sends it to `/api/fresh`, or a passkey used from its
 **Use a passkey** button. Without a fresh code the server answers 428 and
 does nothing when asked to:
 
-- download a key, with its certificate or alone;
+- download a key, with its certificate or alone: in the ZIP for nginx and
+  Apache, in a PFX for Windows and IIS, or by itself, always locked with the
+  download password (20 to 128 printable characters); a PFX leaves out the
+  self-signed root and holds RSA and ECDSA keys only;
 - delete a certificate that has a saved key (audit RW-10), or give up a
   request whose new key Rootwell keeps (C116);
 - change the password, move to a new phone, make new recovery codes, or add
@@ -334,6 +337,7 @@ Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 `TestLinuxCertificatesLiveInTheVaultAndSurviveARestart`,
 `TestLinuxACertificateWithoutAKeyIsDeletedWithoutAFreshCode`,
 `TestCertificateRequestsRefuseAPasswordField`,
+`TestLinuxAPFXForWindowsHoldsTheChainAndTheKey`,
 `TestLinuxGivingUpARequestNeedsAFreshCode`,
 `scripts/test-certificates.mjs` and `scripts/test-rootwelld-auth.mjs`.
 

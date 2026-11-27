@@ -78,9 +78,12 @@ after the first release. The independent review that a release needs
     type and its chain up to the root saved with it;
   - find one by name, address, issuer, place or owner; names in other
     scripts show in their own letters;
-  - download the certificate, the full chain, or a ZIP with `fullchain.pem`,
-    `cert.pem`, `chain.pem` and `privkey.pem`, the names nginx, Apache and
-    certbot use;
+  - download it for the server: **for nginx and Apache**, a ZIP with
+    `fullchain.pem`, `cert.pem`, `chain.pem`, `privkey.pem` and
+    `HOW-TO-INSTALL.txt`, which says how each server reads the locked key;
+    **for Windows and IIS**, one PFX with the certificate, its intermediates
+    and its key, AES-256 by default or TripleDES for Windows Server 2016 and
+    older; or the certificate or the full chain alone;
   - download the key locked with a password. A key never leaves unlocked; Convert
     can unlock a downloaded key in the browser.
 - Downloading a key, deleting a certificate that has one, or giving up a

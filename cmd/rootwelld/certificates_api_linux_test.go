@@ -324,8 +324,12 @@ func openPair(t *testing.T, cert, archiveBytes []byte) {
 	// The names servers expect, the full chain led by the certificate, and a
 	// key that is locked.
 	protected = files["privkey.pem"]
-	if want := []string{"fullchain.pem", "cert.pem", "privkey.pem"}; !slices.Equal(names, want) && !slices.Equal(names, []string{"fullchain.pem", "cert.pem", "chain.pem", "privkey.pem"}) {
+	if want := []string{"fullchain.pem", "cert.pem", "privkey.pem", "HOW-TO-INSTALL.txt"}; !slices.Equal(names, want) && !slices.Equal(names, []string{"fullchain.pem", "cert.pem", "chain.pem", "privkey.pem", "HOW-TO-INSTALL.txt"}) {
 		t.Fatalf("zip holds %v", names)
+	}
+	// The notes say how nginx and Apache read a locked key, and hold no secret.
+	if notes := string(files["HOW-TO-INSTALL.txt"]); !strings.Contains(notes, "ssl_password_file") || !strings.Contains(notes, "SSLCertificateKeyFile") || strings.Contains(notes, "new-download-password") {
+		t.Fatalf("the install notes read: %s", notes)
 	}
 	if !bytes.HasPrefix(files["fullchain.pem"], files["cert.pem"]) || !bytes.Equal(files["fullchain.pem"], append(bytes.Clone(files["cert.pem"]), files["chain.pem"]...)) ||
 		!bytes.Contains(protected, []byte("BEGIN ENCRYPTED PRIVATE KEY")) || bytes.Contains(protected, []byte("BEGIN PRIVATE KEY")) {

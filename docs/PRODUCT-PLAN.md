@@ -121,7 +121,8 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
    (ADR 0091).
 5. **Download for the server:** one button for nginx and Apache (PEM: full
    chain and key) and one for Windows and IIS (PFX), so nobody has to know
-   format names.
+   format names. Done on 27 November 2026; the key stays locked with the
+   download password, and the ZIP says how each server reads it.
 6. **Delivery** to the server (Phase 3d, after the first release). Later,
    through Keybash, which already reaches the servers.
 
