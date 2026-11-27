@@ -1,9 +1,10 @@
 # Certificate library custody — development boundary
 
 Date: 2026-10-07, updated 2026-11-24 for Phase 3a, part 3, HTTPS, passkeys
-and Phase 3b.
+and Phase 3b, and 2026-11-27 for requests kept with their key.
 Decisions: [ADR 0046](adr/0046-unified-certificate-library.md), ADR 0047,
-ADR 0048, ADR 0087 and [ADR 0088](adr/0088-keybash-foundation.md). Single
+ADR 0048, ADR 0087, [ADR 0088](adr/0088-keybash-foundation.md) and
+[ADR 0091](adr/0091-renew-by-hand.md). Single
 operator, Linux daemon over HTTPS, on loopback and on any LAN or VPN address
 named with `--listen`; not externally audited or ready for real-user secret
 custody. Porch and the offline Workbench remain separate.
@@ -168,6 +169,25 @@ encryption or multi-user RBAC.
   again. All three need an interactive terminal, and `key-rotate` and
   `key-export` refuse while the service holds the vault (`RECOVERY.md`).
 
+## Requests kept with their key — ADR 0091
+
+Since 27 November 2026 Rootwell makes new keys itself, for a request a
+person sends to a certificate provider: from the Request page, or from a
+sheet's Renew. `rootwelld` makes the key with `crypto/rand` and seals it at
+once in a record of its own, beside the request, both under an HMAC of the
+key's public fingerprint; the browser never holds it. At most 50 requests
+wait. The certificate that comes back finds its key by that fingerprint, and
+the key is checked against it like any chosen key before both are saved and
+the request is closed in one write. Giving a request up deletes its key and
+needs a fresh code.
+
+Trust: the key is as safe as a saved key (C107), and a live host compromise
+reveals it the same way. A renewal marks the older certificate replaced and
+moves its notes; this is the person's record, never a deployment claim. A
+request's names come from the person or, for a renewal, from the saved
+certificate, and are checked by the same code as the browser's requests
+(C63); the request is public and may be downloaded without a fresh code.
+
 ## Closed staging requests — ADR 0063
 
 Retired on 23 November 2026 with the session-bound ACME automation (ADR 0088).
@@ -208,6 +228,6 @@ volume drill; strict HTTP request tests; bounded stale/hidden/late/read-only UI
 tests, account, session, limit and fresh-code tests, HTTPS and serving
 authority tests, passkey tests with two fuzz targets, backup, restore,
 rotation and export tests, and actual public WASM tests. Invariants C68,
-C69, C107 and C108–C114 name them.
+C69, C107, C108–C114 and C116 name them.
 Exact commands and deliberate sabotage outcomes are recorded in the PR and
 ADR. Green CI and self-review are not independent audit.

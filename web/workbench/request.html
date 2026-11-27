@@ -15,6 +15,7 @@
   <script src="/wasm-loader.js" defer></script>
   <script src="/ui.js" defer></script>
   <script src="/csr-worker-client.js" defer></script>
+  <script src="/request-keep.js" defer></script>
   <script src="/request.js" defer></script>
 </head>
 <body>
@@ -38,15 +39,10 @@
     <div class="card-body stack">
       <div class="field"><label for="request-name">Names</label><div class="chips" id="request-names"><input id="request-name" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Add a name"></div></div>
       <div class="field"><span class="label">Key</span><div class="choices" id="request-keys">
-        <label class="choice"><input type="radio" name="request-key" value="ec-p256" checked><strong>ECDSA P-256</strong><span>Recommended</span></label>
-        <label class="choice"><input type="radio" name="request-key" value="rsa-2048"><strong>RSA 2048</strong><span>For older systems</span></label>
+        <label class="choice"><input type="radio" name="request-key" value="ec-p256" checked><strong>ECDSA P-256</strong><span>Recommended · kept in Rootwell</span></label>
+        <label class="choice"><input type="radio" name="request-key" value="rsa-2048"><strong>RSA 2048</strong><span>For older systems · kept in Rootwell</span></label>
         <label class="choice"><input type="radio" name="request-key" value="own"><strong>My own key</strong><span>Keep the key you have</span></label>
       </div></div>
-      <div class="field narrow" id="request-secret-row">
-        <label for="request-secret">Password for the new key</label>
-        <div class="input-row"><input class="input mono" id="request-secret" type="password" autocomplete="new-password" spellcheck="false"><button class="btn btn-secondary" id="request-generate" type="button">Generate</button><button class="btn btn-secondary" id="request-copy" type="button" hidden>Copy</button></div>
-        <span class="meta" id="request-secret-note" hidden>Save this password now. Rootwell does not keep it.</span>
-      </div>
       <div class="stack narrow" id="request-own" hidden>
         <div class="field"><label for="request-own-file">Key file</label><input class="input" id="request-own-file" type="file" accept=".key,.pem,.der,.txt"></div>
         <div class="field"><label for="request-own-password">Key password<span class="muted">If it has one</span></label><input class="input" id="request-own-password" type="password" autocomplete="off"></div>
@@ -68,7 +64,7 @@
     <div class="card-head"><h3 id="request-result-title"></h3><span class="pill pill-good">Ready</span></div>
     <div class="card-body stack">
       <div class="facts" id="request-facts"></div>
-      <div class="stack" id="request-files"></div>
+      <ol class="steps" id="request-files"></ol>
     </div>
   </section>
 </div>

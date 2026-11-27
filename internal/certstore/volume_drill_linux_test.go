@@ -89,7 +89,7 @@ func drillSeed(t *testing.T) {
 		t.Fatalf("the setup code for the log check: %v", err)
 	}
 	a := issue(t, "volume.example")
-	if _, _, err := New(v).Save(1, a.certificate, a.key, nil, "Volume drill", "drill-host", a.fingerprint, false); err != nil {
+	if _, _, err := New(v).Save(1, a.certificate, a.key, nil, "Volume drill", "drill-host", a.fingerprint, false, ""); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(drillData, "..", "recovery", "fingerprint"), []byte(a.fingerprint), 0o600); err != nil {

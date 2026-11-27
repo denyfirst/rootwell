@@ -2,13 +2,9 @@ package main
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -71,6 +67,38 @@ type inventoryItem struct {
 	ImportGeneration uint64                 `json:"import_generation"`
 	ImportedAt       string                 `json:"imported_at,omitempty"`
 	Expiry           publicinventory.Expiry `json:"expiry"`
+	// ReplacedBy and ReplacedAt say a newer certificate took this one's
+	// place; Replaces names the one this certificate took over. On a check,
+	// FinishesRequest says its key is a request's kept here, Renews names the
+	// certificate that request renews, and Replaces one it may take over.
+	ReplacedBy      string `json:"replaced_by,omitempty"`
+	ReplacedAt      string `json:"replaced_at,omitempty"`
+	Replaces        string `json:"replaces,omitempty"`
+	Renews          string `json:"renews,omitempty"`
+	FinishesRequest bool   `json:"finishes_request,omitempty"`
+}
+
+// requestItem is a request waiting for its certificate, as the page shows it.
+// It holds the request, which is public, and never its key.
+type requestItem struct {
+	PublicFingerprint string   `json:"public_fingerprint"`
+	CreatedAt         string   `json:"created_at"`
+	CSR               string   `json:"csr"`
+	Subject           string   `json:"subject"`
+	DNSNames          []string `json:"dns_names"`
+	IPAddresses       []string `json:"ip_addresses"`
+	KeyType           string   `json:"key_type"`
+	Renews            string   `json:"renews,omitempty"`
+}
+
+func requestItems(requests []certstore.Request) []requestItem {
+	items := make([]requestItem, 0, len(requests))
+	for _, q := range requests {
+		items = append(items, requestItem{PublicFingerprint: q.PublicFingerprint, CreatedAt: q.CreatedAt, CSR: string(q.CSR),
+			Subject: q.Subject, DNSNames: append([]string{}, q.DNSNames...), IPAddresses: append([]string{}, q.IPAddresses...),
+			KeyType: q.KeyType, Renews: q.Renews})
+	}
+	return items
 }
 
 func (g *gate) inventoryLocationEndpoint(w http.ResponseWriter, r *http.Request, s session, signedIn bool) {
@@ -456,6 +484,9 @@ func readInventoryDeleteInput(w http.ResponseWriter, r *http.Request) (inventory
 type inventoryOutput struct {
 	Generation uint64          `json:"generation"`
 	Records    []inventoryItem `json:"records"`
+	// Requests is set by the list only: the requests waiting for their
+	// certificate.
+	Requests *[]requestItem `json:"requests,omitempty"`
 }
 
 // inventoryEndpoint lists the saved certificates. Certificates are added on
@@ -473,12 +504,13 @@ func (g *gate) inventoryEndpoint(w http.ResponseWriter, r *http.Request, s sessi
 		http.Error(w, "request origin refused", http.StatusForbidden)
 		return
 	}
-	records, generation, err := g.certificates.List()
+	records, requests, generation, err := g.certificates.ListAll()
 	if err != nil {
 		inventoryError(w, err)
 		return
 	}
-	g.writeInventoryJSON(w, http.StatusOK, records, generation)
+	waiting := requestItems(requests)
+	g.writeInventory(w, http.StatusOK, records, generation, func(out *inventoryOutput) { out.Requests = &waiting })
 }
 
 func inventoryError(w http.ResponseWriter, err error) {
@@ -503,6 +535,16 @@ func inventoryError(w http.ResponseWriter, err error) {
 		http.Error(w, "inventory changed; refresh before changing metadata", http.StatusConflict)
 	case errors.Is(err, certstore.ErrFull):
 		http.Error(w, "inventory capacity reached", http.StatusConflict)
+	case errors.Is(err, certstore.ErrRequestsFull):
+		refusal(w, "requests-full", "50 requests are waiting for their certificate. Finish or cancel one first.")
+	case errors.Is(err, certstore.ErrRenewalWaiting):
+		refusal(w, "renewal-waiting", "A renewal of this certificate is waiting already.")
+	case errors.Is(err, certstore.ErrReplaced):
+		refusal(w, "replaced", "A newer certificate has taken this one's place.")
+	case errors.Is(err, certstore.ErrCannotReplace):
+		refusal(w, "cannot-replace", "This certificate cannot take that one's place.")
+	case errors.Is(err, certstore.ErrRequestNotFound):
+		http.Error(w, "the request is no longer waiting; refresh first", http.StatusNotFound)
 	case errors.Is(err, publicinventory.ErrLabel), errors.Is(err, publicinventory.ErrCertSize):
 		http.Error(w, "invalid owner/location or certificate size", http.StatusBadRequest)
 	case errors.Is(err, certstore.ErrUnavailable):
@@ -531,14 +573,7 @@ func certificateFacts(r publicinventory.Record) (ips []string, keyType string, c
 	for _, ip := range c.IPAddresses {
 		ips = append(ips, ip.String())
 	}
-	switch key := c.PublicKey.(type) {
-	case *rsa.PublicKey:
-		keyType = fmt.Sprintf("RSA %d", key.N.BitLen())
-	case *ecdsa.PublicKey:
-		keyType = "ECDSA " + key.Curve.Params().Name
-	case ed25519.PublicKey:
-		keyType = "Ed25519"
-	}
+	keyType = certstore.KeyType(c.PublicKey)
 	for _, der := range r.IssuerDER {
 		issuer, err := x509.ParseCertificate(der)
 		if err != nil {
@@ -550,21 +585,42 @@ func certificateFacts(r publicinventory.Record) (ips []string, keyType string, c
 	return ips, keyType, chain
 }
 
-func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []publicinventory.Record, generation uint64) {
-	now := g.now().UTC().Truncate(time.Second)
-	if now.Year() < 0 || now.Year() > 9999 {
-		http.Error(w, "server clock unavailable; expiry was not calculated", http.StatusServiceUnavailable)
-		return
-	}
+// refusal answers 409 with a header that names the reason for the page.
+func refusal(w http.ResponseWriter, reason, text string) {
+	w.Header().Set("X-Rootwell-Refusal", reason)
+	http.Error(w, text, http.StatusConflict)
+}
+
+func inventoryItems(records []publicinventory.Record, now time.Time) []inventoryItem {
 	items := make([]inventoryItem, 0, len(records))
 	for _, r := range records {
 		ips, keyType, chain := certificateFacts(r)
 		items = append(items, inventoryItem{Fingerprint: r.Fingerprint, Subject: r.Subject, Issuer: r.Issuer, DNSNames: append([]string{}, r.DNSNames...),
 			IPAddresses: ips, KeyType: keyType, Chain: chain,
 			NotBefore: r.NotBefore, NotAfter: r.NotAfter, Owner: r.Owner, Location: r.Location, Locations: append([]string{}, r.Locations...),
-			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now)})
+			ImportGeneration: r.ImportGeneration, ImportedAt: r.ImportedAt, HasPrivateKey: r.HasPrivateKey, KeyStatus: r.KeyStatus, BundleCount: len(r.BundleDER), Expiry: publicinventory.ObserveExpiry(r, now),
+			ReplacedBy: r.ReplacedBy, ReplacedAt: r.ReplacedAt, Replaces: r.Replaces})
+	}
+	return items
+}
+
+func (g *gate) writeInventoryJSON(w http.ResponseWriter, status int, records []publicinventory.Record, generation uint64) {
+	g.writeInventory(w, status, records, generation, nil)
+}
+
+// writeInventory answers certificates read against one server clock reading.
+// add puts in what only some answers carry.
+func (g *gate) writeInventory(w http.ResponseWriter, status int, records []publicinventory.Record, generation uint64, add func(*inventoryOutput)) {
+	now := g.now().UTC().Truncate(time.Second)
+	if now.Year() < 0 || now.Year() > 9999 {
+		http.Error(w, "server clock unavailable; expiry was not calculated", http.StatusServiceUnavailable)
+		return
+	}
+	out := inventoryOutput{Generation: generation, Records: inventoryItems(records, now)}
+	if add != nil {
+		add(&out)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(inventoryOutput{Generation: generation, Records: items})
+	_ = json.NewEncoder(w).Encode(out)
 }

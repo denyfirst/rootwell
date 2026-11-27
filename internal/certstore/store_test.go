@@ -98,7 +98,7 @@ func TestSaveListsTheCertificateAndRefusesAStalePageOrADuplicate(t *testing.T) {
 		t.Fatalf("empty list: %d records at %d: %v", len(records), generation, err)
 	}
 	a := issue(t, "a.example")
-	saved, next, err := s.Save(1, a.certificate, nil, nil, "Platform team", "web-1", a.fingerprint, false)
+	saved, next, err := s.Save(1, a.certificate, nil, nil, "Platform team", "web-1", a.fingerprint, false, "")
 	if err != nil || next != 2 || saved.Fingerprint != a.fingerprint || saved.HasPrivateKey || saved.KeyStatus != "not-added" ||
 		len(saved.BundleDER) != 2 || saved.Owner != "Platform team" || saved.Location != "web-1" || saved.ImportGeneration != 2 {
 		t.Fatalf("saved %+v at %d: %v", saved, next, err)
@@ -107,14 +107,14 @@ func TestSaveListsTheCertificateAndRefusesAStalePageOrADuplicate(t *testing.T) {
 	if err != nil || generation != 2 || len(records) != 1 || records[0].Fingerprint != a.fingerprint || records[0].ImportedAt == "" {
 		t.Fatalf("list after save: %+v at %d: %v", records, generation, err)
 	}
-	if _, _, err := s.Save(1, issue(t, "b.example").certificate, nil, nil, "", "", "", false); err == nil {
+	if _, _, err := s.Save(1, issue(t, "b.example").certificate, nil, nil, "", "", "", false, ""); err == nil {
 		t.Fatal("a save without a chosen certificate was accepted")
 	}
 	b := issue(t, "b.example")
-	if _, _, err := s.Save(1, b.certificate, nil, nil, "", "", b.fingerprint, false); !errors.Is(err, ErrStale) {
+	if _, _, err := s.Save(1, b.certificate, nil, nil, "", "", b.fingerprint, false, ""); !errors.Is(err, ErrStale) {
 		t.Fatalf("a save from an older page: %v", err)
 	}
-	if _, _, err := s.Save(2, a.certificate, nil, nil, "", "", a.fingerprint, false); !errors.Is(err, publicinventory.ErrDuplicate) {
+	if _, _, err := s.Save(2, a.certificate, nil, nil, "", "", a.fingerprint, false, ""); !errors.Is(err, publicinventory.ErrDuplicate) {
 		t.Fatalf("a second copy: %v", err)
 	}
 	if _, generation, _ := s.List(); generation != 2 {
@@ -125,7 +125,7 @@ func TestSaveListsTheCertificateAndRefusesAStalePageOrADuplicate(t *testing.T) {
 func TestWritesOutsideTheListLeaveAnOpenPageCurrent(t *testing.T) {
 	s, v := newStore(t)
 	a := issue(t, "a.example")
-	if _, _, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false); err != nil {
+	if _, _, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	// A sign-in writes its account record to the same vault.
@@ -157,7 +157,7 @@ func TestWritesOutsideTheListLeaveAnOpenPageCurrent(t *testing.T) {
 func TestAKeyIsSavedApartAndOnlyALoanOpensIt(t *testing.T) {
 	s, v := newStore(t)
 	a := issue(t, "a.example")
-	saved, generation, err := s.Save(1, a.certificate, a.key, nil, "", "", a.fingerprint, false)
+	saved, generation, err := s.Save(1, a.certificate, a.key, nil, "", "", a.fingerprint, false, "")
 	if err != nil || !saved.HasPrivateKey || saved.KeyStatus != "matched" {
 		t.Fatalf("saved %+v: %v", saved, err)
 	}
@@ -185,13 +185,13 @@ func TestAKeyIsSavedApartAndOnlyALoanOpensIt(t *testing.T) {
 func TestAMismatchedKeyNeedsTheAcknowledgementAndOnlyThen(t *testing.T) {
 	s, _ := newStore(t)
 	a, other := issue(t, "a.example"), issue(t, "other.example")
-	if _, _, err := s.Save(1, a.certificate, other.key, nil, "", "", a.fingerprint, false); !errors.Is(err, certificatepair.ErrInvalid) {
+	if _, _, err := s.Save(1, a.certificate, other.key, nil, "", "", a.fingerprint, false, ""); !errors.Is(err, certificatepair.ErrInvalid) {
 		t.Fatalf("a mismatched key without acknowledgement: %v", err)
 	}
-	if _, _, err := s.Save(1, a.certificate, a.key, nil, "", "", a.fingerprint, true); !errors.Is(err, certificatepair.ErrInvalid) {
+	if _, _, err := s.Save(1, a.certificate, a.key, nil, "", "", a.fingerprint, true, ""); !errors.Is(err, certificatepair.ErrInvalid) {
 		t.Fatalf("an acknowledgement for a matching key: %v", err)
 	}
-	saved, generation, err := s.Save(1, a.certificate, other.key, nil, "", "", a.fingerprint, true)
+	saved, generation, err := s.Save(1, a.certificate, other.key, nil, "", "", a.fingerprint, true, "")
 	if err != nil || saved.KeyStatus != "mismatch" {
 		t.Fatalf("acknowledged mismatch: %+v %v", saved, err)
 	}
@@ -208,7 +208,7 @@ func TestAMismatchedKeyNeedsTheAcknowledgementAndOnlyThen(t *testing.T) {
 func TestAKeyAddedLaterIsCheckedFirstAndNeverReplaced(t *testing.T) {
 	s, _ := newStore(t)
 	a := issue(t, "a.example")
-	_, generation, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false)
+	_, generation, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestAKeyAddedLaterIsCheckedFirstAndNeverReplaced(t *testing.T) {
 func TestPlacesAndOwnerChangeOneAtATime(t *testing.T) {
 	s, _ := newStore(t)
 	a := issue(t, "a.example")
-	_, g, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false)
+	_, g, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestPlacesAndOwnerChangeOneAtATime(t *testing.T) {
 func TestDeleteTakesTheKeyWithIt(t *testing.T) {
 	s, v := newStore(t)
 	a := issue(t, "a.example")
-	_, g, err := s.Save(1, a.certificate, a.key, nil, "", "", a.fingerprint, false)
+	_, g, err := s.Save(1, a.certificate, a.key, nil, "", "", a.fingerprint, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestDeleteTakesTheKeyWithIt(t *testing.T) {
 		t.Fatalf("a second delete: %v", err)
 	}
 	b := issue(t, "b.example")
-	if _, g, err = s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false); err != nil {
+	if _, g, err = s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Delete(g, b.fingerprint, false); err != nil {
@@ -316,11 +316,11 @@ func TestDeleteTakesTheKeyWithIt(t *testing.T) {
 func TestARecordMovedToAnotherCertificateIsRefused(t *testing.T) {
 	s, v := newStore(t)
 	a, b := issue(t, "a.example"), issue(t, "b.example")
-	_, g, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false)
+	_, g, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false); err != nil {
+	if _, _, err = s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	// Write a's record, sealed correctly, into b's slot.
@@ -342,7 +342,7 @@ func TestTheListStopsAtItsLimit(t *testing.T) {
 	s, v := newStore(t)
 	// Fill the list with records the store wrote itself, then try one more.
 	a := issue(t, "a.example")
-	_, g, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false)
+	_, g, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestTheListStopsAtItsLimit(t *testing.T) {
 	}
 	// The fillers went in beside the store, so the list's own count is unchanged.
 	b := issue(t, "b.example")
-	if _, _, err := s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false); !errors.Is(err, ErrFull) {
+	if _, _, err := s.Save(g, b.certificate, nil, nil, "", "", b.fingerprint, false, ""); !errors.Is(err, ErrFull) {
 		t.Fatalf("one past the limit: %v", err)
 	}
 }
@@ -370,7 +370,7 @@ func TestTheListStopsAtItsLimit(t *testing.T) {
 func TestStoredRecordsHoldNoUnknownFields(t *testing.T) {
 	s, v := newStore(t)
 	a := issue(t, "a.example")
-	if _, _, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false); err != nil {
+	if _, _, err := s.Save(1, a.certificate, nil, nil, "", "", a.fingerprint, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := v.Update(func(t *vault.Tx) error {

@@ -161,6 +161,7 @@ jobs:
           node --check web/workbench/inspect.js
           node --check web/workbench/convert.js
           node --check web/workbench/request.js
+          node --check web/workbench/request-keep.js
           node --check web/workbench/private-worker-client.js
           node --check web/workbench/private-key-worker.js
           node --check web/workbench/pfx-worker-client.js

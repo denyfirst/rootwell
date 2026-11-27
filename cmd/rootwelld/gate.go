@@ -51,7 +51,7 @@ func newGate(v *vault.Store, assetsDir string, s servingstore.Serving) (*gate, e
 	if err != nil {
 		return nil, errors.New("workbench assets directory could not be opened")
 	}
-	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "ui.js", "rootwell.css", "theme.js", "session.js", "fresh.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
+	for _, name := range []string{"certificates.html", "certificates.js", "inspect.html", "inspect.js", "convert.html", "convert.js", "request.html", "request.js", "request-keep.js", "ui.js", "rootwell.css", "theme.js", "session.js", "fresh.js", "favicon.svg", "private-worker-client.js", "private-key-worker.js", "pfx-worker-client.js", "pfx-worker.js", "csr-worker-client.js", "csr-worker.js", "wasm-loader.js", "wasm_exec.js", "rootwell.wasm"} {
 		info, err := root.Lstat(name)
 		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			_ = root.Close()
@@ -225,6 +225,9 @@ func (g *gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/api/inventory/delete":
 		g.inventoryDeleteEndpoint(w, r, s, signedIn)
 		return
+	case "/api/requests/create", "/api/requests/delete":
+		g.requestEndpoint(w, r, s, signedIn)
+		return
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		methodNotAllowed(w)
@@ -307,7 +310,7 @@ var workbenchFiles = map[string]string{
 	"/certificates": "certificates.html", "/certificates.js": "certificates.js",
 	"/inspect": "inspect.html", "/inspect.js": "inspect.js",
 	"/convert": "convert.html", "/convert.js": "convert.js",
-	"/request": "request.html", "/request.js": "request.js",
+	"/request": "request.html", "/request.js": "request.js", "/request-keep.js": "request-keep.js",
 	"/ui.js": "ui.js", "/rootwell.css": "rootwell.css", "/theme.js": "theme.js",
 	"/session.js": "session.js", "/fresh.js": "fresh.js", "/favicon.svg": "favicon.svg",
 	"/private-worker-client.js": "private-worker-client.js", "/private-key-worker.js": "private-key-worker.js",

@@ -76,15 +76,16 @@ The pages in the menu:
 
 | Page | What it is for |
 |---|---|
-| Certificates | Everything kept, how long each lasts, where it is used |
+| Certificates | Everything kept, how long each lasts, where it is used; renew one by hand |
 | Website check | What a website really sends, what is wrong, how to fix it; watch it |
 | Inspect | What is inside a file; does a key match; is the chain complete |
 | Convert | A certificate, key or PFX into the format a server needs |
-| Request | A CSR for a commercial CA, then finish it when the certificate arrives |
+| Request | A CSR for a commercial CA, whose new key Rootwell keeps until the certificate arrives |
 | Account | Password, phone codes, recovery codes |
 | Installation | How browsers reach Rootwell; a backup |
 
-**Renewals** comes back to the menu when real renewal works (Phase 3c).
+**Renewals** comes back to the menu when renewal through ACME works (Phase
+3c, after the first release).
 Users and Activity come later.
 
 **Removed** on 22 November 2026, as noise for a person:
@@ -113,14 +114,16 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
 2. **Watched websites:** "Watch this site" in Website check. Rootwell checks
    it every day, and lists its certificate beside the kept ones.
 3. **Real renewal** with Let's Encrypt and Cloudflare DNS, nobody signed in
-   (Phase 3c).
+   (Phase 3c, after the first release).
 4. **Finishing a request:** the key of a CSR stays in Rootwell, sealed. When
-   the CA sends the certificate, "Finish request" pairs them and keeps both.
+   the CA sends the certificate, Rootwell pairs them and keeps both, and a
+   renewal takes the old certificate's place. Done on 27 November 2026
+   (ADR 0091).
 5. **Download for the server:** one button for nginx and Apache (PEM: full
    chain and key) and one for Windows and IIS (PFX), so nobody has to know
    format names.
-6. **Delivery** to the server (Phase 3d). Later, through Keybash, which
-   already reaches the servers.
+6. **Delivery** to the server (Phase 3d, after the first release). Later,
+   through Keybash, which already reaches the servers.
 
 ## 4. Architecture
 
@@ -235,11 +238,11 @@ These follow Keybash:
 | 2b — Pages | Every page rebuilt in the graphite design: Inspect, Convert, Request, Website check, Certificates, Account; demos and removed features gone | A person who knows nothing of certificates can use each page; screenshots in both schemes and at phone width |
 | 3a — Accounts | HTTPS, accounts, TOTP, instance key | They replace the password-derived unlock, loopback HTTP and the offline-only ceremonies |
 | 3b — Store | Rolling history, online backup and restore from the Installation page, instance key rotation; the bbolt vault with sealing per record itself landed in 3a | Restore to a clean instance is verified |
-| 3b+ — Alerts and watching | E-mail and webhook alerts; watched websites | A test alert arrives; a watched site that changes certificate raises one |
-| 3c — Renewals | Production and staging, an unattended scheduler, Cloudflare DNS-01, a plain Renewals page | A renewal completes with nobody signed in |
-| 3d — Delivery | Delivery targets and the check after delivery | Files are replaced atomically and the unit is reloaded |
-| 3e — Package | Install, upgrade and uninstall scripts; an Installation page; signed reproducible releases | Install on a clean host is verified |
-| 4 — Release readiness | An independent review; a live CA and DNS test on a real domain; documented limits | No open material finding |
+| 3b+ — Certificate lifecycle | Renewal by hand, with the new key kept in Rootwell and the new certificate taking the old one's place (ADR 0091); alerts by e-mail and Telegram; watched websites; downloads for the server | A renewal made from a sheet finishes with its key and replaces the old certificate; a test alert arrives; a watched site that changes certificate raises one |
+| 3e — Package | Install, upgrade and uninstall scripts; signed reproducible releases | Install on a clean host is verified |
+| 4 — Release readiness | An independent review; documented limits | No open material finding |
+| 3c — Renewals, after the first release | Production and staging, an unattended scheduler, Cloudflare DNS-01, a plain Renewals page; a live CA and DNS test on a real domain | A renewal completes with nobody signed in |
+| 3d — Delivery, after the first release | Delivery targets and the check after delivery | Files are replaced atomically and the unit is reloaded |
 
 **Phase 3a, where it stands** (ADR 0088):
 
@@ -320,8 +323,21 @@ are fixed:
 One limit stays and is written down (C114): someone who can write the vault
 file without the key can put an older sealed record back.
 
-**Next:** Phase 3c (renewal). The independent review of Phase 4 comes before
-any release.
+**The first release, decided on 27 November 2026.** The owner moved renewal
+through ACME (Phase 3c) and delivery (Phase 3d) after the first release: they
+touch DNS tokens and live servers, and get built slowly once Rootwell is in
+use. Before it, the certificate work is finished (Phase 3b+), then Phase 3e
+and the independent review of Phase 4.
+
+**Phase 3b+, where it stands.** Renewal by hand landed first (ADR 0091). A
+sheet's Renew makes a request for the same names with a new key that
+Rootwell makes and keeps; the Request page keeps new keys the same way. When
+the provider's certificate is added, it finds its key, and a renewal takes
+the older certificate's place, keeping where it is used and who looks after
+it. Alerts by e-mail and Telegram, watched websites and downloads for the
+server come next.
+
+**Next:** the rest of Phase 3b+, then Phase 3e and Phase 4.
 
 **Later:**
 - roles and invites;
