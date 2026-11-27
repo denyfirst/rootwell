@@ -298,6 +298,12 @@ func serve(dir, keyFile, assetsDir string, listen []string) error {
 		// what is due, so restarts and missed hours send nothing twice.
 		time.Sleep(time.Minute)
 		for {
+			// Watched websites first, so their news goes out this hour.
+			watch, stop := context.WithTimeout(context.Background(), 30*time.Minute)
+			if err := gate.checkWatched(watch); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+				fmt.Fprintln(os.Stderr, "the watched websites could not be checked; Rootwell tries again in an hour")
+			}
+			stop()
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 			if err := gate.alerts.Run(ctx); err != nil {
 				fmt.Fprintln(os.Stderr, "the alert settings could not be read; Rootwell tries again in an hour")

@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="/rootwell.css">
   <script src="/theme.js"></script>
   <script src="/session.js" defer></script>
+  <script src="/passkey.js" defer></script>
+  <script src="/fresh.js" defer></script>
   <script src="/website-check.js" defer></script>
 </head>
 <body>
@@ -36,6 +38,11 @@
   </form>
   <p id="site-status" role="status" aria-live="polite"></p>
   <div id="site-result" class="stack" hidden></div>
+  <section class="card" id="watched" aria-labelledby="watched-title" hidden>
+    <div class="card-head"><h3 id="watched-title">Watched</h3><span class="pill pill-plain" id="watched-count"></span></div>
+    <div class="card-body stack" id="watched-list"></div>
+    <p class="card-body meta waiting-note">Rootwell checks these once a day, and writes to you when one serves another certificate or has a problem.</p>
+  </section>
 </div>
 </div></main>
 </div>

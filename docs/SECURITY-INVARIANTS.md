@@ -8,6 +8,29 @@ This list guards the CLI, certificate-inspection, offline TLS verification,
 and certificate/private-key match boundaries. File-writing invariants are
 added with the code that first creates those risks.
 
+## C118 — A watched website is checked once a day exactly as a person's check, and each change is told once (ADR 0093)
+
+`POST /api/watch/add` needs a signed-in session, the exact Origin and the
+page header, and takes only a target, read as Website check reads one; an
+address no check may dial is refused at once. At most 50 sites are watched,
+each a sealed vault record under an HMAC of its target, read strictly.
+`GET /api/watch` lists them; `POST /api/watch/remove` needs a fresh code
+(C111), and without it answers 428 and keeps the site.
+
+The hourly loop checks each site not checked for a day through the same
+checker, address rule, saved roots and limits as Website check (C103), and
+takes the same single slot and 5-second gap. It keeps the verdict, the first
+problem in one sentence of Rootwell's own, and the served certificate's
+fingerprint, name and end; nothing a server sent is kept. A change is told
+once through the alert channels (C117): another certificate, or a problem
+the site did not have. The first check after watching tells nothing.
+
+Guarded by `TestSitesAreAddedOnceAndUpToTheLimit`, `TestASiteIsDueOnceADay`,
+`TestEachChangeIsToldOnce`, `TestASiteRecordIsReadStrictly`,
+`TestLinuxASiteIsWatchedInCheckFormAndStoppingNeedsAFreshCode`,
+`TestLinuxWatchedSitesAreCheckedOnceADayAsWebsiteCheckDoes`,
+`TestAWatchMessageSaysWhatChanged` and `scripts/test-website-check.mjs`.
+
 ## C117 — Alerts reach only the mail server named, over verified TLS, and Telegram; their secrets are sealed apart and changed only after a fresh code (ADR 0092)
 
 `rootwelld serve` checks a minute after it starts and every hour, and sends
@@ -366,7 +389,8 @@ does nothing when asked to:
 - change the password, move to a new phone, make new recovery codes, or add
   or remove a passkey;
 - download a backup of the whole vault from the Installation page (C114);
-- save an alert channel or turn one off (C117).
+- save an alert channel or turn one off (C117), or stop watching a website
+  (C118).
 
 The Certificates, Account and Installation pages then ask for a code in a
 dialog (`fresh.js`) and send the same request once more; Cancel changes
@@ -390,6 +414,7 @@ Guarded by `TestAFreshCodeGuardsChangesToHowTheAccountSignsIn`,
 `TestLinuxAPFXForWindowsHoldsTheChainAndTheKey`,
 `TestLinuxGivingUpARequestNeedsAFreshCode`,
 `TestLinuxAlertSettingsNeedAFreshCodeAndNeverShowSecrets`,
+`TestLinuxASiteIsWatchedInCheckFormAndStoppingNeedsAFreshCode`,
 `scripts/test-certificates.mjs` and `scripts/test-rootwelld-auth.mjs`.
 
 ## C110 — Only failures count, per known device or per name and source (ADR 0088)

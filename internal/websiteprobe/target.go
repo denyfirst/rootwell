@@ -37,6 +37,13 @@ func (t Target) IsAddress() bool {
 	return err == nil
 }
 
+// Reachable reports whether a check could ever dial the target: an address
+// must pass the address rule now; a name is checked when it resolves.
+func (t Target) Reachable() bool {
+	ip, err := netip.ParseAddr(t.Host)
+	return err != nil || allowedAddress(ip)
+}
+
 // ParseTarget accepts an origin, never a general fetch URL: a DNS name or IP
 // address, an optional port, and an optional https:// in front. Internal
 // names and private addresses are accepted here; which addresses may be

@@ -10,12 +10,15 @@ for (const forbidden of ["innerHTML", "outerHTML", "insertAdjacentHTML", "docume
   assert.ok(!source.includes(forbidden), `website-check.js must not use ${forbidden}`);
 }
 assert.deepEqual([...source.matchAll(/fetch\("([^"]+)"/g)].map((m) => m[1]), ["/api/website-check"]);
+// Besides the check, the page asks only for the watched sites, to watch one,
+// and to stop watching one.
+assert.deepEqual([...new Set([...source.matchAll(/"(\/api\/[^"]+)"/g)].map((m) => m[1]))].sort(), ["/api/watch", "/api/watch/add", "/api/watch/remove", "/api/website-check"]);
 assert.match(html, /<link rel="stylesheet" href="\/rootwell\.css">/);
 assert.match(html, /<a class="nav-item" href="\/website-check" aria-current="page">/);
 assert.doesNotMatch(html, /type="checkbox"|demo|see an example|website-examples|synthetic/i, "no consent box, examples or demos on the page");
 
 class Node {
-  constructor(tag) { this.tag = tag; this.children = []; this.textContent = ""; this.className = ""; this.attributes = {}; this.hidden = false; this.disabled = false; this.value = ""; this.listeners = {};
+  constructor(tag) { this.tag = tag; this.children = []; this.textContent = ""; this.className = ""; this.attributes = {}; this.hidden = false; this.disabled = false; this.value = ""; this.listeners = {}; this.type = "";
     this.classList = { add: (c) => { this.className = (this.className + " " + c).trim(); } }; }
   appendChild(child) { this.children.push(child); return child; }
   replaceChildren(...children) { this.children = children; }
@@ -25,18 +28,30 @@ class Node {
   all(predicate) { return [this, ...this.children.flatMap((c) => c.all(predicate))].filter(predicate); }
 }
 
-function fixture({ reply, hash = "" } = {}) {
+// watch is the stand-in for /api/watch: the sites, and whether a phone code
+// was entered lately.
+function fixture({ reply, hash = "", watch = { sites: [], fresh: true, freshAsked: 0, calls: [] } } = {}) {
   const ids = {}; const byId = (id) => ids[id] ??= new Node("div");
   const requests = []; const docListeners = {};
+  const watchReply = (url, options) => {
+    const body = options.body ? JSON.parse(options.body) : null;
+    watch.calls.push({ url, method: options.method, body });
+    if (url === "/api/watch") return answer(200, { sites: watch.sites });
+    if (url === "/api/watch/add") { watch.sites.push({ target: body.target, added_at: "2026-11-27T10:00:00Z" }); return answer(201, watch.sites.at(-1)); }
+    if (!watch.fresh) return answer(428, "Enter a code from your phone first.");
+    watch.sites = watch.sites.filter((site) => site.target !== body.target);
+    return answer(204, "");
+  };
   const document = { getElementById: byId, createElement: (t) => new Node(t), createElementNS: (_, t) => new Node(t), hidden: false,
     addEventListener: (name, fn) => { docListeners[name] = fn; } };
   vm.runInNewContext(source, {
     document, location: { hash }, setTimeout: () => 1, clearTimeout() {}, AbortController, Date, JSON, Number, URL, decodeURIComponent,
-    fetch: async (url, options) => { requests.push({ url, options }); return reply(); },
+    fetch: async (url, options) => { if (url.startsWith("/api/watch")) return watchReply(url, options); requests.push({ url, options }); return reply(); },
+    rootwellFresh: async () => { watch.freshAsked++; watch.fresh = true; return true; },
   });
-  return { ids, requests, submit: async (site) => { ids.site.value = site; await ids["site-form"].listeners.submit({ preventDefault() {} }); } };
+  return { ids, requests, watch, submit: async (site) => { ids.site.value = site; await ids["site-form"].listeners.submit({ preventDefault() {} }); } };
 }
-const answer = (status, body) => ({ ok: status === 200, status, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) });
+const answer = (status, body) => ({ ok: status >= 200 && status < 300, status, text: async () => (typeof body === "string" ? body : JSON.stringify(body)) });
 const days = (n) => new Date(Date.now() + n * 86400000).toISOString();
 const leaf = { fingerprint: "AA", subject: "shop.example.com", issuer: "R11", role: "leaf", sent: true, in_date: true, use: "path", not_after: days(74) };
 const inter = { fingerprint: "BB", subject: "R11", issuer: "ISRG Root X1", role: "intermediate", sent: true, in_date: true, use: "path", not_after: days(500) };
@@ -196,4 +211,39 @@ for (const bad of ["", "   ", "shop example.com"]) {
   assert.equal(f.ids.site.value, "mail.example.com");
 }
 
-console.log("Website check draws the verdict, chain and fix, and refuses empty or failed checks plainly.");
+// Watching: the list shows each site's state; a checked site can be watched,
+// is then named Watched, and stopping asks for a phone code first.
+{
+  const settle = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); };
+  const watch = { sites: [{ target: "intranet.lab:8443", added_at: "2026-11-26T10:00:00Z", checked_at: "2026-11-27T08:00:00Z", state: "failed",
+    problem: "The chain is incomplete", not_after: days(40) }], fresh: false, freshAsked: 0, calls: [] };
+  const f = fixture({ reply: () => answer(200, healthy), watch });
+  await settle();
+  assert.equal(f.ids.watched.hidden, false);
+  assert.equal(f.ids["watched-count"].textContent, "1 website");
+  assert.match(f.ids["watched-list"].text(), /^intranet\.lab:8443 Checked .+ · its certificate lasts until .+ The chain is incomplete Problem Stop watching$/);
+  await f.submit("shop.example.com");
+  await settle();
+  const row = f.ids["site-result"].children[1];
+  assert.match(row.text(), /^Watch this site Rootwell checks it once a day/);
+  await row.children[0].listeners.click();
+  await settle();
+  assert.deepEqual(watch.calls.filter((c) => c.url === "/api/watch/add").map((c) => c.body), [{ target: "shop.example.com" }]);
+  assert.match(row.text(), /^Watched Rootwell checks it once a day\.$/);
+  assert.equal(f.ids["watched-count"].textContent, "2 websites");
+  assert.equal(f.requests.length, 1, "watching sends no second check");
+  // Stopping: Rootwell asks for a phone code, then the site leaves the list.
+  const stop = f.ids["watched-list"].children[0].children.at(-1);
+  await stop.listeners.click();
+  await settle();
+  assert.equal(watch.freshAsked, 1);
+  assert.deepEqual(watch.calls.filter((c) => c.url === "/api/watch/remove").map((c) => c.body), [{ target: "intranet.lab:8443" }, { target: "intranet.lab:8443" }]);
+  assert.equal(f.ids["watched-count"].textContent, "1 website");
+  // Clicking a watched site checks it again.
+  f.ids["watched-list"].children[0].children[0].children[0].listeners.click();
+  await settle();
+  assert.equal(f.requests.length, 2);
+  assert.deepEqual(JSON.parse(f.requests[1].options.body), { target: "shop.example.com", confirm: true });
+}
+
+console.log("Website check draws the verdict, chain and fix, refuses empty or failed checks plainly, and watches sites.");

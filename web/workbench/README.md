@@ -13,7 +13,7 @@ The menu has eight pages. `/` leads to Certificates.
 | Page | Route | Files | What it does |
 |---|---|---|---|
 | Certificates | `/certificates` | `certificates.html`, `certificates.js`, and `certificate-pfx.js` with `certificate-pfx-worker.js` from `cmd/rootwelld/auth` | Lists the saved certificates with the days each has left, where it is used and whether its key is kept; opens one in a side sheet; adds certificates, bundles, keys and PFX files; renews one, lists the requests waiting for their certificate, and shows what was replaced |
-| Website check | `/website-check` | `website-check.html`, `website-check.js` in `cmd/rootwelld/auth` | Asks this server to read what a public HTTPS website sends, and explains the chain |
+| Website check | `/website-check` | `website-check.html`, `website-check.js` in `cmd/rootwelld/auth` | Asks this server to read what an HTTPS website or internal server sends, explains the chain, and watches chosen sites once a day through `/api/watch` |
 | Inspect | `/inspect` | `inspect.html`, `inspect.js` | Shows who a certificate is for, who issued it, how long it lasts, whether its chain is complete, and whether a private key belongs to it |
 | Convert | `/convert` | `convert.html`, `convert.js` | Turns a certificate, key or PFX into the format a server needs |
 | Request | `/request` | `request.html`, `request.js`, `request-keep.js` | Makes a CSR: a new key is made and kept by Rootwell, an existing one stays in the browser |

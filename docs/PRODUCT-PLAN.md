@@ -115,7 +115,8 @@ it were deleted from the code too, ahead of Phase 3c (section 7).
    Telegram were done on 27 November 2026 (ADR 0092); webhooks for Teams
    and Slack come later.
 2. **Watched websites:** "Watch this site" in Website check. Rootwell checks
-   it every day, and lists its certificate beside the kept ones.
+   it every day, and writes when it serves another certificate or has a
+   problem. Done on 27 November 2026 (ADR 0093).
 3. **Real renewal** with Let's Encrypt and Cloudflare DNS, nobody signed in
    (Phase 3c, after the first release).
 4. **Finishing a request:** the key of a CSR stays in Rootwell, sealed. When
@@ -343,9 +344,13 @@ the provider's certificate is added, it finds its key, and a renewal takes
 the older certificate's place, keeping where it is used and who looks after
 it. Alerts by e-mail and Telegram followed (ADR 0092): 30, 14 and 7 days
 before a certificate ends and on the day, once each, from a page beside
-Account. Watched websites and downloads for the server come next.
+Account. Downloads named by the server followed: PEM files for nginx and
+Apache, a PFX for Windows and IIS. Last came watched websites (ADR 0093):
+checked once a day, with an alert when one serves another certificate or
+has a problem. Phase 3b+ is complete.
 
-**Next:** the rest of Phase 3b+, then Phase 3e and Phase 4.
+**Next:** Phase 3e (install scripts and signed releases) and Phase 4 (an
+independent review), then the first release, with the owner's go-ahead.
 
 **Later:**
 - roles and invites;
