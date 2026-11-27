@@ -18,7 +18,7 @@ import (
 	"unicode"
 )
 
-const Schema = "rootwell.website-chain.v2"
+const Schema = "rootwell.website-chain.v3"
 const MaxCertificates = 10
 const MaxCertificateBytes = 128 << 10
 
@@ -55,8 +55,9 @@ type Certificate struct {
 	InDate      bool   `json:"in_date"`
 	// Use says why a sent certificate is there: "path" (the chain visitors
 	// get), "older-path" (a second chain to an older root, for old devices),
-	// "root" (a root the server sends although devices already have it) or
-	// "unrelated" (part of no chain for this website).
+	// "root" (a root the server sends although devices already have it),
+	// "unrelated" (part of no chain for this website) or "unplaced" (the
+	// chain breaks before any root, and this one may belong after the gap).
 	Use string `json:"use"`
 	// Names are the names a website certificate covers (first 20).
 	Names []string `json:"names,omitempty"`
@@ -242,6 +243,10 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 			used[string(issuer.Raw)] = true
 		}
 	}
+	// broken says the chain stops before any root: a missing or wrong issuer.
+	// What the server sends past the gap cannot be placed yet, so it is not
+	// called extra; a removed one would be missing once the gap is fixed.
+	broken := false
 	if !r.Trusted {
 		reachesRoot := func(c *x509.Certificate) bool {
 			for _, pool := range []*x509.CertPool{roots, savedPool} {
@@ -251,6 +256,8 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 			}
 			return false
 		}
+		last := path[len(path)-1]
+		broken = !selfSigned(last) && !reachesRoot(last)
 		explainFailure(verifyErr, chain, path, ambiguousIssuer, now, reachesRoot, add)
 	}
 	// Certificates a failure above already names are not repeated below.
@@ -289,7 +296,7 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 			}
 		}
 	}
-	var older, sentRoots, unrelated, oldExpired []*x509.Certificate
+	var older, sentRoots, unrelated, unplaced, oldExpired []*x509.Certificate
 	for _, c := range chain[1:] {
 		switch {
 		case use[string(c.Raw)] == "path":
@@ -298,6 +305,9 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 			if selfSigned(c) && r.Trusted && r.TrustSource == "public" {
 				sentRoots = append(sentRoots, c)
 			}
+		case use[string(c.Raw)] == "" && broken && !named[fp(c)]:
+			use[string(c.Raw)] = "unplaced"
+			unplaced = append(unplaced, c)
 		case use[string(c.Raw)] == "":
 			use[string(c.Raw)] = "unrelated"
 			if !named[fp(c)] {
@@ -368,6 +378,15 @@ func AnalyzeWithSaved(chain []*x509.Certificate, roots *x509.CertPool, saved []*
 		add("unrelated", "attention", "The server sends a certificate that does not belong here",
 			names+" is not part of any chain for this website.",
 			"Remove "+names+" from the server's certificate file. Visitors do not need it.", unrelated...)
+	}
+	if len(unplaced) > 0 {
+		names, them := quoteAll(unplaced), "it"
+		if len(unplaced) > 1 {
+			them = "them"
+		}
+		add("unplaced", "note", "Rootwell can place "+names+" once the chain is fixed",
+			"The chain breaks before "+names+", so Rootwell cannot tell yet whether visitors need "+them+".",
+			"Keep "+them+" for now. Fix the chain, then check again.", unplaced...)
 	}
 	if len(oldExpired) > 0 {
 		names := quoteAll(oldExpired)

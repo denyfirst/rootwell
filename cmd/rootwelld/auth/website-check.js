@@ -151,7 +151,8 @@
       const more = el("div", "chain extras");
       for (const certificate of extras) {
         const facts = certificate.use === "older-path" ? ["Intermediate", "For older devices"] :
-          certificate.use === "root" ? ["Root", "Devices already have it"] : ["Not part of this chain"];
+          certificate.use === "root" ? ["Root", "Devices already have it"] :
+          certificate.use === "unplaced" ? ["Not placed yet", "Checked again once the chain is fixed"] : ["Not part of this chain"];
         let state = certificate.use === "unrelated" ? "warn" : "extra";
         if (!certificate.in_date || marked.get(certificate.fingerprint) === "broken") state = "broken";
         else if (marked.get(certificate.fingerprint) === "warn") state = "warn";

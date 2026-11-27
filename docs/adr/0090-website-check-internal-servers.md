@@ -68,7 +68,11 @@ certificates it is about, and its text names them. Each sent certificate gets
 a use: the chain visitors get, an older chain (a sent certificate that links
 into the chain by signature or is another issuer's copy of a chain
 certificate), a root, or unrelated. Only an unrelated or out-of-date extra
-certificate needs a fix; an older chain and a sent root are notes. A missing
+certificate needs a fix; an older chain and a sent root are notes. When the
+chain breaks before any root, at a missing or wrong issuer, a certificate
+that links to nothing before the gap is "not placed yet", with a note to
+keep it: it may be the one after the gap, and removing it would leave a
+second hole (amended 27 November 2026). A missing
 issuer, a sent root that is not public, a self-signed website certificate, an
 expired certificate, a wrong issuer with the same name, a SHA-1 signature and
 a certificate that is not a CA each get their own words and fix. A
