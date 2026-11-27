@@ -120,8 +120,8 @@ async function fetch(url, options) {
       return reply(200, { generation: api.generation, deleted: true });
     case "/api/certificates/download":
       assert.equal("password" in body, false, "no Rootwell password is sent");
-      if ((body.pair || body.key_only) && !api.fresh) return reply(428, "Enter a code from your phone first.");
-      return new Response(body.pair ? "zip-bytes" : "-----BEGIN CERTIFICATE-----\n", { status: 200 });
+      if ((body.pair || body.key_only || body.pfx) && !api.fresh) return reply(428, "Enter a code from your phone first.");
+      return new Response(body.pair ? "zip-bytes" : body.pfx ? "pfx-bytes" : "-----BEGIN CERTIFICATE-----\n", { status: 200 });
     case "/api/certificates/key/check":
     case "/api/certificates/key/save": {
       assert.equal("password" in body, false, "no Rootwell password is sent");
@@ -296,15 +296,20 @@ assert.match(status(), /Owner saved/);
 // Downloads: the certificate plainly; the key locked with its own password, and
 // only after a code from the phone in the last ten minutes.
 $("sheet-download").listeners.click();
-assert.deepEqual($("download-choices").children.map((c) => c.children[1].textContent), ["Certificate", "Full chain", "Certificate and key", "Key only"]);
-await $("download-go").listeners.click();
-await settle();
-assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 6, pair: false });
-assert.equal(downloads.at(-1).name, "shop.test.pem");
+// With a key, the server's own downloads come first.
+assert.deepEqual($("download-choices").children.map((c) => c.children[1].textContent), ["For nginx and Apache", "For Windows and IIS", "Certificate", "Full chain", "Key only"]);
+assert.equal($("download-choices").children[0].children[0].checked, true);
+assert.equal($("download-secret").hidden, false);
 const choose = (container, value) => {
   for (const label of container.children) label.children[0].checked = label.children[0].value === value;
   container.children.find((l) => l.children[0].value === value).children[0].listeners.change();
 };
+choose($("download-choices"), "certificate");
+assert.equal($("download-secret").hidden, true);
+await $("download-go").listeners.click();
+await settle();
+assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 6, pair: false });
+assert.equal(downloads.at(-1).name, "shop.test.pem");
 choose($("download-choices"), "pair");
 assert.equal($("download-secret").hidden, false);
 assert.equal($("download-go-name").textContent, "Download shop.test.zip");
@@ -329,6 +334,19 @@ assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: 
   output_password: Buffer.from(keyPassword).toString("base64") });
 assert.equal(downloads.at(-1).name, "shop.test.zip");
 assert.equal(downloads.at(-1).blob.type, "application/zip");
+// Windows and IIS: one PFX, for an older Windows when that box is ticked.
+choose($("download-choices"), "pfx");
+assert.equal($("download-older-field").hidden, false);
+assert.equal($("download-go-name").textContent, "Download shop.test.pfx");
+$("download-older").checked = true;
+await $("download-go").listeners.click();
+await settle();
+assert.deepEqual(lastRequest("/api/certificates/download").body, { fingerprint: shop.fingerprint, expected_generation: 6, pair: false, pfx: true,
+  older_windows: true, output_password: Buffer.from(keyPassword).toString("base64") });
+assert.equal(downloads.at(-1).name, "shop.test.pfx");
+assert.equal(downloads.at(-1).blob.type, "application/x-pkcs12");
+choose($("download-choices"), "pair");
+assert.equal($("download-older-field").hidden, true, "the older-Windows box is for a PFX only");
 
 // A certificate without a key: the key is checked, then saved.
 const mail = api.records[1];
