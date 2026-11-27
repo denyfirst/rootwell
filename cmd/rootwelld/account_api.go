@@ -241,7 +241,18 @@ func (g *gate) codeEndpoint(w http.ResponseWriter, r *http.Request) {
 	g.refund(keys...)
 	g.succeed(nameLimit(s.name))
 	g.signedIn(w, r, s.name, a.Revision)
-	w.WriteHeader(http.StatusNoContent)
+	codeAccepted(w, in.value(), a)
+}
+
+// codeAccepted answers a right code: nothing after a phone code, and after a
+// recovery code how many are left, so the page can say so before they run
+// out.
+func codeAccepted(w http.ResponseWriter, code string, a accountstore.Account) {
+	if accountstore.PhoneCode(code) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"recovery_left": a.RecoveryLeft})
 }
 
 // setupEndpoint takes a setup code, a name and a password, and starts
@@ -407,7 +418,8 @@ func (g *gate) freshEndpoint(w http.ResponseWriter, r *http.Request) {
 		tooMany(w, wait)
 		return
 	}
-	switch _, err := g.accounts.UseCode(s.name, s.revision, in.value()); {
+	a, err := g.accounts.UseCode(s.name, s.revision, in.value())
+	switch {
 	case errors.Is(err, accountstore.ErrRefused):
 		if g.spent(w, id) {
 			http.Error(w, "Signed out after five wrong codes.", http.StatusUnauthorized)
@@ -430,7 +442,7 @@ func (g *gate) freshEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 	g.refund(keys...)
 	g.succeed(nameLimit(s.name))
-	w.WriteHeader(http.StatusNoContent)
+	codeAccepted(w, in.value(), a)
 }
 
 // withFreshCode is s once it showed a fresh code: ten minutes without being

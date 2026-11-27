@@ -400,7 +400,8 @@ certificate and deleting a certificate without a key need only a signed-in
 session. No request asks for the account password again, except a password
 change, which also needs the current one; the certificate API refuses a
 password field. A wrong code in the dialog counts as a failure (C110), five
-end the session, and a recovery code used there is spent. A fresh code moves
+end the session, and a recovery code used there is spent; the dialog then
+says how many are left before the page goes on. A fresh code moves
 the session to a new token, so a copy of the old token, taken earlier, gains
 nothing from it.
 
@@ -474,6 +475,10 @@ six-digit phone code (RFC 6238: SHA-1, 30 seconds, one step of drift either
 way) or one recovery code; a passkey the account added may stand in for the
 phone code (C113). A phone code is refused once its step, or a later one,
 has been used; a recovery code is taken off the list when it is used.
+A right phone code is answered with nothing; a right recovery code, at
+sign-in or in the fresh-code dialog (C111), with how many are left, and the
+page says so before it goes on, so the codes do not run out unnoticed. The
+count is what the signed-in Account page shows already.
 Until both steps pass, a session reaches only the sign-in endpoints, never a
 page, a script or the certificate API. A setup session has fifteen minutes to
 confirm its phone, and reaches nothing else either.
@@ -506,6 +511,7 @@ Guarded by `TestSignInTakesThePasswordThenACode`,
 `TestAPasswordChangeEndsEverySession`,
 `TestANewPhoneKeepsThisSessionAndEndsTheOthers`,
 `TestNewRecoveryCodesReplaceTheOldOnes`,
+`TestARecoveryCodeSaysHowManyAreLeft`,
 `TestPasswordPhoneAndRecoveryChangesCountARevision`,
 `TestPasskeysSignInAndStandInForAFreshCode`,
 `TestCertificatesPageAndItsScriptsRemainBehindReadyAccess` and

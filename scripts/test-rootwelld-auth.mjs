@@ -132,9 +132,52 @@ function noSecrets(page) {
   assert.match(page.$("status").textContent, /Sign in again/);
   await page.submit("password-form");
   codeAnswer = empty(204);
+  page.$("code").value = "123456";
+  await page.submit("code-form");
+  assert.deepEqual(page.redirects, ["/certificates"]);
+}
+// ── Sign in with a recovery code: how many are left, before going on ───────
+for (const [left, says, tone, next] of [
+  [9, "9 recovery codes are left.", "notice info", /Each one works once\. Make new codes before they run out\. .*Move to a new phone/],
+  [2, "2 recovery codes are left.", "notice weak", /Each one works once/],
+  [1, "1 recovery code is left.", "notice weak", /Each one works once/],
+  [0, "No recovery code is left.", "notice bad", /^Make new codes now\. .*needs a setup code from the server\.$/],
+]) {
+  const page = load("login", (url, method) => {
+    if (url === "/api/session" && method === "GET") return json(200, { stage: "code" });
+    if (url === "/api/session/code") return json(200, { recovery_left: left });
+    throw new Error("unexpected " + url);
+  });
+  await page.settle();
+  page.$("recovery-step").hidden = true;
+  page.$("code").value = "abcd-efgh-ijkl-mnop";
+  await page.submit("code-form");
+  assert.deepEqual(page.redirects, [], "the page stays to say how many codes are left");
+  assert.equal(page.$("code-form").hidden, true);
+  assert.equal(page.$("recovery-step").hidden, false);
+  assert.equal(page.$("title").textContent, "You used a recovery code");
+  assert.equal(page.$("recovery-left").textContent, says);
+  assert.equal(page.$("recovery-left").className, tone);
+  assert.match(page.$("recovery-next").textContent, next);
+  assert.equal(page.$("recovery-new").focused, true, "Make new codes is the next step");
+  assert.equal(page.$("code").value, "");
+  noSecrets(page);
+}
+for (const answer of [json(200, { recovery_left: 11 }), json(200, { recovery_left: -1 }), json(200, { recovery_left: "3" }),
+  json(200, { recovery_left: 2.5 }), json(200, {}), json(200, null), text(200, "3")]) {
+  // An answer of another shape still signed in: the page goes on, saying nothing.
+  const page = load("login", (url, method) => {
+    if (url === "/api/session" && method === "GET") return json(200, { stage: "code" });
+    if (url === "/api/session/code") return answer;
+    throw new Error("unexpected " + url);
+  });
+  await page.settle();
+  page.$("recovery-step").hidden = true;
   page.$("code").value = "abcd-efgh-ijkl-mnop";
   await page.submit("code-form");
   assert.deepEqual(page.redirects, ["/certificates"]);
+  assert.equal(page.$("recovery-step").hidden, true);
+  assert.equal(page.$("recovery-left").textContent, "");
 }
 {
   // Reloading after the password goes straight to the code.
@@ -260,6 +303,12 @@ function noSecrets(page) {
   assert.match(page.$("status").textContent, /Nothing changed/);
   assert.equal(page.$("codes-step").hidden, true);
 }
+for (const [left, says] of [[0, "None is left: make new ones."], [1, "1 is left."]]) {
+  const page = load("account", (url) => url === "/api/session" ? json(200, { stage: "ready", name: "ada", recovery_left: left }) : json(200, {}));
+  await page.settle();
+  await page.settle();
+  assert.equal(page.$("codes-left").textContent, says);
+}
 
 // ── The fresh-code dialog itself ───────────────────────────────────────────
 {
@@ -300,6 +349,49 @@ function noSecrets(page) {
   const cancelled = context.rootwellFresh();
   await dialog.fire("keydown", { key: "Escape" });
   assert.equal(await cancelled, false);
+
+  // A recovery code: the dialog says how many are left, and Continue goes on
+  // without sending anything more.
+  const [title, hint, field, left] = [form.children[0].children[0], ...form.children[1].children];
+  const [cancel, passkey] = form.children[2].children;
+  let settled = false;
+  const recovered = context.rootwellFresh().then((v) => { settled = true; return v; });
+  answer = json(200, { recovery_left: 2 });
+  input.value = "abcd-efgh-ijkl-mnop";
+  await form.fire("submit");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(settled, false, "the dialog waits for Continue");
+  assert.equal(dialog.hidden, false);
+  assert.equal(title.textContent, "You used a recovery code");
+  assert.equal(left.hidden, false);
+  assert.equal(left.textContent, "2 recovery codes are left. Make new ones on the Account page before they run out.");
+  assert.equal(left.className, "notice weak");
+  assert.equal(hint.hidden && field.hidden && cancel.hidden && passkey.hidden, true, "only Continue is left");
+  const sent = context.last;
+  await form.fire("submit");
+  assert.equal(await recovered, true);
+  assert.equal(context.last, sent, "Continue sends nothing");
+  assert.equal(dialog.hidden, true);
+  // The next dialog starts over, and Escape after a spent code still goes on.
+  const again = context.rootwellFresh();
+  assert.equal(title.textContent, "Enter a code from your phone");
+  assert.deepEqual([left.hidden, hint.hidden, field.hidden, cancel.hidden], [true, false, false, false]);
+  answer = json(200, { recovery_left: 0 });
+  input.value = "abcd-efgh-ijkl-mnop";
+  await form.fire("submit");
+  assert.equal(left.textContent, "That was the last one. Make new codes on the Account page now.");
+  assert.equal(left.className, "notice bad");
+  await dialog.fire("keydown", { key: "Escape" });
+  assert.equal(await again, true);
+  for (const odd of [json(200, { recovery_left: 11 }), json(200, { recovery_left: "1" }), text(200, "1")]) {
+    // Another shape: the code was accepted, so the dialog closes and goes on.
+    const next = context.rootwellFresh();
+    answer = odd;
+    input.value = "abcd-efgh-ijkl-mnop";
+    await form.fire("submit");
+    assert.equal(await next, true);
+    assert.equal(left.hidden, true);
+  }
 }
 
 // ── Passkeys: in place of the code at sign-in, and added on Account ────────

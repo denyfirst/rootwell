@@ -355,7 +355,7 @@ func TestSignInTakesThePasswordThenACode(t *testing.T) {
 		t.Fatalf("a wrong code: %d", w.Code)
 	}
 	w := call(e.g, "POST", "/api/session/code", `{"code":"`+e.code(t)+`"}`, c)
-	if w.Code != http.StatusNoContent {
+	if w.Code != http.StatusNoContent || w.Body.Len() != 0 {
 		t.Fatalf("the code: %d %s", w.Code, w.Body)
 	}
 	ready := sessionCookie(t, w)
@@ -368,8 +368,12 @@ func TestSignInTakesThePasswordThenACode(t *testing.T) {
 	}
 	// A recovery code signs in instead of the phone, once.
 	c = e.passwordStep(t, testPassword)
-	if w := call(e.g, "POST", "/api/session/code", `{"code":"`+strings.ToUpper(e.recovery[0])+`"}`, c); w.Code != http.StatusNoContent {
-		t.Fatalf("a recovery code: %d", w.Code)
+	w = call(e.g, "POST", "/api/session/code", `{"code":"`+strings.ToUpper(e.recovery[0])+`"}`, c)
+	if got := recoveryLeft(t, w); got != 9 {
+		t.Fatalf("a recovery code left %d", got)
+	}
+	if got := status(t, e.g, sessionCookie(t, w)); got["stage"] != "ready" || got["recovery_left"] != float64(9) {
+		t.Fatalf("signed in with a recovery code: %v", got)
 	}
 	c = e.passwordStep(t, testPassword)
 	if w := call(e.g, "POST", "/api/session/code", `{"code":"`+e.recovery[0]+`"}`, c); w.Code != http.StatusUnauthorized {
@@ -593,8 +597,52 @@ func TestNewRecoveryCodesReplaceTheOldOnes(t *testing.T) {
 	if w := call(g, "POST", "/api/session/code", `{"code":"`+e.recovery[1]+`"}`, c); w.Code != http.StatusUnauthorized {
 		t.Fatalf("an old recovery code: %d", w.Code)
 	}
-	if w := call(g, "POST", "/api/session/code", `{"code":"`+out.Codes[1]+`"}`, c); w.Code != http.StatusNoContent {
-		t.Fatalf("a new recovery code: %d", w.Code)
+	if got := recoveryLeft(t, call(g, "POST", "/api/session/code", `{"code":"`+out.Codes[1]+`"}`, c)); got != 9 {
+		t.Fatalf("a new recovery code left %d", got)
+	}
+}
+
+// recoveryLeft reads the answer to a right recovery code: exactly how many
+// are left, and nothing else.
+func recoveryLeft(t *testing.T, w *httptest.ResponseRecorder) int {
+	t.Helper()
+	var out map[string]int
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/json" || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out) != 1 {
+		t.Fatalf("after a recovery code: %d %q", w.Code, w.Body)
+	}
+	left, ok := out["recovery_left"]
+	if !ok {
+		t.Fatalf("after a recovery code: %q", w.Body)
+	}
+	return left
+}
+
+// A phone code is answered with nothing. A recovery code, at sign-in or for a
+// fresh code, is answered with how many are left, down to none, so the page
+// can say so before they run out.
+func TestARecoveryCodeSaysHowManyAreLeft(t *testing.T) {
+	g, c, e := readyGate(t)
+	w := call(g, "POST", "/api/fresh", `{"code":"`+e.code(t)+`"}`, c)
+	if w.Code != http.StatusNoContent || w.Body.Len() != 0 {
+		t.Fatalf("a fresh phone code: %d %q", w.Code, w.Body)
+	}
+	c = sessionCookie(t, w)
+	w = call(g, "POST", "/api/fresh", `{"code":"`+e.recovery[0]+`"}`, c)
+	if got := recoveryLeft(t, w); got != 9 {
+		t.Fatalf("a fresh recovery code left %d", got)
+	}
+	c = sessionCookie(t, w)
+	if got := status(t, g, c); got["stage"] != "ready" || got["fresh"] != true || got["recovery_left"] != float64(9) {
+		t.Fatalf("after a fresh recovery code: %v", got)
+	}
+	for i := 1; i < 10; i++ {
+		w := call(g, "POST", "/api/session/code", `{"code":"`+e.recovery[i]+`"}`, e.passwordStep(t, testPassword))
+		if got := recoveryLeft(t, w); got != 9-i {
+			t.Fatalf("recovery code %d left %d", i, got)
+		}
+	}
+	if w := call(g, "POST", "/api/fresh", `{"code":"`+e.recovery[9]+`"}`, c); w.Code != http.StatusUnauthorized {
+		t.Fatalf("a spent recovery code for a fresh code: %d %q", w.Code, w.Body)
 	}
 }
 

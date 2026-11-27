@@ -144,6 +144,21 @@
       $("code").value = "";
       $("name").focus();
     };
+    // After a recovery code, the page says how many are left before going
+    // on, so they do not run out unnoticed.
+    const showLeft = (value) => {
+      const left = value && value.recovery_left;
+      if (!Number.isInteger(left) || left < 0 || left > 10) return window.location.assign("/certificates");
+      codeForm.hidden = true;
+      $("title").textContent = "You used a recovery code";
+      $("recovery-left").textContent = left === 0 ? "No recovery code is left." : left === 1 ? "1 recovery code is left." : left + " recovery codes are left.";
+      $("recovery-left").className = "notice " + (left === 0 ? "bad" : left <= 2 ? "weak" : "info");
+      $("recovery-next").textContent = left === 0 ?
+        "Make new codes now. Without them or your phone, the next sign-in needs a setup code from the server." :
+        "Each one works once. Make new codes before they run out. If your phone shows no Rootwell code, set it up again on the Account page with Move to a new phone.";
+      $("recovery-step").hidden = false;
+      $("recovery-new").focus();
+    };
     void send("/api/session", undefined, "GET").then((answer) => {
       if (answer.ok && answer.value && answer.value.stage === "code") showCode();
       if (answer.ok && answer.value && answer.value.stage === "ready") window.location.assign("/certificates");
@@ -164,6 +179,7 @@
       if (!code) return say("Enter the code your phone shows.");
       const answer = await send("/api/session/code", { code });
       if (answer.status === 204) return window.location.assign("/certificates");
+      if (answer.status === 200) return showLeft(answer.value);
       if (answer.status === 409 || (answer.status === 401 && /sign in again/i.test(answer.text))) {
         showPassword();
         return say(/too many/i.test(answer.text) ? "Too many wrong codes. Sign in again." : "Sign in again.");
@@ -257,7 +273,7 @@
   // ── Account ─────────────────────────────────────────────────────────────
   if (mode === "account") {
     let name = "";
-    const left = (n) => { $("codes-left").textContent = n === 1 ? "1 is left." : n + " are left."; };
+    const left = (n) => { $("codes-left").textContent = n === 0 ? "None is left: make new ones." : n === 1 ? "1 is left." : n + " are left."; };
     void send("/api/session", undefined, "GET").then((answer) => {
       if (!answer.ok || !answer.value || answer.value.stage !== "ready") return window.location.assign("/login");
       name = String(answer.value.name || "");

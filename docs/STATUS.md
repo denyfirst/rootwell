@@ -159,6 +159,8 @@ after the first release. The independent review that a release needs
   on the phone, and shows ten recovery codes once.
 - Sign-in on `https://localhost:4180`, or on a name added for the LAN: the
   name and password, then a six-digit code from the phone or a recovery code.
+  After a recovery code, the page says how many are left and offers to make
+  new ones; the fresh-code dialog does the same.
 - **Passkeys**, optional: a passkey added on the Account page signs in in
   place of the phone code, with the device's fingerprint, face or PIN, and
   answers the fresh-code dialog too. It works only on the name it was added

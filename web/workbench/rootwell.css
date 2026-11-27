@@ -439,6 +439,7 @@ button.nav-item { width: 100%; border: 0; background: transparent; cursor: point
 .notice.good { color: var(--strong); background: var(--strong-wash); }
 .notice.bad { color: var(--insecure); background: var(--insecure-wash); }
 .notice.info { color: var(--ink-soft); background: var(--paper-sunk); }
+.notice.weak { color: var(--weak); background: var(--weak-wash); }
 
 /* ── Sign-in ────────────────────────────────────────────────────────────── */
 .signin { display: grid; place-items: center; min-height: 100vh; padding: var(--sp-5); }

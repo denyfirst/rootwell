@@ -365,8 +365,8 @@ func (s *Store) CheckPassword(name, password string) (Account, error) {
 	return r.public(), nil
 }
 
-// sixDigits tells a phone code from a recovery code.
-func sixDigits(code string) bool {
+// PhoneCode tells a phone code from a recovery code: six digits.
+func PhoneCode(code string) bool {
 	if len(code) != 6 {
 		return false
 	}
@@ -391,7 +391,7 @@ func (s *Store) UseCode(name string, revision uint64, code string) (Account, err
 		if r.Revision != revision {
 			return ErrChanged
 		}
-		if sixDigits(code) {
+		if PhoneCode(code) {
 			step, ok := account.CheckCode(r.Seed, code, s.now(), r.LastStep)
 			if !ok {
 				return ErrRefused
